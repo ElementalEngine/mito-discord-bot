@@ -45,23 +45,72 @@ function labelForGroup(kind: 'Player' | 'Team', idx: number): string {
 function formatHeader(args: Readonly<{
   game: 'civ6' | 'civ7';
   gameType: DraftGameType;
-  allocationNote?: string;
   leadersPerGroup: number;
   civsPerGroup?: number;
   startingAge?: string;
 }>): string {
-  const parts: string[] = [];
-  if (args.game === 'civ6') {
-    parts.push(`Game: **civ6** • Type: **${args.gameType}**`);
-    parts.push(`Leaders: **${args.leadersPerGroup}** each`);
-  } else {
-    parts.push(
-      `Game: **civ7** • Type: **${args.gameType}** • Age: **${args.startingAge ?? '—'}**`
-    );
-    parts.push(`Leaders: **${args.leadersPerGroup}** each • Civs: **${args.civsPerGroup ?? 0}** each`);
+  // Keep the header compact for mobile: short labels, minimal lines.
+  const line1 =
+    args.game === 'civ6'
+      ? `civ6 • ${args.gameType}`
+      : `civ7 • ${args.gameType} • ${args.startingAge ?? '—'}`;
+
+  const line2 =
+    args.game === 'civ6'
+      ? `Leaders: ${args.leadersPerGroup} each`
+      : `Leaders: ${args.leadersPerGroup} each • Civs: ${args.civsPerGroup ?? 0} each`;
+
+  return `${line1}\n${line2}`;
+}
+
+function renderBanList(args: Readonly<{
+  keys?: readonly string[];
+  lookup: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+  max?: number;
+}>): { text: string; more: number } | undefined {
+  const { keys, max = 8 } = args;
+  if (!keys || keys.length === 0) return undefined;
+  const shown = keys.slice(0, max).map((k) => renderLine(args.lookup(k), k));
+  return { text: shown.join(', '), more: Math.max(0, keys.length - shown.length) };
+}
+
+function formatBansLine(args: Readonly<{
+  leaderKeys?: readonly string[];
+  civKeys?: readonly string[];
+  leaderLookup: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+  civLookup?: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+}>): string | undefined {
+  const leaders = renderBanList({ keys: args.leaderKeys, lookup: args.leaderLookup });
+  const civs = args.civLookup
+    ? renderBanList({ keys: args.civKeys, lookup: args.civLookup })
+    : undefined;
+
+  if (!leaders && !civs) return undefined;
+
+  // Civ6: bans are leaders-only, keep the line short.
+  if (leaders && !args.civLookup) {
+    return `Bans: ${leaders.text}${leaders.more ? ` (+${leaders.more})` : ''}`;
   }
-  if (args.allocationNote) parts.push(`Note: ${args.allocationNote}`);
-  return parts.join('\n');
+
+  const parts: string[] = [];
+  if (leaders) parts.push(`Leaders ${leaders.text}${leaders.more ? ` (+${leaders.more})` : ''}`);
+  if (civs) parts.push(`Civs ${civs.text}${civs.more ? ` (+${civs.more})` : ''}`);
+  return `Bans: ${parts.join(' • ')}`;
+}
+
+function formatIgnoredLine(args: Readonly<{ leader?: readonly string[]; civ?: readonly string[] }>): string | undefined {
+  const leader = args.leader?.filter(Boolean) ?? [];
+  const civ = args.civ?.filter(Boolean) ?? [];
+  if (leader.length === 0 && civ.length === 0) return undefined;
+
+  if (leader.length && civ.length === 0) {
+    return `Ignored: ${leader.slice(0, 8).join(', ')}${leader.length > 8 ? ` (+${leader.length - 8})` : ''}`;
+  }
+
+  const parts: string[] = [];
+  if (leader.length) parts.push(`Leaders ${leader.slice(0, 8).join(', ')}${leader.length > 8 ? ` (+${leader.length - 8})` : ''}`);
+  if (civ.length) parts.push(`Civs ${civ.slice(0, 8).join(', ')}${civ.length > 8 ? ` (+${civ.length - 8})` : ''}`);
+  return `Ignored: ${parts.join(' • ')}`;
 }
 
 function renderLine(meta: Readonly<{ gameId: string; emojiId?: string }> | undefined, fallbackKey: string): string {
@@ -72,27 +121,6 @@ function renderLine(meta: Readonly<{ gameId: string; emojiId?: string }> | undef
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${name}`;
 }
 
-function renderBans(args: Readonly<{
-  label: string;
-  keys?: readonly string[];
-  lookup: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
-  max?: number;
-}>): string | undefined {
-  const { keys, max = 12 } = args;
-  if (!keys || keys.length === 0) return undefined;
-  const shown = keys.slice(0, max).map((k) => renderLine(args.lookup(k), k));
-  const suffix = keys.length > max ? ` (+${keys.length - max} more)` : '';
-  return `${args.label}: ${shown.join(', ')}${suffix}`;
-}
-
-function renderIgnored(args: Readonly<{ label: string; items?: readonly string[]; max?: number }>): string | undefined {
-  const { items, max = 12 } = args;
-  if (!items || items.length === 0) return undefined;
-  const shown = items.slice(0, max).join(', ');
-  const suffix = items.length > max ? ` (+${items.length - max} more)` : '';
-  return `${args.label}: ${shown}${suffix}`;
-}
-
 export function buildCiv6DraftEmbed(
   draft: Civ6DraftResult
 ): EmbedBuilder {
@@ -100,22 +128,17 @@ export function buildCiv6DraftEmbed(
     game: 'civ6',
     gameType: draft.gameType,
     leadersPerGroup: draft.allocation.leadersPerGroup,
-    allocationNote: draft.allocation.note,
   });
 
   const lines: string[] = [header];
 
-  const bannedLeaders = renderBans({
-    label: 'Banned leaders',
-    keys: draft.allocation.bannedLeaders,
-    lookup: lookupCiv6LeaderMeta,
+  const bansLine = formatBansLine({
+    leaderKeys: draft.allocation.bannedLeaders,
+    leaderLookup: lookupCiv6LeaderMeta,
   });
-  const ignoredLeaders = renderIgnored({
-    label: 'Ignored leader bans',
-    items: draft.allocation.ignoredLeaderBans,
-  });
-  if (bannedLeaders) lines.push(bannedLeaders);
-  if (ignoredLeaders) lines.push(ignoredLeaders);
+  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans });
+  if (bansLine) lines.push(bansLine);
+  if (ignoredLine) lines.push(ignoredLine);
   for (let i = 0; i < draft.groups.length; i++) {
     lines.push('');
     lines.push(`**${labelForGroup(draft.allocation.groupKind, i)}**`);
@@ -139,33 +162,22 @@ export function buildCiv7DraftEmbed(
     startingAge: draft.startingAge,
     leadersPerGroup: draft.allocation.leadersPerGroup,
     civsPerGroup: draft.allocation.civsPerGroup,
-    allocationNote: draft.allocation.note,
   });
 
   const lines: string[] = [header];
 
-  const bannedLeaders = renderBans({
-    label: 'Banned leaders',
-    keys: draft.allocation.bannedLeaders,
-    lookup: lookupCiv7LeaderMeta,
+  const bansLine = formatBansLine({
+    leaderKeys: draft.allocation.bannedLeaders,
+    civKeys: draft.allocation.bannedCivs,
+    leaderLookup: lookupCiv7LeaderMeta,
+    civLookup: lookupCiv7CivMeta,
   });
-  const bannedCivs = renderBans({
-    label: 'Banned civs',
-    keys: draft.allocation.bannedCivs,
-    lookup: lookupCiv7CivMeta,
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+    civ: draft.allocation.ignoredCivBans,
   });
-  const ignoredLeaders = renderIgnored({
-    label: 'Ignored leader bans',
-    items: draft.allocation.ignoredLeaderBans,
-  });
-  const ignoredCivs = renderIgnored({
-    label: 'Ignored civ bans',
-    items: draft.allocation.ignoredCivBans,
-  });
-  if (bannedLeaders) lines.push(bannedLeaders);
-  if (bannedCivs) lines.push(bannedCivs);
-  if (ignoredLeaders) lines.push(ignoredLeaders);
-  if (ignoredCivs) lines.push(ignoredCivs);
+  if (bansLine) lines.push(bansLine);
+  if (ignoredLine) lines.push(ignoredLine);
 
   for (let i = 0; i < draft.groups.length; i++) {
     const g = draft.groups[i];
