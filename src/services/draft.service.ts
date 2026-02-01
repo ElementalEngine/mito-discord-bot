@@ -46,9 +46,12 @@ const LEADER_TYPES: readonly LeaderType[] = [
 ];
 
 type Civ6LeaderKey = keyof typeof CIV6_LEADERS;
+type Civ7LeaderKey = keyof typeof CIV7_LEADERS;
+type Civ7CivKey = keyof typeof CIV7_CIVS;
 
-// Capture both emoji name + id so we can resolve bans by name (server emoji ids won't match app ids).
+// Capture name + id. We resolve bans by emoji name (matches meta.gameId) because server emoji IDs may differ.
 const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
+const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
 const SNOWFLAKE_RE = /^\d{15,22}$/;
 
 function shuffle<T>(arr: T[]): void {
@@ -60,32 +63,17 @@ function shuffle<T>(arr: T[]): void {
 
 function tokenizeBans(raw?: string): string[] {
   if (!raw) return [];
-  const tokens = raw
+  return raw
     .split(/[\n,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  // Also support pasting whitespace-separated emoji mentions/ids
-  const expanded: string[] = [];
-  for (const t of tokens) {
-    const parts = t.split(/\s+/).filter(Boolean);
-    expanded.push(...parts);
-  }
-  return expanded;
 }
 
-function normalizeToken(raw: string): string {
-  const t = raw.trim();
-  if (t.startsWith(':') && t.endsWith(':') && t.length > 2) {
-    return t.slice(1, -1);
-  }
-  return t;
-}
-
-function buildLeaderBanIndex(
-  leaders: Readonly<Record<string, LeaderMeta>>
-): ReadonlyMap<string, string> {
-  const map = new Map<string, string>();
-  for (const [key, meta] of Object.entries(leaders)) {
+function buildLeaderBanIndex<K extends string>(
+  leaders: Readonly<Record<K, LeaderMeta>>
+): ReadonlyMap<string, K> {
+  const map = new Map<string, K>();
+  for (const [key, meta] of Object.entries(leaders) as [K, LeaderMeta][]) {
     map.set(key.toLowerCase(), key);
     map.set(meta.gameId.toLowerCase(), key);
     const emojiId = meta.emojiId?.trim();
@@ -94,11 +82,11 @@ function buildLeaderBanIndex(
   return map;
 }
 
-function buildCivBanIndex(
-  civs: Readonly<Record<string, CivMeta>>
-): ReadonlyMap<string, string> {
-  const map = new Map<string, string>();
-  for (const [key, meta] of Object.entries(civs)) {
+function buildCivBanIndex<K extends string>(
+  civs: Readonly<Record<K, CivMeta>>
+): ReadonlyMap<string, K> {
+  const map = new Map<string, K>();
+  for (const [key, meta] of Object.entries(civs) as [K, CivMeta][]) {
     map.set(key.toLowerCase(), key);
     map.set(meta.gameId.toLowerCase(), key);
     const emojiId = meta.emojiId?.trim();
@@ -107,40 +95,53 @@ function buildCivBanIndex(
   return map;
 }
 
-function resolveBanKeys(
+type BanResolution<K extends string> = Readonly<{
+  banned: ReadonlySet<K>;
+  accepted: readonly K[];
+  ignored: readonly string[];
+}>;
+
+function resolveEmojiBans<K extends string>(
   tokens: readonly string[],
-  index: ReadonlyMap<string, string>,
+  index: ReadonlyMap<string, K>,
   label: string
-): Set<string> {
-  const banned = new Set<string>();
-  const unknown: string[] = [];
+): BanResolution<K> {
+  const banned = new Set<K>();
+  const accepted: K[] = [];
+  const ignored: string[] = [];
 
   for (const raw of tokens) {
-    const token = normalizeToken(raw);
-
-    // Prefer resolving custom emoji mentions by *name* (mapped to gameId), since IDs can differ.
+    const token = raw.trim();
     const mention = EMOJI_MENTION_RE.exec(token);
-    const mentionName = mention?.[1];
-    const mentionId = mention?.[2];
+    const colon = EMOJI_COLON_RE.exec(token);
 
-    const key =
-      (mentionName ? index.get(mentionName.toLowerCase()) : undefined) ??
-      (mentionId ? index.get(mentionId) : undefined) ??
-      (SNOWFLAKE_RE.test(token) ? index.get(token) : undefined) ??
-      index.get(token.toLowerCase());
-    if (!key) {
-      unknown.push(mentionName ? `:${mentionName}:` : token);
+    const name = mention?.[1] ?? colon?.[1] ?? null;
+    const id = mention?.[2] ?? null;
+
+    if (!name) {
+      ignored.push(`${token} (invalid ${label} emoji)`);
       continue;
     }
+
+    const key =
+      index.get(name.toLowerCase()) ??
+      (id ? index.get(id) : undefined);
+
+    if (!key) {
+      ignored.push(`${name} (unknown ${label})`);
+      continue;
+    }
+
+    if (banned.has(key)) {
+      ignored.push(`${name} (duplicate)`);
+      continue;
+    }
+
     banned.add(key);
+    accepted.push(key);
   }
 
-  if (unknown.length > 0) {
-    const shown = unknown.slice(0, 5).join(', ');
-    const suffix = unknown.length > 5 ? ` (+${unknown.length - 5} more)` : '';
-    throw new DraftError('VALIDATION', `Unknown ${label} ban(s): ${shown}${suffix}`);
-  }
-  return banned;
+  return { banned, accepted, ignored };
 }
 
 function computeLayout(args: Readonly<{
@@ -357,7 +358,8 @@ export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
   });
 
   const leaderIndex = buildLeaderBanIndex(CIV6_LEADERS);
-  const banned = resolveBanKeys(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
+  const leaderBans = resolveEmojiBans(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
+  const banned = leaderBans.banned;
 
   const allLeaderKeys = Object.keys(CIV6_LEADERS) as Civ6LeaderKey[];
   const available = allLeaderKeys.filter((k) => !banned.has(k));
@@ -378,7 +380,14 @@ export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
   return {
     gameVersion: 'civ6',
     gameType: req.gameType,
-    allocation: { groupKind, groupCount, leadersPerGroup, note },
+    allocation: {
+      groupKind,
+      groupCount,
+      leadersPerGroup,
+      note,
+      bannedLeaders: leaderBans.accepted,
+      ignoredLeaderBans: leaderBans.ignored,
+    },
     groups,
   };
 }
@@ -394,14 +403,26 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
   const leaderIndex = buildLeaderBanIndex(CIV7_LEADERS);
   const civIndex = buildCivBanIndex(CIV7_CIVS);
 
-  const bannedLeaders = resolveBanKeys(
-    tokenizeBans(req.leaderBansRaw),
-    leaderIndex,
-    'leader'
-  );
-  const bannedCivs = resolveBanKeys(tokenizeBans(req.civBansRaw), civIndex, 'civ');
+  const leaderBans = resolveEmojiBans(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
+  const civBansAll = resolveEmojiBans(tokenizeBans(req.civBansRaw), civIndex, 'civ');
 
-  const allLeaderKeys = Object.keys(CIV7_LEADERS);
+  const bannedLeaders = leaderBans.banned;
+
+  // Civ bans are only applied within the selected age pool.
+  const bannedCivs = new Set<Civ7CivKey>();
+  const acceptedCivs: Civ7CivKey[] = [];
+  const ignoredCivBans: string[] = [...civBansAll.ignored];
+  for (const key of civBansAll.accepted) {
+    const meta = CIV7_CIVS[key];
+    if (meta.agePool !== req.startingAge) {
+      ignoredCivBans.push(`${meta.gameId} (not in ${req.startingAge})`);
+      continue;
+    }
+    bannedCivs.add(key);
+    acceptedCivs.push(key);
+  }
+
+  const allLeaderKeys = Object.keys(CIV7_LEADERS) as Civ7LeaderKey[];
   const leaderPool = allLeaderKeys.filter((k) => !bannedLeaders.has(k));
 
   const leaderSizing = computeLeadersPerGroup({
@@ -411,7 +432,7 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
     remainingLeaderCount: leaderPool.length,
   });
 
-  const civPool = Object.entries(CIV7_CIVS)
+  const civPool = (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][]) 
     .filter(([key, meta]) => meta.agePool === req.startingAge && !bannedCivs.has(key))
     .map(([key]) => key);
 
@@ -467,6 +488,10 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
       leadersPerGroup: leaderSizing.leadersPerGroup,
       civsPerGroup,
       note: allocationNote,
+      bannedLeaders: leaderBans.accepted,
+      ignoredLeaderBans: leaderBans.ignored,
+      bannedCivs: acceptedCivs,
+      ignoredCivBans,
     },
     groups,
   };

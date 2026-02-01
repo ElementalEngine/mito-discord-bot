@@ -27,7 +27,9 @@ export type DraftAllocation = Readonly<{
   civsPerGroup?: number;
   note?: string;
   bannedLeaders?: readonly string[];
+  ignoredLeaderBans?: readonly string[];
   bannedCivs?: readonly string[];
+  ignoredCivBans?: readonly string[];
 }>;
 
 export type DraftGroup = Readonly<{
