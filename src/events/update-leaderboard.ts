@@ -2,7 +2,7 @@ import { Events } from 'discord.js';
 import type { Client, GuildBasedChannel, Message } from 'discord.js';
 import { getLeaderboardRanking } from "../services/reporting.service.js";
 import type { Leaderboard } from "../types/leaderboard.js";
-import { leaderboardsList } from "./leaderboards-list.js";
+import { leaderboardsList } from "./../data/leaderboards-list.js";
 import type { LeaderboardRanking } from '../api/types.js';
 
 export const name = Events.ClientReady;
@@ -108,5 +108,6 @@ async function updateLeaderboards(client: Client): Promise<void> {
 
 export async function execute(client: Client): Promise<void> {
   // updating leaderboards every hour
+  updateLeaderboards(client);
   setInterval(updateLeaderboards, 60 * 60 * 1000, client);
 }
