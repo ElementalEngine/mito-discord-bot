@@ -76,3 +76,45 @@ export type LeaderboardRanking = {
   player_rankings: PlayerRanking[];
   last_updated: number;
 }
+
+// ── Stats API (v1)
+
+export type CivVersion = 'civ6' | 'civ7';
+export type StatsGameType = 'realtime' | 'cloud';
+
+export type StatRow = {
+  mu: number;
+  sigma: number;
+  games: number;
+  wins: number;
+  first: number;
+  subbedIn: number;
+  subbedOut: number;
+  lastModified?: string | null;
+};
+
+export type StatSet = {
+  ffa?: StatRow | null;
+  teamer?: StatRow | null;
+  duel?: StatRow | null;
+};
+
+export type UserStatsResponse = {
+  discord_id: string;
+  civ_version: CivVersion;
+  game_type: StatsGameType;
+  lifetime: StatSet;
+  season: StatSet;
+};
+
+export type BatchStatsRequest = {
+  civ_version: CivVersion;
+  game_type: StatsGameType;
+  discord_ids: string[];
+};
+
+export type BatchStatsResponse = {
+  civ_version: CivVersion;
+  game_type: StatsGameType;
+  results: UserStatsResponse[];
+};

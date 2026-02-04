@@ -1,6 +1,14 @@
 import { config } from "../config.js";
 import { ApiError } from "./errors.js";
-import type { UploadSaveResponse, GetMatchResponse, LeaderboardRanking } from "./types.js";
+import type {
+  UploadSaveResponse,
+  GetMatchResponse,
+  LeaderboardRanking,
+  UserStatsResponse,
+  BatchStatsResponse,
+  CivVersion,
+  StatsGameType,
+} from "./types.js";
 
 type FetchLike = typeof fetch;
 
@@ -181,6 +189,40 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as LeaderboardRanking;
+  }
+
+  async getUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<UserStatsResponse> {
+    const params = new URLSearchParams({
+      civ_version: civVersion,
+      game_type: gameType,
+      discord_id: discordId,
+    });
+
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/user?${params.toString()}`, {
+      method: "GET",
+    });
+
+    return (await this.parseJson(res)) as UserStatsResponse;
+  }
+
+  async getUsersStatsBatch(
+    civVersion: CivVersion,
+    gameType: StatsGameType,
+    discordIds: string[]
+  ): Promise<BatchStatsResponse> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/batch`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        civ_version: civVersion,
+        game_type: gameType,
+        discord_ids: discordIds,
+      }),
+    });
+
+    return (await this.parseJson(res)) as BatchStatsResponse;
   }
 
   private async fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, attempts = 3): Promise<Response> {
