@@ -13,12 +13,16 @@ export const EMOJI_CONFIRM       = '✅';
 export const EMOJI_ERROR         = '⚠️';
 export const EMOJI_FAIL          = '‼️';
 export const EMOJI_PARTICIPANTS  = '👥';
+export const EMOJI_ROOM_RANKINGS = '📊';
 export const EMOJI_FULL_G_REPORT = '📜';
 export const EMOJI_QUITTER       = '🏳️';
 export const EMOJI_REPORT        = '🧾';
 export const EMOJI_FIRST_PLACE   = '🥇';
 export const EMOJI_SECOND_PLACE  = '🥈';
 export const EMOJI_THIRD_PLACE   = '🥉';
+// - Custom emojis (use format `<:name:id>` in messages)
+export const EMOJI_CIV6 = '<:civ6:1126980869014410240>';
+export const EMOJI_CIV7 = '<:civ7:1126980867504417340>';
 
 // ── Civilization save rules 
 export const CIV_SAVE = {
