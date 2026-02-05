@@ -61,10 +61,10 @@ const discord = {
     civ7Commands: env('CHANNEL_CIV7_COMMANDS_ID'),
     cloudCommands: env('CHANNEL_CLOUD_COMMANDS_ID'),
     // Vote + Draft channels
-    civ6Vote: env('CHANNEL_CIV6_VOTE_ID'),
-    civ7Vote: env('CHANNEL_CIV7_VOTE_ID'),
-    civ6Draft: env('CHANNEL_CIV6_DRAFT_ID'),
-    civ7Draft: env('CHANNEL_CIV7_DRAFT_ID'),
+    civ6ffaVote: env('CHANNEL_CIV6_FFA_VOTE_ID'),
+    civ6teamerVote: env('CHANNEL_CIV6_TEAMER_VOTE_ID'),
+    civ7ffaVote: env('CHANNEL_CIV7_FFA_VOTE_ID'),
+    civ7teamerVote: env('CHANNEL_CIV7_TEAMER_VOTE_ID'),
     // Civ6 + Civ7 realtime uploads
     civ6realtimeUploads: env('CHANNEL_CIV6_REALTIME_UPLOADS_ID'),
     civ7realtimeUploads: env('CHANNEL_CIV7_REALTIME_UPLOADS_ID'),
