@@ -28,8 +28,8 @@ const ACCESS_POLICY = {
   allowDeveloperOverride: true,
 } as const;
 
-const CIV_VERSIONS = ['civ6', 'civ7'] as const;
-const GAME_TYPES = ['realtime', 'cloud'] as const;
+const CIV_VERSIONS = ['civ6', 'civ7'] satisfies readonly CivVersion[];
+const GAME_TYPES = ['realtime', 'cloud'] satisfies readonly StatsGameType[];
 
 async function replyError(interaction: ChatInputCommandInteraction, msg: string): Promise<void> {
   const base = { content: msg, allowedMentions: { parse: [] as const } } as const;
@@ -86,14 +86,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   try {
     if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
 
-    const v = interaction.options.getString('version', true).toLowerCase();
-    if (!CIV_VERSIONS.includes(v as CivVersion)) {
+    const civVersion = interaction.options.getString('version', true) as CivVersion;
+    if (!CIV_VERSIONS.includes(civVersion)) {
       await replyError(interaction, `${EMOJI_ERROR} Invalid version.`);
       return;
     }
 
-    const gt = interaction.options.getString('game-type', true).toLowerCase();
-    if (!GAME_TYPES.includes(gt as StatsGameType)) {
+    const gameType = interaction.options.getString('game-type', true) as StatsGameType;
+    if (!GAME_TYPES.includes(gameType)) {
       await replyError(interaction, `${EMOJI_ERROR} Invalid game-type.`);
       return;
     }
@@ -113,8 +113,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const svc = new StatsService();
     const resp = await svc.getUserStats({
-      civVersion: v as CivVersion,
-      gameType: gt as StatsGameType,
+      civVersion,
+      gameType,
       discordId: targetId,
     });
 
