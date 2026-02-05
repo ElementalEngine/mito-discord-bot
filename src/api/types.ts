@@ -79,7 +79,7 @@ export type LeaderboardRanking = {
 
 // ── Stats API (v1)
 
-export type CivVersion = 'civ6' | 'civ7';
+export type CivVersion = Lowercase<Edition>; 
 export type StatsGameType = 'realtime' | 'cloud';
 
 export type StatRow = {
