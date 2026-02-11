@@ -1,5 +1,6 @@
 import client, { initClient } from './client.js';
 import { config } from './config.js';
+import { stopJobs } from './jobs/index.js';
 
 async function main(): Promise<void> {
   try {
@@ -19,6 +20,7 @@ void main();
 const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   try {
     console.log(`🛑 Received ${signal}. Shutting down gracefully...`);
+    stopJobs();
 
     const forceExitTimer = setTimeout(() => {
       console.error('🛑 Forced shutdown after timeout');
