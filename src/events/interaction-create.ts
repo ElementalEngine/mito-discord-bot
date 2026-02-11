@@ -57,8 +57,14 @@ async function safeEphemeral(
 }
 
 export async function execute(interaction: Interaction): Promise<void> {
-  if (!interaction.isChatInputCommand()) return;
   if (!shouldHandle(interaction.id)) return;
+
+  // Slash commands
+  if (!interaction.isChatInputCommand()) {
+    // Buttons / selects / modals are handled here when introduced.
+    // Keep this handler lean so interaction logic lives outside event files.
+    return;
+  }
 
   const command = interaction.client.commands.get(interaction.commandName);
   if (!command) {
