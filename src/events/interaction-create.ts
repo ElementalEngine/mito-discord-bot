@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
+import { handleSecretVoteButton } from '../interactions/button/secretvote.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -58,6 +59,13 @@ async function safeEphemeral(
 
 export async function execute(interaction: Interaction): Promise<void> {
   if (!shouldHandle(interaction.id)) return;
+
+  // Buttons
+  if (interaction.isButton()) {
+    const handled = await handleSecretVoteButton(interaction);
+    if (handled) return;
+    return;
+  }
 
   // Slash commands
   if (!interaction.isChatInputCommand()) {
