@@ -53,26 +53,30 @@ async function safeEphemeral(
 
     await interaction.reply(payload);
   } catch {
-
+    // swallow: interaction may already be acknowledged/expired
   }
 }
 
 export async function execute(interaction: Interaction): Promise<void> {
   if (!shouldHandle(interaction.id)) return;
-
-  // Buttons
   if (interaction.isButton()) {
-    const handled = await handleSecretVoteButton(interaction);
-    if (handled) return;
+    try {
+      if (await handleSecretVoteButton(interaction)) return;
+    } catch (err) {
+      console.error('Button handler failed', {
+        err,
+        customId: interaction.customId,
+        interactionId: interaction.id,
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        userId: interaction.user.id,
+      });
+    }
     return;
   }
 
   // Slash commands
-  if (!interaction.isChatInputCommand()) {
-    // Buttons / selects / modals are handled here when introduced.
-    // Keep this handler lean so interaction logic lives outside event files.
-    return;
-  }
+  if (!interaction.isChatInputCommand()) return;
 
   const command = interaction.client.commands.get(interaction.commandName);
   if (!command) {

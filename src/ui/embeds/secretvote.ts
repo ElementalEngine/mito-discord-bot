@@ -4,66 +4,78 @@ import type { SecretVoteStatus } from '../../types/secretvote.js';
 
 const MAX_FIELD = 1024;
 
-function clampField(text: string): string {
-  if (text.length <= MAX_FIELD) return text;
-  return `${text.slice(0, MAX_FIELD - 1)}…`;
-}
-
-function clampDetails(text: string): string {
-  const t = text.trim();
-  if (t.length <= 900) return t;
-  return `${t.slice(0, 899)}…`;
+function clamp(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
 }
 
 function formatVoterLines(status: SecretVoteStatus): string {
   const lines = status.voters.map((v) => {
-    const isVoted = status.votedIds.has(v.id);
+    const isAwaiting = status.awaitingIds.has(v.id);
     const label = status.isFinal
-      ? status.awaitingIds.has(v.id)
-        ? 'Auto-YES (no vote)'
+      ? isAwaiting
+        ? 'No response (counted as YES)'
         : 'Voted'
-      : isVoted
+      : status.votedIds.has(v.id)
         ? 'Voted'
         : 'Awaiting vote';
 
     return `• <@${v.id}> — ${label}`;
   });
 
-  return clampField(lines.join('\n') || '—');
+  return clamp(lines.join('\n') || '—', MAX_FIELD);
 }
 
 function formatNonVoters(nonVoterIds: readonly string[]): string {
   if (nonVoterIds.length === 0) return '—';
-  return clampField(nonVoterIds.map((id) => `• <@${id}>`).join('\n'));
+  return clamp(nonVoterIds.map((id) => `• <@${id}>`).join('\n'), MAX_FIELD);
 }
 
 export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
   const startedTs = Math.floor(status.startedAtMs / 1000);
   const endsTs = Math.floor(status.endsAtMs / 1000);
 
+  const lines: string[] = [
+    `**Action:** ${status.action}`,
+    `**Turn:** ${status.turn}`,
+    '',
+    `**Details:** ${clamp(status.details.trim() || '—', 900)}`,
+    '',
+    `Started by <@${status.hostId}>`,
+  ];
+
+  if (status.isFinal) {
+    // No relative timestamps in the final state (prevents “Ends X hours ago”).
+    lines.push(`Vote ended • Ended at <t:${endsTs}:f>`);
+  } else {
+    lines.push(`Voting ends <t:${endsTs}:R> (started <t:${startedTs}:R>)`);
+  }
+
   const e = new EmbedBuilder()
     .setTitle('🔒 Secret Vote')
-    .setDescription(
-      [
-        `**Action:** ${status.action}`,
-        `**Turn:** ${status.turn}`,
-        '',
-        `**Details:** ${clampDetails(status.details)}`,
-        '',
-        `Started by <@${status.hostId}>`,
-        `Ends <t:${endsTs}:R> (started <t:${startedTs}:R>)`,
-      ].join('\n')
-    )
+    .setDescription(lines.join('\n'))
     .addFields({ name: 'Voters', value: formatVoterLines(status) });
 
   if (status.isFinal && status.result) {
-    const { yes, no, outcome, nonVoterIds } = status.result;
+    const { yes, no, outcome, nonVoterIds, rule, notes } = status.result;
     e.addFields(
-      { name: 'Results', value: `YES: **${yes}**\nNO: **${no}**\nOutcome: **${outcome}**` },
-      { name: 'Auto-YES (no vote)', value: formatNonVoters(nonVoterIds) }
+      {
+        name: 'Results',
+        value: `YES: **${yes}**\nNO: **${no}**\nOutcome: **${outcome}**\nRule: ${rule}`,
+      },
+      {
+        name: 'No response (counted as YES)',
+        value: formatNonVoters(nonVoterIds),
+      }
     );
+
+    if (notes && notes.length > 0) {
+      e.addFields({ name: 'Notes', value: clamp(notes.join('\n'), MAX_FIELD) });
+    }
   } else {
-    e.setFooter({ text: 'Votes are private (DM). No vote = YES at timeout.' });
+    e.setFooter({
+      text: 'Voting is by DM. If you don’t vote before the timer ends, you’ll be counted as YES.',
+    });
   }
 
   return e;
