@@ -3,10 +3,22 @@ import { EmbedBuilder } from 'discord.js';
 import type { SecretVoteStatus } from '../../types/secretvote.js';
 
 const MAX_FIELD = 1024;
+const VOTE_DURATION_MS = 2 * 60_000;
 
 function clamp(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
+}
+
+function fmt2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function formatElapsedMs(elapsedMs: number): string {
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${fmt2(minutes)}:${fmt2(seconds)}`;
 }
 
 function formatVoterLines(status: SecretVoteStatus): string {
@@ -14,7 +26,7 @@ function formatVoterLines(status: SecretVoteStatus): string {
     const isAwaiting = status.awaitingIds.has(v.id);
     const label = status.isFinal
       ? isAwaiting
-        ? 'No response (counted as YES)'
+        ? 'No response'
         : 'Voted'
       : status.votedIds.has(v.id)
         ? 'Voted'
@@ -32,8 +44,12 @@ function formatNonVoters(nonVoterIds: readonly string[]): string {
 }
 
 export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
-  const startedTs = Math.floor(status.startedAtMs / 1000);
-  const endsTs = Math.floor(status.endsAtMs / 1000);
+  const nowMs = status.nowMs ?? Date.now();
+  const elapsedMs = Math.min(
+    Math.max(nowMs - status.startedAtMs, 0),
+    VOTE_DURATION_MS
+  );
+  const elapsed = formatElapsedMs(elapsedMs);
 
   const lines: string[] = [
     `**Action:** ${status.action}`,
@@ -45,10 +61,10 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
   ];
 
   if (status.isFinal) {
-    // No relative timestamps in the final state (prevents “Ends X hours ago”).
-    lines.push(`Vote ended • Ended at <t:${endsTs}:f>`);
+    lines.push('Vote ended');
   } else {
-    lines.push(`Voting ends <t:${endsTs}:R> (started <t:${startedTs}:R>)`);
+    lines.push('You have 2 minutes to vote.');
+    lines.push(`Elapsed: \`${elapsed} / 02:00\``);
   }
 
   const e = new EmbedBuilder()
@@ -74,7 +90,7 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
     }
   } else {
     e.setFooter({
-      text: 'Voting is by DM. If you don’t vote before the timer ends, you’ll be counted as YES.',
+      text: 'Voting happens in DMs. If you don’t vote before the timer ends, you’ll be counted as YES.',
     });
   }
 

@@ -1,62 +1,47 @@
-import {
-  MessageFlags,
-  type ButtonInteraction,
-  type InteractionReplyOptions,
-} from 'discord.js';
+import { MessageFlags, type ButtonInteraction } from 'discord.js';
 
 import { EMOJI_FAIL } from '../../config/constants.js';
 import { recordSecretVoteChoice } from '../../services/secretvote.service.js';
-import type { SecretVoteButtonId, SecretVoteChoice } from '../../types/secretvote.js';
+import type {
+  SecretVoteButtonId,
+  SecretVoteChoice,
+} from '../../types/secretvote.js';
 
-export function parseSecretVoteCustomId(
-  customId: string
-): SecretVoteButtonId | null {
+function parseCustomId(customId: string): SecretVoteButtonId | null {
+  // sv:<voteId>:<voterId>:YES|NO
   if (!customId.startsWith('sv:')) return null;
   const parts = customId.split(':');
   if (parts.length !== 4) return null;
+
   const voteId = parts[1];
   const voterId = parts[2];
   const choice = parts[3] as SecretVoteChoice;
+
   if (!voteId || !voterId) return null;
   if (choice !== 'YES' && choice !== 'NO') return null;
+
   return { voteId, voterId, choice };
 }
 
-async function safeUpdateOrReply(
+async function replyNotice(
   interaction: ButtonInteraction,
-  payload: { content: string; components?: [] }
+  content: string
 ): Promise<void> {
-  const base = {
-    content: payload.content,
-    components: payload.components ?? ([] as const),
-    allowedMentions: { parse: [] as const },
-  } as const;
+  const base = { content, allowedMentions: { parse: [] as const } } as const;
 
   try {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.update(base);
-      return;
-    }
-  } catch {
-    // fall through
-  }
-
-  const withFlags: InteractionReplyOptions = interaction.inGuild()
-    ? { ...base, flags: MessageFlags.Ephemeral }
-    : base;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(
+        interaction.inGuild()
+          ? { ...base, flags: MessageFlags.Ephemeral }
+          : base
+      );
       return;
     }
 
-    if (interaction.replied) {
-      await interaction.followUp(withFlags);
-      return;
-    }
-
-    await interaction.reply(withFlags);
+    await interaction.reply(
+      interaction.inGuild() ? { ...base, flags: MessageFlags.Ephemeral } : base
+    );
   } catch {
     // ignore
   }
@@ -65,14 +50,11 @@ async function safeUpdateOrReply(
 export async function handleSecretVoteButton(
   interaction: ButtonInteraction
 ): Promise<boolean> {
-  const parsed = parseSecretVoteCustomId(interaction.customId);
+  const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
 
   if (interaction.user.id !== parsed.voterId) {
-    await safeUpdateOrReply(interaction, {
-      content: `${EMOJI_FAIL} This vote button isn't for you.`,
-      components: [],
-    });
+    await replyNotice(interaction, `${EMOJI_FAIL} This vote button isn't for you.`);
     return true;
   }
 
@@ -83,18 +65,47 @@ export async function handleSecretVoteButton(
   );
 
   if (!res.ok) {
-    await safeUpdateOrReply(interaction, {
-      content: res.message,
-      components: [],
-    });
+    // Don't overwrite the DM vote message on errors (prevents conflicting final text).
+    await replyNotice(interaction, res.message);
+    try {
+      if (interaction.message.editable) {
+        await interaction.message.edit({
+          components: [],
+          allowedMentions: { parse: [] as const },
+        });
+      }
+    } catch {
+      // ignore
+    }
     return true;
   }
 
-  const content = res.isComplete
-    ? '✅ Vote recorded. Vote ended.'
-    : '✅ Vote recorded. Thanks!';
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.update({
+        content: `You voted: ${res.choice} ✅ Vote recorded.`,
+        components: [],
+        allowedMentions: { parse: [] as const },
+      });
+      return true;
+    }
+  } catch {
+    // fall through
+  }
 
-  await safeUpdateOrReply(interaction, { content, components: [] });
+  try {
+    if (interaction.message.editable) {
+      await interaction.message.edit({
+        content: `You voted: ${res.choice} ✅ Vote recorded.`,
+        components: [],
+        allowedMentions: { parse: [] as const },
+      });
+      return true;
+    }
+  } catch {
+    // ignore
+  }
 
+  await replyNotice(interaction, `You voted: ${res.choice} ✅ Vote recorded.`);
   return true;
 }

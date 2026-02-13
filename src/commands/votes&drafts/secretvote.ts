@@ -171,14 +171,12 @@ export async function execute(
     }
 
     const summary = [
-      '✅ **Secret vote started** (2 minutes)',
-      `**Action:** ${action} • **Turn:** ${turn}`,
-      `**Details:** ${clampLine(details, 800)}`,
-      `**Started by:** <@${interaction.user.id}>`,
-      '',
-      `Voting happens in **DMs** for each voter.`,
-      `Public status + results will post in <#${interaction.channelId}>.`,
-      `Status message: ${res.publicMessageUrl}`,
+      '✅ Secret vote started (2 minutes)',
+      `Action: ${action} • Turn: ${turn}`,
+      `Details: ${clampLine(details, 800)}`,
+      `Started by: <@${interaction.user.id}>`,
+      'Voting happens in DMs for each voter.',
+      `Status + results are in: <#${interaction.channelId}> • ${res.publicMessageUrl}`,
     ].join('\n');
 
     await replyEphemeral(interaction, summary);

@@ -37,6 +37,8 @@ export type SecretVoteStatus = Readonly<{
   hostId: string;
   startedAtMs: number;
   endsAtMs: number;
+  /** Optional render time for deterministic timer display. */
+  nowMs?: number;
   voters: readonly { id: string; displayName: string }[];
   votedIds: ReadonlySet<string>;
   awaitingIds: ReadonlySet<string>;
