@@ -19,7 +19,11 @@ import type {
 } from '../types/secretvote.js';
 
 const VOTE_DURATION_MS = 2 * 60_000;
-const PUBLIC_TICK_MS = 10_000;
+const FAST_TICK_WINDOW_MS = 10_000;
+const FAST_TICK_MS = 1_000;
+const STEADY_TICK_MS = 2_000;
+
+const DM_CONCURRENCY = 10;
 
 type SecretVote = {
   voteId: string;
@@ -41,10 +45,12 @@ type SecretVote = {
   publicMessage: Message<true>;
 
   timeout: NodeJS.Timeout;
-  tick: NodeJS.Timeout;
-  lastTickBucket: number;
+  publicTickTimeout: NodeJS.Timeout | null;
+  nextPublicTickAtMs: number;
 
-  updateChain: Promise<void>;
+  editInFlight: boolean;
+  needsRender: boolean;
+  pendingStatus: SecretVoteStatus | null;
   isFinalized: boolean;
 };
 
@@ -207,37 +213,110 @@ async function safeEditPublic(v: SecretVote, status: SecretVoteStatus): Promise<
   });
 }
 
-function tickBucket(nowMs: number): number {
-  return Math.floor(nowMs / PUBLIC_TICK_MS);
+function tickStepMs(v: SecretVote, dueMs: number): number {
+  const elapsed = dueMs - v.startedAtMs;
+  return elapsed < FAST_TICK_WINDOW_MS ? FAST_TICK_MS : STEADY_TICK_MS;
 }
 
-function enqueuePublicUpdate(v: SecretVote, nowMs: number, force: boolean): void {
-  if (v.isFinalized) return;
+function bumpTickDueToFuture(v: SecretVote, dueMs: number, nowMs: number): number {
+  let due = dueMs;
+  while (due <= nowMs) {
+    due += tickStepMs(v, due);
+  }
+  return due;
+}
 
-  const bucket = tickBucket(nowMs);
-  if (!force && bucket === v.lastTickBucket) return;
-  v.lastTickBucket = bucket;
+function requestPublicRender(v: SecretVote, status: SecretVoteStatus): void {
+  if (v.isFinalized && !status.isFinal) return;
 
-  v.updateChain = v.updateChain
-    .then(async () => {
-      if (v.isFinalized) return;
-      await safeEditPublic(v, buildStatus(v, false, undefined, nowMs));
-    })
-    .catch(() => {
-      // keep chain alive
-    });
+  v.pendingStatus = status;
+  v.needsRender = true;
+
+  if (v.editInFlight) return;
+  v.editInFlight = true;
+
+  void (async () => {
+    while (true) {
+      const next = v.pendingStatus;
+      v.needsRender = false;
+      if (!next) break;
+      try {
+        await safeEditPublic(v, next);
+      } catch {
+        // best-effort
+      }
+      if (!v.needsRender) break;
+    }
+    v.editInFlight = false;
+  })();
+}
+
+function scheduleNextPublicTick(voteId: string): void {
+  const v = activeById.get(voteId);
+  if (!v || v.isFinalized) return;
+
+  const nowMs = Date.now();
+  const dueMs = bumpTickDueToFuture(v, v.nextPublicTickAtMs, nowMs);
+  v.nextPublicTickAtMs = dueMs;
+
+  const delayMs = Math.max(dueMs - nowMs, 0);
+  v.publicTickTimeout = setTimeout(() => {
+    const current = activeById.get(voteId);
+    if (!current || current.isFinalized) return;
+
+    const now = Date.now();
+    requestPublicRender(current, buildStatus(current, false, undefined, now));
+
+    // Advance from the *scheduled* tick time, then bump to future.
+    const step = tickStepMs(current, current.nextPublicTickAtMs);
+    const nextBase = current.nextPublicTickAtMs + step;
+    current.nextPublicTickAtMs = bumpTickDueToFuture(current, nextBase, now);
+    scheduleNextPublicTick(voteId);
+  }, delayMs);
+}
+
+async function forEachLimit<T>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  const concurrency = Math.max(1, Math.min(limit, items.length));
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      try {
+        await fn(items[i], i);
+      } catch {
+        // best-effort
+      }
+    }
+  }
+
+  await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
 }
 
 async function rollbackDMs(messages: readonly Message<false>[]): Promise<void> {
-  await Promise.allSettled(messages.map((m) => m.delete().catch(() => undefined)));
+  await forEachLimit(messages, DM_CONCURRENCY, async (m) => {
+    await m.delete().catch(() => undefined);
+  });
 }
 
 async function finalizeVote(v: SecretVote, reason: 'timeout' | 'complete'): Promise<void> {
   if (v.isFinalized) return;
   v.isFinalized = true;
 
+  // Free the voice channel immediately so a new vote can start without waiting for DM cleanups.
+  activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
+
   clearTimeout(v.timeout);
-  clearInterval(v.tick);
+  if (v.publicTickTimeout) {
+    clearTimeout(v.publicTickTimeout);
+    v.publicTickTimeout = null;
+  }
 
   // Record the actual end time so the final embed doesn't show a lingering timer.
   v.endsAtMs = Date.now();
@@ -246,7 +325,7 @@ async function finalizeVote(v: SecretVote, reason: 'timeout' | 'complete'): Prom
   const result = evaluateSecretVoteOutcome(v.action, v.turn, voterIds, v.votes);
 
   try {
-    await safeEditPublic(v, buildStatus(v, true, result, v.endsAtMs));
+    requestPublicRender(v, buildStatus(v, true, result, v.endsAtMs));
   } catch (err) {
     console.error('Failed to publish secret vote final embed', {
       err,
@@ -258,32 +337,26 @@ async function finalizeVote(v: SecretVote, reason: 'timeout' | 'complete'): Prom
   }
 
   if (reason === 'timeout' && result.nonVoterIds.length > 0) {
-    await Promise.allSettled(
-      result.nonVoterIds.map(async (id) => {
-        const msg = v.dmMessages.get(id);
-        if (!msg?.editable) return;
-        await msg.edit({
-          content: '⏱️ You didn’t vote in time. Your vote defaulted to YES.',
-          components: [],
-          allowedMentions: { parse: [] as const },
-        });
-      })
-    );
+    await forEachLimit(result.nonVoterIds, DM_CONCURRENCY, async (id) => {
+      const msg = v.dmMessages.get(id);
+      if (!msg?.editable) return;
+      await msg.edit({
+        content: '⏱️ You didn’t vote in time. Your vote defaulted to YES.',
+        components: [],
+        allowedMentions: { parse: [] as const },
+      });
+    });
   } else {
-    // Best-effort: remove components on any still-awaiting messages.
-    await Promise.allSettled(
-      [...v.awaiting].map(async (id) => {
-        const msg = v.dmMessages.get(id);
-        if (!msg?.editable) return;
-        await msg.edit({
-          components: [],
-          allowedMentions: { parse: [] as const },
-        });
-      })
-    );
+    await forEachLimit([...v.awaiting], DM_CONCURRENCY, async (id) => {
+      const msg = v.dmMessages.get(id);
+      if (!msg?.editable) return;
+      await msg.edit({
+        components: [],
+        allowedMentions: { parse: [] as const },
+      });
+    });
   }
 
-  activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
   activeById.delete(v.voteId);
 }
 
@@ -307,119 +380,130 @@ export async function startSecretVote(
     };
   }
   reservedByVoice.add(key);
+  let reserved = true;
 
-  const voteId = randomUUID();
-  const startedAtMs = Date.now();
-  const endsAtMs = startedAtMs + VOTE_DURATION_MS;
-  const dmMessages = new Map<string, Message<false>>();
-  const sent: Message<false>[] = [];
+  try {
+    const voteId = randomUUID();
+    const startedAtMs = Date.now();
+    const endsAtMs = startedAtMs + VOTE_DURATION_MS;
+    const dmMessages = new Map<string, Message<false>>();
+    const sent: Message<false>[] = [];
 
-  const dmTasks = opts.voters.map(async (voter) => {
-    const dm = await voter.user.createDM();
-    const msg = await dm.send({
-      content: [
-        `🔒 Secret vote started by **${opts.host.username}**.`,
-        `Action: **${opts.action}** • Turn: **${opts.turn}**`,
-        `Details: ${opts.details}`,
-        '',
-        'You have 2 minutes to vote.',
-        'If you don’t vote before the timer ends, you’ll be counted as YES.',
-      ].join('\n'),
-      components: [buildVoteButtons(voteId, voter.id)],
-      allowedMentions: { parse: [] as const },
-    });
-    return { voter, msg };
-  });
+    let firstFailIdx: number | null = null;
+    let nextIndex = 0;
+    const concurrency = Math.max(1, Math.min(DM_CONCURRENCY, opts.voters.length));
 
-  const dmResults = await Promise.allSettled(dmTasks);
-  const firstFailIdx = dmResults.findIndex((r) => r.status === 'rejected');
+    async function dmWorker(): Promise<void> {
+      while (true) {
+        const idx = nextIndex++;
+        if (idx >= opts.voters.length) return;
+        if (firstFailIdx !== null) return;
 
-  for (const r of dmResults) {
-    if (r.status === 'fulfilled') {
-      dmMessages.set(r.value.voter.id, r.value.msg);
-      sent.push(r.value.msg);
+        const voter = opts.voters[idx];
+        try {
+          const dm = await voter.user.createDM();
+          const msg = await dm.send({
+            content: [
+              `🔒 Secret vote started by **${opts.host.username}**.`,
+              `Action: **${opts.action}** • Turn: **${opts.turn}**`,
+              `Details: ${opts.details}`,
+              '',
+              'You have 2 minutes to vote.',
+              'If you don’t vote before the timer ends, you’ll be counted as YES.',
+            ].join('\n'),
+            components: [buildVoteButtons(voteId, voter.id)],
+            allowedMentions: { parse: [] as const },
+          });
+          dmMessages.set(voter.id, msg);
+          sent.push(msg);
+        } catch {
+          if (firstFailIdx === null) firstFailIdx = idx;
+          return;
+        }
+      }
     }
-  }
 
-  if (firstFailIdx !== -1) {
-    await rollbackDMs(sent);
-    reservedByVoice.delete(key);
+    await Promise.allSettled(Array.from({ length: concurrency }, () => dmWorker()));
 
-    const voter = opts.voters[firstFailIdx];
-    const name = voter.displayName ? `**${voter.displayName}**` : `<@${voter.id}>`;
-    return {
-      ok: false,
-      kind: 'DM_BLOCKED',
-      message: `${EMOJI_ERROR} Cannot start vote — I couldn't DM ${name}. They likely have DMs disabled.`,
-    };
-  }
+    if (firstFailIdx !== null) {
+      await rollbackDMs(sent);
+      const voter = opts.voters[firstFailIdx];
+      const name = voter.displayName ? `**${voter.displayName}**` : `<@${voter.id}>`;
+      return {
+        ok: false,
+        kind: 'DM_BLOCKED',
+        message: `${EMOJI_ERROR} Cannot start vote — I couldn't DM ${name}. They likely have DMs disabled.`,
+      };
+    }
 
   // Send the public status embed
-  let publicMessage: Message<true>;
-  try {
-    publicMessage = (await (opts.commandChannel as SendableChannels).send({
-      embeds: [
-        buildSecretVoteEmbed({
-          voteId,
-          action: opts.action,
-          turn: opts.turn,
-          details: opts.details,
-          hostId: opts.host.id,
-          startedAtMs,
-          endsAtMs,
-          nowMs: startedAtMs,
-          voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
-          votedIds: new Set(),
-          awaitingIds: new Set(opts.voters.map((v) => v.id)),
-          isFinal: false,
-        }),
-      ],
-      allowedMentions: { parse: [] as const },
-    })) as Message<true>;
-  } catch {
-    await rollbackDMs([...dmMessages.values()]);
-    reservedByVoice.delete(key);
-    return {
-      ok: false,
-      kind: 'SEND_FAILED',
-      message: `${EMOJI_ERROR} I couldn't post the public vote embed in this channel.`,
+    let publicMessage: Message<true>;
+    try {
+      publicMessage = (await (opts.commandChannel as SendableChannels).send({
+        embeds: [
+          buildSecretVoteEmbed({
+            voteId,
+            action: opts.action,
+            turn: opts.turn,
+            details: opts.details,
+            hostId: opts.host.id,
+            startedAtMs,
+            endsAtMs,
+            nowMs: startedAtMs,
+            voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
+            votedIds: new Set(),
+            awaitingIds: new Set(opts.voters.map((v) => v.id)),
+            isFinal: false,
+          }),
+        ],
+        allowedMentions: { parse: [] as const },
+      })) as Message<true>;
+    } catch {
+      await rollbackDMs([...dmMessages.values()]);
+      return {
+        ok: false,
+        kind: 'SEND_FAILED',
+        message: `${EMOJI_ERROR} I couldn't post the public vote embed in this channel.`,
+      };
+    }
+
+    const vote: SecretVote = {
+      voteId,
+      guildId: opts.guild.id,
+      voiceChannelId: opts.voiceChannelId,
+      hostId: opts.host.id,
+      action: opts.action,
+      turn: opts.turn,
+      details: opts.details,
+      voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
+      startedAtMs,
+      endsAtMs,
+      awaiting: new Set(opts.voters.map((v) => v.id)),
+      votes: new Map(),
+      dmMessages,
+      publicMessage,
+      isFinalized: false,
+      timeout: setTimeout(() => {
+        const current = activeById.get(voteId);
+        if (current) void finalizeVote(current, 'timeout');
+      }, VOTE_DURATION_MS),
+      publicTickTimeout: null,
+      nextPublicTickAtMs: startedAtMs + FAST_TICK_MS,
+      editInFlight: false,
+      needsRender: false,
+      pendingStatus: null,
     };
+
+    reservedByVoice.delete(key);
+    reserved = false;
+    activeByVoice.set(key, vote);
+    activeById.set(voteId, vote);
+    scheduleNextPublicTick(voteId);
+
+    return { ok: true, voteId, publicMessageUrl: publicMessage.url };
+  } finally {
+    if (reserved) reservedByVoice.delete(key);
   }
-
-  const vote: SecretVote = {
-    voteId,
-    guildId: opts.guild.id,
-    voiceChannelId: opts.voiceChannelId,
-    hostId: opts.host.id,
-    action: opts.action,
-    turn: opts.turn,
-    details: opts.details,
-    voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
-    startedAtMs,
-    endsAtMs,
-    awaiting: new Set(opts.voters.map((v) => v.id)),
-    votes: new Map(),
-    dmMessages,
-    publicMessage,
-    isFinalized: false,
-    updateChain: Promise.resolve(),
-    lastTickBucket: tickBucket(startedAtMs),
-    tick: setInterval(() => {
-      const current = activeById.get(voteId);
-      if (!current || current.isFinalized) return;
-      enqueuePublicUpdate(current, Date.now(), false);
-    }, PUBLIC_TICK_MS),
-    timeout: setTimeout(() => {
-      const current = activeById.get(voteId);
-      if (current) void finalizeVote(current, 'timeout');
-    }, VOTE_DURATION_MS),
-  };
-
-  reservedByVoice.delete(key);
-  activeByVoice.set(key, vote);
-  activeById.set(voteId, vote);
-
-  return { ok: true, voteId, publicMessageUrl: publicMessage.url };
 }
 
 export type RecordSecretVoteResult =
@@ -470,7 +554,7 @@ export async function recordSecretVoteChoice(
     return { ok: true, kind: 'RECORDED', isComplete, choice };
   }
 
-  enqueuePublicUpdate(vote, nowMs, true);
+  requestPublicRender(vote, buildStatus(vote, false, undefined, nowMs));
 
   return { ok: true, kind: 'RECORDED', isComplete, choice };
 }
