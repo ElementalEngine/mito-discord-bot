@@ -19,7 +19,12 @@ import type {
 } from '../types/secretvote.js';
 
 const VOTE_DURATION_MS = 2 * 60_000;
-const PUBLIC_TICK_MS = 10_000;
+
+function nextTickDelayMs(elapsedMs: number): number {
+  if (elapsedMs < 15_000) return 1_000;
+  if (elapsedMs < 60_000) return 2_000;
+  return 5_000;
+}
 
 type SecretVote = {
   voteId: string;
@@ -32,6 +37,7 @@ type SecretVote = {
   details: string;
 
   voters: readonly { id: string; displayName: string }[];
+  voterIdSet: ReadonlySet<string>;
   startedAtMs: number;
   endsAtMs: number;
 
@@ -41,8 +47,8 @@ type SecretVote = {
   publicMessage: Message<true>;
 
   timeout: NodeJS.Timeout;
-  tick: NodeJS.Timeout;
-  lastTickBucket: number;
+  tick: NodeJS.Timeout | null;
+  lastElapsedSec: number;
 
   updateChain: Promise<void>;
   isFinalized: boolean;
@@ -131,7 +137,7 @@ export function evaluateSecretVoteOutcome(
 
     if (passed) {
       notes.push(
-        'If this CC passes: any player who wants to use a veto must DM the host in game chat within 2 minutes. If no veto is used, the CC passes.'
+        'Veto window (2 minutes): Any player who wants to use a veto must DM the host in game chat within 2 minutes. If no veto is used, the CC passes.'
       );
     }
   } else if (action === 'Scrap') {
@@ -208,16 +214,12 @@ async function safeEditPublic(v: SecretVote, status: SecretVoteStatus): Promise<
   });
 }
 
-function tickBucket(nowMs: number): number {
-  return Math.floor(nowMs / PUBLIC_TICK_MS);
-}
-
 function enqueuePublicUpdate(v: SecretVote, nowMs: number, force: boolean): void {
   if (v.isFinalized) return;
 
-  const bucket = tickBucket(nowMs);
-  if (!force && bucket === v.lastTickBucket) return;
-  v.lastTickBucket = bucket;
+  const elapsedSec = Math.floor(Math.max(nowMs - v.startedAtMs, 0) / 1000);
+  if (!force && elapsedSec === v.lastElapsedSec) return;
+  v.lastElapsedSec = elapsedSec;
 
   v.updateChain = v.updateChain
     .then(async () => {
@@ -229,6 +231,22 @@ function enqueuePublicUpdate(v: SecretVote, nowMs: number, force: boolean): void
     });
 }
 
+function scheduleTick(v: SecretVote): void {
+  if (v.isFinalized) return;
+
+  const nowMs = Date.now();
+  enqueuePublicUpdate(v, nowMs, false);
+
+  const elapsedMs = Math.max(nowMs - v.startedAtMs, 0);
+  const delay = nextTickDelayMs(elapsedMs);
+
+  v.tick = setTimeout(() => {
+    const current = activeById.get(v.voteId);
+    if (!current || current.isFinalized) return;
+    scheduleTick(current);
+  }, delay);
+}
+
 async function rollbackDMs(messages: readonly Message<false>[]): Promise<void> {
   await Promise.allSettled(messages.map((m) => m.delete().catch(() => undefined)));
 }
@@ -238,7 +256,8 @@ async function finalizeVote(v: SecretVote, reason: 'timeout' | 'complete'): Prom
   v.isFinalized = true;
 
   clearTimeout(v.timeout);
-  clearInterval(v.tick);
+  if (v.tick) clearTimeout(v.tick);
+  v.tick = null;
 
   // Record the actual end time so the final embed doesn't show a lingering timer.
   v.endsAtMs = Date.now();
@@ -314,44 +333,53 @@ export async function startSecretVote(
   const voteId = randomUUID();
   const startedAtMs = Date.now();
   const endsAtMs = startedAtMs + VOTE_DURATION_MS;
-
-  // Preflight DM requirement: abort if ANY DM fails.
   const dmMessages = new Map<string, Message<false>>();
   const sent: Message<false>[] = [];
+  const DM_CONCURRENCY = 6;
+  let failedVoter: (typeof opts.voters)[number] | null = null;
 
-  const dmTasks = opts.voters.map(async (voter) => {
-    const dm = await voter.user.createDM();
-    const msg = await dm.send({
-      content: [
-        `🔒 Secret vote started by **${opts.host.username}**.`,
-        `Action: **${opts.action}** • Turn: **${opts.turn}**`,
-        `Details: ${opts.details}`,
-        '',
-        'You have 2 minutes to vote.',
-        'If you don’t vote before the timer ends, you’ll be counted as YES.',
-      ].join('\n'),
-      components: [buildVoteButtons(voteId, voter.id)],
-      allowedMentions: { parse: [] as const },
-    });
-    return { voter, msg };
-  });
+  for (let i = 0; i < opts.voters.length; i += DM_CONCURRENCY) {
+    const slice = opts.voters.slice(i, i + DM_CONCURRENCY);
+    const results = await Promise.allSettled(
+      slice.map(async (voter) => {
+        const dm = await voter.user.createDM();
+        const msg = await dm.send({
+          content: [
+            `🔒 Secret vote started by <@${opts.host.id}>.`,
+            `Action: **${opts.action}** • Turn: **${opts.turn}**`,
+            `Details: ${opts.details}`,
+            '',
+            'You have 2 minutes to vote.',
+            'If you don’t vote before the timer ends, you’ll be counted as YES.',
+          ].join('\n'),
+          components: [buildVoteButtons(voteId, voter.id)],
+          allowedMentions: { parse: [] as const },
+        });
+        return { voter, msg };
+      })
+    );
 
-  const dmResults = await Promise.allSettled(dmTasks);
-  const firstFailIdx = dmResults.findIndex((r) => r.status === 'rejected');
-
-  for (const r of dmResults) {
-    if (r.status === 'fulfilled') {
-      dmMessages.set(r.value.voter.id, r.value.msg);
-      sent.push(r.value.msg);
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
+      if (r.status === 'fulfilled') {
+        dmMessages.set(r.value.voter.id, r.value.msg);
+        sent.push(r.value.msg);
+      } else {
+        failedVoter = slice[j] ?? null;
+        break;
+      }
     }
+
+    if (failedVoter) break;
   }
 
-  if (firstFailIdx !== -1) {
+  if (failedVoter) {
     await rollbackDMs(sent);
     reservedByVoice.delete(key);
 
-    const voter = opts.voters[firstFailIdx];
-    const name = voter.displayName ? `**${voter.displayName}**` : `<@${voter.id}>`;
+    const name = failedVoter.displayName
+      ? `**${failedVoter.displayName}**`
+      : `<@${failedVoter.id}>`;
     return {
       ok: false,
       kind: 'DM_BLOCKED',
@@ -400,6 +428,7 @@ export async function startSecretVote(
     turn: opts.turn,
     details: opts.details,
     voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
+    voterIdSet: new Set(opts.voters.map((v) => v.id)),
     startedAtMs,
     endsAtMs,
     awaiting: new Set(opts.voters.map((v) => v.id)),
@@ -408,12 +437,8 @@ export async function startSecretVote(
     publicMessage,
     isFinalized: false,
     updateChain: Promise.resolve(),
-    lastTickBucket: tickBucket(startedAtMs),
-    tick: setInterval(() => {
-      const current = activeById.get(voteId);
-      if (!current || current.isFinalized) return;
-      enqueuePublicUpdate(current, Date.now(), false);
-    }, PUBLIC_TICK_MS),
+    lastElapsedSec: 0,
+    tick: null,
     timeout: setTimeout(() => {
       const current = activeById.get(voteId);
       if (current) void finalizeVote(current, 'timeout');
@@ -423,6 +448,8 @@ export async function startSecretVote(
   reservedByVoice.delete(key);
   activeByVoice.set(key, vote);
   activeById.set(voteId, vote);
+
+  scheduleTick(vote);
 
   return { ok: true, voteId, publicMessageUrl: publicMessage.url };
 }
@@ -447,8 +474,7 @@ export async function recordSecretVoteChoice(
     };
   }
 
-  const voterSet = new Set(vote.voters.map((v) => v.id));
-  if (!voterSet.has(voterId)) {
+  if (!vote.voterIdSet.has(voterId)) {
     return {
       ok: false,
       kind: 'NOT_ELIGIBLE',
@@ -467,12 +493,10 @@ export async function recordSecretVoteChoice(
   vote.votes.set(voterId, choice);
   vote.awaiting.delete(voterId);
 
-  enqueuePublicUpdate(vote, Date.now(), true);
-
+  const nowMs = Date.now();
   const isComplete = vote.awaiting.size === 0;
-  if (isComplete) {
-    void finalizeVote(vote, 'complete');
-  }
+  if (isComplete) void finalizeVote(vote, 'complete');
+  else enqueuePublicUpdate(vote, nowMs, true);
 
   return { ok: true, kind: 'RECORDED', isComplete, choice };
 }

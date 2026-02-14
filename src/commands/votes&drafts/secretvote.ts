@@ -176,7 +176,7 @@ export async function execute(
       `Details: ${clampLine(details, 800)}`,
       `Started by: <@${interaction.user.id}>`,
       'Voting happens in DMs for each voter.',
-      `Status + results are in: <#${interaction.channelId}> • ${res.publicMessageUrl}`,
+      `Status + results: <#${interaction.channelId}> (${res.publicMessageUrl})`,
     ].join('\n');
 
     await replyEphemeral(interaction, summary);

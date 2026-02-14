@@ -43,6 +43,16 @@ function formatNonVoters(nonVoterIds: readonly string[]): string {
   return clamp(nonVoterIds.map((id) => `• <@${id}>`).join('\n'), MAX_FIELD);
 }
 
+function formatRuleBlock(rule: string): string {
+  const idx = rule.indexOf(':');
+  if (idx === -1) return `**Rule**\n${rule}`;
+
+  const head = rule.slice(0, idx).trim();
+  let rest = rule.slice(idx + 1).trim();
+  if (rest && !rest.startsWith('•')) rest = `• ${rest}`;
+  return `**Rule: ${head || '—'}**\n${rest || '—'}`;
+}
+
 export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
   const nowMs = status.nowMs ?? Date.now();
   const elapsedMs = Math.min(
@@ -54,7 +64,6 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
   const lines: string[] = [
     `**Action:** ${status.action}`,
     `**Turn:** ${status.turn}`,
-    '',
     `**Details:** ${clamp(status.details.trim() || '—', 900)}`,
     '',
     `Started by <@${status.hostId}>`,
@@ -77,7 +86,11 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
     e.addFields(
       {
         name: 'Results',
-        value: `YES: **${yes}**\nNO: **${no}**\nOutcome: **${outcome}**\nRule: ${rule}`,
+        value:
+          `YES: **${yes}**\n` +
+          `NO: **${no}**\n` +
+          `Outcome: **${outcome}**\n` +
+          `${formatRuleBlock(rule)}`,
       },
       {
         name: 'No response (counted as YES)',
@@ -86,7 +99,14 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
     );
 
     if (notes && notes.length > 0) {
-      e.addFields({ name: 'Notes', value: clamp(notes.join('\n'), MAX_FIELD) });
+      if (status.action === 'Irrel') {
+        e.addFields({
+          name: 'Eligibility (host verify)',
+          value: clamp(notes.join('\n'), MAX_FIELD),
+        });
+      } else if (outcome === 'PASSED') {
+        e.addFields({ name: 'Notes', value: clamp(notes.join('\n'), MAX_FIELD) });
+      }
     }
   } else {
     e.setFooter({
