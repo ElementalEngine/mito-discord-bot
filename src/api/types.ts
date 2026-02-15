@@ -61,6 +61,10 @@ export type GetMatchResponse = {
   players: ParsedPlayer[];
   repeated: boolean;
   reporter_discord_id: string;
+  affected_players?: {
+    discord_id: string;
+    rating_mu: number;
+  }[];
 }
 
 export type PlayerRanking = {

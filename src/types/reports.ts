@@ -13,6 +13,10 @@ export type BaseReport = {
   discord_messages_id_list: string[];
   players: ParsedPlayer[];
   reporter_discord_id: string;
+  affected_players?: {
+    discord_id: string;
+    rating_mu: number;
+  }[];
 };
 
 export type Civ6Player = ParsedPlayer & {

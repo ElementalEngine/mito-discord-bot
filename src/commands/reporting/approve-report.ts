@@ -4,6 +4,7 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import { config } from "../../config.js";
 import { EMOJI_FAIL } from "../../config/constants.js";
 import { approveMatch } from "../../services/reporting.service.js";
+import { updateRankRolesForApprovedMatch } from "../../services/rank-role.service.js";
 import { buildReportEmbed } from "../../ui/report.layout.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 
@@ -126,6 +127,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     await interaction.editReply(`Report is approved successfully!`);
+
+    // Rank roles (best-effort; idempotent; bounded concurrency)
+    const affected = res.affected_players;
+    const guild = interaction.guild;
+    if (guild && affected && affected.length > 0) {
+      await updateRankRolesForApprovedMatch(guild, affected);
+    }
   } catch (err: unknown) {
     const msg = errorMessage(err);
 
