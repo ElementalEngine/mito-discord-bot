@@ -192,7 +192,7 @@ function numRank(pos: number): string {
   return `${String(pos).padStart(2, "0")}:`;
 }
 function fmtDelta(d: number): string {
-  const s = (d >= 0 ? `+${d}` : `${d}`).padStart(3, " ");
+  const s = (d >= 0 ? `+${Math.round(d)}` : `${Math.round(d)}`).padStart(3, " ");
   return `[${s}]`;
 }
 /** Mention if we have a discord id; otherwise @username */
