@@ -20,8 +20,8 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   )
   .addStringOption(option =>
-    option.setName("sub-in-id")
-      .setDescription("ID of the player in this match to assign substitute in for")
+    option.setName("sub-in-slot-id")
+      .setDescription("Slot ID of the player in this match to assign substitute in for")
       .setRequired(true),
   )
   .addStringOption(option =>
@@ -40,7 +40,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const matchId = interaction.options.getString("match-id", true) as string;
-  const subInId = interaction.options.getString("sub-in-id", true) as string;
+  const subInId = interaction.options.getString("sub-in-slot-id", true) as string;
   var subOutDiscordID = interaction.options.getString("sub-out-discord-id", true) as string;
   if (subOutDiscordID.startsWith('<@') && subOutDiscordID.endsWith('>')) {
     subOutDiscordID = subOutDiscordID.slice(2, -1);

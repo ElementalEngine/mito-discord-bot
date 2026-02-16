@@ -74,8 +74,8 @@ export const data = new SlashCommandBuilder()
   )
   .addStringOption((option) =>
     option
-      .setName("player-id")
-      .setDescription("ID of the player in this match to assign")
+      .setName("player-slot-id")
+      .setDescription("Slot ID of the player in this match to assign")
       .setRequired(true),
   )
   .addStringOption((option) =>
@@ -98,7 +98,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await safeDefer(interaction))) return;
 
   const matchId = interaction.options.getString("match-id", true);
-  const playerId = interaction.options.getString("player-id", true);
+  const playerId = interaction.options.getString("player-slot-id", true);
   const rawDiscordId = interaction.options.getString("discord-id", true);
   const playerDiscordId = normalizeDiscordId(rawDiscordId);
 

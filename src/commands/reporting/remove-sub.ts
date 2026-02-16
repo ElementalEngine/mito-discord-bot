@@ -20,8 +20,8 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   )
   .addStringOption(option =>
-    option.setName("sub-out-id")
-      .setDescription("ID of the player in this match to remove")
+    option.setName("sub-out-slot-id")
+      .setDescription("Slot ID of the player in this match to remove")
       .setRequired(true),
   );
 
@@ -35,7 +35,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const matchId = interaction.options.getString("match-id", true) as string;
-  const subOutId = interaction.options.getString("sub-out-id", true) as string;
+  const subOutId = interaction.options.getString("sub-out-slot-id", true) as string;
 
   const errors: string[] = [];
 
