@@ -50,6 +50,20 @@ export class ApiClient {
     return (await this.parseJson(res)) as UploadSaveResponse;
   }
 
+  async setPlayerOrder(matchId: string, playerOrder: string, discordMessageId: string): Promise<GetMatchResponse> {
+    const form = new FormData();
+    form.append("match_id", matchId);
+    form.append("player_order", playerOrder);
+    form.append("discord_message_id", discordMessageId);
+
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/set-player-order/`, {
+      method: "PUT",
+      body: form,
+    });
+
+    return (await this.parseJson(res)) as GetMatchResponse;
+  }
+
   async changeOrder(matchId: string, newOrder: string, discordMessageId: string): Promise<GetMatchResponse> {
     const form = new FormData();
     form.append("match_id", matchId);

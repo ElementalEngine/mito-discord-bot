@@ -27,6 +27,15 @@ export async function appendMessageIdList(
   return api.appendMessageIdList(matchId, messageIdList);
 }
 
+export async function setPlayerOrder(
+  matchId: string,
+  playerOrder: string,
+  discordMessageId: string,
+  api: ApiClient = new ApiClient(),
+) : Promise<GetMatchResponse> {
+  return api.setPlayerOrder(matchId, playerOrder, discordMessageId);
+}
+
 export async function setPlacements(
   matchId: string,
   newOrder: string,
