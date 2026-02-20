@@ -1,6 +1,9 @@
 import {
   ActionRowBuilder,
+  ModalBuilder,
   MessageFlags,
+  TextInputBuilder,
+  TextInputStyle,
   type ChatInputCommandInteraction,
   type Message,
   type MessageActionRowComponentBuilder,
@@ -10,6 +13,7 @@ import {
 import { config } from '../config.js';
 import { EMOJI_CONFIRM, EMOJI_FAIL, MAX_DISCORD_LEN } from '../config/constants.js';
 import {
+  assignDiscordId,
   assignSub,
   getMatch,
   removeSub,
@@ -28,6 +32,8 @@ import { buildFinishedReportEditsEmbed, buildReportEditsEmbed } from '../ui/embe
 import {
   buildActionSelect,
   buildButtons,
+  buildDiscordSlotSelect,
+  buildDiscordUserSelect,
   buildOrderPlacementSelect,
   buildOrderTargetSelect,
   buildRemoveSubSelect,
@@ -36,6 +42,7 @@ import {
   buildTriggerPlayerSelect,
 } from '../ui/components/report-edits.js';
 import { convertMatchToStr } from '../utils/convert-match-to-str.js';
+import { parseDiscordUserId } from '../utils/parse-discord-id.js';
 
 import type { GetMatchResponse, ParsedPlayer } from '../api/types.js';
 import type { BaseReport } from '../types/reports.js';
@@ -120,6 +127,9 @@ function resetActionState(state: ReportEditsState): ReportEditsState {
 
     removeSubIndex: undefined,
 
+    discordIdSlotIndex: undefined,
+    discordIdPending: undefined,
+
     orderDraft: undefined,
     orderSelectedTeamId: undefined,
     orderSelectedPlacement: undefined,
@@ -129,7 +139,7 @@ function resetActionState(state: ReportEditsState): ReportEditsState {
   };
 }
 
-function computeOrderDraft(
+export function computeOrderDraft(
   players: ParsedPlayer[]
 ): { ok: true; draft: ReportEditsOrderDraft } | { ok: false; message: string } {
   const teamIds = Array.from(new Set(players.map((p) => p.team))).sort(
@@ -153,20 +163,79 @@ function computeOrderDraft(
     numTeams < players.length ? 'team' : 'player';
 
   const placementsByTeamId: Record<number, number> = {};
+  const usedPlacements = new Set<number>();
+
+  // Normalize: best placement per team (min), enforce a bijection 1..numTeams.
   for (const teamId of teamIds) {
-    const member = players.find((p) => p.team === teamId);
-    placementsByTeamId[teamId] = (member?.placement ?? 0) + 1;
+    const members = players.filter((p) => p.team === teamId);
+    const placements = members
+      .map((p) => p.placement)
+      .filter((v): v is number => typeof v === 'number');
+
+    const raw = placements.length ? Math.min(...placements) + 1 : undefined;
+    if (typeof raw === 'number' && raw >= 1 && raw <= numTeams && !usedPlacements.has(raw)) {
+      placementsByTeamId[teamId] = raw;
+      usedPlacements.add(raw);
+    }
+  }
+
+  const remaining: number[] = [];
+  for (let p = 1; p <= numTeams; p++) if (!usedPlacements.has(p)) remaining.push(p);
+
+  for (const teamId of teamIds) {
+    if (typeof placementsByTeamId[teamId] === 'number') continue;
+    placementsByTeamId[teamId] = remaining.shift() ?? teamId + 1;
   }
 
   return { ok: true, draft: { kind, teamIds, placementsByTeamId } };
 }
 
-function buildNewOrderString(draft: ReportEditsOrderDraft): string {
+export function buildNewOrderString(draft: ReportEditsOrderDraft): string {
   const arr: string[] = [];
   for (const teamId of draft.teamIds) {
     arr[teamId] = String(draft.placementsByTeamId[teamId]);
   }
   return arr.join(' ');
+}
+
+export function validateOrderDraft(
+  draft: ReportEditsOrderDraft
+): { ok: true } | { ok: false; message: string } {
+  const n = draft.teamIds.length;
+  const placements: number[] = [];
+  for (const teamId of draft.teamIds) {
+    const p = draft.placementsByTeamId[teamId];
+    if (typeof p !== 'number') {
+      return { ok: false, message: 'Missing placement.' };
+    }
+    if (p < 1 || p > n) {
+      return { ok: false, message: `Invalid placement value: ${p}.` };
+    }
+    placements.push(p);
+  }
+
+  const uniq = new Set(placements);
+  if (uniq.size !== n) {
+    return { ok: false, message: 'Duplicate placements detected.' };
+  }
+
+  return { ok: true };
+}
+
+export function applyOrderSelection(
+  draft: ReportEditsOrderDraft,
+  placement: number,
+  teamId: number
+): ReportEditsOrderDraft {
+  const currentPlacement = draft.placementsByTeamId[teamId];
+  if (typeof currentPlacement !== 'number' || currentPlacement === placement) return draft;
+
+  const otherTeamId = draft.teamIds.find((t) => draft.placementsByTeamId[t] === placement);
+  if (typeof otherTeamId === 'number' && otherTeamId !== teamId) {
+    draft.placementsByTeamId[otherTeamId] = currentPlacement;
+  }
+  draft.placementsByTeamId[teamId] = placement;
+  return draft;
 }
 
 function isSendableChannel(ch: unknown): ch is SendableChannel {
@@ -306,11 +375,59 @@ async function applyRemoveSub(
   }
 }
 
+async function applyDiscordId(
+  interaction: ChatInputCommandInteraction,
+  state: ReportEditsState
+): Promise<ApplyResult> {
+  if (typeof state.discordIdSlotIndex !== 'number' || !state.discordIdPending) {
+    return { ok: false, message: 'Select a slot and a Discord user/ID.' };
+  }
+
+  const idx = state.discordIdSlotIndex;
+  const audit = await postAuditMessage(
+    interaction,
+    `Assigning Discord ID…\nMatch ID: **${state.matchId}**`
+  );
+  if (!audit) {
+    return {
+      ok: false,
+      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
+    };
+  }
+
+  try {
+    const res = await assignDiscordId(
+      state.matchId,
+      String(idx),
+      state.discordIdPending,
+      audit.id
+    );
+
+    const header =
+      `${EMOJI_CONFIRM} <@${state.discordIdPending}> assigned by <@${interaction.user.id}>\n` +
+      `Match ID: **${res.match_id}**\n`;
+
+    await audit
+      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
+      .catch(() => null);
+
+    await updatePublicReportMessage(interaction, res);
+    return { ok: true, updated: res };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    await audit.edit(`${EMOJI_FAIL} Assign Discord ID failed: ${msg}`).catch(() => null);
+    return { ok: false, message: `${EMOJI_FAIL} Assign Discord ID failed: ${msg}` };
+  }
+}
+
 async function applyOrder(
   interaction: ChatInputCommandInteraction,
   state: ReportEditsState
 ): Promise<ApplyResult> {
   if (!state.orderDraft) return { ok: false, message: 'Order draft is missing.' };
+
+  const v = validateOrderDraft(state.orderDraft);
+  if (!v.ok) return { ok: false, message: `${EMOJI_FAIL} ${v.message}` };
 
   const newOrder = buildNewOrderString(state.orderDraft);
 
@@ -392,22 +509,17 @@ function canApply(state: ReportEditsState): boolean {
       return typeof state.subInIndex === 'number' && Boolean(state.subOutDiscordId);
     case 'SUB_REMOVE':
       return typeof state.removeSubIndex === 'number';
+    case 'DISCORD_ID':
+      return (
+        typeof state.discordIdSlotIndex === 'number' && Boolean(state.discordIdPending)
+      );
     case 'ORDER':
-      return Boolean(state.orderDraft);
+      return Boolean(state.orderDraft && validateOrderDraft(state.orderDraft).ok);
     case 'TRIGGER':
       return Boolean(state.triggerKind && state.triggerDiscordId);
     default:
       return false;
   }
-}
-
-function canSet(state: ReportEditsState): boolean {
-  return (
-    state.stage === 'ORDER' &&
-    typeof state.orderSelectedTeamId === 'number' &&
-    typeof state.orderSelectedPlacement === 'number' &&
-    Boolean(state.orderDraft)
-  );
 }
 
 function renderComponents(state: ReportEditsState, disableAll: boolean): SessionRow[] {
@@ -437,9 +549,20 @@ function renderComponents(state: ReportEditsState, disableAll: boolean): Session
     const r = buildRemoveSubSelect(state);
     if (disableAll) pushDisabled(r);
     else rows.push(r);
+  } else if (state.stage === 'DISCORD_ID') {
+    const r1 = buildDiscordSlotSelect(state);
+    const r2 = buildDiscordUserSelect(state);
+
+    if (disableAll) {
+      pushDisabled(r1);
+      pushDisabled(r2);
+    } else {
+      rows.push(r1);
+      rows.push(r2);
+    }
   } else if (state.stage === 'ORDER') {
-    const r1 = buildOrderTargetSelect(state);
-    const r2 = buildOrderPlacementSelect(state);
+    const r1 = buildOrderPlacementSelect(state);
+    const r2 = buildOrderTargetSelect(state);
 
     if (disableAll) {
       pushDisabled(r1);
@@ -456,9 +579,9 @@ function renderComponents(state: ReportEditsState, disableAll: boolean): Session
 
   const buttons = buildButtons({
     showBack: state.stage !== 'ACTION',
-    canSet: canSet(state),
     canApply: canApply(state),
     disableAll,
+    showEnterId: state.stage === 'DISCORD_ID',
   });
   rows.push(buttons as unknown as SessionRow);
 
@@ -582,6 +705,66 @@ export async function startReportEditsSession(
       return;
     }
 
+    // Modal trigger must NOT be deferred.
+    if (i.isButton() && i.customId === REPORT_EDITS_CID.discordEnter) {
+      if (state.stage !== 'DISCORD_ID') return;
+
+      const modal = new ModalBuilder()
+        .setCustomId(REPORT_EDITS_CID.discordModal)
+        .setTitle('Assign Discord ID');
+
+      const input = new TextInputBuilder()
+        .setCustomId('discord_id')
+        .setLabel('Discord ID or @mention')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(64);
+
+      modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(input)
+      );
+
+      try {
+        await i.showModal(modal);
+      } catch {
+        return;
+      }
+
+      try {
+        const submitted = await i.awaitModalSubmit({
+          time: 60_000,
+          filter: (m) =>
+            m.customId === REPORT_EDITS_CID.discordModal &&
+            m.user.id === state.initiatorId,
+        });
+
+        const raw = submitted.fields.getTextInputValue('discord_id');
+        const parsed = parseDiscordUserId(raw);
+        if (!parsed) {
+          await submitted.reply({
+            content: `${EMOJI_FAIL} Invalid Discord ID. Use a numeric ID or tag the user (e.g. <@123...>).`,
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
+        await submitted.deferUpdate().catch(() => null);
+        if (typeof state.discordIdSlotIndex !== 'number') {
+          state.lastNotice = `${EMOJI_FAIL} Select a slot first.`;
+          await refresh();
+          return;
+        }
+        state.discordIdPending = parsed;
+        state.lastNotice = 'Ready. Click Apply to assign the Discord ID.';
+        await refresh();
+      } catch {
+        state.lastNotice = `${EMOJI_FAIL} ID entry timed out.`;
+        await refresh();
+      }
+
+      return;
+    }
+
     await ackComponent(i);
 
     if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.action) {
@@ -595,13 +778,17 @@ export async function startReportEditsSession(
       } else if (action === 'SUB_REMOVE') {
         state.stage = 'SUB_REMOVE';
         state.lastNotice = 'Select the sub slot to remove.';
+      } else if (action === 'DISCORD_ID') {
+        state.stage = 'DISCORD_ID';
+        state.lastNotice = 'Select a slot missing a Discord ID, then pick a user (or Enter ID).';
       } else if (action === 'ORDER') {
         state.stage = 'ORDER';
         const d = computeOrderDraft(state.match.players);
         if (!d.ok) state.lastNotice = `${EMOJI_FAIL} ${d.message}`;
         else {
           state.orderDraft = d.draft;
-          state.lastNotice = 'Edit placements (Set), then click Apply.';
+          state.lastNotice =
+            'Select a placement, then select a team/player to swap into that place. Click Apply to commit.';
         }
       } else if (action === 'TRIGGER_QUIT' || action === 'TRIGGER_LAGGER') {
         state.stage = 'TRIGGER';
@@ -634,16 +821,50 @@ export async function startReportEditsSession(
       return;
     }
 
+    if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.discordSlot) {
+      state.discordIdSlotIndex = Number(i.values[0]);
+      state.discordIdPending = undefined;
+      state.lastNotice = 'Select a user (or Enter ID), then click Apply.';
+      await refresh();
+      return;
+    }
+
+    if (i.isUserSelectMenu() && i.customId === REPORT_EDITS_CID.discordUser) {
+      state.discordIdPending = i.values[0];
+      state.lastNotice = 'Ready. Click Apply to assign the Discord ID.';
+      await refresh();
+      return;
+    }
+
     if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.orderTeam) {
-      state.orderSelectedTeamId = Number(i.values[0]);
-      state.lastNotice = 'Select placement, then click Set.';
+      if (!state.orderDraft || state.stage !== 'ORDER') {
+        state.lastNotice = `${EMOJI_FAIL} Order draft is missing.`;
+        await refresh();
+        return;
+      }
+      if (typeof state.orderSelectedPlacement !== 'number') {
+        state.lastNotice = `${EMOJI_FAIL} Select a placement first.`;
+        await refresh();
+        return;
+      }
+
+      const teamId = Number(i.values[0]);
+      state.orderSelectedTeamId = teamId;
+      applyOrderSelection(state.orderDraft, state.orderSelectedPlacement, teamId);
+      state.lastNotice = 'Draft updated. Click Apply when ready.';
       await refresh();
       return;
     }
 
     if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.orderPlacement) {
       state.orderSelectedPlacement = Number(i.values[0]);
-      state.lastNotice = 'Click Set to update the draft.';
+      if (state.orderDraft) {
+        const t = state.orderDraft.teamIds.find(
+          (teamId) => state.orderDraft?.placementsByTeamId[teamId] === state.orderSelectedPlacement
+        );
+        state.orderSelectedTeamId = typeof t === 'number' ? t : undefined;
+      }
+      state.lastNotice = 'Select a team/player to swap into that placement.';
       await refresh();
       return;
     }
@@ -676,28 +897,6 @@ export async function startReportEditsSession(
       return;
     }
 
-    if (i.customId === REPORT_EDITS_CID.set) {
-      if (!state.orderDraft || state.stage !== 'ORDER') {
-        state.lastNotice = `${EMOJI_FAIL} Nothing to set.`;
-        await refresh();
-        return;
-      }
-      if (
-        typeof state.orderSelectedTeamId !== 'number' ||
-        typeof state.orderSelectedPlacement !== 'number'
-      ) {
-        state.lastNotice = `${EMOJI_FAIL} Select a target and placement first.`;
-        await refresh();
-        return;
-      }
-
-      state.orderDraft.placementsByTeamId[state.orderSelectedTeamId] =
-        state.orderSelectedPlacement;
-      state.lastNotice = 'Draft updated. Click Apply when ready.';
-      await refresh();
-      return;
-    }
-
     if (i.customId === REPORT_EDITS_CID.apply) {
       state.lastNotice = 'Applying…';
       await refresh();
@@ -707,6 +906,8 @@ export async function startReportEditsSession(
         result = await applyAssignSub(interaction, state);
       } else if (state.stage === 'SUB_REMOVE') {
         result = await applyRemoveSub(interaction, state);
+      } else if (state.stage === 'DISCORD_ID') {
+        result = await applyDiscordId(interaction, state);
       } else if (state.stage === 'ORDER') {
         result = await applyOrder(interaction, state);
       } else if (state.stage === 'TRIGGER') {

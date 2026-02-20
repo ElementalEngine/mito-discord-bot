@@ -40,6 +40,11 @@ export function buildActionSelect(state: ReportEditsState) {
         default: selected === 'SUB_REMOVE',
       },
       {
+        label: 'Assign Discord IDs',
+        value: 'DISCORD_ID' satisfies ReportEditsAction,
+        default: selected === 'DISCORD_ID',
+      },
+      {
         label: 'Change Report Order',
         value: 'ORDER' satisfies ReportEditsAction,
         default: selected === 'ORDER',
@@ -128,16 +133,92 @@ export function buildOrderTargetSelect(state: ReportEditsState) {
     return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
   }
 
+  if (typeof state.orderSelectedPlacement !== 'number') {
+    menu.setDisabled(true).setPlaceholder('Select placement first');
+    for (const teamId of draft.teamIds) {
+      const label =
+        draft.kind === 'team'
+          ? `Team ${teamId + 1}`
+          : (() => {
+              const idx = state.match.players.findIndex((p) => p.team === teamId);
+              const p = idx >= 0 ? state.match.players[idx] : undefined;
+              const name = p?.user_name ?? 'Unknown';
+              return idx >= 0 ? `#${idx + 1} ${name}` : `Player ${teamId + 1}`;
+            })();
+      menu.addOptions({ label, value: String(teamId), default: false });
+    }
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+  }
+
+  const teamAtSelectedPlacement = draft.teamIds.find(
+    (t) => draft.placementsByTeamId[t] === state.orderSelectedPlacement
+  );
+  const defaultTeamId =
+    typeof state.orderSelectedTeamId === 'number'
+      ? state.orderSelectedTeamId
+      : teamAtSelectedPlacement;
+
   for (const teamId of draft.teamIds) {
-    const label = draft.kind === 'team' ? `Team ${teamId + 1}` : `Player ${teamId + 1}`;
+    const label =
+      draft.kind === 'team'
+        ? `Team ${teamId + 1}`
+        : (() => {
+            const idx = state.match.players.findIndex((p) => p.team === teamId);
+            const p = idx >= 0 ? state.match.players[idx] : undefined;
+            const name = p?.user_name ?? 'Unknown';
+            return idx >= 0 ? `#${idx + 1} ${name}` : `Player ${teamId + 1}`;
+          })();
     menu.addOptions({
       label,
       value: String(teamId),
-      default: state.orderSelectedTeamId === teamId,
+      default: defaultTeamId === teamId,
     });
   }
 
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
+export function buildDiscordSlotSelect(state: ReportEditsState) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(REPORT_EDITS_CID.discordSlot)
+    .setPlaceholder('Select slot missing Discord ID')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  const missing = state.match.players
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p }) => !p.discord_id);
+
+  if (missing.length === 0) {
+    menu.setDisabled(true).setPlaceholder('No missing Discord IDs');
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+  }
+
+  for (const { p, idx } of missing) {
+    const name = p.user_name ?? 'Unknown';
+    const label = `#${idx + 1} ${name}`;
+    menu.addOptions({
+      label: label.slice(0, 100),
+      value: String(idx),
+      default: state.discordIdSlotIndex === idx,
+    });
+  }
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
+export function buildDiscordUserSelect(state: ReportEditsState) {
+  const menu = new UserSelectMenuBuilder()
+    .setCustomId(REPORT_EDITS_CID.discordUser)
+    .setPlaceholder('Select Discord user')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  if (typeof state.discordIdSlotIndex !== 'number') {
+    menu.setDisabled(true).setPlaceholder('Select a slot first');
+  }
+
+  return new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(menu);
 }
 
 export function buildOrderPlacementSelect(state: ReportEditsState) {
@@ -186,9 +267,9 @@ export function buildTriggerPlayerSelect(state: ReportEditsState) {
 
 export function buildButtons(opts: {
   showBack: boolean;
-  canSet: boolean;
   canApply: boolean;
   disableAll: boolean;
+  showEnterId?: boolean;
 }) {
   const back = new ButtonBuilder()
     .setCustomId(REPORT_EDITS_CID.back)
@@ -196,11 +277,11 @@ export function buildButtons(opts: {
     .setStyle(ButtonStyle.Secondary)
     .setDisabled(opts.disableAll || !opts.showBack);
 
-  const set = new ButtonBuilder()
-    .setCustomId(REPORT_EDITS_CID.set)
-    .setLabel('Set')
-    .setStyle(ButtonStyle.Primary)
-    .setDisabled(opts.disableAll || !opts.canSet);
+  const enter = new ButtonBuilder()
+    .setCustomId(REPORT_EDITS_CID.discordEnter)
+    .setLabel('Enter ID')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(opts.disableAll);
 
   const apply = new ButtonBuilder()
     .setCustomId(REPORT_EDITS_CID.apply)
@@ -220,13 +301,10 @@ export function buildButtons(opts: {
     .setStyle(ButtonStyle.Danger)
     .setDisabled(opts.disableAll);
 
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    back,
-    set,
-    apply,
-    finish,
-    cancel
-  );
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(back);
+  if (opts.showEnterId) row.addComponents(enter);
+  row.addComponents(apply, finish, cancel);
+  return row;
 }
 
 export function summarizeOrderDraft(draft: ReportEditsOrderDraft): string {
