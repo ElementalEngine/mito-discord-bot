@@ -17,7 +17,7 @@ import {
   submitSaveForReport,
   appendMessageIdList,
 } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/report.layout.js";
+import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 
