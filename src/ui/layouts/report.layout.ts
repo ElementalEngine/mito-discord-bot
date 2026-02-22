@@ -28,11 +28,11 @@ type PlayerExt = ParsedPlayer & {
   subbed_out?: boolean;
 };
 
-const RANK_DELTA_HEADER = "Rank |\u00A0\u00A0ΔLT\u00A0|\u00A0\u00A0\u00A0ΔSS\u00A0";
+const RANK_DELTA_HEADER = "`Rank| ΔLT  |  ΔSS`";
 
 const LT_CELL_WIDTH = 10;
-const SS_CELL_WIDTH = 10;
-const PLAYER_ROW_MAX_WIDTH = 28;
+const SS_CELL_WIDTH = 9;
+const PLAYER_ROW_MAX_WIDTH = 26;
 
 export function buildReportEmbed(report: AnyReport, opts: BuildOpts = {}): EmbedBuilder {
   const now = opts.now ?? new Date();

@@ -26,11 +26,30 @@ export type ReportEditsOrderDraft = {
   placementsByTeamId: Record<number, number>; // 1..teamIds.length
 };
 
+export type ReportEditsStagedChanges = {
+  // Staged order draft (committed on Finish)
+  orderDraft?: ReportEditsOrderDraft;
+
+  // playerIndex (0-based) -> discordId
+  discordIdByIndex?: Record<number, string>;
+
+  // subInIndex (0-based) -> subOutDiscordId
+  subAssignByIndex?: Record<number, string>;
+
+  // subOutIndex (0-based)
+  removeSubIndexes?: number[];
+
+  // toggles applied on Finish
+  triggerToggles?: Array<{ kind: ReportEditsTriggerKind; discordId: string }>;
+};
+
 export type ReportEditsState = {
   matchId: string;
   match: GetMatchResponse;
   initiatorId: string;
   isStaff: boolean;
+
+  staged?: ReportEditsStagedChanges;
 
   stage: ReportEditsStage;
   action: ReportEditsAction | null;
@@ -43,8 +62,7 @@ export type ReportEditsState = {
   removeSubIndex?: number; // 0-based index into match.players (subbed_out slot)
 
   // Assign discord id
-  discordIdSlotIndex?: number; // 0-based index into match.players
-  discordIdPending?: string; // staged discord user id
+  discordIdBulkPending?: Record<number, string>; // 0-based index -> discordId
 
   // Order
   orderDraft?: ReportEditsOrderDraft;

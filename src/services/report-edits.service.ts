@@ -13,7 +13,7 @@ import {
 import { config } from '../config.js';
 import { EMOJI_CONFIRM, EMOJI_FAIL, MAX_DISCORD_LEN } from '../config/constants.js';
 import {
-  assignDiscordId,
+  assignDiscordIdAll,
   assignSub,
   getMatch,
   removeSub,
@@ -25,6 +25,7 @@ import {
   REPORT_EDITS_COLLECTOR_IDLE_MS,
   type ReportEditsAction,
   type ReportEditsOrderDraft,
+  type ReportEditsStagedChanges,
   type ReportEditsState,
 } from '../types/report-edits.js';
 import { buildReportEmbed } from '../ui/layouts/report.layout.js';
@@ -32,8 +33,6 @@ import { buildFinishedReportEditsEmbed, buildReportEditsEmbed } from '../ui/embe
 import {
   buildActionSelect,
   buildButtons,
-  buildDiscordSlotSelect,
-  buildDiscordUserSelect,
   buildOrderPlacementSelect,
   buildOrderTargetSelect,
   buildRemoveSubSelect,
@@ -47,7 +46,9 @@ import { parseDiscordUserId } from '../utils/parse-discord-id.js';
 import type { GetMatchResponse, ParsedPlayer } from '../api/types.js';
 import type { BaseReport } from '../types/reports.js';
 
-type ApplyResult =
+type StageResult = { ok: true } | { ok: false; message: string };
+
+type CommitResult =
   | { ok: true; updated: GetMatchResponse }
   | { ok: false; message: string };
 
@@ -116,6 +117,81 @@ async function getInvokerRoleIds(
   }
 }
 
+function isValidDiscordId(id: unknown): id is string {
+  return typeof id === 'string' && /^\d{17,20}$/.test(id);
+}
+
+function cloneMatch(match: GetMatchResponse): GetMatchResponse {
+  // Safe enough for our DTO shape (plain JSON)
+  return JSON.parse(JSON.stringify(match)) as GetMatchResponse;
+}
+
+function mergeRecord(
+  base: Record<number, string> | undefined,
+  extra: Record<number, string> | undefined
+): Record<number, string> | undefined {
+  if (!base && !extra) return undefined;
+  return { ...(base ?? {}), ...(extra ?? {}) };
+}
+
+export function parseDiscordIdMapping(
+  raw: string,
+  playerCount: number
+): { assignments: Record<number, string>; errors: string[] } {
+  const assignments: Record<number, string> = {};
+  const errors: string[] = [];
+
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  if (lines.length === 0) {
+    errors.push('No mappings provided.');
+    return { assignments, errors };
+  }
+
+  const seenSlots = new Set<number>();
+  const seenIds = new Set<string>();
+
+  for (const line of lines) {
+    const m = /^([0-9]{1,2})\s*=\s*(.+)$/.exec(line);
+    if (!m) {
+      errors.push(`Invalid line: \`${line}\` (expected format: 1=@mention or 1=123...)`);
+      continue;
+    }
+
+    const slotNum = Number(m[1]);
+    const idx = slotNum - 1;
+    if (!Number.isInteger(slotNum) || slotNum < 1 || slotNum > playerCount) {
+      errors.push(`Slot ${m[1]} is out of range (1..${playerCount}).`);
+      continue;
+    }
+
+    if (seenSlots.has(idx)) {
+      errors.push(`Slot ${slotNum} is specified more than once.`);
+      continue;
+    }
+
+    const parsed = parseDiscordUserId(m[2]);
+    if (!parsed || !isValidDiscordId(parsed)) {
+      errors.push(`Slot ${slotNum}: invalid Discord ID (@mention or numeric ID required).`);
+      continue;
+    }
+
+    if (seenIds.has(parsed)) {
+      errors.push(`Discord ID <@${parsed}> is assigned more than once.`);
+      continue;
+    }
+
+    seenSlots.add(idx);
+    seenIds.add(parsed);
+    assignments[idx] = parsed;
+  }
+
+  return { assignments, errors };
+}
+
 function resetActionState(state: ReportEditsState): ReportEditsState {
   return {
     ...state,
@@ -127,8 +203,7 @@ function resetActionState(state: ReportEditsState): ReportEditsState {
 
     removeSubIndex: undefined,
 
-    discordIdSlotIndex: undefined,
-    discordIdPending: undefined,
+    discordIdBulkPending: undefined,
 
     orderDraft: undefined,
     orderSelectedTeamId: undefined,
@@ -289,217 +364,219 @@ async function updatePublicReportMessage(
   }
 }
 
-async function applyAssignSub(
-  interaction: ChatInputCommandInteraction,
-  state: ReportEditsState
-): Promise<ApplyResult> {
+function ensureStaged(state: ReportEditsState): ReportEditsStagedChanges {
+  return (state.staged ??= {});
+}
+
+function stageSubAssign(state: ReportEditsState): StageResult {
   if (typeof state.subInIndex !== 'number' || !state.subOutDiscordId) {
     return { ok: false, message: 'Select sub-in slot and sub-out user.' };
   }
-
-  const audit = await postAuditMessage(
-    interaction,
-    `Assigning substitute…\nMatch ID: **${state.matchId}**`
-  );
-  if (!audit) {
-    return {
-      ok: false,
-      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
-    };
+  if (!isValidDiscordId(state.subOutDiscordId)) {
+    return { ok: false, message: 'Invalid sub-out Discord ID.' };
   }
 
-  try {
-    const res = await assignSub(
-      state.matchId,
-      String(state.subInIndex),
-      state.subOutDiscordId,
-      audit.id
-    );
-
-    const header =
-      `${EMOJI_CONFIRM} Substitute <@${state.subOutDiscordId}> assigned by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
-
-    await audit
-      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
-      .catch(() => null);
-
-    await updatePublicReportMessage(interaction, res);
-    return { ok: true, updated: res };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await audit.edit(`${EMOJI_FAIL} Assign Sub failed: ${msg}`).catch(() => null);
-    return { ok: false, message: `${EMOJI_FAIL} Assign Sub failed: ${msg}` };
-  }
+  const staged = ensureStaged(state);
+  const map = (staged.subAssignByIndex ??= {});
+  map[state.subInIndex] = state.subOutDiscordId;
+  return { ok: true };
 }
 
-async function applyRemoveSub(
-  interaction: ChatInputCommandInteraction,
-  state: ReportEditsState
-): Promise<ApplyResult> {
+function stageRemoveSub(state: ReportEditsState): StageResult {
   if (typeof state.removeSubIndex !== 'number') {
     return { ok: false, message: 'Select a sub slot to remove.' };
   }
-
-  const idx = state.removeSubIndex;
-  const subOutDiscordId = state.match.players[idx]?.discord_id;
-
-  const audit = await postAuditMessage(
-    interaction,
-    `Removing substitute…\nMatch ID: **${state.matchId}**`
-  );
-  if (!audit) {
-    return {
-      ok: false,
-      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
-    };
-  }
-
-  try {
-    const res = await removeSub(state.matchId, String(idx), audit.id);
-
-    const header =
-      `${EMOJI_CONFIRM} Substitute ${subOutDiscordId ? `<@${subOutDiscordId}>` : ''} removed by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
-
-    await audit
-      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
-      .catch(() => null);
-
-    await updatePublicReportMessage(interaction, res);
-    return { ok: true, updated: res };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await audit.edit(`${EMOJI_FAIL} Remove Sub failed: ${msg}`).catch(() => null);
-    return { ok: false, message: `${EMOJI_FAIL} Remove Sub failed: ${msg}` };
-  }
+  const staged = ensureStaged(state);
+  const list = (staged.removeSubIndexes ??= []);
+  if (!list.includes(state.removeSubIndex)) list.push(state.removeSubIndex);
+  return { ok: true };
 }
 
-async function applyDiscordId(
-  interaction: ChatInputCommandInteraction,
-  state: ReportEditsState
-): Promise<ApplyResult> {
-  if (typeof state.discordIdSlotIndex !== 'number' || !state.discordIdPending) {
-    return { ok: false, message: 'Select a slot and a Discord user/ID.' };
-  }
-
-  const idx = state.discordIdSlotIndex;
-  const audit = await postAuditMessage(
-    interaction,
-    `Assigning Discord ID…\nMatch ID: **${state.matchId}**`
-  );
-  if (!audit) {
-    return {
-      ok: false,
-      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
-    };
-  }
-
-  try {
-    const res = await assignDiscordId(
-      state.matchId,
-      String(idx),
-      state.discordIdPending,
-      audit.id
-    );
-
-    const header =
-      `${EMOJI_CONFIRM} <@${state.discordIdPending}> assigned by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
-
-    await audit
-      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
-      .catch(() => null);
-
-    await updatePublicReportMessage(interaction, res);
-    return { ok: true, updated: res };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await audit.edit(`${EMOJI_FAIL} Assign Discord ID failed: ${msg}`).catch(() => null);
-    return { ok: false, message: `${EMOJI_FAIL} Assign Discord ID failed: ${msg}` };
-  }
-}
-
-async function applyOrder(
-  interaction: ChatInputCommandInteraction,
-  state: ReportEditsState
-): Promise<ApplyResult> {
+function stageOrder(state: ReportEditsState): StageResult {
   if (!state.orderDraft) return { ok: false, message: 'Order draft is missing.' };
-
   const v = validateOrderDraft(state.orderDraft);
   if (!v.ok) return { ok: false, message: `${EMOJI_FAIL} ${v.message}` };
 
-  const newOrder = buildNewOrderString(state.orderDraft);
-
-  const audit = await postAuditMessage(
-    interaction,
-    `Changing report order…\nMatch ID: **${state.matchId}**`
-  );
-  if (!audit) {
-    return {
-      ok: false,
-      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
-    };
-  }
-
-  try {
-    const res = await setPlacements(state.matchId, newOrder, audit.id);
-
-    const header =
-      `${EMOJI_CONFIRM} Match order changed by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
-
-    await audit
-      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
-      .catch(() => null);
-
-    await updatePublicReportMessage(interaction, res);
-    return { ok: true, updated: res };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await audit.edit(`${EMOJI_FAIL} Change Order failed: ${msg}`).catch(() => null);
-    return { ok: false, message: `${EMOJI_FAIL} Change Order failed: ${msg}` };
-  }
+  const staged = ensureStaged(state);
+  staged.orderDraft = JSON.parse(JSON.stringify(state.orderDraft)) as ReportEditsOrderDraft;
+  return { ok: true };
 }
 
-async function applyTrigger(
-  interaction: ChatInputCommandInteraction,
-  state: ReportEditsState
-): Promise<ApplyResult> {
+function stageTrigger(state: ReportEditsState): StageResult {
   if (!state.triggerKind || !state.triggerDiscordId) {
     return { ok: false, message: 'Select a player.' };
   }
+  if (!isValidDiscordId(state.triggerDiscordId)) {
+    return { ok: false, message: 'Invalid Discord ID for trigger.' };
+  }
+  const staged = ensureStaged(state);
+  const list = (staged.triggerToggles ??= []);
+  if (!list.some((t) => t.kind === state.triggerKind && t.discordId === state.triggerDiscordId)) {
+    list.push({ kind: state.triggerKind, discordId: state.triggerDiscordId });
+  }
+  return { ok: true };
+}
 
-  const label = state.triggerKind === 'lagger' ? 'Lagger' : 'Quit';
-
-  const audit = await postAuditMessage(
-    interaction,
-    `Triggering ${label.toLowerCase()}…\nMatch ID: **${state.matchId}**`
-  );
-  if (!audit) {
-    return {
-      ok: false,
-      message: `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`,
-    };
+function stageDiscordIds(state: ReportEditsState): StageResult {
+  const pending = state.discordIdBulkPending;
+  if (!pending || Object.keys(pending).length === 0) {
+    return { ok: false, message: 'Enter one or more Discord IDs first.' };
   }
 
+  const staged = ensureStaged(state);
+  staged.discordIdByIndex = mergeRecord(staged.discordIdByIndex, pending);
+  state.discordIdBulkPending = undefined;
+  return { ok: true };
+}
+
+function applyDiscordIdsToMatch(
+  match: GetMatchResponse,
+  map: Record<number, string>
+): void {
+  for (const [k, v] of Object.entries(map)) {
+    const idx = Number(k);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= match.players.length) continue;
+    match.players[idx].discord_id = v;
+  }
+}
+
+function applyOrderDraftToMatch(match: GetMatchResponse, draft: ReportEditsOrderDraft): void {
+  // Match placements are 0-based internally; draft placements are 1-based.
+  for (const p of match.players) {
+    const placement = draft.placementsByTeamId[p.team];
+    if (typeof placement === 'number') {
+      p.placement = placement - 1;
+    }
+  }
+}
+
+export type ReportEditsBackend = {
+  assignDiscordIdAll: typeof assignDiscordIdAll;
+  assignSub: typeof assignSub;
+  removeSub: typeof removeSub;
+  triggerQuit: typeof triggerQuit;
+  setPlacements: typeof setPlacements;
+};
+
+export async function commitStagedEditsCore(args: {
+  matchId: string;
+  baseMatch: GetMatchResponse;
+  staged: ReportEditsStagedChanges;
+  discordMessageId: string;
+  backend: ReportEditsBackend;
+}): Promise<CommitResult> {
+  const { matchId, baseMatch, staged, discordMessageId, backend } = args;
+
+  const hasAnything =
+    Boolean(staged.orderDraft) ||
+    Boolean(staged.discordIdByIndex && Object.keys(staged.discordIdByIndex).length) ||
+    Boolean(staged.subAssignByIndex && Object.keys(staged.subAssignByIndex).length) ||
+    Boolean(staged.removeSubIndexes && staged.removeSubIndexes.length) ||
+    Boolean(staged.triggerToggles && staged.triggerToggles.length);
+
+  if (!hasAnything) {
+    return { ok: false, message: `${EMOJI_FAIL} No staged changes to apply.` };
+  }
+
+  // Pre-validate order
+  if (staged.orderDraft) {
+    const v = validateOrderDraft(staged.orderDraft);
+    if (!v.ok) return { ok: false, message: `${EMOJI_FAIL} ${v.message}` };
+  }
+
+  // Pre-validate Discord IDs and decide commit strategy (prefer atomic assignDiscordIdAll)
+  let discordIdList: string[] | null = null;
+  if (staged.discordIdByIndex && Object.keys(staged.discordIdByIndex).length > 0) {
+    const list: string[] = [];
+    const missingSlots: number[] = [];
+
+    for (let i = 0; i < baseMatch.players.length; i++) {
+      const stagedId = staged.discordIdByIndex[i];
+      const current = baseMatch.players[i]?.discord_id;
+      const chosen = stagedId ?? (isValidDiscordId(current) ? current : undefined);
+      if (!chosen) {
+        missingSlots.push(i + 1);
+        list.push('');
+      } else {
+        list.push(chosen);
+      }
+    }
+
+    if (missingSlots.length > 0) {
+      return {
+        ok: false,
+        message: `${EMOJI_FAIL} Missing Discord IDs for slots: ${missingSlots.join(
+          ', '
+        )}. Use “Enter IDs” to fill all missing slots, then Finish.`,
+      };
+    }
+
+    discordIdList = list;
+  }
+
+  // Pre-validate sub indexes
+  if (staged.subAssignByIndex) {
+    for (const [k, v] of Object.entries(staged.subAssignByIndex)) {
+      const idx = Number(k);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= baseMatch.players.length) {
+        return { ok: false, message: `${EMOJI_FAIL} Invalid sub-in slot: ${k}.` };
+      }
+      if (!isValidDiscordId(v)) {
+        return { ok: false, message: `${EMOJI_FAIL} Invalid sub-out Discord ID for slot ${idx + 1}.` };
+      }
+    }
+  }
+
+  if (staged.removeSubIndexes) {
+    for (const idx of staged.removeSubIndexes) {
+      if (!Number.isInteger(idx) || idx < 0 || idx >= baseMatch.players.length) {
+        return { ok: false, message: `${EMOJI_FAIL} Invalid remove-sub index: ${idx}.` };
+      }
+    }
+  }
+
+  if (staged.triggerToggles) {
+    for (const t of staged.triggerToggles) {
+      if (!isValidDiscordId(t.discordId)) {
+        return { ok: false, message: `${EMOJI_FAIL} Invalid trigger Discord ID.` };
+      }
+    }
+  }
+
+  let updated: GetMatchResponse = baseMatch;
+
   try {
-    const res = await triggerQuit(state.matchId, state.triggerDiscordId, audit.id);
+    if (discordIdList) {
+      updated = await backend.assignDiscordIdAll(matchId, discordIdList, discordMessageId);
+    }
 
-    const header =
-      `${EMOJI_CONFIRM} Player <@${state.triggerDiscordId}> ${label.toLowerCase()} toggled by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
+    if (staged.subAssignByIndex) {
+      for (const [k, v] of Object.entries(staged.subAssignByIndex)) {
+        updated = await backend.assignSub(matchId, String(Number(k)), v, discordMessageId);
+      }
+    }
 
-    await audit
-      .edit(truncateForDiscord(header + convertMatchToStr(res as BaseReport, false)))
-      .catch(() => null);
+    if (staged.removeSubIndexes) {
+      for (const idx of staged.removeSubIndexes) {
+        updated = await backend.removeSub(matchId, String(idx), discordMessageId);
+      }
+    }
 
-    await updatePublicReportMessage(interaction, res);
-    return { ok: true, updated: res };
+    if (staged.triggerToggles) {
+      for (const t of staged.triggerToggles) {
+        updated = await backend.triggerQuit(matchId, t.discordId, discordMessageId);
+      }
+    }
+
+    if (staged.orderDraft) {
+      const newOrder = buildNewOrderString(staged.orderDraft);
+      updated = await backend.setPlacements(matchId, newOrder, discordMessageId);
+    }
+
+    return { ok: true, updated };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
-    await audit.edit(`${EMOJI_FAIL} Trigger ${label} failed: ${msg}`).catch(() => null);
-    return { ok: false, message: `${EMOJI_FAIL} Trigger ${label} failed: ${msg}` };
+    return { ok: false, message: `${EMOJI_FAIL} Failed to apply staged edits: ${msg}` };
   }
 }
 
@@ -510,9 +587,7 @@ function canApply(state: ReportEditsState): boolean {
     case 'SUB_REMOVE':
       return typeof state.removeSubIndex === 'number';
     case 'DISCORD_ID':
-      return (
-        typeof state.discordIdSlotIndex === 'number' && Boolean(state.discordIdPending)
-      );
+      return Boolean(state.discordIdBulkPending && Object.keys(state.discordIdBulkPending).length);
     case 'ORDER':
       return Boolean(state.orderDraft && validateOrderDraft(state.orderDraft).ok);
     case 'TRIGGER':
@@ -522,7 +597,10 @@ function canApply(state: ReportEditsState): boolean {
   }
 }
 
-function renderComponents(state: ReportEditsState, disableAll: boolean): SessionRow[] {
+export function buildReportEditsSessionComponents(
+  state: ReportEditsState,
+  disableAll: boolean
+): SessionRow[] {
   const rows: SessionRow[] = [];
 
   const actionRow = buildActionSelect(state);
@@ -550,16 +628,8 @@ function renderComponents(state: ReportEditsState, disableAll: boolean): Session
     if (disableAll) pushDisabled(r);
     else rows.push(r);
   } else if (state.stage === 'DISCORD_ID') {
-    const r1 = buildDiscordSlotSelect(state);
-    const r2 = buildDiscordUserSelect(state);
-
-    if (disableAll) {
-      pushDisabled(r1);
-      pushDisabled(r2);
-    } else {
-      rows.push(r1);
-      rows.push(r2);
-    }
+    // Large-server safe: primary input is text-based via modal (Enter IDs).
+    // No user-select dropdowns in this flow.
   } else if (state.stage === 'ORDER') {
     const r1 = buildOrderPlacementSelect(state);
     const r2 = buildOrderTargetSelect(state);
@@ -636,14 +706,37 @@ export async function startReportEditsSession(
     match,
     initiatorId: interaction.user.id,
     isStaff,
+    staged: undefined,
     stage: 'ACTION',
     action: null,
     lastNotice: 'Choose an action to begin.',
   };
 
+  function getRenderState(): ReportEditsState {
+    const render: ReportEditsState = {
+      ...state,
+      match: cloneMatch(state.match),
+    };
+
+    const combinedDiscordIds = mergeRecord(
+      state.staged?.discordIdByIndex,
+      state.discordIdBulkPending
+    );
+    if (combinedDiscordIds) applyDiscordIdsToMatch(render.match, combinedDiscordIds);
+
+    const draft =
+      state.stage === 'ORDER' && state.orderDraft
+        ? state.orderDraft
+        : state.staged?.orderDraft;
+    if (draft) applyOrderDraftToMatch(render.match, draft);
+
+    return render;
+  }
+
+  const initialRender = getRenderState();
   await interaction.editReply({
-    embeds: [buildReportEditsEmbed(state)],
-    components: renderComponents(state, false),
+    embeds: [buildReportEditsEmbed(initialRender)],
+    components: buildReportEditsSessionComponents(initialRender, false),
   });
 
   const reply = (await interaction.fetchReply()) as Message;
@@ -656,9 +749,10 @@ export async function startReportEditsSession(
 
   async function refresh(): Promise<void> {
     try {
+      const render = getRenderState();
       await interaction.editReply({
-        embeds: [buildReportEditsEmbed(state)],
-        components: renderComponents(state, false),
+        embeds: [buildReportEditsEmbed(render)],
+        components: buildReportEditsSessionComponents(render, false),
       });
     } catch {
       // ignore
@@ -670,9 +764,10 @@ export async function startReportEditsSession(
     finished = true;
 
     try {
+      const render = getRenderState();
       await interaction.editReply({
-        embeds: [buildFinishedReportEditsEmbed(state, reason)],
-        components: renderComponents(state, true),
+        embeds: [buildFinishedReportEditsEmbed(render, reason)],
+        components: buildReportEditsSessionComponents(render, true),
       });
     } catch {
       // ignore
@@ -711,14 +806,15 @@ export async function startReportEditsSession(
 
       const modal = new ModalBuilder()
         .setCustomId(REPORT_EDITS_CID.discordModal)
-        .setTitle('Assign Discord ID');
+        .setTitle('Assign Discord IDs');
 
       const input = new TextInputBuilder()
-        .setCustomId('discord_id')
-        .setLabel('Discord ID or @mention')
-        .setStyle(TextInputStyle.Short)
+        .setCustomId('discord_map')
+        .setLabel('Mappings: slot=@mention or slot=ID')
+        .setStyle(TextInputStyle.Paragraph)
         .setRequired(true)
-        .setMaxLength(64);
+        .setMaxLength(4000)
+        .setPlaceholder('1=@Cisco\n3=123456789012345678');
 
       modal.addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(input)
@@ -738,24 +834,26 @@ export async function startReportEditsSession(
             m.user.id === state.initiatorId,
         });
 
-        const raw = submitted.fields.getTextInputValue('discord_id');
-        const parsed = parseDiscordUserId(raw);
-        if (!parsed) {
-          await submitted.reply({
-            content: `${EMOJI_FAIL} Invalid Discord ID. Use a numeric ID or tag the user (e.g. <@123...>).`,
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
-        }
+        const raw = submitted.fields.getTextInputValue('discord_map');
+        const { assignments, errors } = parseDiscordIdMapping(
+          raw,
+          state.match.players.length
+        );
 
         await submitted.deferUpdate().catch(() => null);
-        if (typeof state.discordIdSlotIndex !== 'number') {
-          state.lastNotice = `${EMOJI_FAIL} Select a slot first.`;
+
+        const count = Object.keys(assignments).length;
+        if (count === 0) {
+          state.discordIdBulkPending = undefined;
+          state.lastNotice = `${EMOJI_FAIL} ${errors.join('\n')}`.slice(0, 1024);
           await refresh();
           return;
         }
-        state.discordIdPending = parsed;
-        state.lastNotice = 'Ready. Click Apply to assign the Discord ID.';
+
+        state.discordIdBulkPending = assignments;
+        state.lastNotice =
+          `${EMOJI_CONFIRM} Loaded ${count} Discord ID mapping(s). Click Apply to stage them.` +
+          (errors.length ? `\n${EMOJI_FAIL} ${errors.join('\n')}` : '');
         await refresh();
       } catch {
         state.lastNotice = `${EMOJI_FAIL} ID entry timed out.`;
@@ -780,7 +878,8 @@ export async function startReportEditsSession(
         state.lastNotice = 'Select the sub slot to remove.';
       } else if (action === 'DISCORD_ID') {
         state.stage = 'DISCORD_ID';
-        state.lastNotice = 'Select a slot missing a Discord ID, then pick a user (or Enter ID).';
+        state.lastNotice =
+          'Click “Enter IDs” and paste mappings like `1=@mention` or `3=123...` (one per line). Then click Apply to stage.';
       } else if (action === 'ORDER') {
         state.stage = 'ORDER';
         const d = computeOrderDraft(state.match.players);
@@ -788,12 +887,12 @@ export async function startReportEditsSession(
         else {
           state.orderDraft = d.draft;
           state.lastNotice =
-            'Select a placement, then select a team/player to swap into that place. Click Apply to commit.';
+            'Select a placement, then select a team/player to swap into that place. Click Apply to stage.';
         }
       } else if (action === 'TRIGGER_QUIT' || action === 'TRIGGER_LAGGER') {
         state.stage = 'TRIGGER';
         state.triggerKind = action === 'TRIGGER_LAGGER' ? 'lagger' : 'quit';
-        state.lastNotice = 'Select a player, then click Apply.';
+        state.lastNotice = 'Select a player, then click Apply to stage.';
       }
 
       await refresh();
@@ -821,21 +920,6 @@ export async function startReportEditsSession(
       return;
     }
 
-    if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.discordSlot) {
-      state.discordIdSlotIndex = Number(i.values[0]);
-      state.discordIdPending = undefined;
-      state.lastNotice = 'Select a user (or Enter ID), then click Apply.';
-      await refresh();
-      return;
-    }
-
-    if (i.isUserSelectMenu() && i.customId === REPORT_EDITS_CID.discordUser) {
-      state.discordIdPending = i.values[0];
-      state.lastNotice = 'Ready. Click Apply to assign the Discord ID.';
-      await refresh();
-      return;
-    }
-
     if (i.isStringSelectMenu() && i.customId === REPORT_EDITS_CID.orderTeam) {
       if (!state.orderDraft || state.stage !== 'ORDER') {
         state.lastNotice = `${EMOJI_FAIL} Order draft is missing.`;
@@ -851,7 +935,7 @@ export async function startReportEditsSession(
       const teamId = Number(i.values[0]);
       state.orderSelectedTeamId = teamId;
       applyOrderSelection(state.orderDraft, state.orderSelectedPlacement, teamId);
-      state.lastNotice = 'Draft updated. Click Apply when ready.';
+      state.lastNotice = 'Draft updated. Click Apply to stage.';
       await refresh();
       return;
     }
@@ -879,13 +963,70 @@ export async function startReportEditsSession(
     if (!i.isButton()) return;
 
     if (i.customId === REPORT_EDITS_CID.cancel) {
+      state.staged = undefined;
+      state.discordIdBulkPending = undefined;
       state.lastNotice = 'Cancelled.';
       await endSession('Cancelled');
       return;
     }
 
     if (i.customId === REPORT_EDITS_CID.finish) {
-      state.lastNotice = 'Finished.';
+      state.lastNotice = 'Committing staged edits…';
+      await refresh();
+
+      const staged = state.staged;
+      if (!staged) {
+        state.lastNotice = `${EMOJI_FAIL} No staged changes to apply.`;
+        await refresh();
+        return;
+      }
+
+      const audit = await postAuditMessage(
+        interaction,
+        `Applying report edits…\nMatch ID: **${state.matchId}**`
+      );
+      if (!audit) {
+        state.lastNotice = `${EMOJI_FAIL} Failed to post audit message. Edit aborted.`;
+        await refresh();
+        return;
+      }
+
+      const result = await commitStagedEditsCore({
+        matchId: state.matchId,
+        baseMatch: state.match,
+        staged,
+        discordMessageId: audit.id,
+        backend: {
+          assignDiscordIdAll,
+          assignSub,
+          removeSub,
+          triggerQuit,
+          setPlacements,
+        },
+      });
+
+      if (!result.ok) {
+        state.lastNotice = result.message;
+        await audit.edit(result.message).catch(() => null);
+        await refresh();
+        return;
+      }
+
+      const header =
+        `${EMOJI_CONFIRM} Report edits applied by <@${interaction.user.id}>\n` +
+        `Match ID: **${result.updated.match_id}**\n`;
+      await audit
+        .edit(truncateForDiscord(header + convertMatchToStr(result.updated as BaseReport, false)))
+        .catch(() => null);
+
+      await updatePublicReportMessage(interaction, result.updated);
+
+      state.match = result.updated;
+      state.staged = undefined;
+      state.discordIdBulkPending = undefined;
+      state = resetActionState(state);
+      state.lastNotice = `${EMOJI_CONFIRM} Changes committed.`;
+      await refresh();
       await endSession('Finished');
       return;
     }
@@ -898,20 +1039,20 @@ export async function startReportEditsSession(
     }
 
     if (i.customId === REPORT_EDITS_CID.apply) {
-      state.lastNotice = 'Applying…';
+      state.lastNotice = 'Staging…';
       await refresh();
 
-      let result: ApplyResult;
+      let result: StageResult;
       if (state.stage === 'SUB_ASSIGN') {
-        result = await applyAssignSub(interaction, state);
+        result = stageSubAssign(state);
       } else if (state.stage === 'SUB_REMOVE') {
-        result = await applyRemoveSub(interaction, state);
+        result = stageRemoveSub(state);
       } else if (state.stage === 'DISCORD_ID') {
-        result = await applyDiscordId(interaction, state);
+        result = stageDiscordIds(state);
       } else if (state.stage === 'ORDER') {
-        result = await applyOrder(interaction, state);
+        result = stageOrder(state);
       } else if (state.stage === 'TRIGGER') {
-        result = await applyTrigger(interaction, state);
+        result = stageTrigger(state);
       } else {
         result = { ok: false, message: 'Choose an action first.' };
       }
@@ -922,10 +1063,8 @@ export async function startReportEditsSession(
         return;
       }
 
-      state.match = result.updated;
       state = resetActionState(state);
-      state.lastNotice =
-        `${EMOJI_CONFIRM} Applied successfully. Run another edit, or Finish.`;
+      state.lastNotice = `${EMOJI_CONFIRM} Staged. Run another edit, or Finish.`;
       await refresh();
       return;
     }
@@ -934,6 +1073,8 @@ export async function startReportEditsSession(
   collector.on('end', async (_collected, reason) => {
     if (finished) return;
     if (reason === 'Finished' || reason === 'Cancelled') return;
+    state.staged = undefined;
+    state.discordIdBulkPending = undefined;
     state.lastNotice = 'Timed out.';
     await endSession('Timed out');
   });

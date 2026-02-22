@@ -13,6 +13,10 @@ import type {
   ReportEditsState,
 } from '../../types/report-edits.js';
 
+function isValidDiscordId(id: unknown): id is string {
+  return typeof id === 'string' && /^\d{17,20}$/.test(id);
+}
+
 function ordinal(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -178,49 +182,6 @@ export function buildOrderTargetSelect(state: ReportEditsState) {
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 }
 
-export function buildDiscordSlotSelect(state: ReportEditsState) {
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(REPORT_EDITS_CID.discordSlot)
-    .setPlaceholder('Select slot missing Discord ID')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  const missing = state.match.players
-    .map((p, idx) => ({ p, idx }))
-    .filter(({ p }) => !p.discord_id);
-
-  if (missing.length === 0) {
-    menu.setDisabled(true).setPlaceholder('No missing Discord IDs');
-    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-  }
-
-  for (const { p, idx } of missing) {
-    const name = p.user_name ?? 'Unknown';
-    const label = `#${idx + 1} ${name}`;
-    menu.addOptions({
-      label: label.slice(0, 100),
-      value: String(idx),
-      default: state.discordIdSlotIndex === idx,
-    });
-  }
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-}
-
-export function buildDiscordUserSelect(state: ReportEditsState) {
-  const menu = new UserSelectMenuBuilder()
-    .setCustomId(REPORT_EDITS_CID.discordUser)
-    .setPlaceholder('Select Discord user')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  if (typeof state.discordIdSlotIndex !== 'number') {
-    menu.setDisabled(true).setPlaceholder('Select a slot first');
-  }
-
-  return new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(menu);
-}
-
 export function buildOrderPlacementSelect(state: ReportEditsState) {
   const draft = state.orderDraft;
   const menu = new StringSelectMenuBuilder()
@@ -253,7 +214,7 @@ export function buildTriggerPlayerSelect(state: ReportEditsState) {
     .setMaxValues(1);
 
   for (const p of state.match.players) {
-    if (!p.discord_id) continue;
+    if (!isValidDiscordId(p.discord_id)) continue;
     const label = p.user_name ?? `Player <@${p.discord_id}>`;
     menu.addOptions({
       label: label.slice(0, 100),
@@ -279,7 +240,7 @@ export function buildButtons(opts: {
 
   const enter = new ButtonBuilder()
     .setCustomId(REPORT_EDITS_CID.discordEnter)
-    .setLabel('Enter ID')
+    .setLabel('Enter IDs')
     .setStyle(ButtonStyle.Secondary)
     .setDisabled(opts.disableAll);
 

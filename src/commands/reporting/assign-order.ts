@@ -6,7 +6,7 @@ import {
 import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.js";
 import { setPlayerOrder, getMatch } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/report.layout.js";
+import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { allPlayersHaveDiscordId, normalizePlayerList, isValidPlayerList } from "../../utils/convert-match-to-str.js";
 
 import type { BaseReport } from "../../types/reports.js";

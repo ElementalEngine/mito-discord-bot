@@ -3,6 +3,10 @@ import { EmbedBuilder } from 'discord.js';
 import { buildReportEmbed } from '../layouts/report.layout.js';
 import type { ReportEditsState } from '../../types/report-edits.js';
 
+function isValidDiscordId(id: unknown): id is string {
+  return typeof id === 'string' && /^\d{17,20}$/.test(id);
+}
+
 function ordinal(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -37,7 +41,9 @@ function formatOrderPreview(state: ReportEditsState): string {
     }
 
     const p = state.match.players.find((x) => x.team === teamId);
-    const name = p?.discord_id ? `<@${p.discord_id}>` : p?.user_name ?? `Player ${teamId + 1}`;
+    const name = isValidDiscordId(p?.discord_id)
+      ? `<@${p.discord_id}>`
+      : p?.user_name ?? `Player ${teamId + 1}`;
     lines.push(`${ordinal(place)} — ${name}`);
   }
 
@@ -47,20 +53,63 @@ function formatOrderPreview(state: ReportEditsState): string {
 function formatDiscordIdPreview(state: ReportEditsState): string {
   const missing = state.match.players
     .map((p, idx) => ({ p, idx }))
-    .filter(({ p }) => !p.discord_id);
+    .filter(({ p }) => !isValidDiscordId(p.discord_id));
 
   if (missing.length === 0) return 'All slots have Discord IDs.';
 
   const lines: string[] = [];
   for (const { p, idx } of missing) {
     const name = p.user_name ?? 'Unknown';
-    const isSelected = state.discordIdSlotIndex === idx;
-    const pending =
-      isSelected && state.discordIdPending ? ` → <@${state.discordIdPending}>` : '';
-    lines.push(`#${idx + 1} ${name}${pending}`);
+    const staged = state.staged?.discordIdByIndex?.[idx];
+    const pending = state.discordIdBulkPending?.[idx];
+
+    const suffix = pending
+      ? ` → <@${pending}> (pending)`
+      : staged
+        ? ` → <@${staged}> (staged)`
+        : '';
+
+    lines.push(`#${idx + 1} ${name}${suffix}`);
   }
 
   return lines.join('\n').slice(0, 1024);
+}
+
+function formatStagedSummary(state: ReportEditsState): string {
+  const staged = state.staged;
+  if (!staged) return '';
+
+  const lines: string[] = [];
+
+  if (staged.orderDraft) {
+    lines.push('• Order change staged');
+  }
+
+  const didCount = staged.discordIdByIndex
+    ? Object.keys(staged.discordIdByIndex).length
+    : 0;
+  if (didCount > 0) {
+    lines.push(`• Discord IDs staged: ${didCount}`);
+  }
+
+  const subCount = staged.subAssignByIndex
+    ? Object.keys(staged.subAssignByIndex).length
+    : 0;
+  if (subCount > 0) {
+    lines.push(`• Subs staged: ${subCount}`);
+  }
+
+  const removeCount = staged.removeSubIndexes?.length ?? 0;
+  if (removeCount > 0) {
+    lines.push(`• Remove subs staged: ${removeCount}`);
+  }
+
+  const trigCount = staged.triggerToggles?.length ?? 0;
+  if (trigCount > 0) {
+    lines.push(`• Triggers staged: ${trigCount}`);
+  }
+
+  return lines.length ? lines.join('\n').slice(0, 1024) : '';
 }
 
 export function buildReportEditsEmbed(state: ReportEditsState): EmbedBuilder {
@@ -71,6 +120,11 @@ export function buildReportEditsEmbed(state: ReportEditsState): EmbedBuilder {
 
   const notice = state.lastNotice;
   const hasNotice = Boolean(notice && notice.trim().length);
+
+  const staged = formatStagedSummary(state);
+  if (staged) {
+    base.addFields({ name: 'Staged', value: staged, inline: false });
+  }
 
   if (state.stage === 'ORDER' && state.orderDraft) {
     base.addFields({ name: 'Pending Order', value: formatOrderPreview(state), inline: false });

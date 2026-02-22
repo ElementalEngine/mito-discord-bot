@@ -6,7 +6,7 @@ import {
 import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, MAX_DISCORD_LEN } from "../../config/constants.js";
 import { assignDiscordIdAll } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/report.layout.js";
+import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 
