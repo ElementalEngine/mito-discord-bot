@@ -11,7 +11,7 @@ import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startSecretVote } from '../../services/secretvote.service.js';
 import type { SecretVoteAction } from '../../types/secretvote.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { buildVoiceChannelVoters } from '../../utils/resolve-voters.js';
+import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [

@@ -8,7 +8,6 @@ import type {
   Civ6DraftResult,
   Civ7DraftRequest,
   Civ7DraftResult,
-  DraftAllocation,
   DraftGameType,
   DraftGroup,
   DraftGroupKind,
@@ -49,7 +48,6 @@ type Civ6LeaderKey = keyof typeof CIV6_LEADERS;
 type Civ7LeaderKey = keyof typeof CIV7_LEADERS;
 type Civ7CivKey = keyof typeof CIV7_CIVS;
 
-// Capture name + id. We resolve bans by emoji name (matches meta.gameId) because server emoji IDs may differ.
 const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
 const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
 const SNOWFLAKE_RE = /^\d{15,22}$/;
@@ -221,7 +219,6 @@ function clampAtLeast1(n: number): number {
 function teamTargetCiv6(teams: number): number {
   if (teams === 2) return 20;
   if (teams >= 3 && teams <= 6) return 10;
-  // 7 teams
   return 6;
 }
 
@@ -407,8 +404,6 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
   const civBansAll = resolveEmojiBans(tokenizeBans(req.civBansRaw), civIndex, 'civ');
 
   const bannedLeaders = leaderBans.banned;
-
-  // Civ bans are only applied within the selected age pool.
   const bannedCivs = new Set<Civ7CivKey>();
   const acceptedCivs: Civ7CivKey[] = [];
   const ignoredCivBans: string[] = [...civBansAll.ignored];
@@ -448,7 +443,6 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
   else if (req.gameType === 'FFA') civTarget = CIV7_FFA_CIVS_PER_PLAYER;
   else civTarget = teamTargetCiv7Civs(groupCount);
 
-  // Civs may duplicate across groups, but we keep them distinct within a group.
   const civsPerGroup = clampAtLeast1(Math.min(civTarget, civPool.length));
 
   const allocationNote = buildAllocationNote([
@@ -466,7 +460,6 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
     groups.push({ leaders, civs: [] });
   }
 
-  // Civs: duplicate across groups allowed, but avoid duplication in Duel when possible.
   if (req.gameType === 'Duel' && civPool.length >= civsPerGroup * 2) {
     const copy = civPool.slice();
     shuffle(copy);

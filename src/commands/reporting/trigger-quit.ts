@@ -1,5 +1,4 @@
 import {
-  EmbedBuilder,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -10,6 +9,9 @@ import { triggerQuit, getMatch } from "../../services/reporting.service.js";
 import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
+import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
+import { deleteLater } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reports.js";
 
@@ -37,9 +39,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const matchId = interaction.options.getString("match-id", true) as string;
-  var quitterDiscordId = interaction.options.getString("quitter-discord-id", true) as string;
-  if (quitterDiscordId.startsWith('<@') && quitterDiscordId.endsWith('>')) {
-    quitterDiscordId = quitterDiscordId.slice(2, -1);
+  const quitterRaw = interaction.options.getString("quitter-discord-id", true) as string;
+  const quitterDiscordId = parseDiscordUserId(quitterRaw);
+  if (!quitterDiscordId) {
+    await interaction.reply({
+      content: `${EMOJI_FAIL} Invalid quitter Discord ID. Use a numeric ID or tag the user (e.g. <@123...>).`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
   }
 
   const errors: string[] = [];
@@ -73,17 +80,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await message.edit({ embeds: [updatedEmbed] });
     }
     const header =
-      `${EMOJI_CONFIRM} Player <@${quitterDiscordId}> quit is triggered by <@${interaction.user.id}> (${interaction.user.id})\n` +
+      `${EMOJI_CONFIRM} Player <@${quitterDiscordId}> quit is triggered by <@${interaction.user.id}>\n` +
       `Match ID: **${res.match_id}**\n`;
 
     const full = header + convertMatchToStr(res as BaseReport, false);
-    interaction.editReply(full);
-  } catch (err: any) {
-    const msg = err?.body ? `${err.message}: ${JSON.stringify(err.body)}` : (err?.message ?? "Unknown error");
-    await interaction.editReply(`${EMOJI_FAIL} Upload failed: ${msg}`)
-      .then(repliedMessage => {
-          setTimeout(() => repliedMessage.delete(), 60 * 1000);
-        })
-      .catch();
+    const chunks = Array.from(chunkByLength(full, MAX_DISCORD_LEN));
+    const first = chunks[0] ?? header;
+
+    await interaction.editReply(first);
+    for (const chunk of chunks.slice(1)) {
+      await interaction.followUp({ content: chunk }).catch(() => undefined);
+    }
+  } catch (err: unknown) {
+    const msg = await interaction.editReply(`${EMOJI_FAIL} Upload failed: ${errorMessage(err)}`).catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
   }
 }

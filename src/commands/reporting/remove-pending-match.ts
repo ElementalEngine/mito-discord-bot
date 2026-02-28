@@ -7,6 +7,8 @@ import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.js";
 import { deletePendingMatch, getMatch } from "../../services/reporting.service.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
+import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 export const data = new SlashCommandBuilder()
   .setName("remove-match")
@@ -28,22 +30,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
 
-  const errors: string[] = [];
-
-  if (errors.length) {
-    await interaction.reply({
-      content: `${EMOJI_FAIL} FAIL\n${errors.map(e => `• ${e}`).join("\n")}`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  var deferedReply = await interaction.deferReply({
+  await interaction.deferReply({
     flags: MessageFlags.Ephemeral,
   });
 
   try {
-    await interaction.editReply(`Deleting report...`);
+    await interaction.editReply(`Deleting report...`).catch(() => undefined);
     const getMatchRes = await getMatch(matchId);
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
     if (getMatchRes?.reporter_discord_id != interaction.user.id &&
@@ -62,30 +54,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const res = await deletePendingMatch(matchId);
 
     const successMsg = `${EMOJI_CONFIRM} Match **${matchId}** removed successfully!\n` + playerListMessage;
-    interactionReply.edit(successMsg)
-      .then(repliedMessage => {
-        setTimeout(() => repliedMessage.delete(), 10 * 60 * 1000);
-      })
-      .catch();
-    deferedReply.delete();
+    await interactionReply.edit(successMsg).catch(() => undefined);
+    deleteLater(interactionReply, 10 * 60 * 1000);
 
-    for (var msg in res.discord_messages_id_list) {
-      try {
-        const message = await interaction.channel?.messages.fetch(res.discord_messages_id_list[msg]);
-        if (message) {
-          await message.delete();
-        }
-      } catch (e) {
-        console.log(`Failed to delete message id ${res.discord_messages_id_list[msg]} for match ${matchId}`);
+    await interaction.deleteReply().catch(() => undefined);
+
+    if (interaction.channel?.isTextBased()) {
+      for (const id of res.discord_messages_id_list ?? []) {
+        const message = await interaction.channel.messages.fetch(id).catch(() => null);
+        if (message) await safeDelete(message);
       }
     }
 
-  } catch (err: any) {
-    const msg = err?.body ? `${err.message}: ${JSON.stringify(err.body)}` : (err?.message ?? "Unknown error");
-    await interaction.editReply(`${EMOJI_FAIL} Upload failed: ${msg}`)
-      .then(repliedMessage => {
-          setTimeout(() => repliedMessage.delete(), 60 * 1000);
-        })
-      .catch();
+  } catch (err: unknown) {
+    const msg = await interaction.editReply(`${EMOJI_FAIL} Remove match failed: ${errorMessage(err)}`).catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
   }
 }

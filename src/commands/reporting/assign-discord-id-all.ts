@@ -9,6 +9,9 @@ import { assignDiscordIdAll } from "../../services/reporting.service.js";
 import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
+import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
+import { deleteLater } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reports.js";
 
@@ -37,13 +40,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
   const discordIdList = interaction.options.getString("discord-id-list", true) as string;
-  let discordIds = discordIdList.split(' ').map(id => {
-    if (id.startsWith('<@') && id.endsWith('>')) {
-      return id.slice(2, -1);
-    }
-    return id;
-  });
-  discordIds = discordIds.filter(id => id.length > 0);
+  const rawTokens = discordIdList.trim().split(/\s+/).filter(Boolean);
+  const parsed = rawTokens.map((t) => parseDiscordUserId(t));
+  const invalidIdx = parsed.findIndex((v) => v === null);
+  if (invalidIdx !== -1) {
+    await interaction.reply({
+      content: `${EMOJI_FAIL} Invalid Discord ID at position ${invalidIdx + 1}. Use numeric IDs or tag users (e.g. <@123...>).`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  const discordIds = parsed.filter((v): v is string => v !== null);
   const isCloudChannel = interaction.channelId === config.discord.channels.civ6cloudUploads ||
     interaction.channelId === config.discord.channels.civ7cloudUploads;
 
@@ -62,11 +69,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
     const assignDiscordIdMsg = await interaction.editReply(`Processing assign discord id all request...`);
     if (!interaction.member.roles.cache.has(config.discord.roles.moderator) && !isCloudChannel) {
-      await interaction.editReply(`${EMOJI_FAIL} Only a moderator can assign a player discord id.`)
-        .then(repliedMessage => {
-            setTimeout(() => repliedMessage.delete(), 60 * 1000);
-          })
-        .catch();
+      const msg = await interaction.editReply(`${EMOJI_FAIL} Only a moderator can assign a player discord id.`);
+      deleteLater(msg, 60_000);
       return;
     }
     const res = await assignDiscordIdAll(matchId, discordIds, assignDiscordIdMsg.id);
@@ -80,19 +84,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await message.edit({ embeds: [updatedEmbed] });
     }
 
-    let playerMentions = discordIds.map(p => `<@${p}>`).join(', ');
+    const playerMentions = discordIds.map((p) => `<@${p}>`).join(', ');
     const header =
       `${EMOJI_CONFIRM} ${playerMentions}\nDiscord ID assigned by <@${interaction.user.id}>\n` +
       `Match ID: **${res.match_id}**\n`;
 
     const full = header + convertMatchToStr(res as BaseReport, false);
-    assignDiscordIdMsg.edit(full);
-  } catch (err: any) {
-    const msg = err?.body ? `${err.message}: ${JSON.stringify(err.body)}` : (err?.message ?? "Unknown error");
-    await interaction.editReply(`${EMOJI_FAIL} Discord ID assignment failed: ${msg}`)
-      .then(repliedMessage => {
-          setTimeout(() => repliedMessage.delete(), 60 * 1000);
-        })
-      .catch();
+    const chunks = Array.from(chunkByLength(full, MAX_DISCORD_LEN));
+    const first = chunks[0] ?? header;
+    await assignDiscordIdMsg.edit(first);
+    for (const chunk of chunks.slice(1)) {
+      await interaction.followUp({ content: chunk }).catch(() => undefined);
+    }
+  } catch (err: unknown) {
+    const msg = await interaction.editReply(`${EMOJI_FAIL} Discord ID assignment failed: ${errorMessage(err)}`).catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
   }
 }

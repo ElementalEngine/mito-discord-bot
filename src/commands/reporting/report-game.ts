@@ -2,17 +2,16 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
-  MessageFlags,
 } from "discord.js";
 import { config } from "../../config.js";
-import { validateSaveAttachment } from "../../utils/validate-save-attachment.js";
+import { validateSaveAttachment } from "../../utils/save-attachment.js";
 import {
   EMOJI_CONFIRM,
   EMOJI_FAIL,
   EMOJI_REPORT,
   MAX_DISCORD_LEN,
 } from "../../config/constants.js";
-import type { CivEdition } from "../../config/constants.js";
+import type { CivEdition } from "../../types/config.js";
 import {
   submitSaveForReport,
   appendMessageIdList,
@@ -20,14 +19,21 @@ import {
 import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
+import { ensureCommandAccess } from "../../utils/ensure-command-access.js";
+import { deleteLater } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reports.js";
 import type { UploadSaveResponse } from "../../api/types.js";
 
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return typeof err === "string" ? err : "Unknown error";
-}
+const ACCESS_POLICY = {
+  allowedChannelIds: [
+    config.discord.channels.civ6realtimeUploads,
+    config.discord.channels.civ7realtimeUploads,
+    config.discord.channels.civ6cloudUploads,
+    config.discord.channels.civ7cloudUploads,
+  ],
+} as const;
 
 export const data = new SlashCommandBuilder()
   .setName("report-game")
@@ -40,13 +46,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  if (!interaction.inGuild()) {
-    await interaction.reply({
-      content: `${EMOJI_FAIL} This command must be used in a server.`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
 
   if (!interaction.deferred && !interaction.replied) {
     await interaction.deferReply();
@@ -78,16 +78,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   if (errors.length > 0) {
-    await interaction
+    const msg = await interaction
       .editReply({
         content: `${EMOJI_FAIL} FAIL\n${errors.map((e) => `• ${e}`).join("\n")}`,
       })
-      .then((repliedMessage) => {
-        setTimeout(() => {
-          void repliedMessage.delete().catch(() => {});
-        }, 60_000);
-      })
-      .catch(() => {});
+      .catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
     return;
   }
 
@@ -111,14 +107,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `${EMOJI_FAIL} Match already reported! Match ID: **${res.match_id}**`,
       );
 
-      await pendingMsg
+      const msg = await pendingMsg
         .edit({ embeds: [duplicateReportEmbed] })
-        .then((repliedMessage) => {
-          setTimeout(() => {
-            void repliedMessage.delete().catch(() => {});
-          }, 60_000);
-        })
-        .catch(() => {});
+        .catch(() => null);
+      if (msg) deleteLater(msg, 60_000);
       return;
     }
 
@@ -146,14 +138,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       console.error("Failed to append message ID list for match:", res.match_id);
     }
   } catch (err: unknown) {
-    const msg = errorMessage(err);
-    await interaction
-      .editReply(`${EMOJI_FAIL} Upload failed: ${msg}`)
-      .then((repliedMessage) => {
-        setTimeout(() => {
-          void repliedMessage.delete().catch(() => {});
-        }, 60_000);
-      })
-      .catch(() => {});
+    const msg = await interaction
+      .editReply(`${EMOJI_FAIL} Upload failed: ${errorMessage(err)}`)
+      .catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
   }
 }

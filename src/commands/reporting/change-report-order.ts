@@ -8,6 +8,8 @@ import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.
 import { setPlacements, getMatch } from "../../services/reporting.service.js";
 import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { getPlayerListMessage, isValidOrder } from "../../utils/convert-match-to-str.js";
+import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reports.js";
 
@@ -37,33 +39,30 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const matchId = interaction.options.getString("match-id", true) as string;
   const newOrder = interaction.options.getString("new-order", true) as string;
 
-  const errors: string[] = [];
-
-  if (errors.length) {
-    await interaction.reply({
-      content: `${EMOJI_FAIL} FAIL\n${errors.map(e => `• ${e}`).join("\n")}`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
   await interaction.deferReply({
     flags: MessageFlags.Ephemeral,
   });
-  var interactionReply;
+  let interactionReply: Awaited<ReturnType<typeof interaction.followUp>> | null = null;
 
   try {
     await interaction.editReply(`Processing change report order request...`);
     const getMatchRes = await getMatch(matchId);
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
-    if (getMatchRes?.reporter_discord_id != interaction.user.id &&
-        !interaction.member.roles.cache.has(config.discord.roles.moderator)) {
+    const isModerator = interaction.member.roles.cache.has(config.discord.roles.moderator);
+    if (getMatchRes?.reporter_discord_id != interaction.user.id && !isModerator) {
       await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can change report order`);
       return;
     }
-    if (!interaction.member.roles.cache.has(config.discord.roles.moderator) && 
-        isValidOrder(newOrder, getMatchRes.players) === false) {
-      await interaction.editReply(`${EMOJI_FAIL} The new order provided is invalid. Or you do not have permission to set a order with tie positions.`);
+    const tokens = newOrder.trim().split(/\s+/).filter(Boolean);
+    const hasDuplicate = new Set(tokens).size !== tokens.length;
+    if (!isModerator && hasDuplicate) {
+      const msg = await interaction.editReply(`${EMOJI_FAIL} You do not have permission to set tie positions.`).catch(() => null);
+      if (msg) deleteLater(msg, 60_000);
+      return;
+    }
+    if (isValidOrder(newOrder, getMatchRes.players) === false) {
+      const msg = await interaction.editReply(`${EMOJI_FAIL} The new order provided is invalid.`).catch(() => null);
+      if (msg) deleteLater(msg, 60_000);
       return;
     }
     const header =
@@ -84,21 +83,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       reporterId: interaction.user.id,
     });
     const embedMsgId = (res as BaseReport).discord_messages_id_list[0];
-    const message = await interaction.channel?.messages.fetch(embedMsgId);
-    if (message) {
-      await message.edit({ embeds: [updatedEmbed] });
+    if (embedMsgId && interaction.channel?.isTextBased()) {
+      const message = await interaction.channel.messages.fetch(embedMsgId).catch(() => null);
+      if (message) await message.edit({ embeds: [updatedEmbed] }).catch(() => undefined);
     }
-    interaction.editReply({ content: `${EMOJI_CONFIRM} Change report order successful!` });
+    await interaction.editReply({ content: `${EMOJI_CONFIRM} Change report order successful!` });
 
-  } catch (err: any) {
-    if (interactionReply) {
-      interactionReply.delete();
-    }
-    const msg = err?.body ? `${err.message}: ${JSON.stringify(err.body)}` : (err?.message ?? "Unknown error");
-    await interaction.editReply(`${EMOJI_FAIL} Change report order failed: ${msg}`)
-      .then(repliedMessage => {
-          setTimeout(() => repliedMessage.delete(), 60 * 1000);
-        })
-      .catch();
+  } catch (err: unknown) {
+    if (interactionReply) await safeDelete(interactionReply);
+    const msg = await interaction.editReply(`${EMOJI_FAIL} Change report order failed: ${errorMessage(err)}`).catch(() => null);
+    if (msg) deleteLater(msg, 60_000);
   }
 }

@@ -1,13 +1,10 @@
 import type { Guild, SendableChannels, User } from 'discord.js';
+import type { VoterUser } from './voice-voters.js';
+
+export type { VoterUser } from './voice-voters.js';
 
 export type SecretVoteAction = 'CC' | 'Remap' | 'Scrap' | 'Irrel';
 export type SecretVoteChoice = 'YES' | 'NO';
-
-export type VoterUser = Readonly<{
-  id: string;
-  displayName: string;
-  user: User;
-}>;
 
 export type StartSecretVoteOptions = Readonly<{
   guild: Guild;
@@ -37,7 +34,6 @@ export type SecretVoteStatus = Readonly<{
   hostId: string;
   startedAtMs: number;
   endsAtMs: number;
-  /** Optional render time for deterministic timer display. */
   nowMs?: number;
   voters: readonly { id: string; displayName: string }[];
   votedIds: ReadonlySet<string>;

@@ -67,17 +67,16 @@ export type GetMatchResponse = {
   }[];
 }
 
-export type PlayerRanking = {
+export type PlayerLeaderboard = {
   discord_id: string;
   rating: number;
   games_played: number;
   wins: number;
-  losses: number;
-  first: string;
+  first: number;
 }
 
 export type LeaderboardRanking = {
-  player_rankings: PlayerRanking[];
+  rankings: PlayerLeaderboard[];
   last_updated: number;
 }
 

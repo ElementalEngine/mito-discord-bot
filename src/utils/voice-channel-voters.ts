@@ -1,20 +1,15 @@
-import type {
-  Guild,
-  GuildMember,
-  User,
-  VoiceBasedChannel,
-} from 'discord.js';
+import type { Guild, GuildMember, User, VoiceBasedChannel } from 'discord.js';
+import type { VoterUser } from '../types/voice-voters.js';
 
-import type { VoterUser } from '../types/secretvote.js';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const MENTION_RE = /<@!?(\d{17,20})>/g;
 
-export type BuildVoiceVotersResult = Readonly<{
+export type BuildVoiceChannelVotersResult = Readonly<{
   voters: VoterUser[];
 }>;
 
-function uniqMentionsInOrder(raw: string | null | undefined): string[] {
+function uniqMentionIdsInOrder(raw: string | null | undefined): string[] {
   const text = (raw ?? '').trim();
   if (!text) return [];
 
@@ -58,12 +53,12 @@ export async function buildVoiceChannelVoters(
   guild: Guild,
   voiceChannel: VoiceBasedChannel,
   mentionsRaw: string | null | undefined
-): Promise<BuildVoiceVotersResult> {
+): Promise<BuildVoiceChannelVotersResult> {
   const base = baseVoiceMembers(voiceChannel);
   const baseIds = base.map((m) => m.id);
   const baseSet = new Set(baseIds);
 
-  const mentionIds = uniqMentionsInOrder(mentionsRaw);
+  const mentionIds = uniqMentionIdsInOrder(mentionsRaw);
   const removeSet = new Set<string>();
   const addIds: string[] = [];
   const addSet = new Set<string>();

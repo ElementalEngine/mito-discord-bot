@@ -4,7 +4,7 @@ import type {
   LeaderboardRanking,
 } from "../api/index.js";
 import { ApiClient } from "../api/index.js";
-import { downloadAttachment } from "../utils/download-attachment.js";
+import { downloadAttachment } from "../utils/save-attachment.js";
 
 export async function submitSaveForReport(
   fileUrl: string,
@@ -124,8 +124,3 @@ export async function getLeaderboardRanking(
 ) : Promise<LeaderboardRanking> {
   return api.getLeaderboardRanking(game, gameType, gameMode, isSeasonal, isCombined);
 }
-
-// Future (add here when ready):
-// export async function confirmMatch(...) { ... }
-// export async function flagMatch(...) { ... }
-// export async function approveEligible(...) { ... }

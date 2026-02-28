@@ -1,4 +1,5 @@
-// ── Mentions
+import type { CivEdition } from '../types/config.js';
+
 export const MAX_MENTIONS = 20 as const;
 
 // Discord's max message length (hard limit is 2000; keep a safe margin)
@@ -39,20 +40,17 @@ export const RANK_DEFS_CIV6 = [
 
 export type RankNames = (typeof RANK_DEFS_CIV6)[number]['name'];
 
-// ── Civilization save rules
 export const CIV_SAVE = {
   EXT: {
     CIV6: '.civ6save',
     CIV7: '.civ7save',
   },
-  MAX_BYTES: 12 * 1024 * 1024, // 12 MB
+  MAX_BYTES: 12 * 1024 * 1024, 
 } as const;
 
-export type CivEdition = keyof typeof CIV_SAVE.EXT; // 'CIV6' | 'CIV7'
+export type { CivEdition } from '../types/config.js';
 export const expectedExt = (edition: CivEdition) => CIV_SAVE.EXT[edition];
 
-// ── Edit-report session timeout (ms)
-export const EDIT_REPORT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+export const EDIT_REPORT_TIMEOUT = 5 * 60 * 1000; 
 
-
-export const MENTION_ID_REGEX = /<@!?(\d+)>/;
+export const MENTION_ID_REGEX = /<@!?(\d{17,20})>/;

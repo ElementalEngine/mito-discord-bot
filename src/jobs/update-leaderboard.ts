@@ -6,26 +6,13 @@ import type {
 } from 'discord.js';
 
 import { getLeaderboardRanking } from '../services/reporting.service.js';
+import type { LeaderboardRanking } from '../api/types.js';
 import type { Leaderboard } from '../types/leaderboard.js';
 import { leaderboardsList } from '../data/leaderboards-list.js';
 
-type LeaderboardEntry = {
-  discord_id: string;
-  wins: number;
-  first: number;
-  rating?: number;
-  mu?: number;
-  games_played?: number;
-  games?: number;
-};
-
-type LeaderboardRankingLike = {
-  rankings: LeaderboardEntry[];
-  last_updated: number; 
-};
-
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const PLACEHOLDER_COUNT = 11; 
+const PLACEHOLDER_TEXT = 'Placeholder for leaderboard entry.';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,7 +32,7 @@ async function fetchLeaderboardThread(
 }
 
 function getLeaderboardMessage(
-  leaderboardRanking: LeaderboardRankingLike,
+  leaderboardRanking: LeaderboardRanking,
   startIdx: number,
   endIdx: number
 ): string {
@@ -65,10 +52,9 @@ function getLeaderboardMessage(
     const rank = String(`#${i + 1}`).padEnd(4);
     const discordId = entry.discord_id;
 
-    const skill = entry.rating ?? entry.mu ?? 0;
-    const rating = String(Math.round(skill)).padStart(4);
+    const rating = String(Math.round(entry.rating)).padStart(4);
 
-    const games = entry.games_played ?? entry.games ?? 0;
+    const games = entry.games_played;
     const wins = entry.wins;
     const losses = Math.max(0, games - wins);
 
@@ -85,7 +71,7 @@ function getLeaderboardMessage(
 }
 
 function isLeaderboardUpToDate(
-  leaderboardRanking: LeaderboardRankingLike,
+  leaderboardRanking: LeaderboardRanking,
   lastMessage: Message<true>
 ): boolean {
   const m = lastMessage.content.match(/Last updated: <t:(\d+):F>/);
@@ -101,17 +87,32 @@ function isLeaderboardUpToDate(
 async function ensurePlaceholderMessages(
   thread: GuildTextBasedChannel
 ): Promise<Message<true>[]> {
-  const existing = (await thread.messages.fetch({ limit: PLACEHOLDER_COUNT }))
-    .filter((m) => m.inGuild() && m.author.bot);
-  await sleep(10_000);
+  const fetched = await thread.messages.fetch({ limit: 100 }).catch(() => null);
+  const candidates: Message<true>[] = fetched
+    ? [...fetched.values()]
+        .filter((m): m is Message<true> => m.inGuild())
+        .filter((m) => m.author.bot)
+        .filter((m) => {
+          const c = m.content ?? '';
+          return (
+            c === PLACEHOLDER_TEXT ||
+            c.startsWith('`Rank') ||
+            c.startsWith('`#') ||
+            c.startsWith('Last updated:')
+          );
+        })
+    : [];
 
-  const arr: Message<true>[] = [...existing.values()] as Message<true>[];
+  candidates.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const arr = candidates.slice(-PLACEHOLDER_COUNT);
+
   while (arr.length < PLACEHOLDER_COUNT) {
-    const msg = await thread.send('Placeholder for leaderboard entry.');
-    if (msg.inGuild()) arr.unshift(msg as Message<true>);
-    await sleep(2000);
+    const msg = await thread.send(PLACEHOLDER_TEXT);
+    if (msg.inGuild()) arr.push(msg as Message<true>);
+    await sleep(1500);
   }
-  arr.reverse();
+
+  arr.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   return arr;
 }
 
@@ -123,13 +124,13 @@ async function updateLeaderboard(
   if (!thread) return;
 
   const messages = await ensurePlaceholderMessages(thread);
-  const leaderboardRanking = (await getLeaderboardRanking(
+  const leaderboardRanking = await getLeaderboardRanking(
     leaderboard.game,
     leaderboard.game_type,
     leaderboard.game_mode,
     leaderboard.is_seasonal,
     leaderboard.is_combined
-  )) as unknown as LeaderboardRankingLike;
+  );
 
   const lastMsg = messages[messages.length - 1];
   if (lastMsg && isLeaderboardUpToDate(leaderboardRanking, lastMsg)) {
@@ -147,12 +148,12 @@ async function updateLeaderboard(
       i * 10,
       i * 10 + 10
     );
-    await msg.edit(leaderboardMsg);
+    await msg.edit(leaderboardMsg).catch(() => undefined);
     await sleep(4000);
   }
 
   const incomingTs = toUnixSeconds(leaderboardRanking.last_updated);
-  await messages[messages.length - 1].edit(`Last updated: <t:${incomingTs}:F>`);
+  await messages[messages.length - 1].edit(`Last updated: <t:${incomingTs}:F>`).catch(() => undefined);
   await sleep(4000);
 }
 

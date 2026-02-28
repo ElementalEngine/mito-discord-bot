@@ -8,25 +8,9 @@ import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import type { BaseReport } from "../../types/reports.js";
-
-function normalizeDiscordId(input: string): string {
-  const t = input.trim();
-  // <@123> or <@!123>
-  if (t.startsWith("<@") && t.endsWith(">")) {
-    const inner = t.slice(2, -1);
-    return inner.startsWith("!") ? inner.slice(1) : inner;
-  }
-  return t;
-}
-
-function isSnowflake(id: string): boolean {
-  return /^[0-9]{15,25}$/.test(id);
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return typeof err === "string" ? err : "Unknown error";
-}
+import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
+import { deleteLater } from "../../utils/discord-safe.js";
+import { errorMessage } from "../../utils/error-message.js";
 
 function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
   const member = interaction.member;
@@ -57,10 +41,6 @@ async function safeDefer(interaction: ChatInputCommandInteraction): Promise<bool
     console.error("/assign-discord-id deferReply failed:", e);
     return false;
   }
-}
-
-function deleteLater(message: { delete: () => Promise<unknown> }, ms: number): void {
-  setTimeout(() => void message.delete().catch(() => {}), ms);
 }
 
 export const data = new SlashCommandBuilder()
@@ -100,9 +80,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const matchId = interaction.options.getString("match-id", true);
   const playerId = interaction.options.getString("player-slot-id", true);
   const rawDiscordId = interaction.options.getString("discord-id", true);
-  const playerDiscordId = normalizeDiscordId(rawDiscordId);
+  const playerDiscordId = parseDiscordUserId(rawDiscordId);
 
-  if (!isSnowflake(playerDiscordId)) {
+  if (!playerDiscordId) {
     const msg = await interaction.editReply(
       `${EMOJI_FAIL} Invalid Discord ID. Use a numeric ID or tag the user (e.g. <@123...>).`,
     );
