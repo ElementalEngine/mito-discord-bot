@@ -124,3 +124,13 @@ export async function getLeaderboardRanking(
 ) : Promise<LeaderboardRanking> {
   return api.getLeaderboardRanking(game, gameType, gameMode, isSeasonal, isCombined);
 }
+
+export async function contestReport(
+  matchId: string,
+  contesterDiscordId: string,
+  reason: string,
+  discordMessageId: string,
+  api: ApiClient = new ApiClient(),
+) : Promise<GetMatchResponse> {
+  return api.contestReport(matchId, contesterDiscordId, reason, discordMessageId);
+}

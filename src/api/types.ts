@@ -41,7 +41,13 @@ export type UploadSaveResponse = {
   players: ParsedPlayer[];
   repeated: boolean;
   reporter_discord_id: string;
+  contest_report_list: ContestReport[] | null;
 };
+
+export type ContestReport = {
+  contestor_discord_id: string;
+  reason: string;
+}
 
 export type GetMatchResponse = {
   match_id: string;
@@ -61,6 +67,7 @@ export type GetMatchResponse = {
   players: ParsedPlayer[];
   repeated: boolean;
   reporter_discord_id: string;
+  contest_report_list: ContestReport[] | null;
   affected_players?: {
     discord_id: string;
     rating_mu: number;

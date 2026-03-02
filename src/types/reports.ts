@@ -1,4 +1,4 @@
-import type { ParsedPlayer } from "../api/types.js";
+import type { ParsedPlayer, ContestReport } from "../api/types.js";
 
 export type GameMode = "realtime" | "cloud";
 
@@ -13,6 +13,7 @@ export type BaseReport = {
   discord_messages_id_list: string[];
   players: ParsedPlayer[];
   reporter_discord_id: string;
+  contest_report_list: ContestReport[] | null;
   affected_players?: {
     discord_id: string;
     rating_mu: number;

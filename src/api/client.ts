@@ -205,6 +205,21 @@ export class ApiClient {
     return (await this.parseJson(res)) as LeaderboardRanking;
   }
 
+  async contestReport(matchId: string, contestorDiscordId: string, reason: string, discordMessageId: string): Promise<GetMatchResponse> {
+    const form = new FormData();
+    form.append("match_id", matchId);
+    form.append("contestor_discord_id", contestorDiscordId);
+    form.append("reason", reason);
+    form.append("discord_message_id", discordMessageId);
+
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/contest-report/`, {
+      method: "PUT",
+      body: form,
+    });
+
+    return (await this.parseJson(res)) as GetMatchResponse;
+  }
+
   async getUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<UserStatsResponse> {
     const params = new URLSearchParams({
       civ_version: civVersion,

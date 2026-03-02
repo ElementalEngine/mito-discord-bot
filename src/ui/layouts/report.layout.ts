@@ -135,7 +135,7 @@ export function buildReportEmbed(report: AnyReport, opts: BuildOpts = {}): Embed
   const columnsStr = clampNColumns([idColumn, rankColumn, nameCivLeaderColumn], 1024);
   const currentTime = Math.floor(now.getTime() / 1000);
 
-  return new EmbedBuilder()
+  let resultEmbed = new EmbedBuilder()
     .setTitle("Match Report")
     .setDescription(description || "—")
     .setColor(embedColor)
@@ -149,6 +149,15 @@ export function buildReportEmbed(report: AnyReport, opts: BuildOpts = {}): Embed
       value: `<t:${currentTime}:F>`,
       inline: false,
     });
+    if (report.contest_report_list && report.contest_report_list.length > 0) {
+      const contestReasons = report.contest_report_list.map(cr => `• ${userMention(cr.contestor_discord_id)}: ${cr.reason}`).join("\n");
+      resultEmbed = resultEmbed.addFields({
+        name: "Players contesting report",
+        value: contestReasons,
+        inline: false,
+      });
+    }
+    return resultEmbed;
 }
 
 function isValidSnowflake(id: string | undefined): id is string {
