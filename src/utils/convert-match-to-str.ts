@@ -24,8 +24,7 @@ export function isValidPlayerList(player_list: string, players: ParsedPlayer[]):
     .filter((t) => !TIE_RE.test(t))
     .map(tokenToDiscordId);
 
-  const matchIds = players.map((p) => p.discord_id).filter((id): id is string => !!id);
-  if (matchIds.length !== players.length) return false;
+  const matchIds = players.filter(p => !p.subbed_out).map((p) => p.discord_id).filter((id): id is string => !!id);
   if (ids.length !== matchIds.length) return false;
 
   const unique = new Set(ids);
