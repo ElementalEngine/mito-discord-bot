@@ -11,7 +11,8 @@ function tokenToDiscordId(token: string): string {
 
 export function allPlayersHaveDiscordId(players: ParsedPlayer[]): boolean {
   for (const p of players) {
-    if (!p.discord_id || p.discord_id === "" || p.discord_id === "0") {
+    console.log(p.discord_id)
+    if (!p.discord_id || p.discord_id === "-1" || p.discord_id === "0") {
       return false;
     }
   }

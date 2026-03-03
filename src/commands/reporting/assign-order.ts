@@ -53,12 +53,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can use the assign order command`);
       return;
     }
-    if (getMatchRes?.game_mode === "Teamer") {
-      await interaction.editReply(`${EMOJI_FAIL} This command is not available for team games.`);
+    console.log('gameMode', getMatchRes?.game_mode);
+    if (getMatchRes?.game_mode === "teamer") {
+      await interaction.editReply(`${EMOJI_FAIL} This command is not available for teamer games. Use /assign-order-teamer instead.`);
       return;
     }
     if (!allPlayersHaveDiscordId(getMatchRes.players)) {
-      await interaction.editReply(`${EMOJI_FAIL} Cannot change order for a report with players that do not have Discord IDs.`);
+      await interaction.editReply(`${EMOJI_FAIL} Cannot assign order for a report with players that do not have Discord IDs. Please contact a CPL staff to assign the missing discord id.`);
       return;
     }
     const normalizedPlayerOrder = normalizePlayerList(playerOrder);

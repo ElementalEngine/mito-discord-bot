@@ -14,8 +14,8 @@ import { errorMessage } from "../../utils/error-message.js";
 import type { BaseReport } from "../../types/reports.js";
 
 export const data = new SlashCommandBuilder()
-  .setName("change-report-order")
-  .setDescription("Change the order of players in a game.")
+  .setName("assign-order-teamer")
+  .setDescription("Assign the order of teams in a teamer game.")
   .addStringOption(option =>
     option.setName("match-id")
       .setDescription("ID of the match to change the order for")
@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
   )
   .addStringOption(option =>
     option.setName("new-order")
-      .setDescription("Order of players in the format 4 2 1 3 (space-separated player IDs)")
+      .setDescription("Placement of each team e.g. 4 2 1 3 means 1st team is 4th place, 2nd team is 2nd place, etc.")
       .setRequired(true),
   );
 
@@ -45,14 +45,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   let interactionReply: Awaited<ReturnType<typeof interaction.followUp>> | null = null;
 
   try {
-    await interaction.editReply(`Processing change report order request...`);
+    await interaction.editReply(`Processing assign order request...`);
     const getMatchRes = await getMatch(matchId);
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
     const isModerator = interaction.member.roles.cache.has(config.discord.roles.moderator);
     if (getMatchRes?.reporter_discord_id != interaction.user.id && !isModerator) {
-      await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can change report order`);
+      await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can use this command.`);
       return;
     }
+    if (getMatchRes?.game_mode !== "teamer") {
+      await interaction.editReply(`${EMOJI_FAIL} This command is not available for FFA/duel games. Use /assign-order instead.`);
+      return;
+    }
+
     const tokens = newOrder.trim().split(/\s+/).filter(Boolean);
     const hasDuplicate = new Set(tokens).size !== tokens.length;
     if (!isModerator && hasDuplicate) {
@@ -66,7 +71,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
     const header =
-      `${EMOJI_REPORT} Processing match order change to ${newOrder} by <@${interaction.user.id}>\n` +
+      `${EMOJI_REPORT} Processing assign order request to ${newOrder} by <@${interaction.user.id}>\n` +
       `Match ID: **${matchId}**\n`;
     const playerListMessage = `Players: ` + getPlayerListMessage(getMatchRes, newOrder);
     const changingOrderMsg = header + playerListMessage;
@@ -75,7 +80,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const res = await setPlacements(matchId, newOrder, changingOrderMsgId);
 
     const confirmMsg =
-      `${EMOJI_CONFIRM} Match order changed to ${newOrder} by <@${interaction.user.id}>\n` +
+      `${EMOJI_CONFIRM} Match order assigned to ${newOrder} by <@${interaction.user.id}>\n` +
       `Match ID: **${matchId}**\n` + playerListMessage;
     await interactionReply.edit(confirmMsg);
 
@@ -87,11 +92,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const message = await interaction.channel.messages.fetch(embedMsgId).catch(() => null);
       if (message) await message.edit({ embeds: [updatedEmbed] }).catch(() => undefined);
     }
-    await interaction.editReply({ content: `${EMOJI_CONFIRM} Change report order successful!` });
+    await interaction.editReply({ content: `${EMOJI_CONFIRM} Assign report order successful!` });
 
   } catch (err: unknown) {
     if (interactionReply) await safeDelete(interactionReply);
-    const msg = await interaction.editReply(`${EMOJI_FAIL} Change report order failed: ${errorMessage(err)}`).catch(() => null);
+    const msg = await interaction.editReply(`${EMOJI_FAIL} Assign report order failed: ${errorMessage(err)}`).catch(() => null);
     if (msg) deleteLater(msg, 60_000);
   }
 }
