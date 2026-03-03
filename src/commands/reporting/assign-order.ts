@@ -50,7 +50,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
     const isModerator = interaction.member.roles.cache.has(config.discord.roles.moderator);
     if (getMatchRes?.reporter_discord_id != interaction.user.id && !isModerator) {
-      await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can change report order`);
+      await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can use the assign order command`);
       return;
     }
     if (getMatchRes?.game_mode === "Teamer") {
