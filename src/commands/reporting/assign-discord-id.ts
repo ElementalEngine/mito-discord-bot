@@ -20,7 +20,7 @@ function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string)
   if ("roles" in member && Array.isArray((member as { roles: unknown }).roles)) {
     return (member as { roles: string[] }).roles.includes(roleId);
   }
-  
+
   if ("roles" in member) {
     const roles = (member as { roles: unknown }).roles;
     if (roles && typeof roles === "object" && "cache" in roles) {
