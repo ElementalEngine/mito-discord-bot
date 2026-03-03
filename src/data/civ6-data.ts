@@ -1,4 +1,7 @@
 import type { LeaderMeta } from "./index.js";
+
+// do not commit changes to this file 
+
 /* production bot data */
 export const CIV6_LEADERS = Object.freeze({
   LEADER_ABRAHAM_LINCOLN: { gameId: "AmericaAbrahamLincoln", emojiId: "1464719535990116563", type: "None" },
@@ -75,8 +78,8 @@ export const CIV6_LEADERS = Object.freeze({
   LEADER_TOMYRIS: { gameId: "ScythiaTomyris", emojiId: "1464719667661770795", type: "None" },
   LEADER_PHILIP_II: { gameId: "SpainPhilipII", emojiId: "1464719669398077758", type: "None" },
   LEADER_GILGAMESH: { gameId: "SumeriaGilgamesh", emojiId: "1464719671541502176", type: "None" },
-  LEADER_KRISTINA: { gameId: "SwedenKristina", emojiId: "1464719677375779095", type: "None" },
-  LEADER_LADY_TRIEU: { gameId: "VietnamBaTrieu", emojiId: "1464719677375779095", type: "None" },
+  LEADER_KRISTINA: { gameId: "SwedenKristina", emojiId: "1464719673831456881", type: "None" },
+  LEADER_LADY_TRIEU: { gameId: "VietnamBaTrieu", emojiId: "1464719675316244643", type: "None" },
   LEADER_SHAKA: { gameId: "ZuluShaka", emojiId: "1464719677375779095", type: "None" },
   /* BBG Expanded Civs */
   LEADER_LIME_THULE_DAVE: { gameId: "Kiviuq", emojiId: "1464712225552994419", type: "None" },
