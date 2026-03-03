@@ -62,7 +62,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   try {
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
-    const triggerQuitMsg = await interaction.editReply(`<@${config.discord.roles.moderator}> Processing trigger quit request for <@${quitterDiscordId}>...`);
+    const triggerQuitMsg = await interaction.editReply(`<@&${config.discord.roles.moderator}> Processing trigger quit request for <@${quitterDiscordId}>...`);
     if (!interaction.member.roles.cache.has(config.discord.roles.moderator)) {
       const getMatchRes = await getMatch(matchId);
       if (getMatchRes?.reporter_discord_id != interaction.user.id) {
