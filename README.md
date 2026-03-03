@@ -8,7 +8,7 @@
   <b>MitoCiv Bot</b><br>
   <i>The Discord Bot that Fuels Competitive Civ VI & VII Communities</i><br><br>
   <img src="https://img.shields.io/badge/Status-Active-success" alt="Status" />
-  <img src="https://img.shields.io/badge/Version-1.0.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.5.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Discord-Slash%20Commands-7289da" alt="Discord Slash Commands" />
   <img src="https://img.shields.io/badge/Tech-Node.js%20%7C%20TypeScript%20%7C%20MongoDB-lightgrey" alt="Tech Stack" />
 </p>
