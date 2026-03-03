@@ -149,5 +149,5 @@ We welcome **feedback, bug reports, and translations**.
 
 ## ❤️ Special Thanks
 Special thanks to **Calcifer**, **Ms. Busysnail**, and the wider Civilization community for support and feedback.
-
+ 
 [Back to Top](#table-of-contents)
