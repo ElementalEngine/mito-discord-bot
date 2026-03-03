@@ -12,6 +12,7 @@ import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reports.js";
+import { isOnlyLatinCharacters } from "../../utils/only-latin.js";
 
 export const data = new SlashCommandBuilder()
   .setName("contest-report")
@@ -41,6 +42,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (reason.length > 100) {
     await interaction.reply({
       content: `${EMOJI_FAIL} Reason is too long. Please keep it under 100 characters.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  if (!isOnlyLatinCharacters(reason)) {
+    await interaction.reply({
+      content: `${EMOJI_FAIL} Reason has invalid characters. Please only include latin characters.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
