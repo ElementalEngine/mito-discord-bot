@@ -80,7 +80,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await message.edit({ embeds: [updatedEmbed] });
     }
     const header =
-      `${EMOJI_CONFIRM} <@${config.discord.roles.moderator}> Player <@${quitterDiscordId}> quit is triggered by <@${interaction.user.id}>\n` +
+      `${EMOJI_CONFIRM} <@&${config.discord.roles.moderator}> Player <@${quitterDiscordId}> quit is triggered by <@${interaction.user.id}>\n` +
       `Match ID: **${res.match_id}**\n`;
 
     const full = header + convertMatchToStr(res as BaseReport, false);
