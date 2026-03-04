@@ -134,3 +134,10 @@ export async function contestReport(
 ) : Promise<GetMatchResponse> {
   return api.contestReport(matchId, contesterDiscordId, reason, discordMessageId);
 }
+
+export async function revertMatch(
+  matchId: string,
+  api: ApiClient = new ApiClient(),
+) : Promise<GetMatchResponse> {
+  return api.revertMatch(matchId);
+}

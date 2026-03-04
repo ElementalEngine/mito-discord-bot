@@ -220,6 +220,18 @@ export class ApiClient {
     return (await this.parseJson(res)) as GetMatchResponse;
   }
 
+  async revertMatch(matchId: string): Promise<GetMatchResponse> {
+    const form = new FormData();
+    form.append("match_id", matchId);
+
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/revert-match/`, {
+      method: "PUT",
+      body: form,
+    });
+
+    return (await this.parseJson(res)) as GetMatchResponse;
+  }
+
   async getUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<UserStatsResponse> {
     const params = new URLSearchParams({
       civ_version: civVersion,
