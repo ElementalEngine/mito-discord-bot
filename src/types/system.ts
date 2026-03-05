@@ -1,9 +1,3 @@
-import type { AgePool } from './data.js';
-
-export type CivEdition = 'CIV6' | 'CIV7';
-
-export type GameMode = 'realtime' | 'cloud';
-
-export type DraftGameType = 'FFA' | 'Teamer' | 'Duel';
-
-export type Civ7StartingAge = AgePool | 'None';
+export type { AgePool, CivEdition, Civ7StartingAge } from './data.js';
+export type { DraftGameType } from './draft.js';
+export type { GameMode } from '../api/types.js';

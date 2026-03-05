@@ -43,6 +43,7 @@ const VOTE_DURATION_MS = 10 * 60_000;
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 
 const DM_CONCURRENCY = 8;
+const BLIND_MENU_PAGE_SIZE = 25;
 
 const activeById = new Map<string, GameVoteSession>();
 const activeByVoice = new Map<string, GameVoteSession>();
@@ -203,35 +204,80 @@ function buildBansButtons(v: GameVoteSession): ActionRowBuilder<ButtonBuilder>[]
 function buildBlindPickComponents(args: Readonly<{
   session: GameVoteSession;
   voterId: string;
-}>): ActionRowBuilder<StringSelectMenuBuilder>[] {
+}>): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
   const v = args.session;
   const pools = v.blindDraftPools.get(args.voterId);
   if (!pools) return [];
 
-  const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+  const state = v.blindDraftPages.get(args.voterId) ?? { civPage: 0, leaderPage: 0 };
+  const navButtons: ButtonBuilder[] = [];
+  const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
   if (v.edition === 'CIV7' && pools.civs) {
+    const totalPages = Math.max(1, Math.ceil(pools.civs.length / BLIND_MENU_PAGE_SIZE));
+    const civPage = Math.max(0, Math.min(state.civPage, totalPages - 1));
+    if (civPage !== state.civPage) {
+      v.blindDraftPages.set(args.voterId, { ...state, civPage });
+    }
+
+    const pageKeys = pools.civs.slice(
+      civPage * BLIND_MENU_PAGE_SIZE,
+      (civPage + 1) * BLIND_MENU_PAGE_SIZE
+    );
+
     const civMenu = new StringSelectMenuBuilder()
       .setCustomId(`gv:pick:civ:${v.sessionId}`)
-      .setPlaceholder('Pick your civ')
+      .setPlaceholder(
+        totalPages > 1 ? `Pick your civ (Page ${civPage + 1}/${totalPages})` : 'Pick your civ'
+      )
       .setMinValues(1)
       .setMaxValues(1)
       .addOptions(
-        pools.civs.map((key: string) => {
+        pageKeys.map((key: string) => {
           const meta = CIV7_CIVS[key as keyof typeof CIV7_CIVS];
           return { label: meta.gameId, value: key };
         })
       );
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
+
+    if (totalPages > 1) {
+      navButtons.push(
+        new ButtonBuilder()
+          .setCustomId(`gv:nav:civ:prev:${v.sessionId}`)
+          .setStyle(ButtonStyle.Secondary)
+          .setLabel('◀ Civ')
+          .setDisabled(civPage <= 0),
+        new ButtonBuilder()
+          .setCustomId(`gv:nav:civ:next:${v.sessionId}`)
+          .setStyle(ButtonStyle.Secondary)
+          .setLabel('Civ ▶')
+          .setDisabled(civPage >= totalPages - 1)
+      );
+    }
   }
+
+  const leaderTotalPages = Math.max(1, Math.ceil(pools.leaders.length / BLIND_MENU_PAGE_SIZE));
+  const leaderPage = Math.max(0, Math.min(state.leaderPage, leaderTotalPages - 1));
+  if (leaderPage !== state.leaderPage) {
+    v.blindDraftPages.set(args.voterId, { ...state, leaderPage });
+  }
+
+  const leaderPageKeys = pools.leaders.slice(
+    leaderPage * BLIND_MENU_PAGE_SIZE,
+    (leaderPage + 1) * BLIND_MENU_PAGE_SIZE
+  );
 
   const leaderMenu = new StringSelectMenuBuilder()
     .setCustomId(`gv:pick:leader:${v.sessionId}`)
-    .setPlaceholder('Pick your leader')
+    .setPlaceholder(
+      leaderTotalPages > 1
+        ? `Pick your leader (Page ${leaderPage + 1}/${leaderTotalPages})`
+        : 'Pick your leader'
+    )
     .setMinValues(1)
     .setMaxValues(1)
     .addOptions(
-      pools.leaders.map((key: string) => {
+      leaderPageKeys.map((key: string) => {
         const meta =
           v.edition === 'CIV6'
             ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]
@@ -241,12 +287,31 @@ function buildBlindPickComponents(args: Readonly<{
     );
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(leaderMenu));
 
+  if (leaderTotalPages > 1) {
+    navButtons.push(
+      new ButtonBuilder()
+        .setCustomId(`gv:nav:leader:prev:${v.sessionId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('◀ Leader')
+        .setDisabled(leaderPage <= 0),
+      new ButtonBuilder()
+        .setCustomId(`gv:nav:leader:next:${v.sessionId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Leader ▶')
+        .setDisabled(leaderPage >= leaderTotalPages - 1)
+    );
+  }
+
+  if (navButtons.length) {
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(navButtons));
+  }
+
   return rows;
 }
 
 function buildRenderPayload(v: GameVoteSession): Readonly<{
   embeds: [ReturnType<typeof buildGameVoteEmbed>];
-  components: ActionRowBuilder<any>[];
+  components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[];
 }> {
   const now = Date.now();
   const q = currentQuestion(v);
@@ -867,6 +932,7 @@ async function startBlindDraft(v: GameVoteSession): Promise<void> {
         const voterId = v.voterIds[i];
         const g = draft.groups[i];
         v.blindDraftPools.set(voterId, { leaders: g.leaders });
+        v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
       }
     } else {
       const draft = generateCiv7Draft({
@@ -881,6 +947,7 @@ async function startBlindDraft(v: GameVoteSession): Promise<void> {
         const voterId = v.voterIds[i];
         const g = draft.groups[i];
         v.blindDraftPools.set(voterId, { leaders: g.leaders, civs: g.civs ?? [] });
+        v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
       }
     }
   } catch (err: unknown) {
@@ -994,6 +1061,9 @@ async function finalizeVote(v: GameVoteSession, _reason: 'timeout' | 'complete')
   v.endsAtMs = Date.now();
 
   if (v.blindMode) {
+    // Prevent the vote timer firing after we've entered blind draft.
+    clearTimeout(v.timeout);
+
     // Voting finished: proceed to blind draft.
     await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     await broadcastDMs(v);
@@ -1061,6 +1131,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       blindDraftTimeout: null,
       blindDraftPools: new Map(),
       blindDraftPicks: new Map(),
+      blindDraftPages: new Map(),
     };
 
     activeById.set(sessionId, v);
@@ -1084,9 +1155,10 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
 
 function parseCustomId(
   customId: string
-): Readonly<{ action: string; sessionId: string; sub?: string }> | null {
+): Readonly<{ action: string; sessionId: string; sub?: string; dir?: string }> | null {
   // vote flow: gv:<action>:<sessionId>
   // blind picks: gv:pick:<civ|leader>:<sessionId>
+  // blind nav:  gv:nav:<civ|leader>:<prev|next>:<sessionId>
   if (!customId.startsWith('gv:')) return null;
   const parts = customId.split(':');
   if (parts.length < 3) return null;
@@ -1100,6 +1172,15 @@ function parseCustomId(
     const sessionId = parts[3];
     if (!sub || !sessionId) return null;
     return { action, sub, sessionId };
+  }
+
+  if (action === 'nav') {
+    if (parts.length !== 5) return null;
+    const sub = parts[2];
+    const dir = parts[3];
+    const sessionId = parts[4];
+    if (!sub || !dir || !sessionId) return null;
+    return { action, sub, dir, sessionId };
   }
 
   const sessionId = parts[2];
@@ -1255,7 +1336,7 @@ export async function handleGameVoteButton(
 ): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
-  if (parsed.action !== 'ban' && parsed.action !== 'finish') return false;
+  if (parsed.action !== 'ban' && parsed.action !== 'finish' && parsed.action !== 'nav') return false;
 
   const v = getSession(interaction.customId);
   if (!v) {
@@ -1265,6 +1346,53 @@ export async function handleGameVoteButton(
 
   if (!isVoter(v, interaction.user.id)) {
     await replyNotice(interaction, `${EMOJI_FAIL} You are not a voter in this session.`);
+    return true;
+  }
+
+  if (parsed.action === 'nav') {
+    if (!v.blindMode || v.phase !== 'blind_draft') {
+      await replyNotice(interaction, `${EMOJI_FAIL} Navigation is only available during blind draft.`);
+      return true;
+    }
+
+    const list = parsed.sub;
+    const dir = parsed.dir;
+    if ((list !== 'civ' && list !== 'leader') || (dir !== 'prev' && dir !== 'next')) {
+      await replyNotice(interaction, `${EMOJI_FAIL} Invalid navigation action.`);
+      return true;
+    }
+
+    const pools = v.blindDraftPools.get(interaction.user.id);
+    if (!pools) {
+      await replyNotice(interaction, `${EMOJI_ERROR} Draft pool not found.`);
+      return true;
+    }
+
+    const current = v.blindDraftPages.get(interaction.user.id) ?? { civPage: 0, leaderPage: 0 };
+    const nextState = { ...current };
+
+    if (list === 'civ') {
+      const civs = pools.civs ?? [];
+      const maxPage = Math.max(0, Math.ceil(civs.length / BLIND_MENU_PAGE_SIZE) - 1);
+      nextState.civPage = Math.max(
+        0,
+        Math.min(maxPage, current.civPage + (dir === 'next' ? 1 : -1))
+      );
+    } else {
+      const maxPage = Math.max(0, Math.ceil(pools.leaders.length / BLIND_MENU_PAGE_SIZE) - 1);
+      nextState.leaderPage = Math.max(
+        0,
+        Math.min(maxPage, current.leaderPage + (dir === 'next' ? 1 : -1))
+      );
+    }
+
+    v.blindDraftPages.set(interaction.user.id, nextState);
+
+    const payload = buildRenderPayload(v);
+    await interaction.update({
+      embeds: payload.embeds,
+      components: buildBlindPickComponents({ session: v, voterId: interaction.user.id }),
+    });
     return true;
   }
 

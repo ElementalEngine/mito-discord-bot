@@ -70,6 +70,11 @@ export type BlindDraftPick = {
   defaulted?: boolean;
 };
 
+export type BlindDraftPageState = Readonly<{
+  civPage: number;
+  leaderPage: number;
+}>;
+
 export type GameVoteSession = {
   sessionId: string;
   guildId: string;
@@ -94,7 +99,7 @@ export type GameVoteSession = {
   questionIndex: number;
   // questionId -> voterId -> optionId
   votesByQuestion: Map<string, VoteRecord>;
-  lockedSettings: Map<string, string>; // questionId -> optionId
+  lockedSettings: Map<string, string>;
 
   bansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
@@ -109,4 +114,5 @@ export type GameVoteSession = {
   blindDraftTimeout: NodeJS.Timeout | null;
   blindDraftPools: Map<string, BlindDraftPools>;
   blindDraftPicks: Map<string, BlindDraftPick>;
+  blindDraftPages: Map<string, BlindDraftPageState>;
 };
