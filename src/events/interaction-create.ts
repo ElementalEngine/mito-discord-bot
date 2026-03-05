@@ -6,7 +6,8 @@ import {
 } from 'discord.js';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
-import { handleSecretVoteButton } from '../interactions/secretvote.js';
+import { handleGameVoteInteraction } from '../interactions/gamevote.js';
+import { handleSecretVoteInteraction } from '../interactions/secretvote.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -59,13 +60,18 @@ async function safeEphemeral(
 
 export async function execute(interaction: Interaction): Promise<void> {
   if (!shouldHandle(interaction.id)) return;
-  if (interaction.isButton()) {
+
+  // Components (buttons / selects / modals)
+  if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+    const customId = 'customId' in interaction ? interaction.customId : '';
+
     try {
-      if (await handleSecretVoteButton(interaction)) return;
+      if (await handleSecretVoteInteraction(interaction)) return;
+      if (await handleGameVoteInteraction(interaction)) return;
     } catch (err) {
-      console.error('Button handler failed', {
+      console.error('Interaction handler failed', {
         err,
-        customId: interaction.customId,
+        customId,
         interactionId: interaction.id,
         guildId: interaction.guildId,
         channelId: interaction.channelId,

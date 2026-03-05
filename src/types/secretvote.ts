@@ -1,7 +1,5 @@
-import type { Guild, SendableChannels, User } from 'discord.js';
-import type { VoterUser } from './voice-voters.js';
-
-export type { VoterUser } from './voice-voters.js';
+import type { Guild, Message, SendableChannels, User } from 'discord.js';
+import type { VoterUser } from './utils.js';
 
 export type SecretVoteAction = 'CC' | 'Remap' | 'Scrap' | 'Irrel';
 export type SecretVoteChoice = 'YES' | 'NO';
@@ -47,6 +45,35 @@ export type SecretVoteButtonId = Readonly<{
   voterId: string;
   choice: SecretVoteChoice;
 }>;
+
+export type SecretVoteSession = {
+  voteId: string;
+  guildId: string;
+  voiceChannelId: string;
+
+  hostId: string;
+  action: SecretVoteAction;
+  turn: number;
+  details: string;
+
+  voters: readonly { id: string; displayName: string }[];
+  startedAtMs: number;
+  endsAtMs: number;
+
+  awaiting: Set<string>;
+  votes: Map<string, SecretVoteChoice>;
+  dmMessages: Map<string, Message<false>>;
+  publicMessage: Message<true>;
+
+  timeout: NodeJS.Timeout;
+  publicTickTimeout: NodeJS.Timeout | null;
+  nextPublicTickAtMs: number;
+
+  editInFlight: boolean;
+  needsRender: boolean;
+  pendingStatus: SecretVoteStatus | null;
+  isFinalized: boolean;
+};
 
 type StartSecretVoteOk = Readonly<{
   ok: true;

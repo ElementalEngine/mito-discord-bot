@@ -1,4 +1,6 @@
-export type Edition = "CIV6" | "CIV7";
+import type { CivEdition } from '../types/data.js';
+export type GameMode = 'realtime' | 'cloud';
+export type Edition = CivEdition;
 
 export type ParsedPlayer = {
   user_name?: string;
@@ -89,8 +91,8 @@ export type LeaderboardRanking = {
 
 // ── Stats API (v1)
 
-export type CivVersion = Lowercase<Edition>; 
-export type StatsGameType = 'realtime' | 'cloud';
+export type CivVersion = Lowercase<Edition>;
+export type StatsGameType = GameMode;
 
 export type StatRow = {
   mu: number;

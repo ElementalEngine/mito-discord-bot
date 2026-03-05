@@ -2,12 +2,8 @@ import { ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 
 import { config } from '../config.js';
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
+import type { CommandAccessPolicy } from '../types/utils.js';
 
-export type CommandAccessPolicy = Readonly<{
-  allowedChannelIds: readonly (string | null | undefined)[];
-  requiredRoleIds?: readonly (string | null | undefined)[];
-  allowDeveloperOverride?: boolean;
-}>;
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 

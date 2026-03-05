@@ -1,4 +1,4 @@
-import type { AgePool } from '../data/index.js';
+import type { Civ7StartingAge } from './data.js';
 
 export type DraftGameType = 'FFA' | 'Teamer' | 'Duel';
 
@@ -11,7 +11,7 @@ export type Civ6DraftRequest = Readonly<{
 
 export type Civ7DraftRequest = Readonly<{
   gameType: DraftGameType;
-  startingAge: AgePool;
+  startingAge: Civ7StartingAge;
   numberPlayers?: number;
   numberTeams?: number;
   leaderBansRaw?: string;
@@ -47,7 +47,7 @@ export type Civ6DraftResult = Readonly<{
 export type Civ7DraftResult = Readonly<{
   gameVersion: 'civ7';
   gameType: DraftGameType;
-  startingAge: AgePool;
+  startingAge: Civ7StartingAge;
   allocation: DraftAllocation;
   groups: readonly DraftGroup[];
 }>;

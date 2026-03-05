@@ -1,4 +1,4 @@
-import type { CivEdition } from '../types/config.js';
+import type { CivEdition } from '../types/data.js';
 
 export const MAX_MENTIONS = 20 as const;
 
@@ -48,7 +48,7 @@ export const CIV_SAVE = {
   MAX_BYTES: 12 * 1024 * 1024, 
 } as const;
 
-export type { CivEdition } from '../types/config.js';
+export type { CivEdition } from '../types/data.js';
 export const expectedExt = (edition: CivEdition) => CIV_SAVE.EXT[edition];
 
 export const EDIT_REPORT_TIMEOUT = 5 * 60 * 1000; 

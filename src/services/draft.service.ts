@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 
-import type { CivMeta, LeaderMeta, LeaderType } from '../data/index.js';
+import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta, LeaderType } from '../types/data.js';
 import { CIV6_LEADERS } from '../data/civ6-data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7-data.js';
 import type {
@@ -43,10 +43,6 @@ const LEADER_TYPES: readonly LeaderType[] = [
   'Science',
   'None',
 ];
-
-type Civ6LeaderKey = keyof typeof CIV6_LEADERS;
-type Civ7LeaderKey = keyof typeof CIV7_LEADERS;
-type Civ7CivKey = keyof typeof CIV7_CIVS;
 
 const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
 const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
@@ -404,12 +400,13 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
   const civBansAll = resolveEmojiBans(tokenizeBans(req.civBansRaw), civIndex, 'civ');
 
   const bannedLeaders = leaderBans.banned;
+  const allowAllAges = req.startingAge === 'None';
   const bannedCivs = new Set<Civ7CivKey>();
   const acceptedCivs: Civ7CivKey[] = [];
   const ignoredCivBans: string[] = [...civBansAll.ignored];
   for (const key of civBansAll.accepted) {
     const meta = CIV7_CIVS[key];
-    if (meta.agePool !== req.startingAge) {
+    if (!allowAllAges && meta.agePool !== req.startingAge) {
       ignoredCivBans.push(`${meta.gameId} (not in ${req.startingAge})`);
       continue;
     }
@@ -428,13 +425,14 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
   });
 
   const civPool = (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][]) 
-    .filter(([key, meta]) => meta.agePool === req.startingAge && !bannedCivs.has(key))
+    .filter(([key, meta]) => (allowAllAges || meta.agePool === req.startingAge) && !bannedCivs.has(key))
     .map(([key]) => key);
 
   if (civPool.length < 1) {
+    const label = allowAllAges ? 'all ages' : String(req.startingAge);
     throw new DraftError(
       'NO_POOL',
-      `No civs available for ${req.startingAge} after bans. Remove civ bans or pick a different age.`
+      `No civs available for ${label} after bans. Remove civ bans or pick a different age.`
     );
   }
 

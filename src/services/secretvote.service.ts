@@ -13,6 +13,7 @@ import type {
   SecretVoteAction,
   SecretVoteChoice,
   SecretVoteOutcome,
+  SecretVoteSession,
   SecretVoteStatus,
   StartSecretVoteOptions,
   StartSecretVoteResult,
@@ -25,37 +26,8 @@ const STEADY_TICK_MS = 2_000;
 
 const DM_CONCURRENCY = 10;
 
-type SecretVote = {
-  voteId: string;
-  guildId: string;
-  voiceChannelId: string;
-
-  hostId: string;
-  action: SecretVoteAction;
-  turn: number;
-  details: string;
-
-  voters: readonly { id: string; displayName: string }[];
-  startedAtMs: number;
-  endsAtMs: number;
-
-  awaiting: Set<string>;
-  votes: Map<string, SecretVoteChoice>;
-  dmMessages: Map<string, Message<false>>;
-  publicMessage: Message<true>;
-
-  timeout: NodeJS.Timeout;
-  publicTickTimeout: NodeJS.Timeout | null;
-  nextPublicTickAtMs: number;
-
-  editInFlight: boolean;
-  needsRender: boolean;
-  pendingStatus: SecretVoteStatus | null;
-  isFinalized: boolean;
-};
-
-const activeByVoice = new Map<string, SecretVote>();
-const activeById = new Map<string, SecretVote>();
+const activeByVoice = new Map<string, SecretVoteSession>();
+const activeById = new Map<string, SecretVoteSession>();
 const reservedByVoice = new Set<string>();
 
 function voiceKey(guildId: string, voiceChannelId: string): string {
@@ -184,7 +156,7 @@ export function evaluateSecretVoteOutcome(
 }
 
 function buildStatus(
-  v: SecretVote,
+  v: SecretVoteSession,
   isFinal: boolean,
   result?: SecretVoteOutcome,
   nowMs?: number
@@ -206,19 +178,19 @@ function buildStatus(
   };
 }
 
-async function safeEditPublic(v: SecretVote, status: SecretVoteStatus): Promise<void> {
+async function safeEditPublic(v: SecretVoteSession, status: SecretVoteStatus): Promise<void> {
   await v.publicMessage.edit({
     embeds: [buildSecretVoteEmbed(status)],
     allowedMentions: { parse: [] as const },
   });
 }
 
-function tickStepMs(v: SecretVote, dueMs: number): number {
+function tickStepMs(v: SecretVoteSession, dueMs: number): number {
   const elapsed = dueMs - v.startedAtMs;
   return elapsed < FAST_TICK_WINDOW_MS ? FAST_TICK_MS : STEADY_TICK_MS;
 }
 
-function bumpTickDueToFuture(v: SecretVote, dueMs: number, nowMs: number): number {
+function bumpTickDueToFuture(v: SecretVoteSession, dueMs: number, nowMs: number): number {
   let due = dueMs;
   while (due <= nowMs) {
     due += tickStepMs(v, due);
@@ -226,7 +198,7 @@ function bumpTickDueToFuture(v: SecretVote, dueMs: number, nowMs: number): numbe
   return due;
 }
 
-function requestPublicRender(v: SecretVote, status: SecretVoteStatus): void {
+function requestPublicRender(v: SecretVoteSession, status: SecretVoteStatus): void {
   if (v.isFinalized && !status.isFinal) return;
 
   v.pendingStatus = status;
@@ -305,7 +277,10 @@ async function rollbackDMs(messages: readonly Message<false>[]): Promise<void> {
   });
 }
 
-async function finalizeVote(v: SecretVote, reason: 'timeout' | 'complete'): Promise<void> {
+async function finalizeVote(
+  v: SecretVoteSession,
+  reason: 'timeout' | 'complete'
+): Promise<void> {
   if (v.isFinalized) return;
   v.isFinalized = true;
 
@@ -467,7 +442,7 @@ export async function startSecretVote(
       };
     }
 
-    const vote: SecretVote = {
+    const vote: SecretVoteSession = {
       voteId,
       guildId: opts.guild.id,
       voiceChannelId: opts.voiceChannelId,

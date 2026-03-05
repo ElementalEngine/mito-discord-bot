@@ -1,13 +1,8 @@
 import type { Guild, GuildMember, User, VoiceBasedChannel } from 'discord.js';
-import type { VoterUser } from '../types/voice-voters.js';
-
+import type { BuildVoiceChannelVotersResult, VoterUser } from '../types/utils.js';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const MENTION_RE = /<@!?(\d{17,20})>/g;
-
-export type BuildVoiceChannelVotersResult = Readonly<{
-  voters: VoterUser[];
-}>;
 
 function uniqMentionIdsInOrder(raw: string | null | undefined): string[] {
   const text = (raw ?? '').trim();

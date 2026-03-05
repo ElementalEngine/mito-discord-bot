@@ -11,7 +11,7 @@ import {
   EMOJI_REPORT,
   MAX_DISCORD_LEN,
 } from "../../config/constants.js";
-import type { CivEdition } from "../../types/config.js";
+import type { CivEdition } from "../../types/data.js";
 import {
   submitSaveForReport,
   appendMessageIdList,

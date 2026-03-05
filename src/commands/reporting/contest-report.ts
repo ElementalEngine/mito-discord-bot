@@ -3,11 +3,9 @@ import {
   ChatInputCommandInteraction,
   MessageFlags,
 } from "discord.js";
-import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.js";
 import { contestReport, getMatch } from "../../services/reporting.service.js";
 import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
-import { allPlayersHaveDiscordId, normalizePlayerList, isValidPlayerList } from "../../utils/convert-match-to-str.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 

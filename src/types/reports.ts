@@ -1,6 +1,6 @@
-import type { ParsedPlayer, ContestReport } from "../api/types.js";
+import type { ParsedPlayer, ContestReport, GameMode } from "../api/types.js";
 
-export type GameMode = "realtime" | "cloud";
+export type { GameMode };
 
 export type BaseReport = {
   match_id: string;

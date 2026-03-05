@@ -1,7 +1,7 @@
 import type { Attachment } from 'discord.js';
 
 import { CIV_SAVE, expectedExt } from '../config/constants.js';
-import type { CivEdition } from '../types/config.js';
+import type { CivEdition } from '../types/data.js';
 
 const CIV_EDITION_LABEL: Record<CivEdition, 'Civ6' | 'Civ7'> = {
   CIV6: 'Civ6',

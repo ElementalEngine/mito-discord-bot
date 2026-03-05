@@ -1,4 +1,8 @@
-import { MessageFlags, type ButtonInteraction, type Interaction } from 'discord.js';
+import {
+  MessageFlags,
+  type ButtonInteraction,
+  type Interaction,
+} from 'discord.js';
 
 import { EMOJI_FAIL } from '../config/constants.js';
 import { recordSecretVoteChoice } from '../services/secretvote.service.js';
@@ -43,10 +47,11 @@ async function replyNotice(
       interaction.inGuild() ? { ...base, flags: MessageFlags.Ephemeral } : base
     );
   } catch {
+    // ignore
   }
 }
 
-export async function handleSecretVoteButton(
+async function handleSecretVoteButton(
   interaction: ButtonInteraction
 ): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);
@@ -64,6 +69,7 @@ export async function handleSecretVoteButton(
   );
 
   if (!res.ok) {
+    // Don't overwrite the DM vote message on errors (prevents conflicting final text).
     await replyNotice(interaction, res.message);
     try {
       if (interaction.message.editable) {
@@ -73,6 +79,7 @@ export async function handleSecretVoteButton(
         });
       }
     } catch {
+      // ignore
     }
     return true;
   }
@@ -87,6 +94,7 @@ export async function handleSecretVoteButton(
       return true;
     }
   } catch {
+    // fall through
   }
 
   try {
@@ -99,6 +107,7 @@ export async function handleSecretVoteButton(
       return true;
     }
   } catch {
+    // ignore
   }
 
   await replyNotice(interaction, `You voted: ${res.choice} ✅ Vote recorded.`);
@@ -108,6 +117,6 @@ export async function handleSecretVoteButton(
 export async function handleSecretVoteInteraction(
   interaction: Interaction
 ): Promise<boolean> {
-  if (interaction.isButton()) return handleSecretVoteButton(interaction);
-  return false;
+  if (!interaction.isButton()) return false;
+  return handleSecretVoteButton(interaction);
 }
