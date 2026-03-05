@@ -6,7 +6,7 @@ import {
 } from 'discord.js';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
-import { handleSecretVoteButton } from '../interactions/button/secretvote.js';
+import { handleSecretVoteButton } from '../interactions/secretvote.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
