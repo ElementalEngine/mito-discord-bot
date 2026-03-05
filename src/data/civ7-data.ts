@@ -1,4 +1,4 @@
-import type { CivMeta, LeaderMeta } from "./index.js";
+import type { CivMeta, LeaderMeta } from './types.js';
   /* production bot data */
 export const CIV7_LEADERS = Object.freeze({
   LEADER_ADA_LOVELACE: { gameId: "Ada_Lovelace", emojiId: "1464705360970645504", type: "None" },
@@ -36,7 +36,7 @@ export const CIV7_LEADERS = Object.freeze({
   LEADER_XERXES_ALT: { gameId: "Xerxes_the_Achaemenid", emojiId: "1464705416398245949", type: "None" },
 } satisfies Record<string, LeaderMeta>);
 
-export type Civ7LeaderKey = keyof typeof CIV7_LEADERS;
+export type { Civ7LeaderKey } from './types.js';
 
 export const CIV7_CIVS = Object.freeze({
   /* Antiquity Age Civs */
@@ -124,7 +124,7 @@ export const CIV7_CIVS = Object.freeze({
 //   LEADER_XERXES_ALT: { gameId: "Xerxes_the_Achaemenid", emojiId: "1466899854499516419", type: "None" },
 // } satisfies Record<string, LeaderMeta>);
 
-// export type Civ7LeaderKey = keyof typeof CIV7_LEADERS;
+// export type { Civ7LeaderKey } from './types.js';
 
 // export const CIV7_CIVS = Object.freeze({
 //   /* Antiquity Age Civs */

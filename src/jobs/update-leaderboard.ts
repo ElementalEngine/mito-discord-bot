@@ -7,7 +7,7 @@ import type {
 
 import { getLeaderboardRanking } from '../services/reporting.service.js';
 import type { LeaderboardRanking } from '../api/types.js';
-import type { Leaderboard } from '../types/leaderboard.js';
+import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.js';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;

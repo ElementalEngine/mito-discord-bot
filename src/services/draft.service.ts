@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 
-import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta, LeaderType } from '../types/data.js';
+import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta, LeaderType } from '../data/types.js';
 import { CIV6_LEADERS } from '../data/civ6-data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7-data.js';
 import type {

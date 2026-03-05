@@ -1,4 +1,4 @@
-import type { LeaderMeta } from "./index.js";
+import type { LeaderMeta } from './types.js';
 
 // do not commit changes to this file 
 

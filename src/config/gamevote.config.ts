@@ -1,5 +1,5 @@
 import type { DraftGameType } from '../types/draft.js';
-import type { GameVoteConfig, VoteOption, VoteQuestion } from '../types/config.js';
+import type { GameVoteConfig, VoteOption, VoteQuestion } from './types.js';
 
 // Unicode helpers (safe everywhere)
 const NB = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣'] as const;

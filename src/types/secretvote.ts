@@ -1,5 +1,5 @@
 import type { Guild, Message, SendableChannels, User } from 'discord.js';
-import type { VoterUser } from './utils.js';
+import type { VoterUser } from '../utils/types.js';
 
 export type SecretVoteAction = 'CC' | 'Remap' | 'Scrap' | 'Irrel';
 export type SecretVoteChoice = 'YES' | 'NO';

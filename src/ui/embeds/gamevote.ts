@@ -1,8 +1,9 @@
 import { EmbedBuilder } from 'discord.js';
 
-import type { VoteQuestion } from '../../types/config.js';
+import type { VoteQuestion } from '../../config/types.js';
 import type { DraftGameType } from '../../types/draft.js';
-import type { CivEdition, Civ7StartingAge } from '../../types/data.js';
+import type { CivEdition } from '../../config/types.js';
+import type { Civ7StartingAge } from '../../data/types.js';
 import type { GameVotePhase, GameVoteProgress } from '../../types/gamevote.js';
 
 const MAX_FIELD = 1024;

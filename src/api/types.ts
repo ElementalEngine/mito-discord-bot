@@ -1,4 +1,4 @@
-import type { CivEdition } from '../types/data.js';
+import type { CivEdition } from '../config/types.js';
 export type GameMode = 'realtime' | 'cloud';
 export type Edition = CivEdition;
 

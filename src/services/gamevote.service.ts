@@ -19,8 +19,8 @@ import { randomInt, randomUUID } from 'node:crypto';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
 import { buildGameVoteConfig } from '../config/gamevote.config.js';
-import type { VoteQuestion } from '../types/config.js';
-import type { CivMeta, LeaderMeta } from '../types/data.js';
+import type { VoteQuestion } from '../config/types.js';
+import type { CivMeta, LeaderMeta } from '../data/types.js';
 import { CIV6_LEADERS } from '../data/civ6-data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7-data.js';
 import { DraftError, generateCiv6Draft, generateCiv7Draft } from './draft.service.js';
@@ -37,7 +37,7 @@ import type {
   StartGameVoteResult,
   VoteRecord,
 } from '../types/gamevote.js';
-import type { VoterUser } from '../types/utils.js';
+import type { VoterUser } from '../utils/types.js';
 
 const VOTE_DURATION_MS = 10 * 60_000;
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;

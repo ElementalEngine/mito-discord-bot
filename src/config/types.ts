@@ -1,3 +1,5 @@
+export type CivEdition = 'CIV6' | 'CIV7';
+
 export type VoteEmoji = string;
 
 export type VoteOption = Readonly<{

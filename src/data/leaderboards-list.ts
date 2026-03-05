@@ -1,4 +1,4 @@
-import type { Leaderboard } from '../types/leaderboard.js';
+import type { Leaderboard } from './types.js';
 import { config } from '../config.js';
 
 const civ6_pbc_ffa_leaderboard = {

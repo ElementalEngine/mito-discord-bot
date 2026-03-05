@@ -1,4 +1,4 @@
-import type { Civ7StartingAge } from './data.js';
+import type { Civ7StartingAge } from '../data/types.js';
 
 export type DraftGameType = 'FFA' | 'Teamer' | 'Duel';
 

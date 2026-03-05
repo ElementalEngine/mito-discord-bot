@@ -2,7 +2,7 @@ import { ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 
 import { config } from '../config.js';
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
-import type { CommandAccessPolicy } from '../types/utils.js';
+import type { CommandAccessPolicy } from './types.js';
 
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;

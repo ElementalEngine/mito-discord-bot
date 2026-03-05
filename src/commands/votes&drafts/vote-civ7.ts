@@ -10,7 +10,7 @@ import { config } from '../../config.js';
 import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startGameVote } from '../../services/gamevote.service.js';
 import type { DraftGameType } from '../../types/draft.js';
-import type { Civ7StartingAge } from '../../types/data.js';
+import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 

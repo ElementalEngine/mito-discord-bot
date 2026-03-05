@@ -1,5 +1,5 @@
 import type { Guild, GuildMember, User, VoiceBasedChannel } from 'discord.js';
-import type { BuildVoiceChannelVotersResult, VoterUser } from '../types/utils.js';
+import type { BuildVoiceChannelVotersResult, VoterUser } from './types.js';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const MENTION_RE = /<@!?(\d{17,20})>/g;
