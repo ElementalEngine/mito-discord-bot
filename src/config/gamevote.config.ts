@@ -38,7 +38,8 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
       { id: 'none', emoji: NB[0], label: 'None' },
       { id: 'one', emoji: NB[1], label: 'One' },
       { id: 'two', emoji: NB[2], label: 'Two' },
-      { id: 'unlimited', emoji: '∞', label: 'Unlimited' },
+      // Must be a valid unicode emoji for component options (plain "∞" is rejected).
+      { id: 'unlimited', emoji: '♾️', label: 'Unlimited' },
     ],
     'none'
   ),
@@ -58,7 +59,8 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
     [
       { id: '4h', emoji: NB[4], label: '4 Hours' },
       { id: '6h', emoji: NB[6], label: '6 Hours' },
-      { id: 'unlimited', emoji: '∞', label: 'Unlimited' },
+      // Must be a valid unicode emoji for component options (plain "∞" is rejected).
+      { id: 'unlimited', emoji: '♾️', label: 'Unlimited' },
     ],
     '6h'
   ),

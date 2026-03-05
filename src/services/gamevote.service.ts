@@ -7,8 +7,10 @@ import {
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
+  PermissionsBitField,
   type ButtonInteraction,
   type Guild,
+  type GuildMember,
   type InteractionReplyOptions,
   type MessageEditOptions,
   type ModalSubmitInteraction,
@@ -571,6 +573,77 @@ function ensureSessionSeedValid(seed: GameVoteSessionSeed): string | null {
   return null;
 }
 
+async function getSelfMember(guild: Guild): Promise<GuildMember | null> {
+  const cached = guild.members.me;
+  if (cached) return cached;
+  try {
+    return await guild.members.fetchMe();
+  } catch {
+    return null;
+  }
+}
+
+type PermissionCheckedChannel = Readonly<{
+  id: string;
+  permissionsFor: (member: GuildMember) => Readonly<PermissionsBitField> | null;
+}>;
+
+function hasPermissionCheck(ch: unknown): ch is PermissionCheckedChannel {
+  if (typeof ch !== 'object' || ch === null) return false;
+  const obj = ch as { id?: unknown; permissionsFor?: unknown };
+  return typeof obj.id === 'string' && typeof obj.permissionsFor === 'function';
+}
+
+type ThreadLike = Readonly<{
+  isThread: () => boolean;
+  archived?: boolean;
+  locked?: boolean;
+}>;
+
+function isThreadLike(ch: unknown): ch is ThreadLike {
+  if (typeof ch !== 'object' || ch === null) return false;
+  const obj = ch as { isThread?: unknown };
+  return typeof obj.isThread === 'function';
+}
+
+function permLabel(flag: bigint): string {
+  switch (flag) {
+    case PermissionsBitField.Flags.ViewChannel:
+      return 'View Channel';
+    case PermissionsBitField.Flags.SendMessages:
+      return 'Send Messages';
+    case PermissionsBitField.Flags.EmbedLinks:
+      return 'Embed Links';
+    case PermissionsBitField.Flags.SendMessagesInThreads:
+      return 'Send Messages in Threads';
+    default:
+      return 'Unknown Permission';
+  }
+}
+
+function formatMissingPerms(missing: readonly bigint[]): string {
+  const labels = missing
+    .map(permLabel)
+    .filter((x) => x !== 'Unknown Permission')
+    .map((x) => `**${x}**`);
+  return labels.join(', ');
+}
+
+function getDiscordErrorMeta(
+  err: unknown
+): Readonly<{ message?: string; code?: number | string; status?: number }> {
+  if (!(err instanceof Error)) return {};
+  const e = err as Error & { code?: unknown; status?: unknown };
+  const code = e.code;
+  const status = e.status;
+  return {
+    message: err.message,
+    code: typeof code === 'number' || typeof code === 'string' ? code : undefined,
+    status: typeof status === 'number' ? status : undefined,
+  };
+}
+
+
 async function openInitialMessages(
   v: GameVoteSession,
   guild: Guild,
@@ -578,6 +651,46 @@ async function openInitialMessages(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   // Public status message in vote channel.
   const payload = buildRenderPayload(v);
+
+  // Pre-flight: surface missing channel permissions (most common cause in restricted vote channels).
+  const me = await getSelfMember(guild);
+  if (me && hasPermissionCheck(v.commandChannel)) {
+    const perms = v.commandChannel.permissionsFor(me);
+    if (perms) {
+      const required: bigint[] = [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.EmbedLinks,
+      ];
+
+      const threadLike = isThreadLike(v.commandChannel) && v.commandChannel.isThread();
+      if (threadLike) {
+        const t = v.commandChannel as unknown as { archived?: boolean; locked?: boolean };
+        if (t.archived) {
+          return {
+            ok: false,
+            message: `${EMOJI_FAIL} I can't post in this thread because it is archived.`,
+          };
+        }
+        if (t.locked) {
+          return {
+            ok: false,
+            message: `${EMOJI_FAIL} I can't post in this thread because it is locked.`,
+          };
+        }
+        required.push(PermissionsBitField.Flags.SendMessagesInThreads);
+      }
+
+      const missing = required.filter((p) => !perms.has(p));
+      if (missing.length) {
+        return {
+          ok: false,
+          message: `${EMOJI_ERROR} I can't post the vote message here. Missing: ${formatMissingPerms(missing)}.`,
+        };
+      }
+    }
+  }
+
   try {
     const msg = await v.commandChannel.send({
       embeds: payload.embeds,
@@ -585,8 +698,25 @@ async function openInitialMessages(
       allowedMentions: { parse: [] as const },
     });
     v.publicMessage = msg as Message<true>;
-  } catch {
-    return { ok: false, message: `${EMOJI_ERROR} I couldn't post the vote message here.` };
+  } catch (err: unknown) {
+    const meta = getDiscordErrorMeta(err);
+
+    const channelId =
+      typeof (v.commandChannel as unknown as { id?: unknown }).id === 'string'
+        ? (v.commandChannel as unknown as { id: string }).id
+        : null;
+
+    console.error('GameVote: failed to post public vote message', {
+      guildId: v.guildId,
+      channelId,
+      sessionId: v.sessionId,
+      code: meta.code ?? null,
+      status: meta.status ?? null,
+      message: meta.message ?? null,
+    });
+
+    const hint = meta.code || meta.status ? ` (error ${meta.code ?? meta.status})` : '';
+    return { ok: false, message: `${EMOJI_ERROR} I couldn't post the vote message here${hint}.` };
   }
 
   if (!v.blindMode) return { ok: true };
