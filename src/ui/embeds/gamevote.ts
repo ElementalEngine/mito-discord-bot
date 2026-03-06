@@ -1,12 +1,12 @@
 import { EmbedBuilder } from 'discord.js';
 
-import type { VoteQuestion } from '../../config/types.js';
 import type { DraftGameType } from '../../types/draft.js';
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import type { GameVotePhase, GameVoteProgress } from '../../types/gamevote.js';
 
-const MAX_FIELD = 1024;
+const MAX_FIELD_VALUE = 1024;
+const MAX_FIELD_NAME = 256;
 
 function clamp(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -37,31 +37,24 @@ function renderVoters(p: GameVoteProgress): string {
     const answered = p.answeredCountById.get(v.id) ?? 0;
     const total = p.totalQuestions;
 
-    const status =
-      p.phase === 'bans'
-        ? finished
-          ? 'Finished'
-          : p.bansSubmittedIds.has(v.id)
-            ? 'Bans submitted'
-            : 'Awaiting'
-        : p.phase === 'blind_draft'
-          ? p.blindDraftPickedIds.has(v.id)
-            ? 'Picked'
-            : 'Awaiting pick'
-          : finished
-            ? 'Finished'
-            : `${answered}/${total}`;
+    let status = '—';
+    if (p.phase === 'voting') {
+      status = `${answered}/${total}${finished ? ' ✅' : ''}`;
+    } else if (p.phase === 'bans') {
+      status = p.bansSubmittedIds.has(v.id) ? 'Bans submitted' : 'Awaiting';
+    } else if (p.phase === 'blind_draft') {
+      status = p.blindDraftPickedIds.has(v.id) ? 'Picked' : 'Awaiting pick';
+    } else {
+      status = 'Done';
+    }
 
     return `• <@${v.id}> — ${status}`;
   });
 
-  return clamp(lines.join('\n') || '—', MAX_FIELD);
+  return clamp(lines.join('\n') || '—', MAX_FIELD_VALUE);
 }
 
-function renderCurrentQuestion(q: VoteQuestion | null, index: number, total: number): string {
-  if (!q) return '—';
-  return `(${index + 1}/${total}) **${q.title}**`;
-}
+export type GameVoteQuestionField = Readonly<{ name: string; value: string }>;
 
 export function buildGameVoteEmbed(args: Readonly<{
   edition: CivEdition;
@@ -70,19 +63,14 @@ export function buildGameVoteEmbed(args: Readonly<{
   phase: GameVotePhase;
   nowMs: number;
   endsAtMs: number;
-  currentQuestion: VoteQuestion | null;
-  questionIndex: number;
-  totalQuestions: number;
-  settingsLines: readonly string[];
   progress: GameVoteProgress;
+  questionFields?: readonly GameVoteQuestionField[];
 }>): EmbedBuilder {
   const title = `🗳️ Game Vote — ${fmtEdition(args.edition)}`;
 
   const meta: string[] = [
     `**Game Type:** ${args.gameType}`,
-    args.edition === 'CIV7'
-      ? `**Starting Age:** ${args.startingAge ?? '—'}`
-      : undefined,
+    args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
     `**Phase:** ${fmtPhase(args.phase)}`,
     `**Timer:** ${fmtTime(args.endsAtMs, args.nowMs)}`,
   ].filter(Boolean) as string[];
@@ -92,18 +80,13 @@ export function buildGameVoteEmbed(args: Readonly<{
     .setDescription(meta.join('\n'))
     .addFields({ name: 'Voters', value: renderVoters(args.progress) });
 
-  if (args.phase === 'voting') {
-    e.addFields({
-      name: 'Current Question',
-      value: renderCurrentQuestion(args.currentQuestion, args.questionIndex, args.totalQuestions),
-    });
-  }
-
-  if (args.settingsLines.length > 0) {
-    e.addFields({
-      name: 'Locked Settings',
-      value: clamp(args.settingsLines.join('\n'), MAX_FIELD),
-    });
+  if (args.questionFields && args.questionFields.length > 0) {
+    e.addFields(
+      ...args.questionFields.map((f) => ({
+        name: clamp(f.name, MAX_FIELD_NAME),
+        value: clamp(f.value, MAX_FIELD_VALUE),
+      }))
+    );
   }
 
   return e;

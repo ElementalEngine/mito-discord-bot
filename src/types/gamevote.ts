@@ -87,30 +87,39 @@ export type GameVoteSession = {
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberTeams?: number;
+  // When true, the vote flow proceeds into the blind draft pick phase (DM-based).
+  // Voting itself is handled via ephemeral vote panel.
   blindMode: boolean;
 
   voters: readonly GameVoteVoter[];
   voterIds: readonly string[];
+  voterUsersById: Map<string, User>;
 
   startedAtMs: number;
   endsAtMs: number;
 
   phase: GameVotePhase;
   questions: readonly VoteQuestion[];
-  questionIndex: number;
+
   // questionId -> voterId -> optionId
   votesByQuestion: Map<string, VoteRecord>;
-  lockedSettings: Map<string, string>;
+  lockedSettings: Map<string, string>; // questionId -> optionId
+  tiebrokenQuestions: Set<string>; // questionId
+
+  activeQuestionByVoter: Map<string, string>; // voterId -> questionId
 
   bansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
+
+  // Voters who have pressed "Finish Vote" in the vote panel.
   finished: Set<string>;
 
   publicMessage: Message<true>;
   dmMessages: Map<string, Message<false>>;
 
-  timeout: NodeJS.Timeout;
+  timeout: NodeJS.Timeout | null;
   isFinalized: boolean;
+
   blindDraftEndsAtMs: number | null;
   blindDraftTimeout: NodeJS.Timeout | null;
   blindDraftPools: Map<string, BlindDraftPools>;
