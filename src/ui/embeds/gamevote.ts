@@ -24,11 +24,18 @@ function fmtPhase(p: GameVotePhase): string {
   return 'Final';
 }
 
-function fmtTime(endsAtMs: number, nowMs: number): string {
+function fmtTimerLines(startedAtMs: number, endsAtMs: number, nowMs: number): readonly string[] {
+  const started = Math.floor(startedAtMs / 1000);
   const ends = Math.floor(endsAtMs / 1000);
   const now = Math.floor(nowMs / 1000);
-  if (ends <= now) return 'Ended';
-  return `Ends <t:${ends}:R>`;
+
+  const startedLine = `**Vote started:** <t:${started}:t> (<t:${started}:R>)`;
+
+  if (ends <= now) {
+    return [startedLine, '**Auto-close:** Ended'];
+  }
+
+  return [startedLine, `**Auto-close:** <t:${ends}:t> (<t:${ends}:R>)`];
 }
 
 function renderVoters(p: GameVoteProgress): string {
@@ -54,7 +61,7 @@ function renderVoters(p: GameVoteProgress): string {
   return clamp(lines.join('\n') || '—', MAX_FIELD_VALUE);
 }
 
-export type GameVoteQuestionField = Readonly<{ name: string; value: string }>;
+export type GameVoteQuestionField = Readonly<{ name: string; value: string; inline?: boolean }>;
 
 export function buildGameVoteEmbed(args: Readonly<{
   edition: CivEdition;
@@ -62,6 +69,7 @@ export function buildGameVoteEmbed(args: Readonly<{
   startingAge?: Civ7StartingAge;
   phase: GameVotePhase;
   nowMs: number;
+  startedAtMs: number;
   endsAtMs: number;
   progress: GameVoteProgress;
   questionFields?: readonly GameVoteQuestionField[];
@@ -72,7 +80,7 @@ export function buildGameVoteEmbed(args: Readonly<{
     `**Game Type:** ${args.gameType}`,
     args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
     `**Phase:** ${fmtPhase(args.phase)}`,
-    `**Timer:** ${fmtTime(args.endsAtMs, args.nowMs)}`,
+    ...fmtTimerLines(args.startedAtMs, args.endsAtMs, args.nowMs),
   ].filter(Boolean) as string[];
 
   const e = new EmbedBuilder()
@@ -85,6 +93,7 @@ export function buildGameVoteEmbed(args: Readonly<{
       ...args.questionFields.map((f) => ({
         name: clamp(f.name, MAX_FIELD_NAME),
         value: clamp(f.value, MAX_FIELD_VALUE),
+        inline: f.inline ?? false,
       }))
     );
   }

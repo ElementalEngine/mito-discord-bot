@@ -4,10 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
-  ModalBuilder,
   StringSelectMenuBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   type ButtonInteraction,
   type Guild,
   type InteractionReplyOptions,
@@ -44,6 +41,10 @@ const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 
 const DM_CONCURRENCY = 8;
 const BLIND_MENU_PAGE_SIZE = 25;
+const BAN_LEADER_PAGE_SIZE = 25;
+const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
+const BAN_NONE_VALUE = '__none__';
+
 
 const activeById = new Map<string, GameVoteSession>();
 const activeByVoice = new Map<string, GameVoteSession>();
@@ -151,23 +152,46 @@ function buildProgress(v: GameVoteSession): GameVoteProgress {
 
 type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptions, 'flags'>;
 
-function buildQuestionFields(v: GameVoteSession): readonly { name: string; value: string }[] {
+function buildQuestionFields(v: GameVoteSession): readonly { name: string; value: string; inline?: boolean }[] {
   const showWinners = v.phase !== 'voting';
+
+  // Voting layout: prefer two columns (Q1–Q5 | Q6–Q9) for readability.
+  // If it would exceed embed field limits, fall back to one field per question.
+  if (!showWinners) {
+    const blocks = v.questions.map((q, idx) => {
+      const header = `**${idx + 1}. ${q.title}**`;
+      const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
+      return [header, ...lines].join('\n');
+    });
+
+    const left = blocks.slice(0, 5).join('\n\n');
+    const right = blocks.slice(5).join('\n\n');
+
+    if (left.length <= 1024 && right.length <= 1024) {
+      return [
+        { name: 'Questions (1–5)', value: left || '—', inline: true },
+        { name: 'Questions (6–9)', value: right || '—', inline: true },
+      ];
+    }
+
+    return v.questions.map((q, idx) => {
+      const name = `${idx + 1}. ${q.title}`;
+      const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
+      return { name, value: lines.join('\n') || '—' };
+    });
+  }
+
   return v.questions.map((q, idx) => {
     const name = `${idx + 1}. ${q.title}`;
 
-    if (showWinners) {
-      const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
-      const winner = q.options.find((o) => o.id === winnerId);
-      const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
-      const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
-      return { name, value: `✅ **${label}**${tb}` };
-    }
-
-    const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
-    return { name, value: lines.join('\n') || '—' };
+    const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
+    const winner = q.options.find((o) => o.id === winnerId);
+    const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
+    const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
+    return { name, value: `✅ **${label}**${tb}` };
   });
 }
+
 
 function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<ButtonBuilder>[] {
   const voteBtn = new ButtonBuilder()
@@ -274,6 +298,196 @@ function buildBallotComponents(
 }
 
 
+
+
+function sortKeysByGameId(source: Record<string, { gameId: string }>): string[] {
+  return Object.entries(source)
+    .sort((a, b) => a[1].gameId.localeCompare(b[1].gameId))
+    .map(([key]) => key);
+}
+
+function getBanPageState(v: GameVoteSession, voterId: string): { leaderPage: number; civPage: number } {
+  return v.banPages.get(voterId) ?? { leaderPage: 0, civPage: 0 };
+}
+
+function setBanPageState(
+  v: GameVoteSession,
+  voterId: string,
+  next: Readonly<{ leaderPage: number; civPage: number }>
+): void {
+  v.banPages.set(voterId, { leaderPage: next.leaderPage, civPage: next.civPage });
+}
+
+function getLeaderBanSource(v: GameVoteSession): Record<string, { gameId: string; emojiId?: string }> {
+  if (v.edition === 'CIV6') return getCiv6LeaderMeta();
+  return getCiv7LeaderMeta();
+}
+
+function getCivBanSource(v: GameVoteSession): Record<string, { gameId: string; emojiId?: string }> | null {
+  if (v.edition !== 'CIV7') return null;
+  return getCiv7CivMeta();
+}
+
+function toSelectEmoji(emojiId?: string): { id: string } | undefined {
+  return emojiId ? { id: emojiId } : undefined;
+}
+
+function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder {
+  const bans = v.bansByVoter.get(voterId);
+  const leaders = getLeaderBanSource(v);
+  const civs = getCivBanSource(v);
+
+  const leaderLabel = bans?.leaderKey ? leaders[bans.leaderKey]?.gameId ?? bans.leaderKey : '—';
+  const civLabel =
+    v.edition === 'CIV7'
+      ? bans?.civKey
+        ? civs?.[bans.civKey]?.gameId ?? bans.civKey
+        : 'None'
+      : undefined;
+
+  const submitted = v.bansSubmitted.has(voterId);
+
+  const desc: string[] = [
+    `**Leader ban:** ${leaderLabel}`,
+    civLabel !== undefined ? `**Civ ban:** ${civLabel}` : undefined,
+    submitted ? '✅ **Submitted**' : 'Pick using the menus below, then press **Submit bans**.',
+  ].filter(Boolean) as string[];
+
+  return new EmbedBuilder().setTitle('🛑 Submit Bans').setDescription(desc.join('\n'));
+}
+
+function buildBansPanelComponents(
+  v: GameVoteSession,
+  voterId: string
+): readonly ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
+  const submitted = v.bansSubmitted.has(voterId);
+  const leaders = getLeaderBanSource(v);
+  const civs = getCivBanSource(v);
+
+  const leaderKeys = sortKeysByGameId(leaders);
+  const civKeys = civs ? sortKeysByGameId(civs) : [];
+
+  const page = getBanPageState(v, voterId);
+  const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
+  const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
+
+  const leaderPage = Math.min(Math.max(page.leaderPage, 0), leaderPages - 1);
+  const civPage = Math.min(Math.max(page.civPage, 0), civPages - 1);
+
+  if (leaderPage !== page.leaderPage || civPage !== page.civPage) {
+    setBanPageState(v, voterId, { leaderPage, civPage });
+  }
+
+  const bans = v.bansByVoter.get(voterId);
+  const selectedLeader = bans?.leaderKey;
+  const selectedCiv = bans?.civKey;
+
+  const leaderSlice = leaderKeys.slice(
+    leaderPage * BAN_LEADER_PAGE_SIZE,
+    leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE
+  );
+
+  const leaderOptions = leaderSlice.map((key) => {
+    const meta = leaders[key];
+    return {
+      label: meta?.gameId ?? key,
+      value: key,
+      emoji: toSelectEmoji(meta?.emojiId),
+      default: selectedLeader === key,
+    };
+  });
+
+  const leaderMenu = new StringSelectMenuBuilder()
+    .setCustomId(`gv:banpick:leader:${v.sessionId}`)
+    .setPlaceholder(`Leader ban (page ${leaderPage + 1}/${leaderPages})`)
+    .setMinValues(1)
+    .setMaxValues(1)
+    .setDisabled(submitted)
+    .addOptions(leaderOptions);
+
+  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(leaderMenu),
+  ];
+
+  if (civs) {
+    const civSlice = civKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
+
+    const civOptions = [
+      {
+        label: 'None',
+        value: BAN_NONE_VALUE,
+        default: !selectedCiv,
+      },
+      ...civSlice.map((key) => {
+        const meta = civs[key];
+        return {
+          label: meta?.gameId ?? key,
+          value: key,
+          emoji: toSelectEmoji(meta?.emojiId),
+          default: selectedCiv === key,
+        };
+      }),
+    ];
+
+    const civMenu = new StringSelectMenuBuilder()
+      .setCustomId(`gv:banpick:civ:${v.sessionId}`)
+      .setPlaceholder(`Civ ban (optional) (page ${civPage + 1}/${civPages})`)
+      .setMinValues(1)
+      .setMaxValues(1)
+      .setDisabled(submitted)
+      .addOptions(civOptions);
+
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
+  }
+
+  const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gv:bannav:leader:prev:${v.sessionId}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel('◀ Leader')
+      .setDisabled(submitted || leaderPages <= 1),
+    new ButtonBuilder()
+      .setCustomId(`gv:bannav:leader:next:${v.sessionId}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setLabel('Leader ▶')
+      .setDisabled(submitted || leaderPages <= 1)
+  );
+
+  if (civs) {
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`gv:bannav:civ:prev:${v.sessionId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('◀ Civ')
+        .setDisabled(submitted || civPages <= 1),
+      new ButtonBuilder()
+        .setCustomId(`gv:bannav:civ:next:${v.sessionId}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Civ ▶')
+        .setDisabled(submitted || civPages <= 1)
+    );
+  }
+
+  navRow.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gv:bansubmit:${v.sessionId}`)
+      .setStyle(ButtonStyle.Success)
+      .setLabel('Submit bans')
+      .setDisabled(submitted)
+  );
+
+  rows.push(navRow);
+
+  return rows;
+}
+
+function buildBansPanelPayload(v: GameVoteSession, voterId: string): InteractionReplyOptions {
+  return {
+    embeds: [buildBansPanelEmbed(v, voterId)],
+    components: buildBansPanelComponents(v, voterId),
+    flags: MessageFlags.Ephemeral,
+  };
+}
 
 function buildBlindPickComponents(args: Readonly<{
   session: GameVoteSession;
@@ -388,13 +602,19 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
   const progress = buildProgress(v);
   const questionFields = buildQuestionFields(v);
 
+  const phaseEndsAtMs =
+    v.phase === 'blind_draft' && v.blindDraftEndsAtMs
+      ? v.blindDraftEndsAtMs
+      : v.endsAtMs;
+
   const embed = buildGameVoteEmbed({
     edition: v.edition,
     gameType: v.gameType,
     startingAge: v.startingAge,
     phase: v.phase,
     nowMs,
-    endsAtMs: v.endsAtMs,
+    startedAtMs: v.startedAtMs,
+    endsAtMs: phaseEndsAtMs,
     progress,
     questionFields,
   });
@@ -508,45 +728,26 @@ function getDraftMode(v: GameVoteSession): GameVoteDraftMode {
 
 
 
-const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
-const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
-const SNOWFLAKE_RE = /^\d{15,22}$/;
-
-function tokenizeBans(raw: string): string[] {
-  return raw
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+function getCiv6LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV6_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
 }
 
-function buildIndex<K extends string>(
-  entries: Readonly<Record<K, LeaderMeta | CivMeta>>
-): ReadonlyMap<string, K> {
-  const map = new Map<string, K>();
-  for (const [key, meta] of Object.entries(entries) as [K, LeaderMeta | CivMeta][]) {
-    map.set(key.toLowerCase(), key);
-    map.set(meta.gameId.toLowerCase(), key);
-    const emojiId = meta.emojiId?.trim();
-    if (emojiId && SNOWFLAKE_RE.test(emojiId)) map.set(emojiId, key);
-  }
-  return map;
+function getCiv7LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV7_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
 }
 
-function resolveEmojiTokensToKeys<K extends string>(
-  tokens: readonly string[],
-  index: ReadonlyMap<string, K>
-): ReadonlySet<K> {
-  const out = new Set<K>();
-  for (const raw of tokens) {
-    const mention = EMOJI_MENTION_RE.exec(raw);
-    const colon = EMOJI_COLON_RE.exec(raw);
-    const name = mention?.[1] ?? colon?.[1] ?? null;
-    const id = mention?.[2] ?? null;
-    if (!name) continue;
-    const key = index.get(name.toLowerCase()) ?? (id ? index.get(id) : undefined);
-    if (key) out.add(key);
-  }
-  return out;
+function getCiv7CivMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV7_CIVS as unknown as Record<string, { gameId: string; emojiId?: string }>;
+}
+
+function keysToColonTokens(keys: readonly string[], source: Record<string, { gameId: string }>): string {
+  return keys
+    .map((k) => {
+      const meta = source[k];
+      return meta?.gameId ? `:${meta.gameId}:` : '';
+    })
+    .filter(Boolean)
+    .join('\n');
 }
 
 function majorityBans<K extends string>(
@@ -569,31 +770,6 @@ function majorityBans<K extends string>(
     if (count >= need) out.push(key);
   }
   return out;
-}
-
-function keysToColonTokens<K extends string>(
-  keys: readonly K[],
-  lookup: (k: K) => Readonly<{ gameId: string }> | undefined
-): string {
-  const parts: string[] = [];
-  for (const k of keys) {
-    const meta = lookup(k);
-    if (!meta) continue;
-    parts.push(`:${meta.gameId}:`);
-  }
-  return parts.join(',');
-}
-
-function civ6LeaderMeta(k: string): Readonly<{ gameId: string }> | undefined {
-  return (CIV6_LEADERS as Record<string, LeaderMeta>)[k];
-}
-
-function civ7LeaderMeta(k: string): Readonly<{ gameId: string }> | undefined {
-  return (CIV7_LEADERS as Record<string, LeaderMeta>)[k];
-}
-
-function civ7CivMeta(k: string): Readonly<{ gameId: string }> | undefined {
-  return (CIV7_CIVS as Record<string, CivMeta>)[k];
 }
 
 
@@ -627,23 +803,12 @@ async function finalizeCleanup(v: GameVoteSession): Promise<void> {
 }
 
 async function publishDraftResult(v: GameVoteSession): Promise<void> {
-  const leaderIndex =
-    v.edition === 'CIV6'
-      ? buildIndex(CIV6_LEADERS)
-      : buildIndex(CIV7_LEADERS);
-  const civIndex = v.edition === 'CIV7' ? buildIndex(CIV7_CIVS) : null;
-
   const leaderPerVoter = new Map<string, ReadonlySet<string>>();
   const civPerVoter = new Map<string, ReadonlySet<string>>();
-  for (const id of v.voterIds) {
-    const bans = v.bansByVoter.get(id);
-    if (!bans) continue;
-    const leaderKeys = resolveEmojiTokensToKeys(tokenizeBans(bans.leaderRaw), leaderIndex);
-    leaderPerVoter.set(id, leaderKeys);
-    if (v.edition === 'CIV7' && bans.civRaw && civIndex) {
-      const civKeys = resolveEmojiTokensToKeys(tokenizeBans(bans.civRaw), civIndex);
-      civPerVoter.set(id, civKeys);
-    }
+
+  for (const [id, bans] of v.bansByVoter.entries()) {
+    if (bans.leaderKey) leaderPerVoter.set(id, new Set([bans.leaderKey]));
+    if (v.edition === 'CIV7' && bans.civKey) civPerVoter.set(id, new Set([bans.civKey]));
   }
 
   const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
@@ -651,10 +816,11 @@ async function publishDraftResult(v: GameVoteSession): Promise<void> {
 
   const leaderBansRaw =
     v.edition === 'CIV6'
-      ? keysToColonTokens(bannedLeaderKeys, civ6LeaderMeta)
-      : keysToColonTokens(bannedLeaderKeys, civ7LeaderMeta);
+      ? keysToColonTokens(bannedLeaderKeys, getCiv6LeaderMeta())
+      : keysToColonTokens(bannedLeaderKeys, getCiv7LeaderMeta());
+
   const civBansRaw = v.edition === 'CIV7'
-    ? keysToColonTokens(bannedCivKeys, civ7CivMeta)
+    ? keysToColonTokens(bannedCivKeys, getCiv7CivMeta())
     : undefined;
 
   const draftMode = getDraftMode(v);
@@ -883,28 +1049,24 @@ function pickDistinctStable<T>(pool: readonly T[], count: number): T[] {
 
 async function startBlindDraft(v: GameVoteSession): Promise<void> {
   // Build a standard draft as the per-player pool to pick from.
-  const leaderIndex = v.edition === 'CIV6' ? buildIndex(CIV6_LEADERS) : buildIndex(CIV7_LEADERS);
-  const civIndex = v.edition === 'CIV7' ? buildIndex(CIV7_CIVS) : null;
-
   const leaderPerVoter = new Map<string, ReadonlySet<string>>();
   const civPerVoter = new Map<string, ReadonlySet<string>>();
-  for (const id of v.voterIds) {
-    const bans = v.bansByVoter.get(id);
-    if (!bans) continue;
-    leaderPerVoter.set(id, resolveEmojiTokensToKeys(tokenizeBans(bans.leaderRaw), leaderIndex));
-    if (v.edition === 'CIV7' && bans.civRaw && civIndex) {
-      civPerVoter.set(id, resolveEmojiTokensToKeys(tokenizeBans(bans.civRaw), civIndex));
-    }
+
+  for (const [id, bans] of v.bansByVoter.entries()) {
+    if (bans.leaderKey) leaderPerVoter.set(id, new Set([bans.leaderKey]));
+    if (v.edition === 'CIV7' && bans.civKey) civPerVoter.set(id, new Set([bans.civKey]));
   }
+
   const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
   const bannedCivKeys = v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [];
 
   const leaderBansRaw =
     v.edition === 'CIV6'
-      ? keysToColonTokens(bannedLeaderKeys, civ6LeaderMeta)
-      : keysToColonTokens(bannedLeaderKeys, civ7LeaderMeta);
+      ? keysToColonTokens(bannedLeaderKeys, getCiv6LeaderMeta())
+      : keysToColonTokens(bannedLeaderKeys, getCiv7LeaderMeta());
+
   const civBansRaw = v.edition === 'CIV7'
-    ? keysToColonTokens(bannedCivKeys, civ7CivMeta)
+    ? keysToColonTokens(bannedCivKeys, getCiv7CivMeta())
     : undefined;
 
   const numberPlayers = v.gameType === 'FFA' ? v.voters.length : undefined;
@@ -1090,7 +1252,7 @@ async function finalizeAfterBans(v: GameVoteSession): Promise<void> {
   if (v.isFinalized) return;
   if (v.phase !== 'bans') return;
 
-  if (v.blindMode) {
+  if (getDraftMode(v) === 'blind') {
     await startBlindDraft(v);
     return;
   }
@@ -1127,7 +1289,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
     const voterUsersById = new Map<string, User>();
     for (const v of args.voters) voterUsersById.set(v.user.id, v.user);
 
-        const { questions } = buildGameVoteConfig({ gameType: args.gameType, blindMode: args.blindMode });
+    const { questions } = buildGameVoteConfig({ gameType: args.gameType });
 
     const now = Date.now();
 
@@ -1142,7 +1304,6 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       gameType: args.gameType,
       startingAge: args.startingAge,
       numberTeams: args.numberTeams,
-      blindMode: args.blindMode,
 
       voters,
       voterIds,
@@ -1161,6 +1322,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
 
       bansByVoter: new Map(),
       bansSubmitted: new Set(),
+      banPages: new Map(),
       finished: new Set(),
 
       publicMessage: null as unknown as Message<true>,
@@ -1195,10 +1357,14 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
 
 
 
+
+
 type ParsedCustomId =
-  | Readonly<{ action: 'ballot' | 'ballotq' | 'ballotv' | 'finishvote' | 'ban' | 'finalize'; sessionId: string }>
+  | Readonly<{ action: 'ballot' | 'ballotq' | 'ballotv' | 'finishvote' | 'ban' | 'finalize' | 'bansubmit'; sessionId: string }>
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
-  | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
+  | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
+  | Readonly<{ action: 'banpick'; banType: 'civ' | 'leader'; sessionId: string }>
+  | Readonly<{ action: 'bannav'; banType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
 function parseCustomId(id: string): ParsedCustomId | null {
   const parts = id.split(':');
@@ -1224,6 +1390,24 @@ function parseCustomId(id: string): ParsedCustomId | null {
     return { action: 'nav', pickType, navDir, sessionId };
   }
 
+  if (action === 'banpick') {
+    // gv:banpick:civ|leader:<sessionId>
+    const banType = parts[2] as 'civ' | 'leader';
+    const sessionId = parts[3];
+    if (!sessionId || (banType !== 'civ' && banType !== 'leader')) return null;
+    return { action: 'banpick', banType, sessionId };
+  }
+
+  if (action === 'bannav') {
+    // gv:bannav:civ|leader:prev|next:<sessionId>
+    const banType = parts[2] as 'civ' | 'leader';
+    const navDir = parts[3] as 'prev' | 'next';
+    const sessionId = parts[4];
+    if (!sessionId || (banType !== 'civ' && banType !== 'leader')) return null;
+    if (navDir !== 'prev' && navDir !== 'next') return null;
+    return { action: 'bannav', banType, navDir, sessionId };
+  }
+
   // gv:<action>:<sessionId>
   const sessionId = parts[2];
   if (!sessionId) return null;
@@ -1234,6 +1418,7 @@ function parseCustomId(id: string): ParsedCustomId | null {
     action === 'ballotv' ||
     action === 'finishvote' ||
     action === 'ban' ||
+    action === 'bansubmit' ||
     action === 'finalize'
   ) {
     return { action, sessionId };
@@ -1244,10 +1429,8 @@ function parseCustomId(id: string): ParsedCustomId | null {
 
 
 
-function getSession(customId: string): GameVoteSession | null {
-  const parsed = parseCustomId(customId);
-  if (!parsed) return null;
-  return activeById.get(parsed.sessionId) ?? null;
+function getSessionById(sessionId: string): GameVoteSession | null {
+  return activeById.get(sessionId) ?? null;
 }
 
 function isVoter(v: GameVoteSession, userId: string): boolean {
@@ -1258,7 +1441,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const v = getSession(parsed.sessionId);
+  const v = getSessionById(parsed.sessionId);
   if (!v) { await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.'); return true; }
 
   const userId = interaction.user.id;
@@ -1282,6 +1465,30 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
     if (v.voterIds.every((id) => v.blindDraftPicks.get(id)?.leaderKey)) {
       await finalizeBlindDraft(v, 'complete');
     }
+    return true;
+  }
+
+  if (parsed.action === 'banpick') {
+    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
+    if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
+
+    const pick = interaction.values[0];
+    const cur = v.bansByVoter.get(userId) ?? { leaderKey: '' };
+
+    if (parsed.banType === 'leader') {
+      v.bansByVoter.set(userId, { leaderKey: pick, civKey: cur.civKey });
+    } else {
+      if (v.edition !== 'CIV7') { await replyNotice(interaction, '⚠️ Civ bans are not available for Civ6.'); return true; }
+      if (pick === BAN_NONE_VALUE) {
+        v.bansByVoter.set(userId, { leaderKey: cur.leaderKey, civKey: undefined });
+      } else {
+        v.bansByVoter.set(userId, { leaderKey: cur.leaderKey, civKey: pick });
+      }
+    }
+
+    const payload = buildBansPanelPayload(v, userId);
+    await interaction.update({ embeds: payload.embeds, components: payload.components });
     return true;
   }
 
@@ -1333,7 +1540,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const v = getSession(parsed.sessionId);
+  const v = getSessionById(parsed.sessionId);
   if (!v) { await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.'); return true; }
 
   const userId = interaction.user.id;
@@ -1394,40 +1601,66 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     return true;
   }
 
+
   if (parsed.action === 'ban') {
-    if (!interaction.inCachedGuild()) return true;
     if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
 
-    const previous = v.bansByVoter.get(userId);
+    await replySafe(interaction, buildBansPanelPayload(v, userId));
+    return true;
+  }
 
-    const leaderInput = new TextInputBuilder()
-      .setCustomId('leader')
-      .setLabel('Leader ban (required)')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setPlaceholder('Example: Cleopatra, Hammurabi')
-      .setMaxLength(200)
-      .setValue(previous?.leaderRaw ?? '');
+  if (parsed.action === 'bannav') {
+    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
+    if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
 
-    const civInput = new TextInputBuilder()
-      .setCustomId('civ')
-      .setLabel('Civ ban (optional)')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(false)
-      .setPlaceholder('Example: Rome, Babylon')
-      .setMaxLength(200)
-      .setValue(previous?.civRaw ?? '');
+    const page = getBanPageState(v, userId);
+    const leaders = getLeaderBanSource(v);
+    const civs = getCivBanSource(v);
 
-    const modal = new ModalBuilder()
-      .setCustomId(`gv:banmodal:${v.sessionId}`)
-      .setTitle('Submit bans')
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(leaderInput),
-        new ActionRowBuilder<TextInputBuilder>().addComponents(civInput)
-      );
+    const leaderKeys = sortKeysByGameId(leaders);
+    const civKeys = civs ? sortKeysByGameId(civs) : [];
 
-    await interaction.showModal(modal);
+    const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
+    const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
+
+    const delta = parsed.navDir === 'next' ? 1 : -1;
+
+    if (parsed.banType === 'leader') {
+      const next = Math.min(Math.max(page.leaderPage + delta, 0), leaderPages - 1);
+      setBanPageState(v, userId, { leaderPage: next, civPage: page.civPage });
+    } else {
+      const next = Math.min(Math.max(page.civPage + delta, 0), civPages - 1);
+      setBanPageState(v, userId, { leaderPage: page.leaderPage, civPage: next });
+    }
+
+    const payload = buildBansPanelPayload(v, userId);
+    await interaction.update({ embeds: payload.embeds, components: payload.components });
+    return true;
+  }
+
+  if (parsed.action === 'bansubmit') {
+    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
+    if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
+
+    const bans = v.bansByVoter.get(userId);
+    if (!bans?.leaderKey) { await replyNotice(interaction, '⚠️ Pick a leader ban first.'); return true; }
+
+    v.bansSubmitted.add(userId);
+
+    // Update the public message progress.
+    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
+
+    const payload = buildBansPanelPayload(v, userId);
+    await interaction.update({ embeds: payload.embeds, components: payload.components });
+
+    // Auto-finalize when everyone submitted.
+    if (v.voterIds.every((id) => v.bansSubmitted.has(id))) {
+      await finalizeAfterBans(v);
+    }
+
     return true;
   }
 
@@ -1483,38 +1716,13 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
 
 export async function handleGameVoteModal(interaction: ModalSubmitInteraction): Promise<boolean> {
-  const parts = interaction.customId.split(':');
-  if (parts[0] !== 'gv' || parts[1] !== 'banmodal') return false;
+  const parsed = parseCustomId(interaction.customId);
+  if (!parsed || parsed.action !== 'ban') return false;
 
-  const sessionId = parts[2];
-  if (!sessionId) return false;
+  await replyNotice(
+    interaction,
+    '⚠️ Bans are now submitted via the **Submit Bans** button (emoji menus), not via the modal.'
+  );
 
-  const v = getSession(sessionId);
-  if (!v) {
-    await replyNotice(interaction, `${EMOJI_FAIL} This vote session is no longer active.`);
-    return true;
-  }
-
-  const userId = interaction.user.id;
-
-  if (!isVoter(v, userId)) {
-    await replyNotice(interaction, `${EMOJI_FAIL} You are not a voter in this session.`);
-    return true;
-  }
-
-  if (v.phase !== 'bans') {
-    await replyNotice(interaction, `${EMOJI_FAIL} Bans are not active right now.`);
-    return true;
-  }
-
-  const leaderRaw = interaction.fields.getTextInputValue('leader')?.trim() ?? '';
-  const civRaw = interaction.fields.getTextInputValue('civ')?.trim() ?? '';
-
-  v.bansByVoter.set(userId, { leaderRaw, civRaw: civRaw || undefined });
-  v.bansSubmitted.add(userId);
-
-  await replyNotice(interaction, '✅ Bans submitted.');
-
-  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
   return true;
 }

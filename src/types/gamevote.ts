@@ -8,7 +8,7 @@ import type { VoterUser } from '../utils/types.js';
 
 export type GameVotePhase = 'voting' | 'bans' | 'blind_draft' | 'final';
 
-export type GameVoteDraftMode = 'standard' | 'snake' | 'random' | 'cwc';
+export type GameVoteDraftMode = 'standard' | 'snake' | 'random' | 'cwc' | 'blind';
 
 export type GameVoteVoter = Readonly<{
   id: string;
@@ -30,7 +30,6 @@ export type GameVoteSessionSeed = Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberTeams?: number;
-  blindMode: boolean;
   hostId: string;
   voters: readonly GameVoteVoter[];
   questions: readonly VoteQuestion[];
@@ -45,7 +44,6 @@ export type StartGameVoteOptions = Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberTeams?: number;
-  blindMode: boolean;
   voters: readonly VoterUser[];
 }>;
 
@@ -56,8 +54,8 @@ export type StartGameVoteResult =
 export type VoteRecord = Map<string, string>; // voterId -> optionId
 
 export type BanSubmission = Readonly<{
-  leaderRaw: string;
-  civRaw?: string;
+  leaderKey: string;
+  civKey?: string;
 }>;
 
 export type BlindDraftPools = Readonly<{
@@ -76,6 +74,11 @@ export type BlindDraftPageState = Readonly<{
   leaderPage: number;
 }>;
 
+export type BanPageState = Readonly<{
+  civPage: number;
+  leaderPage: number;
+}>;
+
 export type GameVoteSession = {
   sessionId: string;
   guildId: string;
@@ -87,9 +90,6 @@ export type GameVoteSession = {
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberTeams?: number;
-  // When true, the vote flow proceeds into the blind draft pick phase (DM-based).
-  // Voting itself is handled via ephemeral vote panel.
-  blindMode: boolean;
 
   voters: readonly GameVoteVoter[];
   voterIds: readonly string[];
@@ -110,6 +110,7 @@ export type GameVoteSession = {
 
   bansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
+  banPages: Map<string, BanPageState>;
 
   // Voters who have pressed "Finish Vote" in the vote panel.
   finished: Set<string>;

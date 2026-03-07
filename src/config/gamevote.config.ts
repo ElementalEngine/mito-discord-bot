@@ -38,7 +38,6 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
       { id: 'none', emoji: NB[0], label: 'None' },
       { id: 'one', emoji: NB[1], label: 'One' },
       { id: 'two', emoji: NB[2], label: 'Two' },
-      // Must be a valid unicode emoji for component options (plain "∞" is rejected).
       { id: 'unlimited', emoji: '♾️', label: 'Unlimited' },
     ],
     'none'
@@ -59,7 +58,6 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
     [
       { id: '4h', emoji: NB[4], label: '4 Hours' },
       { id: '6h', emoji: NB[6], label: '6 Hours' },
-      // Must be a valid unicode emoji for component options (plain "∞" is rejected).
       { id: 'unlimited', emoji: '♾️', label: 'Unlimited' },
     ],
     '6h'
@@ -205,6 +203,7 @@ const DRAFT_MODES_FFA: readonly VoteOption[] = [
   { id: 'standard', emoji: '✅', label: 'Standard' },
   { id: 'snake', emoji: '🐍', label: 'Snake' },
   { id: 'random', emoji: '❓', label: 'Random' },
+  { id: 'blind', emoji: '🕶️', label: 'Blind' },
 ];
 
 const DRAFT_MODES_TEAMER: readonly VoteOption[] = [
@@ -220,12 +219,8 @@ function draftModeQuestion(gameType: DraftGameType): VoteQuestion {
 
 export function buildGameVoteConfig(args: Readonly<{
   gameType: DraftGameType;
-  blindMode: boolean;
 }>): GameVoteConfig {
   const base = args.gameType === 'Teamer' ? VOTE_SETTINGS_TEAMER : VOTE_SETTINGS_FFA;
-  const questions = args.blindMode
-    ? base
-    : [...base, draftModeQuestion(args.gameType)];
-
+  const questions = [...base, draftModeQuestion(args.gameType)];
   return { questions };
 }
