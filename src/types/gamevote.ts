@@ -7,7 +7,6 @@ import type { Civ7StartingAge } from '../data/types.js';
 import type { VoterUser } from '../utils/types.js';
 
 export type GameVotePhase = 'voting' | 'blind_draft' | 'final';
-
 export type GameVoteStatus = 'in_progress' | 'completed' | 'closed';
 
 export type GameVoteDraftMode = 'standard' | 'snake' | 'random' | 'cwc' | 'blind';
@@ -24,7 +23,8 @@ export type GameVoteProgress = Readonly<{
   totalQuestions: number;
   answeredCountById: ReadonlyMap<string, number>;
   voteSubmittedIds: ReadonlySet<string>;
-  bansSubmittedIds: ReadonlySet<string>;
+  leaderBanCountById: ReadonlyMap<string, number>;
+  civBanCountById: ReadonlyMap<string, number>;
   finishedIds: ReadonlySet<string>;
 }>;
 
@@ -55,11 +55,11 @@ export type StartGameVoteResult =
   | Readonly<{ ok: true; sessionId: string }>
   | Readonly<{ ok: false; message: string }>;
 
-export type VoteRecord = Map<string, string>; // voterId -> optionId
+export type VoteRecord = Map<string, string>;
 
 export type BanSubmission = Readonly<{
-  leaderKey: string;
-  civKey?: string;
+  leaderKeys: readonly string[];
+  civKeys: readonly string[];
 }>;
 
 export type BlindDraftPools = Readonly<{
@@ -102,16 +102,15 @@ export type GameVoteSession = {
   startedAtMs: number;
   endsAtMs: number;
 
-  phase: GameVotePhase;
   status: GameVoteStatus;
+  phase: GameVotePhase;
   questions: readonly VoteQuestion[];
 
-  // questionId -> voterId -> optionId
   votesByQuestion: Map<string, VoteRecord>;
-  lockedSettings: Map<string, string>; // questionId -> optionId
-  tiebrokenQuestions: Set<string>; // questionId
+  lockedSettings: Map<string, string>;
+  tiebrokenQuestions: Set<string>;
 
-  activeQuestionByVoter: Map<string, string>; // voterId -> questionId
+  activeQuestionByVoter: Map<string, string>;
 
   bansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
