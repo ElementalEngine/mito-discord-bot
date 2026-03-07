@@ -45,6 +45,7 @@ export type {
   GameVoteDraftMode,
   GameVotePhase,
   GameVoteProgress,
+  GameVoteStatus,
   GameVoteSession,
   GameVoteSessionSeed,
   GameVoteVoter,

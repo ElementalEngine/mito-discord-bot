@@ -96,12 +96,6 @@ export const data = new SlashCommandBuilder()
       .setMaxValue(5)
       .setRequired(false)
   )
-  .addBooleanOption((opt) =>
-    opt
-      .setName('blind-mode')
-      .setDescription('If true, voting happens via DM (not allowed for Teamer).')
-      .setRequired(false)
-  )
   .addStringOption((opt) =>
     opt
       .setName('mentions')
@@ -150,16 +144,8 @@ export async function execute(
     }
 
     const numberTeams = interaction.options.getInteger('number-teams') ?? undefined;
-    const blindMode = interaction.options.getBoolean('blind-mode') ?? false;
     const mentions = interaction.options.getString('mentions', false);
 
-    if (gameType === 'Teamer' && blindMode) {
-      await replyEphemeral(
-        interaction,
-        `${EMOJI_FAIL} Blind mode is not allowed for **Teamer**.`
-      );
-      return;
-    }
 
     if (gameType === 'Teamer' && !numberTeams) {
       await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires **number-teams**.`);
@@ -224,7 +210,6 @@ export async function execute(
       gameType,
       startingAge,
       numberTeams,
-      blindMode,
       voters,
     });
 
@@ -235,8 +220,9 @@ export async function execute(
 
     await replyEphemeral(
       interaction,
-      `✅ Game vote started (10 minutes).\n` +
-        `Voters: **${voters.length}** • Mode: **${gameType}** • Age: **${startingAge}**${blindMode ? ' • Blind (DM)' : ''}`
+      `✅ Vote started • 10 minutes\n` +
+        `Voters: **${voters.length}** • Mode: **${gameType}** • Age: **${startingAge}**\n` +
+        `Panel: <#${interaction.channelId}>`
     );
   } catch (err: unknown) {
     console.error('vote-civ7 failed', {

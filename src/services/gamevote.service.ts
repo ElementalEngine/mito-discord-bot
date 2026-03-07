@@ -15,18 +15,18 @@ import {
   type StringSelectMenuInteraction,
   type User,
 } from 'discord.js';
-import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
 import { buildGameVoteConfig } from '../config/gamevote.config.js';
 import type { VoteQuestion } from '../config/types.js';
-import type { CivMeta, LeaderMeta } from '../data/types.js';
 import { CIV6_LEADERS } from '../data/civ6-data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7-data.js';
 import { DraftError, generateCiv6Draft, generateCiv7Draft } from './draft.service.js';
 import { buildCiv6DraftEmbed, buildCiv7DraftEmbed } from '../ui/embeds/draft.js';
 import { buildGameVoteEmbed } from '../ui/embeds/gamevote.js';
 import type {
+  BanSubmission,
   GameVoteSession,
   GameVoteDraftMode,
   GameVoteProgress,
@@ -42,8 +42,7 @@ const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const DM_CONCURRENCY = 8;
 const BLIND_MENU_PAGE_SIZE = 25;
 const BAN_LEADER_PAGE_SIZE = 25;
-const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
-const BAN_NONE_VALUE = '__none__';
+const BAN_CIV_PAGE_SIZE = 24;
 
 
 const activeById = new Map<string, GameVoteSession>();
@@ -140,6 +139,7 @@ function buildProgress(v: GameVoteSession): GameVoteProgress {
 
   return {
     phase: v.phase,
+    status: v.status,
     voters: v.voters,
     totalQuestions: v.questions.length,
     answeredCountById: answered,
@@ -154,66 +154,48 @@ type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptio
 
 function buildQuestionFields(v: GameVoteSession): readonly { name: string; value: string; inline?: boolean }[] {
   const showWinners = v.phase !== 'voting';
+  const fields: { name: string; value: string; inline?: boolean }[] = [];
 
-  // Voting layout: prefer two columns (Q1–Q5 | Q6–Q9) for readability.
-  // If it would exceed embed field limits, fall back to one field per question.
-  if (!showWinners) {
-    const blocks = v.questions.map((q, idx) => {
-      const header = `**${idx + 1}. ${q.title}**`;
+  for (let idx = 0; idx < v.questions.length; idx += 2) {
+    const pair = v.questions.slice(idx, idx + 2);
+    for (const [offset, q] of pair.entries()) {
+      const questionIndex = idx + offset;
+      const name = `${questionIndex + 1}. ${q.title}`;
+
+      if (showWinners) {
+        const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
+        const winner = q.options.find((o) => o.id === winnerId);
+        const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
+        const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
+        fields.push({ name, value: `✅ **${label}**${tb}`, inline: true });
+        continue;
+      }
+
       const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
-      return [header, ...lines].join('\n');
-    });
-
-    const left = blocks.slice(0, 5).join('\n\n');
-    const right = blocks.slice(5).join('\n\n');
-
-    if (left.length <= 1024 && right.length <= 1024) {
-      return [
-        { name: 'Questions (1–5)', value: left || '—', inline: true },
-        { name: 'Questions (6–9)', value: right || '—', inline: true },
-      ];
+      fields.push({ name, value: lines.join('\n') || '—', inline: true });
     }
 
-    return v.questions.map((q, idx) => {
-      const name = `${idx + 1}. ${q.title}`;
-      const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
-      return { name, value: lines.join('\n') || '—' };
-    });
+    if (pair.length === 2 && idx + 2 < v.questions.length) {
+      fields.push({ name: '​', value: '​', inline: true });
+    }
   }
 
-  return v.questions.map((q, idx) => {
-    const name = `${idx + 1}. ${q.title}`;
-
-    const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
-    const winner = q.options.find((o) => o.id === winnerId);
-    const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
-    const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
-    return { name, value: `✅ **${label}**${tb}` };
-  });
+  return fields;
 }
 
 
 function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<ButtonBuilder>[] {
-  const voteBtn = new ButtonBuilder()
+  const ballotBtn = new ButtonBuilder()
     .setCustomId(`gv:ballot:${v.sessionId}`)
     .setStyle(ButtonStyle.Primary)
-    .setLabel('Vote');
+    .setLabel('Open Vote Panel');
 
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(voteBtn)];
-}
-
-function buildBansButtons(v: GameVoteSession): readonly ActionRowBuilder<ButtonBuilder>[] {
   const banBtn = new ButtonBuilder()
     .setCustomId(`gv:ban:${v.sessionId}`)
     .setStyle(ButtonStyle.Secondary)
-    .setLabel('Submit bans');
+    .setLabel('Open Bans');
 
-  const finalizeBtn = new ButtonBuilder()
-    .setCustomId(`gv:finalize:${v.sessionId}`)
-    .setStyle(ButtonStyle.Primary)
-    .setLabel('Finalize');
-
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(banBtn, finalizeBtn)];
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(ballotBtn, banBtn)];
 }
 
 function firstUnansweredQuestionId(v: GameVoteSession, voterId: string): string | null {
@@ -227,9 +209,9 @@ function firstUnansweredQuestionId(v: GameVoteSession, voterId: string): string 
 function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId: string): EmbedBuilder {
   const ends = Math.floor(v.endsAtMs / 1000);
   const header =
-    v.endsAtMs <= Date.now()
+    v.status !== 'active'
       ? '**Voting has ended.**'
-      : `Finish before <t:${ends}:R>. Answer all questions, then press **Finish Vote**.`;
+      : `Finish before <t:${ends}:R>. Use **◀ Back** and **Next ▶** to move between questions, then press **Finish Vote**.`;
 
   const lines = v.questions.map((q, idx) => {
     const rec = v.votesByQuestion.get(q.id);
@@ -246,35 +228,52 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
     .setDescription([header, '', lines.join('\n') || '—'].join('\n'));
 }
 
+function activeQuestionIndex(v: GameVoteSession, activeQuestionId: string): number {
+  const idx = v.questions.findIndex((q) => q.id === activeQuestionId);
+  return idx >= 0 ? idx : 0;
+}
+
+function questionIdByDelta(v: GameVoteSession, activeQuestionId: string, delta: -1 | 1): string {
+  const idx = activeQuestionIndex(v, activeQuestionId);
+  const next = Math.max(0, Math.min(v.questions.length - 1, idx + delta));
+  return v.questions[next]?.id ?? activeQuestionId;
+}
+
+function nextQuestionIdAfterSelection(
+  v: GameVoteSession,
+  voterId: string,
+  currentQuestionId: string
+): string {
+  const currentIndex = activeQuestionIndex(v, currentQuestionId);
+
+  for (let i = currentIndex + 1; i < v.questions.length; i += 1) {
+    const question = v.questions[i];
+    if (!v.votesByQuestion.get(question.id)?.has(voterId)) return question.id;
+  }
+
+  const firstUnanswered = firstUnansweredQuestionId(v, voterId);
+  if (firstUnanswered) return firstUnanswered;
+
+  return questionIdByDelta(v, currentQuestionId, 1);
+}
+
 function buildBallotComponents(
   v: GameVoteSession,
   voterId: string,
   activeQuestionId: string
-): readonly ActionRowBuilder<any>[] {
+): readonly ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
   const finished = v.finished.has(voterId);
   const total = v.questions.length;
   const answered = v.questions.reduce((acc, q) => (v.votesByQuestion.get(q.id)?.has(voterId) ? acc + 1 : acc), 0);
   const canFinish = !finished && answered >= total;
 
-  const questionSelect = new StringSelectMenuBuilder()
-    .setCustomId(`gv:ballotq:${v.sessionId}`)
-    .setPlaceholder('Select a question')
-    .setDisabled(finished)
-    .addOptions(
-      v.questions.slice(0, 25).map((q, idx) => ({
-        label: `${idx + 1}. ${q.title}`.slice(0, 100),
-        value: q.id,
-        description: (v.votesByQuestion.get(q.id)?.has(voterId) ? 'Answered' : 'Not answered').slice(0, 100),
-        default: q.id === activeQuestionId,
-      }))
-    );
-
   const q = v.questions.find((qq) => qq.id === activeQuestionId) ?? v.questions[0];
   const currentPickId = v.votesByQuestion.get(q.id)?.get(voterId);
+  const questionIndex = activeQuestionIndex(v, q.id);
 
   const optionSelect = new StringSelectMenuBuilder()
     .setCustomId(`gv:ballotv:${v.sessionId}`)
-    .setPlaceholder('Select an option')
+    .setPlaceholder(`${questionIndex + 1}. ${q.title}`.slice(0, 150))
     .setDisabled(finished)
     .addOptions(
       q.options.slice(0, 25).map((o) => ({
@@ -284,6 +283,18 @@ function buildBallotComponents(
       }))
     );
 
+  const prevBtn = new ButtonBuilder()
+    .setCustomId(`gv:ballotnav:prev:${v.sessionId}`)
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel('◀ Back')
+    .setDisabled(finished || questionIndex <= 0);
+
+  const nextBtn = new ButtonBuilder()
+    .setCustomId(`gv:ballotnav:next:${v.sessionId}`)
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel('Next ▶')
+    .setDisabled(finished || questionIndex >= total - 1);
+
   const finishBtn = new ButtonBuilder()
     .setCustomId(`gv:finishvote:${v.sessionId}`)
     .setStyle(ButtonStyle.Success)
@@ -291,9 +302,8 @@ function buildBallotComponents(
     .setDisabled(!canFinish);
 
   return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(questionSelect),
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(optionSelect),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(finishBtn),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn, finishBtn),
   ];
 }
 
@@ -332,28 +342,119 @@ function toSelectEmoji(emojiId?: string): { id: string } | undefined {
   return emojiId ? { id: emojiId } : undefined;
 }
 
+function getAllowedCivBanKeys(v: GameVoteSession): string[] {
+  if (v.edition !== 'CIV7') return [];
+
+  return Object.entries(CIV7_CIVS)
+    .filter(([, meta]) => v.startingAge === 'None' || !v.startingAge || meta.agePool === v.startingAge)
+    .sort((a, b) => a[1].gameId.localeCompare(b[1].gameId))
+    .map(([key]) => key);
+}
+
+function getBanSubmission(v: GameVoteSession, voterId: string): BanSubmission {
+  const current = v.bansByVoter.get(voterId);
+  return {
+    leaderKeys: current?.leaderKeys ?? [],
+    civKeys: current?.civKeys ?? [],
+  };
+}
+
+function updatePagedSelection(
+  existing: readonly string[],
+  pageKeys: readonly string[],
+  selectedValues: readonly string[]
+): string[] {
+  const pageSet = new Set(pageKeys);
+  const selected = new Set(selectedValues.filter((value) => pageSet.has(value)));
+  const next = existing.filter((value) => !pageSet.has(value));
+  for (const key of pageKeys) {
+    if (selected.has(key)) next.push(key);
+  }
+  return next;
+}
+
+function mapBanLabels(
+  keys: readonly string[],
+  source: Record<string, { gameId: string }>
+): string[] {
+  return keys.map((key) => source[key]?.gameId ?? key).filter(Boolean);
+}
+
+function buildWrappedBanFieldValues(labels: readonly string[]): string[] {
+  if (labels.length === 0) return ['None selected'];
+
+  const lineMax = 96;
+  const fieldMax = 1024;
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const label of labels) {
+    const nextLine = currentLine ? `${currentLine}, ${label}` : label;
+    if (nextLine.length <= lineMax) {
+      currentLine = nextLine;
+      continue;
+    }
+
+    if (currentLine) lines.push(currentLine);
+    currentLine = label;
+  }
+
+  if (currentLine) lines.push(currentLine);
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const line of lines) {
+    const nextChunk = currentChunk ? `${currentChunk}\n${line}` : line;
+    if (nextChunk.length <= fieldMax) {
+      currentChunk = nextChunk;
+      continue;
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    currentChunk = line;
+  }
+
+  if (currentChunk) chunks.push(currentChunk);
+
+  return chunks;
+}
+
 function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder {
-  const bans = v.bansByVoter.get(voterId);
+  const bans = getBanSubmission(v, voterId);
   const leaders = getLeaderBanSource(v);
   const civs = getCivBanSource(v);
-
-  const leaderLabel = bans?.leaderKey ? leaders[bans.leaderKey]?.gameId ?? bans.leaderKey : '—';
-  const civLabel =
-    v.edition === 'CIV7'
-      ? bans?.civKey
-        ? civs?.[bans.civKey]?.gameId ?? bans.civKey
-        : 'None'
-      : undefined;
-
   const submitted = v.bansSubmitted.has(voterId);
 
-  const desc: string[] = [
-    `**Leader ban:** ${leaderLabel}`,
-    civLabel !== undefined ? `**Civ ban:** ${civLabel}` : undefined,
-    submitted ? '✅ **Submitted**' : 'Pick using the menus below, then press **Submit bans**.',
-  ].filter(Boolean) as string[];
+  const embed = new EmbedBuilder().setTitle('🛑 Bans').setDescription(
+    submitted
+      ? '✅ **Bans submitted**'
+      : 'Choose one or more bans with the menus below, review them, then press **Submit Bans**.'
+  );
 
-  return new EmbedBuilder().setTitle('🛑 Submit Bans').setDescription(desc.join('\n'));
+  const leaderLabels = mapBanLabels(bans.leaderKeys, leaders);
+  const leaderValues = buildWrappedBanFieldValues(leaderLabels);
+  embed.addFields(
+    ...leaderValues.map((value, index) => ({
+      name: index === 0 ? `Leader bans (${leaderLabels.length})` : 'Leader bans (cont.)',
+      value,
+      inline: false,
+    }))
+  );
+
+  if (civs) {
+    const civLabels = mapBanLabels(bans.civKeys ?? [], civs);
+    const civValues = buildWrappedBanFieldValues(civLabels);
+    embed.addFields(
+      ...civValues.map((value, index) => ({
+        name: index === 0 ? `Civ bans (${civLabels.length})` : 'Civ bans (cont.)',
+        value,
+        inline: false,
+      }))
+    );
+  }
+
+  return embed;
 }
 
 function buildBansPanelComponents(
@@ -365,7 +466,7 @@ function buildBansPanelComponents(
   const civs = getCivBanSource(v);
 
   const leaderKeys = sortKeysByGameId(leaders);
-  const civKeys = civs ? sortKeysByGameId(civs) : [];
+  const civKeys = v.edition === 'CIV7' ? getAllowedCivBanKeys(v) : [];
 
   const page = getBanPageState(v, voterId);
   const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
@@ -378,9 +479,7 @@ function buildBansPanelComponents(
     setBanPageState(v, voterId, { leaderPage, civPage });
   }
 
-  const bans = v.bansByVoter.get(voterId);
-  const selectedLeader = bans?.leaderKey;
-  const selectedCiv = bans?.civKey;
+  const bans = getBanSubmission(v, voterId);
 
   const leaderSlice = leaderKeys.slice(
     leaderPage * BAN_LEADER_PAGE_SIZE,
@@ -393,15 +492,15 @@ function buildBansPanelComponents(
       label: meta?.gameId ?? key,
       value: key,
       emoji: toSelectEmoji(meta?.emojiId),
-      default: selectedLeader === key,
+      default: bans.leaderKeys.includes(key),
     };
   });
 
   const leaderMenu = new StringSelectMenuBuilder()
     .setCustomId(`gv:banpick:leader:${v.sessionId}`)
-    .setPlaceholder(`Leader ban (page ${leaderPage + 1}/${leaderPages})`)
-    .setMinValues(1)
-    .setMaxValues(1)
+    .setPlaceholder(`Leader bans (page ${leaderPage + 1}/${leaderPages})`)
+    .setMinValues(0)
+    .setMaxValues(Math.max(1, leaderOptions.length))
     .setDisabled(submitted)
     .addOptions(leaderOptions);
 
@@ -412,28 +511,21 @@ function buildBansPanelComponents(
   if (civs) {
     const civSlice = civKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
 
-    const civOptions = [
-      {
-        label: 'None',
-        value: BAN_NONE_VALUE,
-        default: !selectedCiv,
-      },
-      ...civSlice.map((key) => {
-        const meta = civs[key];
-        return {
-          label: meta?.gameId ?? key,
-          value: key,
-          emoji: toSelectEmoji(meta?.emojiId),
-          default: selectedCiv === key,
-        };
-      }),
-    ];
+    const civOptions = civSlice.map((key) => {
+      const meta = civs[key];
+      return {
+        label: meta?.gameId ?? key,
+        value: key,
+        emoji: toSelectEmoji(meta?.emojiId),
+        default: (bans.civKeys ?? []).includes(key),
+      };
+    });
 
     const civMenu = new StringSelectMenuBuilder()
       .setCustomId(`gv:banpick:civ:${v.sessionId}`)
-      .setPlaceholder(`Civ ban (optional) (page ${civPage + 1}/${civPages})`)
-      .setMinValues(1)
-      .setMaxValues(1)
+      .setPlaceholder(`Civ bans (page ${civPage + 1}/${civPages})`)
+      .setMinValues(0)
+      .setMaxValues(Math.max(1, civOptions.length))
       .setDisabled(submitted)
       .addOptions(civOptions);
 
@@ -472,7 +564,7 @@ function buildBansPanelComponents(
     new ButtonBuilder()
       .setCustomId(`gv:bansubmit:${v.sessionId}`)
       .setStyle(ButtonStyle.Success)
-      .setLabel('Submit bans')
+      .setLabel('Submit Bans')
       .setDisabled(submitted)
   );
 
@@ -602,29 +694,23 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
   const progress = buildProgress(v);
   const questionFields = buildQuestionFields(v);
 
-  const phaseEndsAtMs =
-    v.phase === 'blind_draft' && v.blindDraftEndsAtMs
-      ? v.blindDraftEndsAtMs
-      : v.endsAtMs;
-
   const embed = buildGameVoteEmbed({
     edition: v.edition,
     gameType: v.gameType,
     startingAge: v.startingAge,
     phase: v.phase,
+    status: v.status,
     nowMs,
     startedAtMs: v.startedAtMs,
-    endsAtMs: phaseEndsAtMs,
+    autoCloseAtMs: v.startedAtMs + VOTE_DURATION_MS,
     progress,
     questionFields,
   });
 
-  let components: readonly ActionRowBuilder<any>[] = [];
-  if (v.phase === 'voting') {
-    components = buildVotingButtons(v);
-  } else if (v.phase === 'bans') {
-    components = buildBansButtons(v);
-  }
+  const components: readonly ActionRowBuilder<ButtonBuilder>[] =
+    v.status === 'active' && v.phase === 'voting'
+      ? buildVotingButtons(v)
+      : [];
 
   return {
     embeds: [embed],
@@ -658,14 +744,6 @@ function voteCountByOption(record: VoteRecord): Map<string, number> {
   return counts;
 }
 
-function pickDeterministic(sessionId: string, questionId: string, optionIds: readonly string[]): { winnerId: string; seed: string } {
-  const seedFull = createHash('sha256').update(`${sessionId}:${questionId}`).digest('hex');
-  const seed = seedFull.slice(0, 8);
-  const n = Number.parseInt(seed, 16);
-  const idx = optionIds.length > 0 ? n % optionIds.length : 0;
-  return { winnerId: optionIds[Math.max(0, idx)], seed };
-}
-
 function selectWinner(
   sessionId: string,
   question: VoteQuestion,
@@ -686,7 +764,7 @@ function selectWinner(
 
   if (tied.length === 1) return tied[0];
 
-  const { winnerId, seed } = pickDeterministic(sessionId, question.id, tied);
+  const winnerId = pickRandom(tied);
   tiebrokenQuestions.add(question.id);
 
   console.info('[gamevote] tiebreak', {
@@ -694,7 +772,6 @@ function selectWinner(
     questionId: question.id,
     tied,
     winnerId,
-    seed,
   });
 
   return winnerId;
@@ -807,8 +884,8 @@ async function publishDraftResult(v: GameVoteSession): Promise<void> {
   const civPerVoter = new Map<string, ReadonlySet<string>>();
 
   for (const [id, bans] of v.bansByVoter.entries()) {
-    if (bans.leaderKey) leaderPerVoter.set(id, new Set([bans.leaderKey]));
-    if (v.edition === 'CIV7' && bans.civKey) civPerVoter.set(id, new Set([bans.civKey]));
+    if (bans.leaderKeys.length > 0) leaderPerVoter.set(id, new Set(bans.leaderKeys));
+    if (v.edition === 'CIV7' && (bans.civKeys?.length ?? 0) > 0) civPerVoter.set(id, new Set(bans.civKeys));
   }
 
   const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
@@ -1053,8 +1130,8 @@ async function startBlindDraft(v: GameVoteSession): Promise<void> {
   const civPerVoter = new Map<string, ReadonlySet<string>>();
 
   for (const [id, bans] of v.bansByVoter.entries()) {
-    if (bans.leaderKey) leaderPerVoter.set(id, new Set([bans.leaderKey]));
-    if (v.edition === 'CIV7' && bans.civKey) civPerVoter.set(id, new Set([bans.civKey]));
+    if (bans.leaderKeys.length > 0) leaderPerVoter.set(id, new Set(bans.leaderKeys));
+    if (v.edition === 'CIV7' && (bans.civKeys?.length ?? 0) > 0) civPerVoter.set(id, new Set(bans.civKeys));
   }
 
   const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
@@ -1108,18 +1185,20 @@ async function startBlindDraft(v: GameVoteSession): Promise<void> {
       content: `${EMOJI_ERROR} ${msg}`,
       allowedMentions: { parse: [] as const },
     });
+    v.status = 'completed';
     v.isFinalized = true;
     v.phase = 'final';
-  v.endsAtMs = Date.now();
+    v.endsAtMs = Date.now();
     await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     await publishDraftResult(v);
     await finalizeCleanup(v);
     return;
   }
 
+  v.status = 'completed';
   v.phase = 'blind_draft';
   v.blindDraftEndsAtMs = Date.now() + BLIND_DRAFT_DURATION_MS;
-  v.endsAtMs = v.blindDraftEndsAtMs;
+  v.endsAtMs = Date.now();
 
   // Update public status message.
   await safeEditMessage(v.publicMessage, buildRenderPayload(v));
@@ -1213,6 +1292,7 @@ async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'compl
     allowedMentions: { parse: [] as const },
   });
 
+  v.status = 'completed';
   v.phase = 'final';
   v.isFinalized = true;
 
@@ -1224,7 +1304,8 @@ async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'compl
   await finalizeCleanup(v);
 }
 
-async function endVoting(v: GameVoteSession, reason: 'timeout' | 'complete'): Promise<void> {
+async function completeVote(v: GameVoteSession): Promise<void> {
+  if (v.isFinalized) return;
   if (v.phase !== 'voting') return;
 
   if (v.timeout) {
@@ -1233,36 +1314,42 @@ async function endVoting(v: GameVoteSession, reason: 'timeout' | 'complete'): Pr
   }
 
   ensureLockedAll(v);
-  v.phase = 'bans';
-  v.endsAtMs = Date.now();
-
-  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-
-  if (reason === 'timeout') {
-    // Some voters may not have finished; defaults are applied where needed.
-    return;
-  }
-}
-
-function canFinalizeBans(v: GameVoteSession, userId: string): boolean {
-  return userId === v.hostId || v.bansSubmitted.size >= v.voterIds.length;
-}
-
-async function finalizeAfterBans(v: GameVoteSession): Promise<void> {
-  if (v.isFinalized) return;
-  if (v.phase !== 'bans') return;
 
   if (getDraftMode(v) === 'blind') {
     await startBlindDraft(v);
     return;
   }
 
+  v.status = 'completed';
   v.isFinalized = true;
   v.phase = 'final';
   v.endsAtMs = Date.now();
 
   await safeEditMessage(v.publicMessage, buildRenderPayload(v));
   await publishDraftResult(v);
+  await finalizeCleanup(v);
+}
+
+async function endVoting(v: GameVoteSession, reason: 'timeout' | 'complete'): Promise<void> {
+  if (reason === 'complete') {
+    await completeVote(v);
+    return;
+  }
+
+  if (v.phase !== 'voting') return;
+
+  if (v.timeout) {
+    clearTimeout(v.timeout);
+    v.timeout = null;
+  }
+
+  ensureLockedAll(v);
+  v.status = 'timed_out';
+  v.phase = 'final';
+  v.isFinalized = true;
+  v.endsAtMs = Date.now();
+
+  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
   await finalizeCleanup(v);
 }
 
@@ -1313,6 +1400,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       endsAtMs: now + VOTE_DURATION_MS,
 
       phase: 'voting',
+      status: 'active',
       questions,
 
       votesByQuestion: new Map(),
@@ -1355,12 +1443,9 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
   }
 }
 
-
-
-
-
 type ParsedCustomId =
-  | Readonly<{ action: 'ballot' | 'ballotq' | 'ballotv' | 'finishvote' | 'ban' | 'finalize' | 'bansubmit'; sessionId: string }>
+  | Readonly<{ action: 'ballot' | 'ballotv' | 'finishvote' | 'ban' | 'bansubmit'; sessionId: string }>
+  | Readonly<{ action: 'ballotnav'; navDir: 'prev' | 'next'; sessionId: string }>
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
   | Readonly<{ action: 'banpick'; banType: 'civ' | 'leader'; sessionId: string }>
@@ -1408,26 +1493,30 @@ function parseCustomId(id: string): ParsedCustomId | null {
     return { action: 'bannav', banType, navDir, sessionId };
   }
 
+  if (action === 'ballotnav') {
+    const navDir = parts[2] as 'prev' | 'next';
+    const sessionId = parts[3];
+    if (!sessionId) return null;
+    if (navDir !== 'prev' && navDir !== 'next') return null;
+    return { action: 'ballotnav', navDir, sessionId };
+  }
+
   // gv:<action>:<sessionId>
   const sessionId = parts[2];
   if (!sessionId) return null;
 
   if (
     action === 'ballot' ||
-    action === 'ballotq' ||
     action === 'ballotv' ||
     action === 'finishvote' ||
     action === 'ban' ||
-    action === 'bansubmit' ||
-    action === 'finalize'
+    action === 'bansubmit'
   ) {
     return { action, sessionId };
   }
 
   return null;
 }
-
-
 
 function getSessionById(sessionId: string): GameVoteSession | null {
   return activeById.get(sessionId) ?? null;
@@ -1469,22 +1558,34 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   }
 
   if (parsed.action === 'banpick') {
-    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
 
-    const pick = interaction.values[0];
-    const cur = v.bansByVoter.get(userId) ?? { leaderKey: '' };
+    const current = getBanSubmission(v, userId);
+    const page = getBanPageState(v, userId);
 
     if (parsed.banType === 'leader') {
-      v.bansByVoter.set(userId, { leaderKey: pick, civKey: cur.civKey });
+      const leaderKeys = sortKeysByGameId(getLeaderBanSource(v));
+      const pageKeys = leaderKeys.slice(
+        page.leaderPage * BAN_LEADER_PAGE_SIZE,
+        page.leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE
+      );
+      v.bansByVoter.set(userId, {
+        leaderKeys: updatePagedSelection(current.leaderKeys, pageKeys, interaction.values),
+        civKeys: current.civKeys ?? [],
+      });
     } else {
       if (v.edition !== 'CIV7') { await replyNotice(interaction, '⚠️ Civ bans are not available for Civ6.'); return true; }
-      if (pick === BAN_NONE_VALUE) {
-        v.bansByVoter.set(userId, { leaderKey: cur.leaderKey, civKey: undefined });
-      } else {
-        v.bansByVoter.set(userId, { leaderKey: cur.leaderKey, civKey: pick });
-      }
+      const civKeys = getAllowedCivBanKeys(v);
+      const pageKeys = civKeys.slice(
+        page.civPage * BAN_CIV_PAGE_SIZE,
+        page.civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE
+      );
+      v.bansByVoter.set(userId, {
+        leaderKeys: current.leaderKeys,
+        civKeys: updatePagedSelection(current.civKeys ?? [], pageKeys, interaction.values),
+      });
     }
 
     const payload = buildBansPanelPayload(v, userId);
@@ -1495,9 +1596,9 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   // Vote panel selects (guild-only)
   if (!interaction.inCachedGuild()) return true;
 
-  if (parsed.action !== 'ballotq' && parsed.action !== 'ballotv') return true;
+  if (parsed.action !== 'ballotv') return true;
 
-  if (v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
+  if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
   if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
   if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
@@ -1506,35 +1607,32 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
 
   if (!activeFromState) { await replyNotice(interaction, '⚠️ No questions available.'); return true; }
 
-  if (parsed.action === 'ballotq') {
-    const qid = interaction.values[0];
-    if (!v.questions.some((q) => q.id === qid)) { await replyNotice(interaction, '⚠️ Invalid question selection.'); return true; }
-    v.activeQuestionByVoter.set(userId, qid);
-  } else {
-    const qid = activeFromState;
-    const q = v.questions.find((qq) => qq.id === qid);
-    if (!q) { await replyNotice(interaction, '⚠️ Invalid question context.'); return true; }
+  const qid = activeFromState;
+  const q = v.questions.find((qq) => qq.id === qid);
+  if (!q) { await replyNotice(interaction, '⚠️ Invalid question context.'); return true; }
 
-    const optId = interaction.values[0];
-    if (!q.options.some((o) => o.id === optId)) { await replyNotice(interaction, '⚠️ Invalid option selection.'); return true; }
+  const optId = interaction.values[0];
+  if (!q.options.some((o) => o.id === optId)) { await replyNotice(interaction, '⚠️ Invalid option selection.'); return true; }
 
-    const rec = v.votesByQuestion.get(qid) ?? new Map<string, string>();
-    rec.set(userId, optId);
-    v.votesByQuestion.set(qid, rec);
+  const rec = v.votesByQuestion.get(qid) ?? new Map<string, string>();
+  const wasAnswered = rec.has(userId);
+  rec.set(userId, optId);
+  v.votesByQuestion.set(qid, rec);
 
-    v.activeQuestionByVoter.set(userId, qid);
+  if (!wasAnswered) {
+    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
   }
 
-  const active = v.activeQuestionByVoter.get(userId) ?? activeFromState;
+  const nextQuestionId = nextQuestionIdAfterSelection(v, userId, qid);
+  v.activeQuestionByVoter.set(userId, nextQuestionId);
+
+  const active = v.activeQuestionByVoter.get(userId) ?? nextQuestionId;
   const embed = buildBallotEmbed(v, userId, active);
   const components = buildBallotComponents(v, userId, active);
 
   await interaction.update({ embeds: [embed], components: [...components] });
   return true;
 }
-
-
-
 
 export async function handleGameVoteButton(interaction: ButtonInteraction): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);
@@ -1546,7 +1644,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   const userId = interaction.user.id;
 
   if (parsed.action === 'ballot') {
-    if (v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
@@ -1569,7 +1667,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   }
 
   if (parsed.action === 'finishvote') {
-    if (v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
@@ -1580,7 +1678,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
     const allFinished = v.voterIds.every((id) => v.finished.has(id));
     if (allFinished) {
-      await endVoting(v, 'complete');
+      await completeVote(v);
     } else {
       await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     }
@@ -1603,7 +1701,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
 
   if (parsed.action === 'ban') {
-    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
 
     await replySafe(interaction, buildBansPanelPayload(v, userId));
@@ -1611,7 +1709,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   }
 
   if (parsed.action === 'bannav') {
-    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
 
@@ -1620,7 +1718,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     const civs = getCivBanSource(v);
 
     const leaderKeys = sortKeysByGameId(leaders);
-    const civKeys = civs ? sortKeysByGameId(civs) : [];
+    const civKeys = civs ? getAllowedCivBanKeys(v) : [];
 
     const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
     const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
@@ -1641,12 +1739,12 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   }
 
   if (parsed.action === 'bansubmit') {
-    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Bans are not active.'); return true; }
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
 
-    const bans = v.bansByVoter.get(userId);
-    if (!bans?.leaderKey) { await replyNotice(interaction, '⚠️ Pick a leader ban first.'); return true; }
+    const bans = getBanSubmission(v, userId);
+    if (bans.leaderKeys.length === 0 && (bans.civKeys?.length ?? 0) === 0) { await replyNotice(interaction, '⚠️ Pick at least one ban before submitting.'); return true; }
 
     v.bansSubmitted.add(userId);
 
@@ -1656,26 +1754,31 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     const payload = buildBansPanelPayload(v, userId);
     await interaction.update({ embeds: payload.embeds, components: payload.components });
 
-    // Auto-finalize when everyone submitted.
-    if (v.voterIds.every((id) => v.bansSubmitted.has(id))) {
-      await finalizeAfterBans(v);
-    }
-
     return true;
   }
 
-  if (parsed.action === 'finalize') {
-    if (!interaction.inCachedGuild()) return true;
-    if (v.phase !== 'bans') { await replyNotice(interaction, '⚠️ Finalize is only available during bans.'); return true; }
-    if (!isVoter(v, userId) && userId !== v.hostId) { await replyNotice(interaction, '⚠️ You are not part of this session.'); return true; }
+  if (parsed.action === 'ballotnav') {
+    if (v.phase !== 'voting' || v.status !== 'active') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
+    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
+    if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
-    if (!canFinalizeBans(v, userId)) {
-      { await replyNotice(interaction, '⚠️ Waiting for all bans to be submitted (host can finalize early).'); return true; }
+    const active =
+      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionId(v, userId) ?? v.questions[0]?.id;
+
+    if (!active) { await replyNotice(interaction, '⚠️ No questions available.'); return true; }
+
+    const nextQuestionId = questionIdByDelta(v, active, parsed.navDir === 'next' ? 1 : -1);
+    v.activeQuestionByVoter.set(userId, nextQuestionId);
+
+    const embed = buildBallotEmbed(v, userId, nextQuestionId);
+    const components = buildBallotComponents(v, userId, nextQuestionId);
+
+    try {
+      await interaction.update({ embeds: [embed], components: [...components] });
+    } catch {
+      await replySafe(interaction, { embeds: [embed], components: [...components], flags: MessageFlags.Ephemeral });
     }
 
-    await replySafe(interaction, { content: 'Finalizing…', flags: MessageFlags.Ephemeral });
-
-    await finalizeAfterBans(v);
     return true;
   }
 
@@ -1711,9 +1814,6 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   }
   return true;
 }
-
-
-
 
 export async function handleGameVoteModal(interaction: ModalSubmitInteraction): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);

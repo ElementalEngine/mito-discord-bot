@@ -3,7 +3,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { DraftGameType } from '../../types/draft.js';
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
-import type { GameVotePhase, GameVoteProgress } from '../../types/gamevote.js';
+import type { GameVotePhase, GameVoteProgress, GameVoteStatus } from '../../types/gamevote.js';
 
 const MAX_FIELD_VALUE = 1024;
 const MAX_FIELD_NAME = 256;
@@ -17,25 +17,21 @@ function fmtEdition(e: CivEdition): string {
   return e === 'CIV6' ? 'Civ6' : 'Civ7';
 }
 
-function fmtPhase(p: GameVotePhase): string {
-  if (p === 'voting') return 'Voting';
-  if (p === 'bans') return 'Bans';
-  if (p === 'blind_draft') return 'Blind Draft';
-  return 'Final';
+function fmtStatus(status: GameVoteStatus, phase: GameVotePhase): string {
+  if (status === 'timed_out') return 'Closed (Inactivity/Timeout)';
+  if (phase === 'blind_draft') return 'In Progress';
+  if (status === 'completed') return 'Completed';
+  return 'In Progress';
 }
 
-function fmtTimerLines(startedAtMs: number, endsAtMs: number, nowMs: number): readonly string[] {
+function fmtTimerLines(startedAtMs: number, autoCloseAtMs: number): readonly string[] {
   const started = Math.floor(startedAtMs / 1000);
-  const ends = Math.floor(endsAtMs / 1000);
-  const now = Math.floor(nowMs / 1000);
+  const autoClose = Math.floor(autoCloseAtMs / 1000);
 
-  const startedLine = `**Vote started:** <t:${started}:t> (<t:${started}:R>)`;
-
-  if (ends <= now) {
-    return [startedLine, '**Auto-close:** Ended'];
-  }
-
-  return [startedLine, `**Auto-close:** <t:${ends}:t> (<t:${ends}:R>)`];
+  return [
+    `**Started:** <t:${started}:t> (<t:${started}:R>)`,
+    `**Auto-close:** <t:${autoClose}:t> (<t:${autoClose}:R>)`,
+  ];
 }
 
 function renderVoters(p: GameVoteProgress): string {
@@ -43,16 +39,21 @@ function renderVoters(p: GameVoteProgress): string {
     const finished = p.finishedIds.has(v.id);
     const answered = p.answeredCountById.get(v.id) ?? 0;
     const total = p.totalQuestions;
+    const bansDone = p.bansSubmittedIds.has(v.id);
+    const bansSuffix = bansDone ? ' • bans ✅' : '';
 
-    let status = '—';
-    if (p.phase === 'voting') {
-      status = `${answered}/${total}${finished ? ' ✅' : ''}`;
-    } else if (p.phase === 'bans') {
-      status = p.bansSubmittedIds.has(v.id) ? 'Bans submitted' : 'Awaiting';
-    } else if (p.phase === 'blind_draft') {
-      status = p.blindDraftPickedIds.has(v.id) ? 'Picked' : 'Awaiting pick';
-    } else {
-      status = 'Done';
+    let status = `${answered}/${total} completed${bansSuffix}`;
+
+    if (p.phase === 'blind_draft') {
+      status = p.blindDraftPickedIds.has(v.id)
+        ? `Vote done • blind pick ✅${bansSuffix}`
+        : finished
+          ? `Vote done • blind pick pending${bansSuffix}`
+          : `${answered}/${total} completed${bansSuffix}`;
+    } else if (p.status === 'timed_out') {
+      status = `${answered}/${total} completed${bansSuffix}`;
+    } else if (finished) {
+      status = `Done${bansSuffix}`;
     }
 
     return `• <@${v.id}> — ${status}`;
@@ -68,9 +69,10 @@ export function buildGameVoteEmbed(args: Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   phase: GameVotePhase;
+  status: GameVoteStatus;
   nowMs: number;
   startedAtMs: number;
-  endsAtMs: number;
+  autoCloseAtMs: number;
   progress: GameVoteProgress;
   questionFields?: readonly GameVoteQuestionField[];
 }>): EmbedBuilder {
@@ -79,8 +81,8 @@ export function buildGameVoteEmbed(args: Readonly<{
   const meta: string[] = [
     `**Game Type:** ${args.gameType}`,
     args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
-    `**Phase:** ${fmtPhase(args.phase)}`,
-    ...fmtTimerLines(args.startedAtMs, args.endsAtMs, args.nowMs),
+    `**State:** ${fmtStatus(args.status, args.phase)}`,
+    ...fmtTimerLines(args.startedAtMs, args.autoCloseAtMs),
   ].filter(Boolean) as string[];
 
   const e = new EmbedBuilder()
