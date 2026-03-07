@@ -3,7 +3,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { DraftGameType } from '../../types/draft.js';
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
-import type { GameVotePhase, GameVoteProgress, GameVoteStatus } from '../../types/gamevote.js';
+import type { GameVoteProgress, GameVoteStatus } from '../../types/gamevote.js';
 
 const MAX_FIELD_VALUE = 1024;
 const MAX_FIELD_NAME = 256;
@@ -17,46 +17,39 @@ function fmtEdition(e: CivEdition): string {
   return e === 'CIV6' ? 'Civ6' : 'Civ7';
 }
 
-function fmtStatus(status: GameVoteStatus, phase: GameVotePhase): string {
-  if (status === 'timed_out') return 'Closed (Inactivity/Timeout)';
-  if (phase === 'blind_draft') return 'In Progress';
+function fmtStatus(status: GameVoteStatus): string {
   if (status === 'completed') return 'Completed';
+  if (status === 'closed') return 'Closed (Inactivity/Timeout)';
   return 'In Progress';
 }
 
-function fmtTimerLines(startedAtMs: number, autoCloseAtMs: number): readonly string[] {
-  const started = Math.floor(startedAtMs / 1000);
-  const autoClose = Math.floor(autoCloseAtMs / 1000);
+function fmtTimeOnly(ms: number): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(ms));
+}
 
+function fmtTimerLines(startedAtMs: number, endsAtMs: number): readonly string[] {
+  const durationMinutes = Math.max(1, Math.round((endsAtMs - startedAtMs) / 60_000));
   return [
-    `**Started:** <t:${started}:t> (<t:${started}:R>)`,
-    `**Auto-close:** <t:${autoClose}:t> (<t:${autoClose}:R>)`,
+    `**Started:** ${fmtTimeOnly(startedAtMs)}`,
+    `**Ends:** ${fmtTimeOnly(endsAtMs)} (${durationMinutes} minutes)`,
   ];
 }
 
 function renderVoters(p: GameVoteProgress): string {
-  const lines = p.voters.map((v) => {
-    const finished = p.finishedIds.has(v.id);
-    const answered = p.answeredCountById.get(v.id) ?? 0;
-    const total = p.totalQuestions;
-    const bansDone = p.bansSubmittedIds.has(v.id);
-    const bansSuffix = bansDone ? ' • bans ✅' : '';
+  const total = p.totalQuestions;
 
-    let status = `${answered}/${total} completed${bansSuffix}`;
-
-    if (p.phase === 'blind_draft') {
-      status = p.blindDraftPickedIds.has(v.id)
-        ? `Vote done • blind pick ✅${bansSuffix}`
-        : finished
-          ? `Vote done • blind pick pending${bansSuffix}`
-          : `${answered}/${total} completed${bansSuffix}`;
-    } else if (p.status === 'timed_out') {
-      status = `${answered}/${total} completed${bansSuffix}`;
-    } else if (finished) {
-      status = `Done${bansSuffix}`;
-    }
-
-    return `• <@${v.id}> — ${status}`;
+  const lines = p.voters.map((voter) => {
+    const answered = p.answeredCountById.get(voter.id) ?? 0;
+    const voteStatus = p.voteSubmittedIds.has(voter.id) ? 'Game Vote ✅' : `Game Vote ${answered}/${total}`;
+    const leaderBanStatus = `Leader bans ${p.bansSubmittedIds.has(voter.id) ? '✅' : '❌'}`;
+    const civBanStatus =
+      p.edition === 'CIV7' ? ` | Civ bans ${p.bansSubmittedIds.has(voter.id) ? '✅' : '❌'}` : '';
+    const completedStatus = ` | Completed ${p.finishedIds.has(voter.id) ? '✅' : '❌'}`;
+    return `• <@${voter.id}> — ${voteStatus} | ${leaderBanStatus}${civBanStatus}${completedStatus}`;
   });
 
   return clamp(lines.join('\n') || '—', MAX_FIELD_VALUE);
@@ -68,11 +61,9 @@ export function buildGameVoteEmbed(args: Readonly<{
   edition: CivEdition;
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
-  phase: GameVotePhase;
   status: GameVoteStatus;
-  nowMs: number;
   startedAtMs: number;
-  autoCloseAtMs: number;
+  endsAtMs: number;
   progress: GameVoteProgress;
   questionFields?: readonly GameVoteQuestionField[];
 }>): EmbedBuilder {
@@ -81,24 +72,24 @@ export function buildGameVoteEmbed(args: Readonly<{
   const meta: string[] = [
     `**Game Type:** ${args.gameType}`,
     args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
-    `**State:** ${fmtStatus(args.status, args.phase)}`,
-    ...fmtTimerLines(args.startedAtMs, args.autoCloseAtMs),
+    `**State:** ${fmtStatus(args.status)}`,
+    ...fmtTimerLines(args.startedAtMs, args.endsAtMs),
   ].filter(Boolean) as string[];
 
-  const e = new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle(title)
     .setDescription(meta.join('\n'))
     .addFields({ name: 'Voters', value: renderVoters(args.progress) });
 
   if (args.questionFields && args.questionFields.length > 0) {
-    e.addFields(
-      ...args.questionFields.map((f) => ({
-        name: clamp(f.name, MAX_FIELD_NAME),
-        value: clamp(f.value, MAX_FIELD_VALUE),
-        inline: f.inline ?? false,
+    embed.addFields(
+      ...args.questionFields.map((field) => ({
+        name: clamp(field.name, MAX_FIELD_NAME),
+        value: clamp(field.value, MAX_FIELD_VALUE),
+        inline: field.inline ?? false,
       }))
     );
   }
 
-  return e;
+  return embed;
 }
