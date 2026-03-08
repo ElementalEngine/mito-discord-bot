@@ -4,7 +4,7 @@ import {
   type Interaction,
 } from 'discord.js';
 
-import { EMOJI_FAIL } from '../config/constants.js';
+import { EMOJI_CONFIRM, EMOJI_FAIL } from '../config/constants.js';
 import { recordSecretVoteChoice } from '../services/secretvote.service.js';
 import type {
   SecretVoteButtonId,
@@ -87,7 +87,7 @@ async function handleSecretVoteButton(
   try {
     if (!interaction.deferred && !interaction.replied) {
       await interaction.update({
-        content: `You voted: ${res.choice} ✅ Vote recorded.`,
+        content: `You voted: ${res.choice} ${EMOJI_CONFIRM} Vote recorded.`,
         components: [],
         allowedMentions: { parse: [] as const },
       });
@@ -100,7 +100,7 @@ async function handleSecretVoteButton(
   try {
     if (interaction.message.editable) {
       await interaction.message.edit({
-        content: `You voted: ${res.choice} ✅ Vote recorded.`,
+        content: `You voted: ${res.choice} ${EMOJI_CONFIRM} Vote recorded.`,
         components: [],
         allowedMentions: { parse: [] as const },
       });
@@ -110,7 +110,7 @@ async function handleSecretVoteButton(
     // ignore
   }
 
-  await replyNotice(interaction, `You voted: ${res.choice} ✅ Vote recorded.`);
+  await replyNotice(interaction, `You voted: ${res.choice} ${EMOJI_CONFIRM} Vote recorded.`);
   return true;
 }
 

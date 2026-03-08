@@ -17,7 +17,18 @@ import {
 } from 'discord.js';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 
-import { EMOJI_ERROR, EMOJI_FAIL, GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
+import {
+  EMOJI_BAN_PANEL,
+  EMOJI_BANS,
+  EMOJI_CONFIRM,
+  EMOJI_EMPTY_SELECTION,
+  EMOJI_ERROR,
+  EMOJI_FAIL,
+  EMOJI_NEXT,
+  EMOJI_RANDOM,
+  EMOJI_VOTE_PANEL,
+  GAMEVOTE_BAN_LIMITS,
+} from '../config/constants.js';
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
@@ -372,12 +383,12 @@ function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<Butto
   const voteBtn = new ButtonBuilder()
     .setCustomId(`gv:ballot:${v.sessionId}`)
     .setStyle(ButtonStyle.Primary)
-    .setLabel('🗳️ Vote Panel');
+    .setLabel(`${EMOJI_VOTE_PANEL} Vote Panel`);
 
   const bansBtn = new ButtonBuilder()
     .setCustomId(`gv:ban:${v.sessionId}`)
     .setStyle(ButtonStyle.Primary)
-    .setLabel('🔨 Ban Panel');
+    .setLabel(`${EMOJI_BAN_PANEL} Ban Panel`);
 
   const finishBtn = new ButtonBuilder()
     .setCustomId(`gv:finishvote:${v.sessionId}`)
@@ -387,7 +398,7 @@ function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<Butto
   const randomizeBtn = new ButtonBuilder()
     .setCustomId(`gv:randomvote:${v.sessionId}`)
     .setStyle(ButtonStyle.Danger)
-    .setLabel('🎲 Randomize My Vote');
+    .setLabel(`${EMOJI_RANDOM} Randomize My Vote`);
 
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(voteBtn, bansBtn, finishBtn, randomizeBtn)];
 }
@@ -419,8 +430,8 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
     const pickId = staged.get(q.id);
     const pick = pickId ? q.options.find((o) => o.id === pickId) : undefined;
     const pickLabel = pick ? `${pick.emoji ? `${pick.emoji} ` : ''}${pick.label}` : '—';
-    const mark = pickId ? '✅' : '⬜';
-    const cursor = q.id === activeQuestionId ? '➡️ ' : '';
+    const mark = pickId ? EMOJI_CONFIRM : EMOJI_EMPTY_SELECTION;
+    const cursor = q.id === activeQuestionId ? `${EMOJI_NEXT} ` : '';
     return `${cursor}${mark} ${idx + 1}. ${q.title} — ${pickLabel}`;
   });
 
@@ -429,7 +440,7 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
     : '';
 
   return new EmbedBuilder()
-    .setTitle('🗳️ Vote Panel')
+    .setTitle(`${EMOJI_VOTE_PANEL} Vote Panel`)
     .setDescription([header, '', lines.join('\n') || '—'].join('\n') + footer);
 }
 
@@ -557,10 +568,10 @@ function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder 
     'Choose one or more bans with the menus below, then press **Submit Bans**.',
     `**Leader bans (${leaderItems.length}):** ${clampBanList(leaderItems, 900)}`,
     v.edition === 'CIV7' ? `**Civ bans (${civItems.length}):** ${clampBanList(civItems, 900)}` : undefined,
-    submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
+    submitted ? `${EMOJI_CONFIRM} **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.` : undefined,
   ].filter(Boolean) as string[];
 
-  return new EmbedBuilder().setTitle('🛑 Bans').setDescription(desc.join('\n'));
+  return new EmbedBuilder().setTitle(`${EMOJI_BANS} Bans`).setDescription(desc.join('\n'));
 }
 
 function buildBansPanelComponents(
@@ -1151,7 +1162,7 @@ async function publishRandom(
       return `• <@${id}> — **${CIV6_LEADERS[pick as keyof typeof CIV6_LEADERS].gameId}**`;
     });
     await v.commandChannel.send({
-      content: `🎲 **Random leaders**\n${lines.join('\n')}`,
+      content: `${EMOJI_RANDOM} **Random leaders**\n${lines.join('\n')}`,
       allowedMentions: { parse: [] as const },
     });
     return;
@@ -1172,7 +1183,7 @@ async function publishRandom(
   });
 
   await v.commandChannel.send({
-    content: `🎲 **Random civs + leaders**\n${lines.join('\n')}`,
+    content: `${EMOJI_RANDOM} **Random civs + leaders**\n${lines.join('\n')}`,
     allowedMentions: { parse: [] as const },
   });
 }
@@ -1428,7 +1439,7 @@ async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'compl
   }
 
   const lines: string[] = [];
-  lines.push(`✅ **Blind draft results** (${reason === 'timeout' ? 'timeout' : 'complete'})`);
+  lines.push(`${EMOJI_CONFIRM} **Blind draft results** (${reason === 'timeout' ? 'timeout' : 'complete'})`);
   lines.push('');
   for (const id of v.voterIds) {
     const pick = v.blindDraftPicks.get(id);

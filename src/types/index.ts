@@ -65,7 +65,7 @@ export type {
   StartSecretVoteResult,
 } from './secretvote.types.js';
 
-export type { Leaderboard } from './leaderboard.types.js';
+export type { Leaderboard } from '../data/types.js';
 
 export type {
   BaseReport,

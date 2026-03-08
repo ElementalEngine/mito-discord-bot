@@ -15,7 +15,7 @@ export type VoteQuestion = Readonly<{
   defaultOptionId: string;
 }>;
 
-export type DraftModeId = 'standard' | 'snake' | 'random' | 'cwc';
+export type DraftModeId = 'standard' | 'snake' | 'random' | 'cwc' | 'blind';
 
 export type GameVoteConfig = Readonly<{
   questions: readonly VoteQuestion[];

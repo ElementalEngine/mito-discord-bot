@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 
 import { config } from '../../config.js';
-import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
+import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startGameVote } from '../../services/voting.service.js';
 import type { DraftGameType } from '../../types/draft.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -194,7 +194,7 @@ export async function execute(
 
     await replyEphemeral(
       interaction,
-      `✅ Vote started • 10 minutes\n` +
+      `${EMOJI_CONFIRM} Vote started • 10 minutes\n` +
         `Voters: **${voters.length}** • Mode: **${gameType}**\n` +
         `Panel: <#${interaction.channelId}>`
     );

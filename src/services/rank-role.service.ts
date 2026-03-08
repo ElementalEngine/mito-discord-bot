@@ -104,12 +104,9 @@ async function applyRankRole(
     .filter((r) => r.id !== desired.id)
     .map((r) => r.id);
 
-  // Idempotent fast path.
   if (hasDesired && toRemove.length === 0) return;
 
-  // Guard: role hierarchy.
-  const desiredEditable = desired.editable;
-  if (!desiredEditable) {
+  if (!desired.editable) {
     console.warn(
       `[rank-roles] Cannot assign desired role due to hierarchy: guild=${guild.id} role=${desired.id}`,
     );

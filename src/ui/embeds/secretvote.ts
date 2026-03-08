@@ -1,5 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
+import { EMOJI_LOCK } from '../../config/constants.js';
+
 import type { SecretVoteStatus } from '../../types/secretvote.types.js';
 
 const MAX_FIELD = 1024;
@@ -77,7 +79,7 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
   }
 
   const e = new EmbedBuilder()
-    .setTitle('🔒 Secret Vote')
+    .setTitle(`${EMOJI_LOCK} Secret Vote`)
     .setDescription(lines.join('\n'))
     .addFields({ name: 'Voters', value: formatVoterLines(status) });
 

@@ -1,6 +1,10 @@
 import { EmbedBuilder, userMention } from 'discord.js';
 
-import { GAMEVOTE_CPL_STANDARD_RULES } from '../../config/constants.js';
+import {
+  EMOJI_ERROR,
+  EMOJI_VOTE_PANEL,
+  GAMEVOTE_CPL_STANDARD_RULES,
+} from '../../config/constants.js';
 
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
@@ -109,12 +113,12 @@ export function buildGameVoteEmbed(args: Readonly<{
   ].filter((line): line is string => Boolean(line));
 
   const embed = new EmbedBuilder()
-    .setTitle(`🗳️ Game Vote — ${fmtEdition(args.edition)}`)
+    .setTitle(`${EMOJI_VOTE_PANEL} Game Vote — ${fmtEdition(args.edition)}`)
     .setDescription(meta.join('\n'));
 
   if (args.status === 'in_progress') {
     embed.setFooter({
-      text: '⚠️ Once you press Finish Vote or Randomize My Vote, your vote is finalized and committed to the game setup. ⚠️',
+      text: `${EMOJI_ERROR} Once you press Finish Vote or Randomize My Vote, your vote is finalized and committed to the game setup. ${EMOJI_ERROR}`, 
     });
   }
 

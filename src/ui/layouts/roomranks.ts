@@ -1,4 +1,4 @@
-import { MAX_DISCORD_LEN } from '../../config/constants.js';
+import { EMOJI_ROOM_RANKINGS, MAX_DISCORD_LEN } from '../../config/constants.js';
 
 type ModeCols = Readonly<{
   ffa?: number | null;
@@ -135,7 +135,7 @@ function renderAll(args: Readonly<{
 }>): string {
   const { titleEmoji, subtitle, realtimeRows, cloudLifetimeRows } = args;
 
-  const emoji = titleEmoji ?? '📊';
+  const emoji = titleEmoji ?? EMOJI_ROOM_RANKINGS;
 
   const out: string[] = [];
   out.push(`**${emoji} Room Rankings**`);
@@ -164,7 +164,7 @@ export function formatRoomRanksPages(args: Readonly<{
   const { realtimeRows } = args;
 
   if (realtimeRows.length === 0) {
-    const emoji = args.titleEmoji ?? '📊';
+    const emoji = args.titleEmoji ?? EMOJI_ROOM_RANKINGS;
     return [`**${emoji} Room Rankings**\nNo users.`];
   }
 

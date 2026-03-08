@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 
 import { config } from '../../config.js';
-import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
+import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startSecretVote } from '../../services/secretvote.service.js';
 import type { SecretVoteAction } from '../../types/secretvote.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -171,7 +171,7 @@ export async function execute(
     }
 
     const summary = [
-      '✅ Secret vote started (2 minutes)',
+      `${EMOJI_CONFIRM} Secret vote started (2 minutes)`,
       `Action: ${action} • Turn: ${turn}`,
       `Details: ${clampLine(details, 800)}`,
       `Started by: <@${interaction.user.id}>`,
