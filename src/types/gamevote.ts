@@ -62,6 +62,8 @@ export type BanSubmission = Readonly<{
   civKeys: readonly string[];
 }>;
 
+export type StagedVoteRecord = ReadonlyMap<string, string>;
+
 export type BlindDraftPools = Readonly<{
   civs?: readonly string[];
   leaders: readonly string[];
@@ -113,10 +115,12 @@ export type GameVoteSession = {
   activeQuestionByVoter: Map<string, string>;
 
   bansByVoter: Map<string, BanSubmission>;
+  stagedBansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
   banPages: Map<string, BanPageState>;
 
   voteSubmitted: Set<string>;
+  stagedVotesByVoter: Map<string, VoteRecord>;
   finished: Set<string>;
 
   publicMessage: Message<true>;

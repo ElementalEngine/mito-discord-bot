@@ -1,4 +1,4 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, userMention } from 'discord.js';
 
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
@@ -41,9 +41,17 @@ function fmtTimerLine(startedAtMs: number, endsAtMs: number): string {
   return `**Started:** ${fmtTimeOnly(startedAtMs)} ~ **Ends:** ${fmtTimeOnly(endsAtMs)} (${durationMinutes} minutes)`;
 }
 
-function formatVoterName(displayName: string): string {
+const FIGURE_SPACE = ' ';
+
+function formatVoterName(displayName: string, userId?: string): string {
+  if (userId) return userMention(userId);
   const normalized = displayName.replace(/[\r\n]+/g, ' ').trim() || 'Unknown';
   return normalized.startsWith('@') ? normalized : `@${normalized}`;
+}
+
+function padFigure(text: string, width: number): string {
+  if (text.length >= width) return text;
+  return `${text}${FIGURE_SPACE.repeat(width - text.length)}`;
 }
 
 function questionCell(progress: GameVoteProgress, voterId: string): string {
@@ -67,12 +75,17 @@ function finishedCell(progress: GameVoteProgress, voterId: string): string {
 }
 
 function buildActiveStatusFields(progress: GameVoteProgress): readonly EmbedField[] {
-  const voters = progress.voters.map((voter) => formatVoterName(voter.displayName));
+  const voters = progress.voters.map((voter) => formatVoterName(voter.displayName, voter.id));
   const statuses = progress.voters.map((voter) => {
-    const cells = [questionCell(progress, voter.id), leaderBansCell(progress, voter.id)];
-    if (progress.edition === 'CIV7') cells.push(civBansCell(progress, voter.id));
-    cells.push(finishedCell(progress, voter.id));
-    return cells.join(' | ');
+    const gap = `${FIGURE_SPACE}${FIGURE_SPACE}`;
+    const question = padFigure(questionCell(progress, voter.id), 4);
+    const leaderBans = padFigure(leaderBansCell(progress, voter.id), progress.edition === 'CIV7' ? 2 : 3);
+    const finished = padFigure(finishedCell(progress, voter.id), 1);
+    if (progress.edition === 'CIV7') {
+      const civBans = padFigure(civBansCell(progress, voter.id), 2);
+      return [question, leaderBans, civBans, finished].join(gap);
+    }
+    return [question, leaderBans, finished].join(gap);
   });
 
   let visible = voters.length;
@@ -91,8 +104,8 @@ function buildActiveStatusFields(progress: GameVoteProgress): readonly EmbedFiel
     {
       name:
         progress.edition === 'CIV7'
-          ? 'Questions | Leader Bans | Civ Bans | Finished'
-          : 'Questions | Leader Bans | Finished',
+          ? '❓ Q | 🇱 Bans | 🇨 Bans | ➕ Vote'
+          : '❓ Q | 🇱 Bans | ➕ Vote',
       value: clamp(statusText, MAX_FIELD_VALUE),
       inline: true,
     },
@@ -102,8 +115,8 @@ function buildActiveStatusFields(progress: GameVoteProgress): readonly EmbedFiel
 
 function buildClosedVoterField(progress: GameVoteProgress): EmbedField {
   const lines = progress.voters.map((voter) => {
-    const state = progress.finishedIds.has(voter.id) ? 'Completed' : 'Not completed';
-    return `${formatVoterName(voter.displayName)} — ${state}`;
+    const state = progress.finishedIds.has(voter.id) ? 'Completed' : 'Incomplete vote';
+    return `${formatVoterName(voter.displayName, voter.id)} — ${state}`;
   });
 
   return {

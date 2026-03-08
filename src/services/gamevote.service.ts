@@ -166,6 +166,69 @@ function getEmptyBans(): BanSubmission {
   return { leaderKeys: [], civKeys: [] };
 }
 
+function cloneBanSubmission(bans: BanSubmission): BanSubmission {
+  return { leaderKeys: [...bans.leaderKeys], civKeys: [...bans.civKeys] };
+}
+
+function banSubmissionEquals(a: BanSubmission, b: BanSubmission): boolean {
+  return a.leaderKeys.length === b.leaderKeys.length
+    && a.civKeys.length === b.civKeys.length
+    && a.leaderKeys.every((key, idx) => key === b.leaderKeys[idx])
+    && a.civKeys.every((key, idx) => key === b.civKeys[idx]);
+}
+
+function getCommittedVoteRecordForVoter(v: GameVoteSession, voterId: string): VoteRecord {
+  const record = new Map<string, string>();
+  for (const q of v.questions) {
+    const optId = v.votesByQuestion.get(q.id)?.get(voterId);
+    if (optId) record.set(q.id, optId);
+  }
+  return record;
+}
+
+function ensureStagedVoteRecord(v: GameVoteSession, voterId: string): VoteRecord {
+  const existing = v.stagedVotesByVoter.get(voterId);
+  if (existing) return existing;
+  const created = getCommittedVoteRecordForVoter(v, voterId);
+  v.stagedVotesByVoter.set(voterId, created);
+  return created;
+}
+
+function ensureStagedBans(v: GameVoteSession, voterId: string): BanSubmission {
+  const existing = v.stagedBansByVoter.get(voterId);
+  if (existing) return existing;
+  const created = cloneBanSubmission(v.bansByVoter.get(voterId) ?? getEmptyBans());
+  v.stagedBansByVoter.set(voterId, created);
+  return created;
+}
+
+function answeredCountInRecord(v: GameVoteSession, record: ReadonlyMap<string, string>): number {
+  let count = 0;
+  for (const q of v.questions) if (record.has(q.id)) count += 1;
+  return count;
+}
+
+function firstUnansweredQuestionIdInRecord(v: GameVoteSession, record: ReadonlyMap<string, string>): string | null {
+  for (const q of v.questions) {
+    if (!record.has(q.id)) return q.id;
+  }
+  return null;
+}
+
+function voteRecordEquals(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
+  if (a.size != b.size) return false;
+  for (const [key, value] of a) if (b.get(key) !== value) return false;
+  return true;
+}
+
+function hasStagedVoteChanges(v: GameVoteSession, voterId: string): boolean {
+  return !voteRecordEquals(ensureStagedVoteRecord(v, voterId), getCommittedVoteRecordForVoter(v, voterId));
+}
+
+function hasStagedBanChanges(v: GameVoteSession, voterId: string): boolean {
+  return !banSubmissionEquals(ensureStagedBans(v, voterId), v.bansByVoter.get(voterId) ?? getEmptyBans());
+}
+
 function dedupeStable(keys: readonly string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -186,35 +249,32 @@ function formatCivBan(key: string): string {
 }
 
 
-function getSubmittedBanSummary(v: GameVoteSession): Readonly<{ leaderKeys: readonly string[]; civKeys: readonly string[] }> {
-  const leaderKeys: string[] = [];
-  const civKeys: string[] = [];
+function getSubmittedBanSummary(v: GameVoteSession): Readonly<{ leader: ReadonlyMap<string, number>; civ: ReadonlyMap<string, number> }> {
+  const leader = new Map<string, number>();
+  const civ = new Map<string, number>();
 
   for (const voterId of v.voterIds) {
     if (!v.bansSubmitted.has(voterId)) continue;
     const bans = v.bansByVoter.get(voterId);
     if (!bans) continue;
-    leaderKeys.push(...bans.leaderKeys);
-    if (v.edition === 'CIV7') civKeys.push(...bans.civKeys);
+    for (const key of bans.leaderKeys) leader.set(key, (leader.get(key) ?? 0) + 1);
+    if (v.edition === 'CIV7') for (const key of bans.civKeys) civ.set(key, (civ.get(key) ?? 0) + 1);
   }
 
-  return {
-    leaderKeys: dedupeStable(leaderKeys),
-    civKeys: dedupeStable(civKeys),
-  };
+  return { leader, civ };
 }
 
 function buildVerticalBanSection(label: string, items: readonly string[], maxLength: number): string {
-  const header = `• ${label} (${items.length})`;
+  const header = `• ${label}`;
   const lines = [header];
   let used = header.length;
 
   if (items.length === 0) {
-    return `${header}\n• —`;
+    return `${header}\n• None`;
   }
 
   for (let i = 0; i < items.length; i += 1) {
-    const line = `${items[i]},`;
+    const line = items[i];
     const remaining = items.length - i;
     const overflowLine = `(+${remaining} more)`;
 
@@ -237,28 +297,37 @@ function buildVerticalBanSection(label: string, items: readonly string[], maxLen
 
 function buildBansQuestionValue(v: GameVoteSession): string {
   const summary = getSubmittedBanSummary(v);
+  const leaderEntries = [...summary.leader.entries()];
+  const civEntries = [...summary.civ.entries()];
 
-  if (summary.leaderKeys.length === 0 && summary.civKeys.length === 0) {
-    return '• Pending';
+  if (leaderEntries.length === 0 && civEntries.length === 0) {
+    return v.status === 'completed' ? '• None' : '• Pending';
   }
 
   const sections: string[] = [];
   let remaining = 1000;
 
-  const leaderItems = summary.leaderKeys.map((key) => formatLeaderBan(v, key));
+  const finalLeaderKeys = v.status === 'completed'
+    ? majorityBans(v.voterIds, new Map(v.voterIds.map((id) => [id, new Set(v.bansSubmitted.has(id) ? (v.bansByVoter.get(id) ?? getEmptyBans()).leaderKeys : [])])))
+    : leaderEntries.map(([key]) => key);
+  const finalCivKeys = v.status === 'completed' && v.edition === 'CIV7'
+    ? majorityBans(v.voterIds, new Map(v.voterIds.map((id) => [id, new Set(v.bansSubmitted.has(id) ? (v.bansByVoter.get(id) ?? getEmptyBans()).civKeys : [])])))
+    : civEntries.map(([key]) => key);
+
+  const leaderItems = finalLeaderKeys.map((key) => `${formatLeaderBan(v, key)} ×${summary.leader.get(key) ?? 0}`);
   if (leaderItems.length > 0) {
     sections.push(buildVerticalBanSection('Leader bans', leaderItems, remaining));
     remaining = Math.max(128, 1000 - sections.join('\n\n').length);
   }
 
   if (v.edition === 'CIV7') {
-    const civItems = summary.civKeys.map((key) => formatCivBan(key));
+    const civItems = finalCivKeys.map((key) => `${formatCivBan(key)} ×${summary.civ.get(key) ?? 0}`);
     if (civItems.length > 0) {
       sections.push(buildVerticalBanSection('Civ bans', civItems, remaining));
     }
   }
 
-  return sections.join('\n\n');
+  return sections.join('\n\n') || '• None';
 }
 
 function buildQuestionFields(v: GameVoteSession): readonly { name: string; value: string; inline?: boolean }[] {
@@ -270,7 +339,11 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
   if (!showWinners) {
     const blocks = v.questions.map((q, idx) => {
       const header = `**${idx + 1}. ${q.title}**`;
-      const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
+      const counts = voteCountByOption(v.votesByQuestion.get(q.id) ?? new Map<string, string>());
+      const lines = q.options.map((o) => {
+        const count = counts.get(o.id) ?? 0;
+        return `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}${count > 0 ? ` ×${count}` : ''}`;
+      });
       return [header, ...lines].join('\n');
     });
     blocks.push(bansBlock);
@@ -288,7 +361,8 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
     return [
       ...v.questions.map((q, idx) => {
         const name = `${idx + 1}. ${q.title}`;
-        const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}`);
+        const counts = voteCountByOption(v.votesByQuestion.get(q.id) ?? new Map<string, string>());
+        const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}${(counts.get(o.id) ?? 0) > 0 ? ` ×${counts.get(o.id) ?? 0}` : ''}`);
         return { name, value: lines.join('\n') || '—' };
       }),
       { name: '10. Bans', value: buildBansQuestionValue(v) },
@@ -301,8 +375,9 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
       const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
       const winner = q.options.find((o) => o.id === winnerId);
       const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
+      const count = (v.votesByQuestion.get(q.id) && voteCountByOption(v.votesByQuestion.get(q.id)!).get(winnerId)) ?? 0;
       const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
-      return { name, value: `✅ **${label}**${tb}` };
+      return { name, value: `**${label}**${count > 0 ? ` ×${count}` : ''}${tb}` };
     }),
     { name: '10. Bans', value: buildBansQuestionValue(v) },
   ];
@@ -328,21 +403,14 @@ function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<Butto
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(voteBtn, bansBtn, finishBtn)];
 }
 
-function firstUnansweredQuestionId(v: GameVoteSession, voterId: string): string | null {
-  for (const q of v.questions) {
-    const rec = v.votesByQuestion.get(q.id);
-    if (!rec || !rec.has(voterId)) return q.id;
-  }
-  return null;
-}
-
 function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuestionId: string): string {
   const currentIndex = v.questions.findIndex((q) => q.id === currentQuestionId);
   if (currentIndex < 0) return currentQuestionId;
 
+  const staged = ensureStagedVoteRecord(v, voterId);
   for (let i = currentIndex + 1; i < v.questions.length; i += 1) {
     const question = v.questions[i];
-    if (!v.votesByQuestion.get(question.id)?.has(voterId)) return question.id;
+    if (!staged.has(question.id)) return question.id;
   }
 
   return v.questions[currentIndex + 1]?.id ?? currentQuestionId;
@@ -350,15 +418,16 @@ function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuesti
 
 function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId: string): EmbedBuilder {
   const ends = Math.floor(v.endsAtMs / 1000);
-  const submitted = v.voteSubmitted.has(voterId);
+  const hasDirtyChanges = hasStagedVoteChanges(v, voterId);
+  const submitted = v.voteSubmitted.has(voterId) && !hasDirtyChanges;
+  const staged = ensureStagedVoteRecord(v, voterId);
   const header =
     v.status !== 'in_progress'
       ? '**Voting has ended.**'
       : `Finish before <t:${ends}:R>. Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
 
   const lines = v.questions.map((q, idx) => {
-    const rec = v.votesByQuestion.get(q.id);
-    const pickId = rec?.get(voterId);
+    const pickId = staged.get(q.id);
     const pick = pickId ? q.options.find((o) => o.id === pickId) : undefined;
     const pickLabel = pick ? `${pick.emoji ? `${pick.emoji} ` : ''}${pick.label}` : '—';
     const mark = pickId ? '✅' : '⬜';
@@ -381,31 +450,18 @@ function buildBallotComponents(
   activeQuestionId: string
 ): readonly ActionRowBuilder<any>[] {
   const finished = v.finished.has(voterId);
-  const submitted = v.voteSubmitted.has(voterId);
+  const staged = ensureStagedVoteRecord(v, voterId);
   const total = v.questions.length;
-  const answered = v.questions.reduce((acc, q) => (v.votesByQuestion.get(q.id)?.has(voterId) ? acc + 1 : acc), 0);
-  const canSubmit = !finished && !submitted && answered >= total;
+  const answered = answeredCountInRecord(v, staged);
+  const canSubmit = !finished && answered >= total && hasStagedVoteChanges(v, voterId);
   const activeIndex = Math.max(0, v.questions.findIndex((q) => q.id === activeQuestionId));
 
-  const questionSelect = new StringSelectMenuBuilder()
-    .setCustomId(`gv:ballotq:${v.sessionId}`)
-    .setPlaceholder('Select a question')
-    .setDisabled(finished)
-    .addOptions(
-      v.questions.slice(0, 25).map((q, idx) => ({
-        label: `${idx + 1}. ${q.title}`.slice(0, 100),
-        value: q.id,
-        description: (v.votesByQuestion.get(q.id)?.has(voterId) ? 'Answered' : 'Not answered').slice(0, 100),
-        default: q.id === activeQuestionId,
-      }))
-    );
-
   const q = v.questions[activeIndex] ?? v.questions[0];
-  const currentPickId = v.votesByQuestion.get(q.id)?.get(voterId);
+  const currentPickId = staged.get(q.id);
 
   const optionSelect = new StringSelectMenuBuilder()
     .setCustomId(`gv:ballotv:${v.sessionId}`)
-    .setPlaceholder('Select an option')
+    .setPlaceholder(`Select an option for ${q.title}`.slice(0, 150))
     .setDisabled(finished)
     .addOptions(
       q.options.slice(0, 25).map((o) => ({
@@ -434,7 +490,6 @@ function buildBallotComponents(
     .setDisabled(!canSubmit);
 
   return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(questionSelect),
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(optionSelect),
     new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn, submitBtn),
   ];
@@ -503,8 +558,8 @@ function clampBanList(items: readonly string[], maxLength: number): string {
 }
 
 function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder {
-  const bans = v.bansByVoter.get(voterId) ?? getEmptyBans();
-  const submitted = v.bansSubmitted.has(voterId);
+  const bans = ensureStagedBans(v, voterId);
+  const submitted = v.bansSubmitted.has(voterId) && !hasStagedBanChanges(v, voterId);
 
   const leaderItems = bans.leaderKeys.map((key) => formatLeaderBan(v, key));
   const civItems = v.edition === 'CIV7' ? bans.civKeys.map((key) => formatCivBan(key)) : [];
@@ -541,7 +596,7 @@ function buildBansPanelComponents(
     setBanPageState(v, voterId, { leaderPage, civPage });
   }
 
-  const bans = v.bansByVoter.get(voterId) ?? getEmptyBans();
+  const bans = ensureStagedBans(v, voterId);
   const selectedLeaders = new Set(bans.leaderKeys);
   const selectedCivs = new Set(bans.civKeys);
 
@@ -600,12 +655,12 @@ function buildBansPanelComponents(
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:prev:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('◀ Leader')
+      .setLabel('◀ Back')
       .setDisabled(finished || leaderPages <= 1),
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:next:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('Leader ▶')
+      .setLabel('Next ▶')
       .setDisabled(finished || leaderPages <= 1)
   );
 
@@ -614,12 +669,12 @@ function buildBansPanelComponents(
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:prev:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Civ')
+        .setLabel('◀ Back')
         .setDisabled(finished || civPages <= 1),
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:next:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Civ ▶')
+        .setLabel('Next ▶')
         .setDisabled(finished || civPages <= 1)
     );
   }
@@ -629,7 +684,7 @@ function buildBansPanelComponents(
       .setCustomId(`gv:bansubmit:${v.sessionId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel('Submit Bans')
-      .setDisabled(finished || v.bansSubmitted.has(voterId))
+      .setDisabled(finished || !hasStagedBanChanges(v, voterId))
   );
 
   rows.push(navRow);
@@ -689,12 +744,12 @@ function buildBlindPickComponents(args: Readonly<{
         new ButtonBuilder()
           .setCustomId(`gv:nav:civ:prev:${v.sessionId}`)
           .setStyle(ButtonStyle.Secondary)
-          .setLabel('◀ Civ')
+          .setLabel('◀ Back')
           .setDisabled(civPage <= 0),
         new ButtonBuilder()
           .setCustomId(`gv:nav:civ:next:${v.sessionId}`)
           .setStyle(ButtonStyle.Secondary)
-          .setLabel('Civ ▶')
+          .setLabel('Next ▶')
           .setDisabled(civPage >= totalPages - 1)
       );
     }
@@ -736,12 +791,12 @@ function buildBlindPickComponents(args: Readonly<{
       new ButtonBuilder()
         .setCustomId(`gv:nav:leader:prev:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Leader')
+        .setLabel('◀ Back')
         .setDisabled(leaderPage <= 0),
       new ButtonBuilder()
         .setCustomId(`gv:nav:leader:next:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Leader ▶')
+        .setLabel('Next ▶')
         .setDisabled(leaderPage >= leaderTotalPages - 1)
     );
   }
@@ -1510,9 +1565,11 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       activeQuestionByVoter: new Map(),
 
       bansByVoter: new Map(),
+      stagedBansByVoter: new Map(),
       bansSubmitted: new Set(),
       banPages: new Map(),
       voteSubmitted: new Set(),
+      stagedVotesByVoter: new Map(),
       finished: new Set(),
 
       publicMessage: null as unknown as Message<true>,
@@ -1672,7 +1729,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
-    const cur = v.bansByVoter.get(userId) ?? getEmptyBans();
+    const cur = ensureStagedBans(v, userId);
 
     if (parsed.banType === 'leader') {
       const leaders = getLeaderBanSource(v);
@@ -1683,7 +1740,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
         page.leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE
       );
 
-      v.bansByVoter.set(userId, {
+      v.stagedBansByVoter.set(userId, {
         leaderKeys: mergePagedBanSelection(cur.leaderKeys, leaderSlice, interaction.values),
         civKeys: cur.civKeys,
       });
@@ -1698,14 +1755,10 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
         page.civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE
       );
 
-      v.bansByVoter.set(userId, {
+      v.stagedBansByVoter.set(userId, {
         leaderKeys: cur.leaderKeys,
         civKeys: mergePagedBanSelection(cur.civKeys, civSlice, interaction.values),
       });
-    }
-
-    if (v.bansSubmitted.has(userId)) {
-      await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     }
 
     const payload = buildBansPanelPayload(v, userId);
@@ -1720,12 +1773,11 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
   if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
+  const stagedRecord = ensureStagedVoteRecord(v, userId);
   const activeFromState =
-    v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionId(v, userId) ?? v.questions[0]?.id;
+    v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionIdInRecord(v, stagedRecord) ?? v.questions[0]?.id;
 
   if (!activeFromState) { await replyNotice(interaction, '⚠️ No questions available.'); return true; }
-
-  let shouldRefreshPublic = false;
 
   if (parsed.action === 'ballotq') {
     const qid = interaction.values[0];
@@ -1739,10 +1791,11 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
     const optId = interaction.values[0];
     if (!q.options.some((o) => o.id === optId)) { await replyNotice(interaction, '⚠️ Invalid option selection.'); return true; }
 
-    const rec = v.votesByQuestion.get(qid) ?? new Map<string, string>();
-    shouldRefreshPublic = !rec.has(userId);
-    rec.set(userId, optId);
-    v.votesByQuestion.set(qid, rec);
+    const prev = stagedRecord.get(qid);
+    stagedRecord.set(qid, optId);
+    if (prev !== optId && v.voteSubmitted.has(userId)) {
+      v.voteSubmitted.delete(userId);
+    }
 
     v.activeQuestionByVoter.set(userId, nextBallotQuestionId(v, userId, qid));
   }
@@ -1752,10 +1805,6 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   const components = buildBallotComponents(v, userId, active);
 
   await interaction.update({ embeds: [embed], components: [...components] });
-
-  if (shouldRefreshPublic) {
-    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-  }
 
   return true;
 }
@@ -1777,7 +1826,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
     const active =
-      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionId(v, userId) ?? v.questions[0]?.id;
+      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionIdInRecord(v, ensureStagedVoteRecord(v, userId)) ?? v.questions[0]?.id;
 
     if (!active) { await replyNotice(interaction, '⚠️ No questions available.'); return true; }
 
@@ -1800,7 +1849,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
     const currentId =
-      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionId(v, userId) ?? v.questions[0]?.id;
+      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionIdInRecord(v, ensureStagedVoteRecord(v, userId)) ?? v.questions[0]?.id;
     if (!currentId) { await replyNotice(interaction, '⚠️ No questions available.'); return true; }
 
     const currentIndex = v.questions.findIndex((q) => q.id === currentId);
@@ -1819,16 +1868,26 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (v.status !== 'in_progress' || v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Voting has ended.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
-    if (v.voteSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your vote.'); return true; }
 
-    const missing = firstUnansweredQuestionId(v, userId);
+    const staged = ensureStagedVoteRecord(v, userId);
+    const missing = firstUnansweredQuestionIdInRecord(v, staged);
     if (missing) { await replyNotice(interaction, '⚠️ Answer all questions before submitting your vote.'); return true; }
+    if (!hasStagedVoteChanges(v, userId)) { await replyNotice(interaction, '⚠️ No new vote changes to submit.'); return true; }
+
+    for (const q of v.questions) {
+      const optId = staged.get(q.id);
+      const rec = v.votesByQuestion.get(q.id) ?? new Map<string, string>();
+      if (optId) rec.set(userId, optId);
+      else rec.delete(userId);
+      v.votesByQuestion.set(q.id, rec);
+    }
 
     v.voteSubmitted.add(userId);
+    v.stagedVotesByVoter.set(userId, new Map(staged));
     await safeEditMessage(v.publicMessage, buildRenderPayload(v));
 
     const active =
-      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionId(v, userId) ?? v.questions[0]?.id;
+      v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionIdInRecord(v, staged) ?? v.questions[0]?.id;
     const embed = active ? buildBallotEmbed(v, userId, active) : new EmbedBuilder().setDescription('Vote submitted.');
     const components = active ? buildBallotComponents(v, userId, active) : [];
 
@@ -1901,12 +1960,12 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (v.status !== 'in_progress' || v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
-    if (v.bansSubmitted.has(userId)) { await replyNotice(interaction, '⚠️ You already submitted your bans.'); return true; }
+    if (!hasStagedBanChanges(v, userId)) { await replyNotice(interaction, '⚠️ No new ban changes to submit.'); return true; }
 
-    const bans = v.bansByVoter.get(userId) ?? getEmptyBans();
-    if (bans.leaderKeys.length === 0) { await replyNotice(interaction, '⚠️ Pick at least one leader ban first.'); return true; }
-
+    const bans = ensureStagedBans(v, userId);
+    v.bansByVoter.set(userId, cloneBanSubmission(bans));
     v.bansSubmitted.add(userId);
+    v.stagedBansByVoter.set(userId, cloneBanSubmission(bans));
     await safeEditMessage(v.publicMessage, buildRenderPayload(v));
 
     const payload = buildBansPanelPayload(v, userId);

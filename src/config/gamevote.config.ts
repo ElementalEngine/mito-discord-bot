@@ -81,7 +81,6 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
       { id: 'inland_sea', emoji: '🌊', label: 'Inland Sea' },
       { id: 'wetlands', emoji: '💦', label: 'Wetlands' },
       { id: 'terra', emoji: '🦖', label: 'Terra' },
-      { id: 'random', emoji: '❓', label: 'Random' },
     ],
     'pangea_standard'
   ),
