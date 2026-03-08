@@ -9,7 +9,7 @@ import { recordSecretVoteChoice } from '../services/secretvote.service.js';
 import type {
   SecretVoteButtonId,
   SecretVoteChoice,
-} from '../types/secretvote.js';
+} from '../types/secretvote.types.js';
 
 function parseCustomId(customId: string): SecretVoteButtonId | null {
   // sv:<voteId>:<voterId>:YES|NO

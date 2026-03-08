@@ -6,12 +6,12 @@ import {
 import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.js";
 import { setPlayerOrder, getMatch } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
+import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { allPlayersHaveDiscordId, normalizePlayerList, isValidPlayerList } from "../../utils/convert-match-to-str.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 
-import type { BaseReport } from "../../types/reports.js";
+import type { BaseReport } from "../../types/reporting.types.js";
 
 export const data = new SlashCommandBuilder()
   .setName("assign-order")

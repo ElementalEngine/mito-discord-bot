@@ -9,7 +9,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startSecretVote } from '../../services/secretvote.service.js';
-import type { SecretVoteAction } from '../../types/secretvote.js';
+import type { SecretVoteAction } from '../../types/secretvote.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 

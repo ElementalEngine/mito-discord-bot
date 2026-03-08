@@ -32,6 +32,6 @@ export type Leaderboard = {
   thread_id: string;
 };
 
-export type Civ6LeaderKey = keyof typeof import('./civ6-data.js').CIV6_LEADERS;
-export type Civ7LeaderKey = keyof typeof import('./civ7-data.js').CIV7_LEADERS;
-export type Civ7CivKey = keyof typeof import('./civ7-data.js').CIV7_CIVS;
+export type Civ6LeaderKey = keyof typeof import('./civ6.data.js').CIV6_LEADERS;
+export type Civ7LeaderKey = keyof typeof import('./civ7.data.js').CIV7_LEADERS;
+export type Civ7CivKey = keyof typeof import('./civ7.data.js').CIV7_CIVS;

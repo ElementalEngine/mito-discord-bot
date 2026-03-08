@@ -5,10 +5,10 @@ import { config } from "../../config.js";
 import { EMOJI_FAIL } from "../../config/constants.js";
 import { approveMatch } from "../../services/reporting.service.js";
 import { updateRankRolesForApprovedMatch } from "../../services/rank-role.service.js";
-import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
+import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 
-import type { BaseReport } from "../../types/reports.js";
+import type { BaseReport } from "../../types/reporting.types.js";
 
 export const data = new SlashCommandBuilder()
   .setName("approve-report")

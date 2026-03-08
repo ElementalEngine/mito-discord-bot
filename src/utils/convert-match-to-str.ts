@@ -1,4 +1,4 @@
-import type { BaseReport, Civ6Report, Civ7Report } from "../types/reports.js";
+import type { BaseReport, Civ6Report, Civ7Report } from "../types/reporting.types.js";
 import type { ParsedPlayer } from "../api/types.js";
 
 const TIE_RE = /^tie$/i;

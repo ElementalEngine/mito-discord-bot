@@ -18,13 +18,13 @@ import {
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 
 import { EMOJI_ERROR, EMOJI_FAIL, GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
-import { buildGameVoteConfig } from '../config/gamevote.config.js';
+import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
-import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6-data.js';
-import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7-data.js';
+import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
 import { DraftError, generateCiv6Draft, generateCiv7Draft } from './draft.service.js';
 import { buildCiv6DraftEmbed, buildCiv7DraftEmbed } from '../ui/embeds/draft.js';
-import { buildGameVoteEmbed } from '../ui/embeds/gamevote.js';
+import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
 import type {
   GameVoteSession,
   GameVoteDraftMode,
@@ -34,7 +34,7 @@ import type {
   StartGameVoteResult,
   VoteRecord,
   BanSubmission,
-} from '../types/gamevote.js';
+} from '../types/voting.types.js';
 
 const VOTE_DURATION_MS = 10 * 60_000;
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;

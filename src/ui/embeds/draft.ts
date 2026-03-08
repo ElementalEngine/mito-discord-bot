@@ -1,10 +1,10 @@
 import { EmbedBuilder } from 'discord.js';
 
-import { lookupCiv6LeaderMeta } from '../../data/civ6-data.js';
+import { lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import {
   lookupCiv7CivMeta,
   lookupCiv7LeaderMeta,
-} from '../../data/civ7-data.js';
+} from '../../data/civ7.data.js';
 import type {
   Civ6DraftResult,
   Civ7DraftResult,

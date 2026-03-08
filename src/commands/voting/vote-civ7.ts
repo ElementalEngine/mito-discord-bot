@@ -8,12 +8,19 @@ import {
 
 import { config } from '../../config.js';
 import { EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
-import { startGameVote } from '../../services/gamevote.service.js';
+import { startGameVote } from '../../services/voting.service.js';
 import type { DraftGameType } from '../../types/draft.js';
+import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 
 const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
+const STARTING_AGES = [
+  'Antiquity_Age',
+  'Exploration_Age',
+  'Modern_Age',
+  'None',
+] as const;
 
 async function replyEphemeral(
   interaction: ChatInputCommandInteraction,
@@ -50,13 +57,13 @@ async function getMember(
 
 function allowedVoteChannels(gameType: DraftGameType): readonly string[] {
   return gameType === 'Teamer'
-    ? [config.discord.channels.civ6teamerVote]
-    : [config.discord.channels.civ6ffaVote];
+    ? [config.discord.channels.civ7teamerVote]
+    : [config.discord.channels.civ7ffaVote];
 }
 
 export const data = new SlashCommandBuilder()
-  .setName('vote-civ6')
-  .setDescription('Start a Civ6 game vote in your voice channel, then draft.')
+  .setName('vote-civ7')
+  .setDescription('Start a Civ7 game vote in your voice channel, then draft.')
   .setDMPermission(false)
   .addStringOption((opt) =>
     opt
@@ -69,12 +76,24 @@ export const data = new SlashCommandBuilder()
         { name: 'Duel', value: 'Duel' }
       )
   )
+  .addStringOption((opt) =>
+    opt
+      .setName('starting-age')
+      .setDescription('Required Civ7 starting age pool')
+      .setRequired(true)
+      .addChoices(
+        { name: 'Antiquity_Age', value: 'Antiquity_Age' },
+        { name: 'Exploration_Age', value: 'Exploration_Age' },
+        { name: 'Modern_Age', value: 'Modern_Age' },
+        { name: 'None', value: 'None' }
+      )
+  )
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
-      .setDescription('Required for Teamer (2–7).')
+      .setDescription('Required for Teamer (2–5).')
       .setMinValue(2)
-      .setMaxValue(7)
+      .setMaxValue(5)
       .setRequired(false)
   )
   .addStringOption((opt) =>
@@ -95,6 +114,13 @@ export async function execute(
     }
     const gameType = gameTypeRaw as DraftGameType;
 
+    const startingAgeRaw = interaction.options.getString('starting-age', true);
+    if (!STARTING_AGES.includes(startingAgeRaw as (typeof STARTING_AGES)[number])) {
+      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid starting-age.`);
+      return;
+    }
+    const startingAge = startingAgeRaw as Civ7StartingAge;
+
     const ACCESS_POLICY = {
       allowedChannelIds: allowedVoteChannels(gameType),
     } as const;
@@ -112,7 +138,7 @@ export async function execute(
     if (!voiceChannel) {
       await replyEphemeral(
         interaction,
-        `${EMOJI_FAIL} Join a voice channel first, then run /vote-civ6.`
+        `${EMOJI_FAIL} Join a voice channel first, then run /vote-civ7.`
       );
       return;
     }
@@ -134,7 +160,6 @@ export async function execute(
 
     const { voters } = await buildVoiceChannelVoters(guild, voiceChannel, mentions);
 
-    // Validate voter counts against draft constraints.
     if (gameType === 'Duel' && voters.length !== 2) {
       await replyEphemeral(
         interaction,
@@ -143,10 +168,10 @@ export async function execute(
       return;
     }
 
-    if (gameType === 'FFA' && (voters.length < 2 || voters.length > 14)) {
+    if (gameType === 'FFA' && (voters.length < 2 || voters.length > 10)) {
       await replyEphemeral(
         interaction,
-        `${EMOJI_FAIL} Civ6 FFA requires **2–14** voters (you have **${voters.length}** after adjustments).`
+        `${EMOJI_FAIL} Civ7 FFA requires **2–10** voters (you have **${voters.length}** after adjustments).`
       );
       return;
     }
@@ -157,8 +182,8 @@ export async function execute(
         await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires at least **2** voters.`);
         return;
       }
-      if (teams < 2 || teams > 7) {
-        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–7**.`);
+      if (teams < 2 || teams > 5) {
+        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–5**.`);
         return;
       }
       if (voters.length % teams !== 0) {
@@ -181,8 +206,9 @@ export async function execute(
       commandChannel: channel as SendableChannels,
       voiceChannelId: voiceChannel.id,
       host: interaction.user,
-      edition: 'CIV6',
+      edition: 'CIV7',
       gameType,
+      startingAge,
       numberTeams,
       voters,
     });
@@ -195,11 +221,11 @@ export async function execute(
     await replyEphemeral(
       interaction,
       `✅ Vote started • 10 minutes\n` +
-        `Voters: **${voters.length}** • Mode: **${gameType}**\n` +
+        `Voters: **${voters.length}** • Mode: **${gameType}** • Age: **${startingAge}**\n` +
         `Panel: <#${interaction.channelId}>`
     );
   } catch (err: unknown) {
-    console.error('vote-civ6 failed', {
+    console.error('vote-civ7 failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,

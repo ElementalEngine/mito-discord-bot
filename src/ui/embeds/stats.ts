@@ -1,9 +1,9 @@
 import { EmbedBuilder } from 'discord.js';
 
 import type { CivVersion, StatRow, StatSet, StatsGameType } from '../../api/types.js';
-import { EMOJI_LIFETIME, EMOJI_SEASONAL } from '../../config/server-config.js';
 import {
   EMOJI_ROOM_RANKINGS,
+  EMOJI_STATS,
   RANK_DEFS_CIV6,
 } from '../../config/constants.js';
 
@@ -92,14 +92,14 @@ export function buildStatsEmbed(opts: BuildStatsEmbedOpts): EmbedBuilder {
     .setDescription(`Stats for ${opts.targetMention}\n${header}`)
     .setColor(color);
 
-  addSectionHeader(embed, EMOJI_LIFETIME, 'Lifetime');
+  addSectionHeader(embed, EMOJI_STATS, 'Lifetime');
   if (opts.mode === 'cloud') {
     addCloudFields(embed, opts.lifetime);
     return embed;
   }
 
   addRealtimeFields(embed, opts.lifetime);
-  addSectionHeader(embed, EMOJI_SEASONAL, 'Season');
+  addSectionHeader(embed, EMOJI_STATS, 'Season');
   addRealtimeFields(embed, opts.season);
 
   return embed;

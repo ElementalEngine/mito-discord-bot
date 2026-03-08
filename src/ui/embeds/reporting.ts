@@ -1,5 +1,5 @@
 import { EmbedBuilder, userMention } from "discord.js";
-import type { BaseReport } from "../../types/reports.js";
+import type { BaseReport } from "../../types/reporting.types.js";
 import type { UploadSaveResponse, GetMatchResponse, ParsedPlayer } from "../../api/types.js";
 import { formatCiv6Leader, formatCiv7Civ, formatCiv7Leader } from "../../data/index.js";
 import { EMOJI_QUITTER } from "../../config/constants.js";

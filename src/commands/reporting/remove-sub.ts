@@ -6,13 +6,13 @@ import {
 import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, MAX_DISCORD_LEN } from "../../config/constants.js";
 import { getMatch, removeSub } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
+import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 
-import type { BaseReport } from "../../types/reports.js";
+import type { BaseReport } from "../../types/reporting.types.js";
 
 export const data = new SlashCommandBuilder()
   .setName("remove-sub")

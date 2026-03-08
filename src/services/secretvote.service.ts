@@ -17,7 +17,7 @@ import type {
   SecretVoteStatus,
   StartSecretVoteOptions,
   StartSecretVoteResult,
-} from '../types/secretvote.js';
+} from '../types/secretvote.types.js';
 
 const VOTE_DURATION_MS = 2 * 60_000;
 const FAST_TICK_WINDOW_MS = 10_000;

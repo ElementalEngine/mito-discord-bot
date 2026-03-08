@@ -1,6 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 
-import type { SecretVoteStatus } from '../../types/secretvote.js';
+import type { SecretVoteStatus } from '../../types/secretvote.types.js';
 
 const MAX_FIELD = 1024;
 const VOTE_DURATION_MS = 2 * 60_000;

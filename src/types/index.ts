@@ -52,7 +52,7 @@ export type {
   StartGameVoteOptions,
   StartGameVoteResult,
   VoteRecord,
-} from './gamevote.js';
+} from './voting.types.js';
 
 export type {
   SecretVoteAction,
@@ -63,9 +63,9 @@ export type {
   SecretVoteStatus,
   StartSecretVoteOptions,
   StartSecretVoteResult,
-} from './secretvote.js';
+} from './secretvote.types.js';
 
-export type { Leaderboard } from './leaderboard.js';
+export type { Leaderboard } from './leaderboard.types.js';
 
 export type {
   BaseReport,
@@ -74,4 +74,4 @@ export type {
   Civ6Report,
   Civ7Report,
   GameMode,
-} from './reports.js';
+} from './reporting.types.js';

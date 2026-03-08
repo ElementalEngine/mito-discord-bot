@@ -16,14 +16,14 @@ import {
   submitSaveForReport,
   appendMessageIdList,
 } from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/layouts/report.layout.js";
+import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import { ensureCommandAccess } from "../../utils/ensure-command-access.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 
-import type { BaseReport } from "../../types/reports.js";
+import type { BaseReport } from "../../types/reporting.types.js";
 import type { UploadSaveResponse } from "../../api/types.js";
 
 const ACCESS_POLICY = {

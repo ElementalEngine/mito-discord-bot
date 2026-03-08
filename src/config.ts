@@ -110,15 +110,7 @@ const discord = {
     civCloud: env('ROLE_CLOUD'),
     novice: env('ROLE_NOVICE'),
   },
-
-  emojis: {
-    civ6: env('EMOJI_CIV6', ''),
-    civ7: env('EMOJI_CIV7', ''),
-    lifetime: env('EMOJI_LIFETIME', ''),
-    seasonal: env('EMOJI_SEASONAL', ''),
-    report: env('EMOJI_REPORT', ''),
-  },
-
+  
   rankRoles,
 };
 
