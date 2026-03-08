@@ -20,11 +20,6 @@ export type GameVoteProgress = Readonly<{
   edition: CivEdition;
   status: GameVoteStatus;
   voters: readonly GameVoteVoter[];
-  totalQuestions: number;
-  answeredCountById: ReadonlyMap<string, number>;
-  voteSubmittedIds: ReadonlySet<string>;
-  leaderBanCountById: ReadonlyMap<string, number>;
-  civBanCountById: ReadonlyMap<string, number>;
   finishedIds: ReadonlySet<string>;
 }>;
 
@@ -103,6 +98,7 @@ export type GameVoteSession = {
 
   startedAtMs: number;
   endsAtMs: number;
+  completedAtMs: number | null;
 
   status: GameVoteStatus;
   phase: GameVotePhase;

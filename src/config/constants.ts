@@ -9,9 +9,6 @@ export const MAX_DISCORD_LEN = 1999 as const;
 export const EMOJI_YES = '👍' as const;
 export const EMOJI_NO = '👎' as const;
 export const EMOJI_QUESTION = '❓' as const;
-export const EMOJI_LETTER_L = '🇱' as const;
-export const EMOJI_LETTER_C = '🇨' as const;
-export const EMOJI_PLUS = '➕' as const;
 export const EMOJI_CANCEL = '❌' as const;
 export const EMOJI_CONFIRM = '✅' as const;
 export const EMOJI_ERROR = '⚠️' as const;
@@ -21,6 +18,24 @@ export const EMOJI_ROOM_RANKINGS = '📊' as const;
 export const EMOJI_FULL_G_REPORT = '📜' as const;
 export const EMOJI_QUITTER = '🏳️' as const;
 export const EMOJI_REPORT = '🧾' as const;
+export const GAMEVOTE_BAN_LIMITS = {
+  CIV6: { leader: 24, civ: 0 },
+  CIV7: { leader: 2, civ: 4 },
+} as const;
+
+
+export const GAMEVOTE_CPL_STANDARD_RULES = [
+  'Gold Trading: Not Allowed',
+  'Luxuries Trading: Allowed',
+  'Strategics Trading: Not Allowed',
+  'Military Alliance: Not Allowed',
+  'Timer: Competitive',
+  'Resources: Abundant',
+  'Strategics: Abundant',
+  'Ridges Definition: Classic',
+  'Wonders: Standard',
+] as const;
+
 export const EMOJI_FIRST_PLACE = '🥇' as const;
 export const EMOJI_SECOND_PLACE = '🥈' as const;
 export const EMOJI_THIRD_PLACE = '🥉' as const;

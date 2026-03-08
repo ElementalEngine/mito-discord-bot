@@ -1,5 +1,7 @@
 import { EmbedBuilder, userMention } from 'discord.js';
 
+import { GAMEVOTE_CPL_STANDARD_RULES } from '../../config/constants.js';
+
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import type { DraftGameType } from '../../types/draft.js';
@@ -7,7 +9,6 @@ import type { GameVoteProgress, GameVoteStatus } from '../../types/gamevote.js';
 
 const MAX_FIELD_VALUE = 1024;
 const MAX_FIELD_NAME = 256;
-const BLANK = '​';
 
 export type GameVoteQuestionField = Readonly<{ name: string; value: string; inline?: boolean }>;
 
@@ -41,7 +42,10 @@ function fmtTimerLine(startedAtMs: number, endsAtMs: number): string {
   return `**Started:** ${fmtTimeOnly(startedAtMs)} ~ **Ends:** ${fmtTimeOnly(endsAtMs)} (${durationMinutes} minutes)`;
 }
 
-const FIGURE_SPACE = ' ';
+function fmtCompletedTimerLine(startedAtMs: number, completedAtMs: number): string {
+  const durationMinutes = Math.max(1, Math.round((completedAtMs - startedAtMs) / 60_000));
+  return `**Started:** ${fmtTimeOnly(startedAtMs)} ~ **Completed:** ${fmtTimeOnly(completedAtMs)} (${durationMinutes} minutes)`;
+}
 
 function formatVoterName(displayName: string, userId?: string): string {
   if (userId) return userMention(userId);
@@ -49,79 +53,35 @@ function formatVoterName(displayName: string, userId?: string): string {
   return normalized.startsWith('@') ? normalized : `@${normalized}`;
 }
 
-function padFigure(text: string, width: number): string {
-  if (text.length >= width) return text;
-  return `${text}${FIGURE_SPACE.repeat(width - text.length)}`;
-}
-
-function questionCell(progress: GameVoteProgress, voterId: string): string {
-  if (progress.voteSubmittedIds.has(voterId)) return '✅';
-  const answered = progress.answeredCountById.get(voterId) ?? 0;
-  return `${answered}/${progress.totalQuestions}`;
-}
-
-function leaderBansCell(progress: GameVoteProgress, voterId: string): string {
-  const count = progress.leaderBanCountById.get(voterId) ?? 0;
-  return count > 0 ? String(count) : '-';
-}
-
-function civBansCell(progress: GameVoteProgress, voterId: string): string {
-  const count = progress.civBanCountById.get(voterId) ?? 0;
-  return count > 0 ? String(count) : '-';
-}
-
-function finishedCell(progress: GameVoteProgress, voterId: string): string {
-  return progress.finishedIds.has(voterId) ? '✅' : '-';
-}
-
-function buildActiveStatusFields(progress: GameVoteProgress): readonly EmbedField[] {
-  const voters = progress.voters.map((voter) => formatVoterName(voter.displayName, voter.id));
-  const statuses = progress.voters.map((voter) => {
-    const gap = `${FIGURE_SPACE}${FIGURE_SPACE}`;
-    const question = padFigure(questionCell(progress, voter.id), 4);
-    const leaderBans = padFigure(leaderBansCell(progress, voter.id), progress.edition === 'CIV7' ? 2 : 3);
-    const finished = padFigure(finishedCell(progress, voter.id), 1);
-    if (progress.edition === 'CIV7') {
-      const civBans = padFigure(civBansCell(progress, voter.id), 2);
-      return [question, leaderBans, civBans, finished].join(gap);
-    }
-    return [question, leaderBans, finished].join(gap);
-  });
-
-  let visible = voters.length;
-  let voterText = voters.join('\n') || '—';
-  let statusText = statuses.join('\n') || '—';
-
-  while ((voterText.length > MAX_FIELD_VALUE || statusText.length > MAX_FIELD_VALUE) && visible > 1) {
-    visible -= 1;
-    const hidden = voters.length - visible;
-    voterText = [...voters.slice(0, visible), `… (+${hidden} more)`].join('\n');
-    statusText = [...statuses.slice(0, visible), `… (+${hidden} more)`].join('\n');
-  }
-
-  return [
-    { name: 'Voters', value: clamp(voterText, MAX_FIELD_VALUE), inline: true },
-    {
-      name:
-        progress.edition === 'CIV7'
-          ? '❓ Q | 🇱 Bans | 🇨 Bans | ➕ Vote'
-          : '❓ Q | 🇱 Bans | ➕ Vote',
-      value: clamp(statusText, MAX_FIELD_VALUE),
-      inline: true,
-    },
-    { name: BLANK, value: BLANK, inline: false },
-  ];
-}
-
-function buildClosedVoterField(progress: GameVoteProgress): EmbedField {
+function buildVoterField(progress: GameVoteProgress): EmbedField {
   const lines = progress.voters.map((voter) => {
-    const state = progress.finishedIds.has(voter.id) ? 'Completed' : 'Incomplete vote';
-    return `${formatVoterName(voter.displayName, voter.id)} — ${state}`;
+    const name = formatVoterName(voter.displayName, voter.id);
+    if (progress.status === 'closed') {
+      return `${name} — ${progress.finishedIds.has(voter.id) ? 'Completed' : 'Incomplete vote'}`;
+    }
+    return `${name} — ${progress.finishedIds.has(voter.id) ? 'Completed' : 'Awaiting Vote'}`;
   });
+
+  let visible = lines.length;
+  let value = lines.join('\n') || '—';
+
+  while (value.length > MAX_FIELD_VALUE && visible > 1) {
+    visible -= 1;
+    const hidden = lines.length - visible;
+    value = [...lines.slice(0, visible), `… (+${hidden} more)`].join('\n');
+  }
 
   return {
     name: 'Voters',
-    value: clamp(lines.join('\n') || '—', MAX_FIELD_VALUE),
+    value: clamp(value, MAX_FIELD_VALUE),
+    inline: false,
+  };
+}
+
+function buildStandardRulesField(): EmbedField {
+  return {
+    name: 'CPL Standard Rules',
+    value: GAMEVOTE_CPL_STANDARD_RULES.map((line: string) => `• ${line}`).join('\n'),
     inline: false,
   };
 }
@@ -133,6 +93,7 @@ export function buildGameVoteEmbed(args: Readonly<{
   status: GameVoteStatus;
   startedAtMs: number;
   endsAtMs: number;
+  completedAtMs?: number | null;
   progress: GameVoteProgress;
   questionFields?: readonly GameVoteQuestionField[];
 }>): EmbedBuilder {
@@ -140,29 +101,29 @@ export function buildGameVoteEmbed(args: Readonly<{
     `**Game Type:** ${args.gameType}`,
     args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
     `**State:** ${fmtStatus(args.status)}`,
-    args.status === 'closed' ? undefined : fmtTimerLine(args.startedAtMs, args.endsAtMs),
+    args.status === 'closed'
+      ? undefined
+      : args.status === 'completed' && args.completedAtMs
+        ? fmtCompletedTimerLine(args.startedAtMs, args.completedAtMs)
+        : fmtTimerLine(args.startedAtMs, args.endsAtMs),
   ].filter((line): line is string => Boolean(line));
 
   const embed = new EmbedBuilder()
     .setTitle(`🗳️ Game Vote — ${fmtEdition(args.edition)}`)
     .setDescription(meta.join('\n'));
 
-  if (args.status === 'closed') {
-    const closed = buildClosedVoterField(args.progress);
-    embed.addFields({
-      name: clamp(closed.name, MAX_FIELD_NAME),
-      value: clamp(closed.value, MAX_FIELD_VALUE),
-      inline: false,
+  if (args.status === 'in_progress') {
+    embed.setFooter({
+      text: '⚠️ Once you press Finish Vote or Randomize My Vote, your vote is finalized and committed to the game setup. ⚠️',
     });
-  } else {
-    embed.addFields(
-      ...buildActiveStatusFields(args.progress).map((field) => ({
-        name: clamp(field.name, MAX_FIELD_NAME),
-        value: clamp(field.value, MAX_FIELD_VALUE),
-        inline: field.inline ?? false,
-      })),
-    );
   }
+
+  const voterField = buildVoterField(args.progress);
+  embed.addFields({
+    name: clamp(voterField.name, MAX_FIELD_NAME),
+    value: clamp(voterField.value, MAX_FIELD_VALUE),
+    inline: false,
+  });
 
   if (args.questionFields && args.questionFields.length > 0) {
     embed.addFields(
@@ -172,6 +133,15 @@ export function buildGameVoteEmbed(args: Readonly<{
         inline: field.inline ?? false,
       })),
     );
+  }
+
+  if (args.status !== 'closed') {
+    const rulesField = buildStandardRulesField();
+    embed.addFields({
+      name: clamp(rulesField.name, MAX_FIELD_NAME),
+      value: clamp(rulesField.value, MAX_FIELD_VALUE),
+      inline: false,
+    });
   }
 
   return embed;
