@@ -9,7 +9,7 @@ import {
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import type { DraftGameType } from '../../types/draft.js';
-import type { GameVotePhase, GameVoteProgress, GameVoteStatus } from '../../types/voting.types.js';
+import type { GameVoteProgress, GameVoteStatus } from '../../types/voting.types.js';
 
 const MAX_FIELD_VALUE = 1024;
 const MAX_FIELD_NAME = 256;
@@ -89,7 +89,6 @@ export function buildGameVoteEmbed(args: Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   status: GameVoteStatus;
-  phase: GameVotePhase;
   startedAtMs: number;
   endsAtMs: number;
   completedAtMs?: number | null;

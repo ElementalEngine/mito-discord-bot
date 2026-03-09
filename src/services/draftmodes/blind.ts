@@ -160,6 +160,7 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
       sessionId: session.sessionId,
       pools,
       state,
+      pick: session.picks.get(voterId),
     }),
     allowedMentions: { parse: [] as const },
   };
@@ -353,6 +354,17 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
 
   const pickId = interaction.values[0];
   const pick = session.picks.get(userId) ?? {};
+
+  if (parsed.pickType === 'civ' && pick.civKey) {
+    await replyNotice(interaction, '⚠️ Your civ pick is already locked.');
+    return true;
+  }
+
+  if (parsed.pickType === 'leader' && pick.leaderKey) {
+    await replyNotice(interaction, '⚠️ Your leader pick is already locked.');
+    return true;
+  }
+
   if (parsed.pickType === 'civ') pick.civKey = pickId;
   if (parsed.pickType === 'leader') pick.leaderKey = pickId;
   session.picks.set(userId, pick);

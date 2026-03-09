@@ -5,12 +5,29 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
+import { CIV6_LEADERS, lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
 import type { CivEdition } from '../../config/types.js';
-import type { BlindDraftPageState, BlindDraftPools } from '../../types/drafting.types.js';
+import type { BlindDraftPageState, BlindDraftPick, BlindDraftPools } from '../../types/drafting.types.js';
+import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
 const BLIND_MENU_PAGE_SIZE = 25;
+
+
+function toSelectEmoji(emojiId?: string): { id: string } | undefined {
+  return emojiId && /^\d{15,22}$/.test(emojiId) ? { id: emojiId } : undefined;
+}
+
+function leaderLabel(edition: CivEdition, key: string): string {
+  const gameId = edition === 'CIV6'
+    ? lookupCiv6LeaderMeta(key)?.gameId
+    : lookupCiv7LeaderMeta(key)?.gameId;
+  return humanizeGameId(gameId ?? key);
+}
+
+function civLabel(key: string): string {
+  return humanizeGameId(lookupCiv7CivMeta(key)?.gameId ?? key);
+}
 
 export function clampBlindDraftPageState(args: Readonly<{
   edition: CivEdition;
@@ -33,6 +50,7 @@ export function buildBlindDraftPickComponents(args: Readonly<{
   sessionId: string;
   pools: BlindDraftPools;
   state: BlindDraftPageState;
+  pick?: BlindDraftPick;
 }>): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
   const navButtons: ButtonBuilder[] = [];
@@ -56,9 +74,15 @@ export function buildBlindDraftPickComponents(args: Readonly<{
       .addOptions(
         pageKeys.map((key: string) => {
           const meta = CIV7_CIVS[key as keyof typeof CIV7_CIVS];
-          return { label: meta.gameId, value: key };
+          return {
+            label: civLabel(key),
+            value: key,
+            emoji: toSelectEmoji(meta?.emojiId),
+            default: args.pick?.civKey === key,
+          };
         })
-      );
+      )
+      .setDisabled(Boolean(args.pick?.civKey));
 
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
 
@@ -68,12 +92,12 @@ export function buildBlindDraftPickComponents(args: Readonly<{
           .setCustomId(`gv:nav:civ:prev:${args.sessionId}`)
           .setStyle(ButtonStyle.Secondary)
           .setLabel('◀ Back')
-          .setDisabled(args.state.civPage <= 0),
+          .setDisabled(Boolean(args.pick?.civKey) || args.state.civPage <= 0),
         new ButtonBuilder()
           .setCustomId(`gv:nav:civ:next:${args.sessionId}`)
           .setStyle(ButtonStyle.Secondary)
           .setLabel('Next ▶')
-          .setDisabled(args.state.civPage >= totalPages - 1)
+          .setDisabled(Boolean(args.pick?.civKey) || args.state.civPage >= totalPages - 1)
       );
     }
   }
@@ -98,9 +122,15 @@ export function buildBlindDraftPickComponents(args: Readonly<{
         const meta = args.edition === 'CIV6'
           ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]
           : CIV7_LEADERS[key as keyof typeof CIV7_LEADERS];
-        return { label: meta.gameId, value: key };
+        return {
+          label: leaderLabel(args.edition, key),
+          value: key,
+          emoji: toSelectEmoji(meta?.emojiId),
+          default: args.pick?.leaderKey === key,
+        };
       })
-    );
+    )
+    .setDisabled(Boolean(args.pick?.leaderKey));
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(leaderMenu));
 
   if (leaderTotalPages > 1) {
@@ -109,12 +139,12 @@ export function buildBlindDraftPickComponents(args: Readonly<{
         .setCustomId(`gv:nav:leader:prev:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
         .setLabel('◀ Back')
-        .setDisabled(args.state.leaderPage <= 0),
+.setDisabled(Boolean(args.pick?.leaderKey) || args.state.leaderPage <= 0),
       new ButtonBuilder()
         .setCustomId(`gv:nav:leader:next:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
         .setLabel('Next ▶')
-        .setDisabled(args.state.leaderPage >= leaderTotalPages - 1)
+.setDisabled(Boolean(args.pick?.leaderKey) || args.state.leaderPage >= leaderTotalPages - 1)
     );
   }
 

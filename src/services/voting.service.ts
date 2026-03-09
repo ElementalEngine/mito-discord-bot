@@ -677,7 +677,6 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     gameType: v.gameType,
     startingAge: v.startingAge,
     status: v.status,
-    phase: v.phase,
     startedAtMs: v.startedAtMs,
     endsAtMs: v.endsAtMs,
     completedAtMs: v.completedAtMs,
@@ -950,7 +949,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   ensureLockedAll(v);
   v.status = 'completed';
   v.completedAtMs = Date.now();
-  v.phase = getDraftMode(v) === 'blind' ? 'blind_draft' : 'final';
+  v.phase = 'final';
   v.isFinalized = true;
 
   const request = buildVoteDraftRequest(v);

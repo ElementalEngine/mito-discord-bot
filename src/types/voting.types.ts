@@ -6,7 +6,7 @@ import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 import type { VoterUser } from '../utils/types.js';
 
-export type GameVotePhase = 'voting' | 'blind_draft' | 'final';
+export type GameVotePhase = 'voting' | 'final';
 export type GameVoteStatus = 'in_progress' | 'completed' | 'closed';
 
 export type GameVoteDraftMode = DraftMode;
