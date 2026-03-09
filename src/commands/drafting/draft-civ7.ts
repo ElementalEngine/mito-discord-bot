@@ -97,7 +97,7 @@ function validateDraftCommand(args: Readonly<{
 }
 
 export const data = new SlashCommandBuilder()
-  .setName('draftciv7')
+  .setName('draft-civ7')
   .setDescription('Generate a Civ 7 standard draft (leaders + civs).')
   .setDMPermission(false)
   .addStringOption((opt) =>

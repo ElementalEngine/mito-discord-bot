@@ -9,7 +9,7 @@ import {
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import type { DraftGameType } from '../../types/draft.js';
-import type { GameVoteProgress, GameVoteStatus } from '../../types/voting.types.js';
+import type { GameVotePhase, GameVoteProgress, GameVoteStatus } from '../../types/voting.types.js';
 
 const MAX_FIELD_VALUE = 1024;
 const MAX_FIELD_NAME = 256;
@@ -27,28 +27,22 @@ function fmtEdition(edition: CivEdition): string {
   return edition === 'CIV6' ? 'Civ6' : 'Civ7';
 }
 
+function toDiscordTimestamp(ms: number, style: 't' | 'f' | 'R'): string {
+  return `<t:${Math.floor(ms / 1000)}:${style}>`;
+}
+
 function fmtStatus(status: GameVoteStatus): string {
-  if (status === 'completed') return 'Completed';
   if (status === 'closed') return 'Closed (Inactivity/Timeout)';
+  if (status === 'completed') return 'Completed';
   return 'In Progress';
 }
 
-function fmtTimeOnly(ms: number): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(ms));
-}
-
 function fmtTimerLine(startedAtMs: number, endsAtMs: number): string {
-  const durationMinutes = Math.max(1, Math.round((endsAtMs - startedAtMs) / 60_000));
-  return `**Started:** ${fmtTimeOnly(startedAtMs)} ~ **Ends:** ${fmtTimeOnly(endsAtMs)} (${durationMinutes} minutes)`;
+  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Ends:** ${toDiscordTimestamp(endsAtMs, 't')} (${toDiscordTimestamp(endsAtMs, 'R')})`;
 }
 
 function fmtCompletedTimerLine(startedAtMs: number, completedAtMs: number): string {
-  const durationMinutes = Math.max(1, Math.round((completedAtMs - startedAtMs) / 60_000));
-  return `**Started:** ${fmtTimeOnly(startedAtMs)} ~ **Completed:** ${fmtTimeOnly(completedAtMs)} (${durationMinutes} minutes)`;
+  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Completed:** ${toDiscordTimestamp(completedAtMs, 't')} (${toDiscordTimestamp(completedAtMs, 'R')})`;
 }
 
 function formatVoterName(displayName: string, userId?: string): string {
@@ -95,6 +89,7 @@ export function buildGameVoteEmbed(args: Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   status: GameVoteStatus;
+  phase: GameVotePhase;
   startedAtMs: number;
   endsAtMs: number;
   completedAtMs?: number | null;
@@ -118,7 +113,7 @@ export function buildGameVoteEmbed(args: Readonly<{
 
   if (args.status === 'in_progress') {
     embed.setFooter({
-      text: `${EMOJI_ERROR} Once you press Finish Vote or Randomize My Vote, your vote is finalized and committed to the game setup. ${EMOJI_ERROR}`, 
+      text: `${EMOJI_ERROR} Once you press Finish Vote or Randomize My Vote, your vote is finalized and committed to the game setup. ${EMOJI_ERROR}`,
     });
   }
 

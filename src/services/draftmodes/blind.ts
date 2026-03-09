@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
   ButtonInteraction,
   Message,
@@ -6,19 +8,23 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { EMOJI_CONFIRM, EMOJI_ERROR } from '../../config/constants.js';
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
-import type { CivEdition } from '../../config/types.js';
+import { EMOJI_ERROR } from '../../config/constants.js';
 import type { VoteDraftRequest } from '../../types/draft.js';
 import type {
   BlindDraftAssignment,
+  BlindDraftPageState,
   BlindDraftPick,
   BlindDraftSession,
   DraftModeOutput,
 } from '../../types/drafting.types.js';
 import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../../ui/components/blind-draft.js';
-import { buildBlindDraftClosedEmbed, buildBlindDraftEmbed } from '../../ui/embeds/blind-draft.js';
+import {
+  buildBlindDraftClosedEmbed,
+  buildBlindDraftEmbed,
+  buildBlindDraftRevealEmbed,
+  buildBlindDraftTimeoutEmbed,
+  buildBlindDraftTrackingEmbed,
+} from '../../ui/embeds/blind-draft.js';
 import { DraftError } from '../draft.service.js';
 import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
 
@@ -35,27 +41,22 @@ type BlindCustomId =
   | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
 function parseBlindCustomId(customId: string): BlindCustomId | null {
-  const parts = customId.split(':');
-  if (parts[0] !== 'gv') return null;
-
-  if (parts[1] === 'pick' && (parts[2] === 'civ' || parts[2] === 'leader') && parts[3]) {
-    return { action: 'pick', pickType: parts[2], sessionId: parts[3] };
+  const pickMatch = /^gv:pick:(civ|leader):([A-Za-z0-9-]+)$/.exec(customId);
+  if (pickMatch) {
+    return { action: 'pick', pickType: pickMatch[1] as 'civ' | 'leader', sessionId: pickMatch[2] };
   }
 
-  if (
-    parts[1] === 'nav' &&
-    (parts[2] === 'civ' || parts[2] === 'leader') &&
-    (parts[3] === 'prev' || parts[3] === 'next') &&
-    parts[4]
-  ) {
-    return { action: 'nav', pickType: parts[2], navDir: parts[3], sessionId: parts[4] };
+  const navMatch = /^gv:nav:(civ|leader):(prev|next):([A-Za-z0-9-]+)$/.exec(customId);
+  if (navMatch) {
+    return {
+      action: 'nav',
+      pickType: navMatch[1] as 'civ' | 'leader',
+      navDir: navMatch[2] as 'prev' | 'next',
+      sessionId: navMatch[3],
+    };
   }
 
   return null;
-}
-
-function pickRandom<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 async function forEachLimit<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
@@ -184,70 +185,37 @@ function buildClosedDmPayload(
 }
 
 function isBlindComplete(session: BlindDraftSession): boolean {
-  return session.voterIds.every((id) => session.picks.get(id)?.leaderKey);
+  return session.voterIds.every((id) => {
+    const pick = session.picks.get(id);
+    if (!pick?.leaderKey) return false;
+    if (session.edition === 'CIV7') return Boolean(pick.civKey);
+    return true;
+  });
 }
 
-function finalizeBlindDefaults(session: BlindDraftSession): void {
-  for (const voterId of session.voterIds) {
-    const pools = session.pools.get(voterId);
-    if (!pools) continue;
-
-    const pick = session.picks.get(voterId) ?? {};
-    if (session.edition === 'CIV6') {
-      if (!pick.leaderKey) {
-        pick.leaderKey = pickRandom(pools.leaders);
-        pick.defaulted = true;
-      }
-    } else {
-      if (!pick.civKey && pools.civs && pools.civs.length > 0) {
-        pick.civKey = pickRandom(pools.civs);
-        pick.defaulted = true;
-      }
-      if (!pick.leaderKey) {
-        pick.leaderKey = pickRandom(pools.leaders);
-        pick.defaulted = true;
-      }
-    }
-    session.picks.set(voterId, pick);
-  }
-}
-
-export function buildBlindDraftResultOutput(args: Readonly<{
-  edition: CivEdition;
-  voterIds: readonly string[];
-  picks: ReadonlyMap<string, BlindDraftPick>;
-  reason: 'timeout' | 'complete';
-}>): DraftModeOutput {
-  const lines: string[] = [];
-  lines.push(`${EMOJI_CONFIRM} **Blind draft results** (${args.reason === 'timeout' ? 'timeout' : 'complete'})`);
-  lines.push('');
-
-  for (const id of args.voterIds) {
-    const pick = args.picks.get(id);
-    if (!pick) continue;
-    const mark = pick.defaulted ? ' *(defaulted)*' : '';
-
-    if (args.edition === 'CIV6') {
-      const leader = pick.leaderKey
-        ? CIV6_LEADERS[pick.leaderKey as keyof typeof CIV6_LEADERS]?.gameId ?? pick.leaderKey
-        : '—';
-      lines.push(`• <@${id}> — **${leader}**${mark}`);
-      continue;
-    }
-
-    const civ = pick.civKey
-      ? CIV7_CIVS[pick.civKey as keyof typeof CIV7_CIVS]?.gameId ?? pick.civKey
-      : '—';
-    const leader = pick.leaderKey
-      ? CIV7_LEADERS[pick.leaderKey as keyof typeof CIV7_LEADERS]?.gameId ?? pick.leaderKey
-      : '—';
-    lines.push(`• <@${id}> — **${civ}** + **${leader}**${mark}`);
-  }
-
-  return {
-    content: lines.join('\n'),
+async function updateTrackingMessage(session: BlindDraftSession): Promise<void> {
+  const payload: RenderPayload = {
+    embeds: [
+      buildBlindDraftTrackingEmbed({
+        edition: session.edition,
+        voterIds: session.voterIds,
+        picks: session.picks,
+        endsAtMs: session.endsAtMs,
+      }),
+    ],
     allowedMentions: { parse: [] as const },
   };
+
+  if (!session.trackingMessage) {
+    try {
+      session.trackingMessage = await session.commandChannel.send(payload);
+    } catch {
+      session.trackingMessage = null;
+    }
+    return;
+  }
+
+  await safeEditMessage(session.trackingMessage, payload);
 }
 
 async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'timeout' | 'complete'): Promise<void> {
@@ -259,16 +227,32 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
     session.timeout = null;
   }
 
-  finalizeBlindDefaults(session);
+  const trackingPayload: RenderPayload = {
+    embeds: [
+      reason === 'complete'
+        ? buildBlindDraftRevealEmbed({
+            edition: session.edition,
+            voterIds: session.voterIds,
+            picks: session.picks,
+          })
+        : buildBlindDraftTimeoutEmbed({
+            edition: session.edition,
+            voterIds: session.voterIds,
+            picks: session.picks,
+          }),
+    ],
+    allowedMentions: { parse: [] as const },
+  };
 
-  await session.commandChannel.send(
-    buildBlindDraftResultOutput({
-      edition: session.edition,
-      voterIds: session.voterIds,
-      picks: session.picks,
-      reason,
-    }),
-  );
+  if (session.trackingMessage) {
+    await safeEditMessage(session.trackingMessage, trackingPayload);
+  } else {
+    try {
+      session.trackingMessage = await session.commandChannel.send(trackingPayload);
+    } catch {
+      // best effort
+    }
+  }
 
   await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([voterId, message]) => {
     await safeEditMessage(message, buildClosedDmPayload(session, voterId, reason));
@@ -282,11 +266,13 @@ async function startBlindDraftSession(
   assignments: readonly BlindDraftAssignment[],
 ): Promise<void> {
   const session: BlindDraftSession = {
-    sessionId: request.hostId.length > 0 ? `${request.hostId}:${Date.now()}` : `${Date.now()}`,
+    sessionId: randomUUID(),
     edition: request.edition,
     voterIds: request.voterIds,
     commandChannel: request.commandChannel,
     voterUsersById: request.voterUsersById ?? new Map(),
+    voteMessage: request.publicMessage,
+    trackingMessage: null,
     dmMessages: new Map(),
     endsAtMs: Date.now() + BLIND_DRAFT_DURATION_MS,
     timeout: null,
@@ -306,6 +292,7 @@ async function startBlindDraftSession(
   }
 
   activeBlindDrafts.set(session.sessionId, session);
+  await updateTrackingMessage(session);
 
   await forEachLimit(request.voterIds, DM_CONCURRENCY, async (voterId) => {
     const user = session.voterUsersById.get(voterId);
@@ -372,6 +359,7 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
   session.picks.set(userId, pick);
 
   await interaction.update(buildBlindDmPayload(session, userId));
+  await updateTrackingMessage(session);
 
   if (isBlindComplete(session)) {
     await finalizeBlindDraftSession(session, 'complete');
@@ -395,7 +383,7 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
     return true;
   }
 
-  const pages = session.pages.get(userId) ?? { civPage: 0, leaderPage: 0 };
+  const pages: BlindDraftPageState = session.pages.get(userId) ?? { civPage: 0, leaderPage: 0 };
   const pools = session.pools.get(userId);
   if (!pools) {
     await replyNotice(interaction, '⚠️ Blind draft options are unavailable.');

@@ -1,29 +1,50 @@
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, userMention } from 'discord.js';
 
 import { EMOJI_LOCK } from '../../config/constants.js';
 import type { CivEdition } from '../../config/types.js';
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
+import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
+import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { BlindDraftPick } from '../../types/drafting.types.js';
 
-function fmtTimeOnly(ms: number): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(ms));
+function ts(ms: number, style: 't' | 'f' | 'R'): string {
+  return `<t:${Math.floor(ms / 1000)}:${style}>`;
 }
 
-function leaderName(edition: CivEdition, key?: string): string {
+function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return 'Not selected';
   return edition === 'CIV6'
-    ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]?.gameId ?? key
-    : CIV7_LEADERS[key as keyof typeof CIV7_LEADERS]?.gameId ?? key;
+    ? `${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`
+    : `${formatCiv7Leader(key)} ${lookupCiv7Leader(key)}`;
 }
 
-function civName(key?: string): string {
+function civLine(key?: string): string {
   if (!key) return 'Not selected';
-  return CIV7_CIVS[key as keyof typeof CIV7_CIVS]?.gameId ?? key;
+  return `${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`;
+}
+
+function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
+  if (edition === 'CIV6') {
+    return pick?.leaderKey ? 'Leader picked' : 'Awaiting leader pick';
+  }
+
+  const hasLeader = Boolean(pick?.leaderKey);
+  const hasCiv = Boolean(pick?.civKey);
+  if (hasLeader && hasCiv) return 'Picks complete';
+  if (hasLeader) return 'Awaiting civ pick';
+  if (hasCiv) return 'Awaiting leader pick';
+  return 'Awaiting leader & civ pick';
+}
+
+function timeoutStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
+  if (edition === 'CIV6') {
+    return pick?.leaderKey ? 'Picked' : 'No pick submitted';
+  }
+
+  const hasLeader = Boolean(pick?.leaderKey);
+  const hasCiv = Boolean(pick?.civKey);
+  if (hasLeader && hasCiv) return 'Picked';
+  if (hasLeader || hasCiv) return 'Partial pick submitted';
+  return 'No pick submitted';
 }
 
 export function buildBlindDraftEmbed(args: Readonly<{
@@ -33,14 +54,14 @@ export function buildBlindDraftEmbed(args: Readonly<{
 }>): EmbedBuilder {
   const lines: string[] = [
     'Choose your blind draft picks below.',
-    `Deadline: **${fmtTimeOnly(args.endsAtMs)}**`,
+    `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
     '',
   ];
 
   if (args.edition === 'CIV7') {
-    lines.push(`**Civ:** ${civName(args.pick?.civKey)}`);
+    lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
   }
-  lines.push(`**Leader:** ${leaderName(args.edition, args.pick?.leaderKey)}`);
+  lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
 
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft`)
@@ -58,14 +79,61 @@ export function buildBlindDraftClosedEmbed(args: Readonly<{
   ];
 
   if (args.edition === 'CIV7') {
-    lines.push(`**Civ:** ${civName(args.pick?.civKey)}`);
+    lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
   }
-  lines.push(`**Leader:** ${leaderName(args.edition, args.pick?.leaderKey)}`);
-  if (args.pick?.defaulted) {
-    lines.push('', '*One or more choices were defaulted.*');
-  }
+  lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
 
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft`)
+    .setDescription(lines.join('\n'));
+}
+
+export function buildBlindDraftTrackingEmbed(args: Readonly<{
+  edition: CivEdition;
+  voterIds: readonly string[];
+  picks: ReadonlyMap<string, BlindDraftPick>;
+  endsAtMs: number;
+}>): EmbedBuilder {
+  const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${activeStatusLine(args.edition, args.picks.get(id))}`);
+  return new EmbedBuilder()
+    .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
+    .setDescription([
+      `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+      '',
+      ...lines,
+    ].join('\n'));
+}
+
+export function buildBlindDraftRevealEmbed(args: Readonly<{
+  edition: CivEdition;
+  voterIds: readonly string[];
+  picks: ReadonlyMap<string, BlindDraftPick>;
+}>): EmbedBuilder {
+  const lines: string[] = [];
+  for (const id of args.voterIds) {
+    const pick = args.picks.get(id);
+    if (args.edition === 'CIV6') {
+      lines.push(`• ${userMention(id)} — ${leaderLine(args.edition, pick?.leaderKey)}`);
+      continue;
+    }
+    lines.push(
+      `• ${userMention(id)} — ${civLine(pick?.civKey)} | ${leaderLine(args.edition, pick?.leaderKey)}`,
+    );
+  }
+
+  return new EmbedBuilder()
+    .setTitle(`${EMOJI_LOCK} Blind Draft Reveal`)
+    .setDescription(lines.join('\n'));
+}
+
+export function buildBlindDraftTimeoutEmbed(args: Readonly<{
+  edition: CivEdition;
+  voterIds: readonly string[];
+  picks: ReadonlyMap<string, BlindDraftPick>;
+}>): EmbedBuilder {
+  const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${timeoutStatusLine(args.edition, args.picks.get(id))}`);
+
+  return new EmbedBuilder()
+    .setTitle(`${EMOJI_LOCK} Blind Draft Closed (Timeout)`)
     .setDescription(lines.join('\n'));
 }

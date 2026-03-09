@@ -45,6 +45,8 @@ export type BlindDraftSession = {
   voterIds: readonly string[];
   commandChannel: SendableChannels;
   voterUsersById: ReadonlyMap<string, User>;
+  voteMessage?: Message<true>;
+  trackingMessage: Message | null;
   dmMessages: Map<string, Message<false>>;
   endsAtMs: number;
   timeout: NodeJS.Timeout | null;

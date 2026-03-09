@@ -1,4 +1,4 @@
-import type { SendableChannels, User } from 'discord.js';
+import type { Message, SendableChannels, User } from 'discord.js';
 
 import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
@@ -87,6 +87,7 @@ export type VoteDraftRequest = Readonly<{
   bannedLeaderKeys: readonly string[];
   bannedCivKeys: readonly string[];
   voterUsersById?: ReadonlyMap<string, User>;
+  publicMessage?: Message<true>;
 }>;
 
 export type DraftRequest = DraftCommandRequest | VoteDraftRequest;

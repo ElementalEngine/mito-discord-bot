@@ -678,6 +678,7 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     gameType: v.gameType,
     startingAge: v.startingAge,
     status: v.status,
+    phase: v.phase,
     startedAtMs: v.startedAtMs,
     endsAtMs: v.endsAtMs,
     completedAtMs: v.completedAtMs,
@@ -913,6 +914,7 @@ function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
     bannedLeaderKeys: majorityBans(v.voterIds, leaderPerVoter),
     bannedCivKeys: v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [],
     voterUsersById: v.voterUsersById,
+    publicMessage: v.publicMessage,
   };
 }
 
@@ -949,7 +951,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   ensureLockedAll(v);
   v.status = 'completed';
   v.completedAtMs = Date.now();
-  v.phase = 'final';
+  v.phase = getDraftMode(v) === 'blind' ? 'blind_draft' : 'final';
   v.isFinalized = true;
 
   const request = buildVoteDraftRequest(v);
