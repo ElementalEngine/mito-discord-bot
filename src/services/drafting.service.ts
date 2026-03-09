@@ -2,13 +2,8 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { EMOJI_ERROR } from '../config/constants.js';
 import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.js';
-import type { BlindDraftLaunch } from '../types/drafting.types.js';
 import { DraftError } from './draft.service.js';
 import { executeDraftMode } from './draftmode.service.js';
-
-type VoteDraftingDeps = Readonly<{
-  startBlindDraft?: (request: VoteDraftRequest, launch: BlindDraftLaunch) => Promise<void>;
-}>;
 
 export async function executeDraftCommand(
   interaction: ChatInputCommandInteraction,
@@ -32,10 +27,9 @@ export async function executeDraftCommand(
 
 export async function executeVoteDraft(
   request: VoteDraftRequest,
-  deps: VoteDraftingDeps = {}
 ): Promise<void> {
   try {
-    const payload = await executeDraftMode(request, deps);
+    const payload = await executeDraftMode(request);
     if (!payload) return;
     await request.commandChannel.send(payload);
   } catch (err: unknown) {

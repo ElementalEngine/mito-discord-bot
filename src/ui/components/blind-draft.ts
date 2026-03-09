@@ -8,7 +8,7 @@ import {
 import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
 import type { CivEdition } from '../../config/types.js';
-import type { BlindDraftPageState, BlindDraftPools } from '../../types/voting.types.js';
+import type { BlindDraftPageState, BlindDraftPools } from '../../types/drafting.types.js';
 
 const BLIND_MENU_PAGE_SIZE = 25;
 

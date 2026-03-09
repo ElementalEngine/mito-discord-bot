@@ -23,11 +23,6 @@ export class DraftError extends Error {
   }
 }
 
-const MAX_CIV6_PLAYERS = 14;
-const MAX_CIV7_PLAYERS = 10;
-const MAX_CIV6_TEAMS = 7;
-const MAX_CIV7_TEAMS = 5;
-
 const FFA_MAX_LEADERS_PER_PLAYER = 6;
 const DUEL_LEADERS_PER_PLAYER = 6;
 
@@ -144,10 +139,7 @@ function computeLayout(args: Readonly<{
   numberPlayers?: number;
   numberTeams?: number;
 }>): Readonly<{ groupKind: DraftGroupKind; groupCount: number }> {
-  const { gameVersion, gameType, numberPlayers, numberTeams } = args;
-
-  const maxPlayers = gameVersion === 'civ6' ? MAX_CIV6_PLAYERS : MAX_CIV7_PLAYERS;
-  const maxTeams = gameVersion === 'civ6' ? MAX_CIV6_TEAMS : MAX_CIV7_TEAMS;
+  const { gameType, numberPlayers, numberTeams } = args;
 
   if (gameType === 'FFA') {
     if (numberTeams !== undefined) {
@@ -159,10 +151,10 @@ function computeLayout(args: Readonly<{
     if (numberPlayers === undefined) {
       throw new DraftError('VALIDATION', 'For FFA, number-players is required.');
     }
-    if (numberPlayers < 2 || numberPlayers > maxPlayers) {
+    if (numberPlayers < 2) {
       throw new DraftError(
         'VALIDATION',
-        `For FFA, number-players must be between 2 and ${maxPlayers}.`
+        'For FFA, number-players must be at least 2.'
       );
     }
     return { groupKind: 'Player', groupCount: numberPlayers };
@@ -178,16 +170,15 @@ function computeLayout(args: Readonly<{
     if (numberTeams === undefined) {
       throw new DraftError('VALIDATION', 'For Teamer, number-teams is required.');
     }
-    if (numberTeams < 2 || numberTeams > maxTeams) {
+    if (numberTeams < 2) {
       throw new DraftError(
         'VALIDATION',
-        `For Teamer, number-teams must be between 2 and ${maxTeams}.`
+        'For Teamer, number-teams must be at least 2.'
       );
     }
     return { groupKind: 'Team', groupCount: numberTeams };
   }
 
-  // Duel
   if (numberPlayers !== undefined || numberTeams !== undefined) {
     throw new DraftError(
       'VALIDATION',

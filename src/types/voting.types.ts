@@ -6,7 +6,7 @@ import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 import type { VoterUser } from '../utils/types.js';
 
-export type GameVotePhase = 'voting' | 'blind_draft' | 'final';
+export type GameVotePhase = 'voting' | 'final';
 export type GameVoteStatus = 'in_progress' | 'completed' | 'closed';
 
 export type GameVoteDraftMode = DraftMode;
@@ -59,22 +59,6 @@ export type BanSubmission = Readonly<{
 
 export type StagedVoteRecord = ReadonlyMap<string, string>;
 
-export type BlindDraftPools = Readonly<{
-  civs?: readonly string[];
-  leaders: readonly string[];
-}>;
-
-export type BlindDraftPick = {
-  civKey?: string;
-  leaderKey?: string;
-  defaulted?: boolean;
-};
-
-export type BlindDraftPageState = Readonly<{
-  civPage: number;
-  leaderPage: number;
-}>;
-
 export type BanPageState = Readonly<{
   civPage: number;
   leaderPage: number;
@@ -120,14 +104,7 @@ export type GameVoteSession = {
   finished: Set<string>;
 
   publicMessage: Message<true>;
-  dmMessages: Map<string, Message<false>>;
 
   timeout: NodeJS.Timeout | null;
   isFinalized: boolean;
-
-  blindDraftEndsAtMs: number | null;
-  blindDraftTimeout: NodeJS.Timeout | null;
-  blindDraftPools: Map<string, BlindDraftPools>;
-  blindDraftPicks: Map<string, BlindDraftPick>;
-  blindDraftPages: Map<string, BlindDraftPageState>;
 };

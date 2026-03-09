@@ -67,17 +67,15 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName('number-players')
-      .setDescription('Required for FFA (2–14). Do not use for Teamer/Duel.')
+      .setDescription('Required for FFA. Do not use for Teamer/Duel.')
       .setMinValue(2)
-      .setMaxValue(14)
       .setRequired(false)
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
-      .setDescription('Required for Teamer (2–7). Do not use for FFA/Duel.')
+      .setDescription('Required for Teamer. Do not use for FFA/Duel.')
       .setMinValue(2)
-      .setMaxValue(7)
       .setRequired(false)
   )
   .addStringOption((opt) =>

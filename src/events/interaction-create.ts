@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
+import { handleDraftingInteraction } from '../interactions/drafting.interactions.js';
 import { handleGameVoteInteraction } from '../interactions/voting.interactions.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
 
@@ -67,6 +68,7 @@ export async function execute(interaction: Interaction): Promise<void> {
 
     try {
       if (await handleSecretVoteInteraction(interaction)) return;
+      if (await handleDraftingInteraction(interaction)) return;
       if (await handleGameVoteInteraction(interaction)) return;
     } catch (err) {
       console.error('Interaction handler failed', {
