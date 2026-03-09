@@ -2,11 +2,16 @@ import type { EmbedBuilder, Message, SendableChannels, User } from 'discord.js';
 
 import type { CivEdition } from '../config/types.js';
 
-export type DraftModeOutput = Readonly<{
+export type DraftMessagePayload = Readonly<{
   content?: string;
   embeds?: readonly EmbedBuilder[];
   allowedMentions?: Readonly<{ parse: readonly [] }>;
 }>;
+
+export type DraftModeOutput = DraftMessagePayload &
+  Readonly<{
+    followUps?: readonly DraftMessagePayload[];
+  }>;
 
 export type BlindDraftPools = Readonly<{
   civs?: readonly string[];

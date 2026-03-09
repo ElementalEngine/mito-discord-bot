@@ -15,17 +15,15 @@ import {
   type StringSelectMenuInteraction,
   type User,
 } from 'discord.js';
-import { createHash, randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
-import { EMOJI_ERROR, GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
+import { GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
 import { executeVoteDraft } from './drafting.service.js';
-import { buildBlindDraftResultOutput } from './draftmodes/blind.js';
 import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
-import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../ui/components/blind-draft.js';
 import type {
   GameVoteSession,
   GameVoteDraftMode,
@@ -37,13 +35,8 @@ import type {
   BanSubmission,
 } from '../types/voting.types.js';
 import type { VoteDraftRequest } from '../types/draft.js';
-import type { BlindDraftLaunch } from '../types/drafting.types.js';
 
 const VOTE_DURATION_MS = 10 * 60_000;
-const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
-
-const DM_CONCURRENCY = 8;
-const BLIND_MENU_PAGE_SIZE = 25;
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
 
@@ -60,13 +53,14 @@ function majorityThreshold(n: number): number {
   return Math.floor(n / 2) + 1;
 }
 
+
 function pickRandom<T>(arr: readonly T[]): T {
-  return arr[randomInt(0, arr.length)];
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 async function replySafe(
   interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
-  payload: InteractionReplyOptions
+  payload: InteractionReplyOptions,
 ): Promise<void> {
   try {
     if (interaction.deferred || interaction.replied) {
@@ -81,37 +75,13 @@ async function replySafe(
 
 async function replyNotice(
   interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
-  content: string
+  content: string,
 ): Promise<void> {
   const base = { content, allowedMentions: { parse: [] as const } } as const;
   const payload = interaction.inGuild()
     ? ({ ...base, flags: MessageFlags.Ephemeral } as const)
     : base;
   await replySafe(interaction, payload);
-}
-
-async function forEachLimit<T>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T) => Promise<void>
-): Promise<void> {
-  if (items.length === 0) return;
-  const concurrency = Math.max(1, Math.min(limit, items.length));
-  let next = 0;
-
-  async function worker(): Promise<void> {
-    while (true) {
-      const i = next++;
-      if (i >= items.length) return;
-      try {
-        await fn(items[i]);
-      } catch {
-        // best effort
-      }
-    }
-  }
-
-  await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
 }
 
 function buildProgress(v: GameVoteSession): GameVoteProgress {
@@ -698,30 +668,7 @@ function buildBansPanelPayload(v: GameVoteSession, voterId: string): Interaction
     flags: MessageFlags.Ephemeral,
   };
 }
-
-function getBlindDraftComponents(v: GameVoteSession, voterId: string): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
-  const pools = v.blindDraftPools.get(voterId);
-  if (!pools) return [];
-
-  const currentState = v.blindDraftPages.get(voterId) ?? { civPage: 0, leaderPage: 0 };
-  const state = clampBlindDraftPageState({
-    edition: v.edition,
-    pools,
-    state: currentState,
-  });
-
-  if (state.civPage !== currentState.civPage || state.leaderPage !== currentState.leaderPage) {
-    v.blindDraftPages.set(voterId, state);
-  }
-
-  return buildBlindDraftPickComponents({
-    edition: v.edition,
-    sessionId: v.sessionId,
-    pools,
-    state,
-  });
-}
-
+ 
 function buildRenderPayload(v: GameVoteSession): RenderPayload {
   const progress = buildProgress(v);
   const questionFields = buildQuestionFields(v);
@@ -939,10 +886,6 @@ async function openInitialMessages(
 
 async function finalizeCleanup(v: GameVoteSession): Promise<void> {
   if (v.timeout) { clearTimeout(v.timeout); v.timeout = null; }
-  if (v.blindDraftTimeout) {
-    clearTimeout(v.blindDraftTimeout);
-    v.blindDraftTimeout = null;
-  }
   activeById.delete(v.sessionId);
   activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
 }
@@ -978,122 +921,6 @@ async function publishDraftResult(request: VoteDraftRequest): Promise<void> {
 }
 
 
-async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest, launch: BlindDraftLaunch): Promise<void> {
-  if (!launch.ok) {
-    await v.commandChannel.send({
-      content: `${EMOJI_ERROR} ${launch.message}`,
-      allowedMentions: { parse: [] as const },
-    });
-
-    v.isFinalized = true;
-    v.phase = 'final';
-    v.status = 'completed';
-    v.completedAtMs = Date.now();
-
-    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-    await executeVoteDraft({ ...request, draftMode: 'standard' });
-    await finalizeCleanup(v);
-    return;
-  }
-
-  for (const assignment of launch.assignments) {
-    v.blindDraftPools.set(
-      assignment.voterId,
-      v.edition === 'CIV6'
-        ? { leaders: assignment.leaders }
-        : { leaders: assignment.leaders, civs: assignment.civs ?? [] }
-    );
-    v.blindDraftPages.set(assignment.voterId, { civPage: 0, leaderPage: 0 });
-  }
-
-  v.phase = 'blind_draft';
-  v.status = 'completed';
-  v.completedAtMs = Date.now();
-  v.blindDraftEndsAtMs = Date.now() + BLIND_DRAFT_DURATION_MS;
-
-  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-
-  const basePayload = buildRenderPayload(v);
-
-  await forEachLimit<string>(v.voterIds, DM_CONCURRENCY, async (id) => {
-    const rows = getBlindDraftComponents(v, id);
-
-    const existing = v.dmMessages.get(id);
-    if (existing) {
-      await safeEditMessage(existing, { ...basePayload, components: rows });
-      return;
-    }
-
-    const user = v.voterUsersById.get(id);
-    if (!user) return;
-
-    try {
-      const dmMsg = await user.send({ ...basePayload, components: rows });
-      v.dmMessages.set(id, dmMsg);
-    } catch (err) {
-      console.info('[gamevote] dm send failed', { sessionId: v.sessionId, voterId: id, err });
-    }
-  });
-
-  v.blindDraftTimeout = setTimeout(() => {
-    void finalizeBlindDraft(v, 'timeout');
-  }, BLIND_DRAFT_DURATION_MS);
-}
-
-async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'complete'): Promise<void> {
-  if (v.isFinalized) return;
-  if (v.phase !== 'blind_draft') return;
-
-  if (v.blindDraftTimeout) {
-    clearTimeout(v.blindDraftTimeout);
-    v.blindDraftTimeout = null;
-  }
-
-  // Default missing picks.
-  for (const id of v.voterIds) {
-    const pools = v.blindDraftPools.get(id);
-    if (!pools) continue;
-    const pick = v.blindDraftPicks.get(id) ?? {};
-    if (v.edition === 'CIV6') {
-      if (!pick.leaderKey) {
-        pick.leaderKey = pickRandom(pools.leaders);
-        pick.defaulted = true;
-      }
-    } else {
-      if (!pick.civKey && pools.civs && pools.civs.length > 0) {
-        pick.civKey = pickRandom(pools.civs);
-        pick.defaulted = true;
-      }
-      if (!pick.leaderKey) {
-        pick.leaderKey = pickRandom(pools.leaders);
-        pick.defaulted = true;
-      }
-    }
-    v.blindDraftPicks.set(id, pick);
-  }
-
-  const resultPayload = buildBlindDraftResultOutput({
-    edition: v.edition,
-    voterIds: v.voterIds,
-    picks: v.blindDraftPicks,
-    reason,
-  });
-
-  await v.commandChannel.send(resultPayload);
-
-  v.phase = 'final';
-  v.status = 'completed';
-  v.completedAtMs = Date.now();
-  v.isFinalized = true;
-
-  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-  await forEachLimit([...v.dmMessages.values()], DM_CONCURRENCY, async (m) => {
-    await safeEditMessage(m, { components: [] });
-  });
-
-  await finalizeCleanup(v);
-}
-
 async function closeVote(v: GameVoteSession): Promise<void> {
   if (v.isFinalized || v.status === 'closed') return;
 
@@ -1122,18 +949,10 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   ensureLockedAll(v);
   v.status = 'completed';
   v.completedAtMs = Date.now();
-
-  const request = buildVoteDraftRequest(v);
-
-  if (request.draftMode === 'blind') {
-    await executeVoteDraft(request, {
-      startBlindDraft: async (blindRequest, launch) => startBlindDraft(v, blindRequest, launch),
-    });
-    return;
-  }
-
   v.phase = 'final';
   v.isFinalized = true;
+
+  const request = buildVoteDraftRequest(v);
 
   await safeEditMessage(v.publicMessage, buildRenderPayload(v));
   await publishDraftResult(request);
@@ -1205,16 +1024,9 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       finished: new Set(),
 
       publicMessage: null as unknown as Message<true>,
-      dmMessages: new Map(),
 
       timeout: null,
       isFinalized: false,
-
-      blindDraftEndsAtMs: null,
-      blindDraftTimeout: null,
-      blindDraftPools: new Map(),
-      blindDraftPicks: new Map(),
-      blindDraftPages: new Map(),
     };
 
     v.timeout = setTimeout(() => void closeVote(v), VOTE_DURATION_MS);
@@ -1333,28 +1145,6 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   if (!v) { await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.'); return true; }
 
   const userId = interaction.user.id;
-
-  if (parsed.action === 'pick') {
-    if (v.phase !== 'blind_draft') { await replyNotice(interaction, '⚠️ Blind draft is not active.'); return true; }
-    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
-
-    const pickId = interaction.values[0];
-    const pick = v.blindDraftPicks.get(userId) ?? {};
-
-    if (parsed.pickType === 'civ') pick.civKey = pickId;
-    if (parsed.pickType === 'leader') pick.leaderKey = pickId;
-
-    v.blindDraftPicks.set(userId, pick);
-
-    const components = getBlindDraftComponents(v, userId);
-
-    await interaction.update({ components });
-
-    if (v.voterIds.every((id) => v.blindDraftPicks.get(id)?.leaderKey)) {
-      await finalizeBlindDraft(v, 'complete');
-    }
-    return true;
-  }
 
   if (parsed.action === 'banpick') {
     if (v.status !== 'in_progress' || v.phase !== 'voting') { await replyNotice(interaction, '⚠️ Bans are closed.'); return true; }
@@ -1623,36 +1413,6 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     return true;
   }
 
-  if (parsed.action === 'nav') {
-    if (v.phase !== 'blind_draft') { await replyNotice(interaction, '⚠️ Blind draft is not active.'); return true; }
-    if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
-
-    const pages = v.blindDraftPages.get(userId) ?? { civPage: 0, leaderPage: 0 };
-
-    const key = parsed.pickType === 'civ' ? 'civPage' : 'leaderPage';
-    const maxPage =
-      parsed.pickType === 'civ'
-        ? Math.max(
-            0,
-            Math.ceil((v.blindDraftPools.get(userId)?.civs?.length ?? 0) / BLIND_MENU_PAGE_SIZE) - 1
-          )
-        : Math.max(
-            0,
-            Math.ceil(v.blindDraftPools.get(userId)!.leaders.length / BLIND_MENU_PAGE_SIZE) - 1
-          );
-
-    const curr = key === 'civPage' ? pages.civPage : pages.leaderPage;
-    const next = parsed.navDir === 'next' ? curr + 1 : curr - 1;
-    const page = Math.max(0, Math.min(maxPage, next));
-
-    const updated = key === 'civPage' ? { ...pages, civPage: page } : { ...pages, leaderPage: page };
-    v.blindDraftPages.set(userId, updated);
-
-    const components = getBlindDraftComponents(v, userId);
-    await interaction.update({ components });
-
-    return true;
-  }
   return true;
 }
 

@@ -3,7 +3,8 @@ import type { SendableChannels, User } from 'discord.js';
 import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 
-export type DraftGameType = 'FFA' | 'Teamer' | 'Duel';
+export const DRAFT_GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
+export type DraftGameType = (typeof DRAFT_GAME_TYPES)[number];
 
 export const DRAFT_MODES = ['standard', 'snake', 'random', 'cwc', 'blind'] as const;
 export type DraftMode = (typeof DRAFT_MODES)[number];
@@ -30,7 +31,9 @@ export type DraftAllocation = Readonly<{
   groupKind: DraftGroupKind;
   groupCount: number;
   leadersPerGroup: number;
+  leadersPerGroupMax?: number;
   civsPerGroup?: number;
+  civsPerGroupMax?: number;
   note?: string;
   bannedLeaders?: readonly string[];
   ignoredLeaderBans?: readonly string[];
