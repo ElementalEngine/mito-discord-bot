@@ -27,8 +27,7 @@ function renderName(gameId: string | undefined, fallbackKey: string): string {
 
 function splitSection(header: string, lines: readonly string[]): string[] {
   const messages: string[] = [];
-  let currentHeader = header;
-  let current = currentHeader;
+  let current = header;
 
   for (const line of lines) {
     const next = `${current}\n${line}`;
@@ -38,8 +37,53 @@ function splitSection(header: string, lines: readonly string[]): string[] {
     }
 
     messages.push(current);
-    currentHeader = `${header} (cont.)`;
-    current = `${currentHeader}\n${line}`;
+    current = `${header} (cont.)\n${line}`;
+  }
+
+  if (current) messages.push(current);
+  return messages;
+}
+
+function splitCiv7Section(
+  header: string,
+  leaderLines: readonly string[],
+  civLines: readonly string[],
+): string[] {
+  const messages: string[] = [];
+  let current = `${header}\nLeaders`;
+  let sectionLabel = 'Leaders';
+
+  for (const line of leaderLines) {
+    const next = `${current}\n${line}`;
+    if (next.length <= MAX_DISCORD_LEN) {
+      current = next;
+      continue;
+    }
+
+    messages.push(current);
+    current = `${header} (cont.)\n${sectionLabel}\n${line}`;
+  }
+
+  if (civLines.length > 0) {
+    const civHeader = `${current}\n\nCivs`;
+    if (civHeader.length <= MAX_DISCORD_LEN) {
+      current = civHeader;
+    } else {
+      messages.push(current);
+      current = `${header} (cont.)\nCivs`;
+    }
+    sectionLabel = 'Civs';
+
+    for (const line of civLines) {
+      const next = `${current}\n${line}`;
+      if (next.length <= MAX_DISCORD_LEN) {
+        current = next;
+        continue;
+      }
+
+      messages.push(current);
+      current = `${header} (cont.)\n${sectionLabel}\n${line}`;
+    }
   }
 
   if (current) messages.push(current);
@@ -57,20 +101,20 @@ function buildCiv6Section(draft: Civ6DraftResult, index: number, header: string)
 
 function buildCiv7Section(draft: Civ7DraftResult, index: number, header: string): string[] {
   const group = draft.groups[index];
-  const lines: string[] = ['Leaders'];
+  const leaderLines: string[] = [];
 
   for (const key of group.leaders) {
     const meta = lookupCiv7LeaderMeta(key);
-    lines.push(`${formatCiv7Leader(key)} ${renderName(meta?.gameId, key)}`);
+    leaderLines.push(`${formatCiv7Leader(key)} ${renderName(meta?.gameId, key)}`);
   }
 
-  lines.push('', 'Civs');
+  const civLines: string[] = [];
   for (const key of group.civs ?? []) {
     const meta = lookupCiv7CivMeta(key);
-    lines.push(`${formatCiv7Civ(key)} ${renderName(meta?.gameId, key)}`);
+    civLines.push(`${formatCiv7Civ(key)} ${renderName(meta?.gameId, key)}`);
   }
 
-  return splitSection(header, lines);
+  return splitCiv7Section(header, leaderLines, civLines);
 }
 
 export function buildCiv6DirectDraftMessages(draft: Civ6DraftResult): string[] {

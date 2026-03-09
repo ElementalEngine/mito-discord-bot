@@ -208,10 +208,6 @@ function splitEvenly<T>(usable: readonly T[], groupCount: number, perGroup: numb
   return groups;
 }
 
-function buildAllocationNote(notes: readonly (string | undefined)[]): string | undefined {
-  const parts = notes.filter((note): note is string => Boolean(note));
-  return parts.length > 0 ? parts.join(' ') : undefined;
-}
 
 export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
   const { groupKind, groupCount } = computeLayout({
@@ -238,7 +234,6 @@ export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
       groupKind,
       groupCount,
       leadersPerGroup: leaderGroups.perGroup,
-      note: buildAllocationNote([leaderGroups.note]),
       trimmedLeaders: leaderGroups.trimmed,
       bannedLeaders: leaderBans.accepted,
       ignoredLeaderBans: leaderBans.ignored,
@@ -292,7 +287,6 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
       groupCount,
       leadersPerGroup: leaderGroups.perGroup,
       civsPerGroup: civGroups.perGroup,
-      note: buildAllocationNote([leaderGroups.note, civGroups.note]),
       trimmedLeaders: leaderGroups.trimmed,
       trimmedCivs: civGroups.trimmed,
       bannedLeaders: leaderBans.accepted,
