@@ -6,7 +6,8 @@ import {
 
 import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
-import type { AgePool } from '../../data/index.js';
+import { getDraftLimits } from '../../config/draft.config.js';
+import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { executeDraftCommand } from '../../services/drafting.service.js';
 
@@ -28,7 +29,9 @@ const ACCESS_POLICY = {
 const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 type GameType = (typeof GAME_TYPES)[number];
 
-const STARTING_AGES = ['Antiquity_Age', 'Exploration_Age', 'Modern_Age'] as const;
+const LIMITS = getDraftLimits('CIV7');
+
+const STARTING_AGES = ['Antiquity_Age', 'Exploration_Age', 'Modern_Age', 'None'] as const;
 type StartingAge = (typeof STARTING_AGES)[number];
 
 async function replyError(
@@ -76,35 +79,36 @@ export const data = new SlashCommandBuilder()
       .addChoices(
         { name: 'Antiquity_Age', value: 'Antiquity_Age' },
         { name: 'Exploration_Age', value: 'Exploration_Age' },
-        { name: 'Modern_Age', value: 'Modern_Age' }
+        { name: 'Modern_Age', value: 'Modern_Age' },
+        { name: 'None', value: 'None' }
       )
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-players')
       .setDescription('Required for FFA (2–10). Do not use for Teamer/Duel.')
-      .setMinValue(2)
-      .setMaxValue(10)
+      .setMinValue(LIMITS.FFA.minUsers)
+      .setMaxValue(LIMITS.FFA.maxUsers)
       .setRequired(false)
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
       .setDescription('Required for Teamer (2–5). Do not use for FFA/Duel.')
-      .setMinValue(2)
-      .setMaxValue(5)
+      .setMinValue(LIMITS.Teamer.minTeams)
+      .setMaxValue(LIMITS.Teamer.maxTeams)
       .setRequired(false)
   )
   .addStringOption((opt) =>
     opt
       .setName('leader-bans')
-      .setDescription('Optional. Paste leader emojis separated by commas.')
+      .setDescription('Optional. Use emoji mention, :GameId:, or raw GameId; separate with commas/new lines.')
       .setRequired(false)
   )
   .addStringOption((opt) =>
     opt
       .setName('civ-bans')
-      .setDescription('Optional. Paste civ emojis separated by commas.')
+      .setDescription('Optional. Use emoji mention, :GameId:, or raw GameId; separate with commas/new lines.')
       .setRequired(false)
   );
 
@@ -136,7 +140,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       edition: 'CIV7',
       draftMode: 'standard',
       gameType: gameTypeRaw as GameType,
-      startingAge: startingAgeRaw as AgePool,
+      startingAge: startingAgeRaw as Civ7StartingAge,
       numberPlayers,
       numberTeams,
       leaderBansRaw,

@@ -1,13 +1,24 @@
 import type { Civ6DraftResult, Civ7DraftResult, DraftCommandRequest, VoteDraftRequest } from '../../types/draft.js';
 import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
-import { buildCiv6DraftEmbed, buildCiv7DraftEmbed } from '../../ui/embeds/draft.js';
+import {
+  buildCiv6DirectDraftSummaryEmbed,
+  buildCiv6VoteDraftSummaryEmbed,
+  buildCiv7DirectDraftSummaryEmbed,
+  buildCiv7VoteDraftSummaryEmbed,
+} from '../../ui/embeds/draft.js';
+import {
+  buildCiv6DirectDraftMessages,
+  buildCiv6VoteDraftMessages,
+  buildCiv7DirectDraftMessages,
+  buildCiv7VoteDraftMessages,
+} from '../../ui/layouts/draft.js';
 import type { DraftModeOutput } from '../../types/drafting.types.js';
 import { generateCiv6Draft, generateCiv7Draft } from '../draft.service.js';
 
 function keysToColonTokens(
   keys: readonly string[],
-  source: Readonly<Record<string, { gameId: string }>>
+  source: Readonly<Record<string, { gameId: string }>>,
 ): string | undefined {
   const value = keys
     .map((key) => {
@@ -55,14 +66,37 @@ export function buildStandardDraftResult(request: DraftCommandRequest | VoteDraf
   });
 }
 
+function asFollowUps(messages: readonly string[]) {
+  return messages.map((content) => ({
+    content,
+    allowedMentions: { parse: [] as const },
+  }));
+}
+
 export async function runStandardDraftMode(
-  request: DraftCommandRequest | VoteDraftRequest
+  request: DraftCommandRequest | VoteDraftRequest,
 ): Promise<DraftModeOutput> {
   if (request.edition === 'CIV6') {
     const draft = buildStandardDraftResult(request) as Civ6DraftResult;
-    return { embeds: [buildCiv6DraftEmbed(draft)] };
+    return request.source === 'command'
+      ? {
+          embeds: [buildCiv6DirectDraftSummaryEmbed(draft)],
+          followUps: asFollowUps(buildCiv6DirectDraftMessages(draft)),
+        }
+      : {
+          embeds: [buildCiv6VoteDraftSummaryEmbed(draft)],
+          followUps: asFollowUps(buildCiv6VoteDraftMessages(draft, request.voterIds)),
+        };
   }
 
   const draft = buildStandardDraftResult(request) as Civ7DraftResult;
-  return { embeds: [buildCiv7DraftEmbed(draft)] };
+  return request.source === 'command'
+    ? {
+        embeds: [buildCiv7DirectDraftSummaryEmbed(draft)],
+        followUps: asFollowUps(buildCiv7DirectDraftMessages(draft)),
+      }
+    : {
+        embeds: [buildCiv7VoteDraftSummaryEmbed(draft)],
+        followUps: asFollowUps(buildCiv7VoteDraftMessages(draft, request.voterIds)),
+      };
 }

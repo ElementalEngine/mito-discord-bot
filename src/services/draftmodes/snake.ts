@@ -8,16 +8,16 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
   }
 
   const order = request.voterIds.slice();
+  const reversed = order.slice().reverse();
 
   const lines: string[] = [];
-  lines.push(`**Snake draft order** (${request.edition === 'CIV6' ? '1 round' : '2 rounds'})`);
+  lines.push(`**Snake draft order** (${request.edition === 'CIV6' ? 'leaders only' : 'leaders then civs'})`);
   lines.push('');
-  lines.push(`Round 1: ${order.map((id, i) => `${i + 1}. <@${id}>`).join('  ')}`);
+  lines.push(`Round 1 — Leaders: ${order.map((id, i) => `${i + 1}. <@${id}>`).join('  ')}`);
 
   if (request.edition === 'CIV7') {
-    const reversed = order.slice().reverse();
     lines.push('');
-    lines.push(`Round 2: ${reversed.map((id, i) => `${i + 1}. <@${id}>`).join('  ')}`);
+    lines.push(`Round 2 — Civs (reverse): ${reversed.map((id, i) => `${i + 1}. <@${id}>`).join('  ')}`);
   }
 
   return {

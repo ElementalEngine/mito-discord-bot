@@ -7,8 +7,11 @@ import type { VoteDraftRequest } from '../../types/draft.js';
 import { DraftError } from '../draft.service.js';
 import type { DraftModeOutput } from '../../types/drafting.types.js';
 
-function pickRandom<T>(arr: readonly T[]): T {
-  return arr[randomInt(0, arr.length)];
+function shuffle<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
 }
 
 export async function runRandomDraftMode(request: VoteDraftRequest): Promise<DraftModeOutput> {
@@ -20,13 +23,14 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
   const bannedCivs = new Set(request.bannedCivKeys);
 
   if (request.edition === 'CIV6') {
-    const pool = Object.keys(CIV6_LEADERS).filter((key) => !bannedLeaders.has(key));
-    if (pool.length === 0) {
-      throw new DraftError('NO_POOL', 'No leaders remain after bans.');
+    const leaderPool = Object.keys(CIV6_LEADERS).filter((key) => !bannedLeaders.has(key));
+    if (leaderPool.length < request.voterIds.length) {
+      throw new DraftError('NO_POOL', 'Not enough leaders remain after bans.');
     }
 
-    const lines = request.voterIds.map((id) => {
-      const key = pickRandom(pool);
+    shuffle(leaderPool);
+    const lines = request.voterIds.map((id, index) => {
+      const key = leaderPool[index];
       return `• <@${id}> — **${CIV6_LEADERS[key as keyof typeof CIV6_LEADERS].gameId}**`;
     });
 
@@ -42,16 +46,21 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
     .filter(([key, meta]) => !bannedCivs.has(key) && (allowAllAges || meta.agePool === request.startingAge))
     .map(([key]) => key);
 
-  if (leaderPool.length === 0) {
-    throw new DraftError('NO_POOL', 'No leaders remain after bans.');
+  if (leaderPool.length < request.voterIds.length) {
+    throw new DraftError('NO_POOL', 'Not enough leaders remain after bans.');
   }
   if (civPool.length === 0) {
     throw new DraftError('NO_POOL', 'No civs remain after bans.');
   }
+  if (allowAllAges && civPool.length < request.voterIds.length) {
+    throw new DraftError('NO_POOL', 'Not enough civs remain after bans.');
+  }
 
-  const lines = request.voterIds.map((id) => {
-    const leaderKey = pickRandom(leaderPool);
-    const civKey = pickRandom(civPool);
+  shuffle(leaderPool);
+  shuffle(civPool);
+  const lines = request.voterIds.map((id, index) => {
+    const leaderKey = leaderPool[index];
+    const civKey = civPool[index % civPool.length];
     const leader = CIV7_LEADERS[leaderKey as keyof typeof CIV7_LEADERS].gameId;
     const civ = CIV7_CIVS[civKey as keyof typeof CIV7_CIVS].gameId;
     return `• <@${id}> — **${civ}** + **${leader}**`;

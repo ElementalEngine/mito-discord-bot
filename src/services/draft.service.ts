@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 
-import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta, LeaderType } from '../data/types.js';
+import { getDraftLimits } from '../config/draft.config.js';
+import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta } from '../data/types.js';
 import { CIV6_LEADERS } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7.data.js';
 import type {
@@ -23,33 +24,12 @@ export class DraftError extends Error {
   }
 }
 
-const MAX_CIV6_PLAYERS = 14;
-const MAX_CIV7_PLAYERS = 10;
-const MAX_CIV6_TEAMS = 7;
-const MAX_CIV7_TEAMS = 5;
-
-const FFA_MAX_LEADERS_PER_PLAYER = 6;
-const DUEL_LEADERS_PER_PLAYER = 6;
-
-const CIV7_FFA_CIVS_PER_PLAYER = 4;
-const CIV7_DUEL_CIVS_PER_PLAYER = 4;
-
-const LEADER_TYPES: readonly LeaderType[] = [
-  'Industrial',
-  'War',
-  'Naval',
-  'Culture',
-  'Religious',
-  'Science',
-  'None',
-];
-
 const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
-const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
+const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,64}):$/;
 const SNOWFLAKE_RE = /^\d{15,22}$/;
 
 function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
     const j = randomInt(0, i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -63,9 +43,7 @@ function tokenizeBans(raw?: string): string[] {
     .filter(Boolean);
 }
 
-function buildLeaderBanIndex<K extends string>(
-  leaders: Readonly<Record<K, LeaderMeta>>
-): ReadonlyMap<string, K> {
+function buildLeaderBanIndex<K extends string>(leaders: Readonly<Record<K, LeaderMeta>>): ReadonlyMap<string, K> {
   const map = new Map<string, K>();
   for (const [key, meta] of Object.entries(leaders) as [K, LeaderMeta][]) {
     map.set(key.toLowerCase(), key);
@@ -76,9 +54,7 @@ function buildLeaderBanIndex<K extends string>(
   return map;
 }
 
-function buildCivBanIndex<K extends string>(
-  civs: Readonly<Record<K, CivMeta>>
-): ReadonlyMap<string, K> {
+function buildCivBanIndex<K extends string>(civs: Readonly<Record<K, CivMeta>>): ReadonlyMap<string, K> {
   const map = new Map<string, K>();
   for (const [key, meta] of Object.entries(civs) as [K, CivMeta][]) {
     map.set(key.toLowerCase(), key);
@@ -95,10 +71,10 @@ type BanResolution<K extends string> = Readonly<{
   ignored: readonly string[];
 }>;
 
-function resolveEmojiBans<K extends string>(
+function resolveBansFromTokens<K extends string>(
   tokens: readonly string[],
   index: ReadonlyMap<string, K>,
-  label: string
+  label: string,
 ): BanResolution<K> {
   const banned = new Set<K>();
   const accepted: K[] = [];
@@ -109,30 +85,26 @@ function resolveEmojiBans<K extends string>(
     const mention = EMOJI_MENTION_RE.exec(token);
     const colon = EMOJI_COLON_RE.exec(token);
 
-    const name = mention?.[1] ?? colon?.[1] ?? null;
-    const id = mention?.[2] ?? null;
+    const lookupKeys = [mention?.[1], mention?.[2], colon?.[1], token].filter(
+      (value): value is string => Boolean(value),
+    );
 
-    if (!name) {
-      ignored.push(`${token} (invalid ${label} emoji)`);
+    const resolved = lookupKeys
+      .map((value) => index.get(value.toLowerCase()) ?? index.get(value))
+      .find((value): value is K => Boolean(value));
+
+    if (!resolved) {
+      ignored.push(`${token} (unknown ${label})`);
       continue;
     }
 
-    const key =
-      index.get(name.toLowerCase()) ??
-      (id ? index.get(id) : undefined);
-
-    if (!key) {
-      ignored.push(`${name} (unknown ${label})`);
+    if (banned.has(resolved)) {
+      ignored.push(`${token} (duplicate)`);
       continue;
     }
 
-    if (banned.has(key)) {
-      ignored.push(`${name} (duplicate)`);
-      continue;
-    }
-
-    banned.add(key);
-    accepted.push(key);
+    banned.add(resolved);
+    accepted.push(resolved);
   }
 
   return { banned, accepted, ignored };
@@ -144,202 +116,101 @@ function computeLayout(args: Readonly<{
   numberPlayers?: number;
   numberTeams?: number;
 }>): Readonly<{ groupKind: DraftGroupKind; groupCount: number }> {
-  const { gameVersion, gameType, numberPlayers, numberTeams } = args;
+  const edition = args.gameVersion === 'civ6' ? 'CIV6' : 'CIV7';
+  const limits = getDraftLimits(edition);
 
-  const maxPlayers = gameVersion === 'civ6' ? MAX_CIV6_PLAYERS : MAX_CIV7_PLAYERS;
-  const maxTeams = gameVersion === 'civ6' ? MAX_CIV6_TEAMS : MAX_CIV7_TEAMS;
-
-  if (gameType === 'FFA') {
-    if (numberTeams !== undefined) {
-      throw new DraftError(
-        'VALIDATION',
-        'For FFA, use number-players (do not provide number-teams).'
-      );
+  if (args.gameType === 'FFA') {
+    if (args.numberTeams !== undefined) {
+      throw new DraftError('VALIDATION', 'For FFA, use number-players only.');
     }
-    if (numberPlayers === undefined) {
+    const count = args.numberPlayers;
+    if (count === undefined) {
       throw new DraftError('VALIDATION', 'For FFA, number-players is required.');
     }
-    if (numberPlayers < 2 || numberPlayers > maxPlayers) {
+    if (count < limits.FFA.minUsers || count > limits.FFA.maxUsers) {
       throw new DraftError(
         'VALIDATION',
-        `For FFA, number-players must be between 2 and ${maxPlayers}.`
+        `For FFA, number-players must be between ${limits.FFA.minUsers} and ${limits.FFA.maxUsers}.`,
       );
     }
-    return { groupKind: 'Player', groupCount: numberPlayers };
+    return { groupKind: 'Player', groupCount: count };
   }
 
-  if (gameType === 'Teamer') {
-    if (numberPlayers !== undefined) {
-      throw new DraftError(
-        'VALIDATION',
-        'For Teamer, use number-teams (do not provide number-players).'
-      );
+  if (args.gameType === 'Teamer') {
+    if (args.numberPlayers !== undefined) {
+      throw new DraftError('VALIDATION', 'For Teamer, use number-teams only.');
     }
-    if (numberTeams === undefined) {
+    const teams = args.numberTeams;
+    if (teams === undefined) {
       throw new DraftError('VALIDATION', 'For Teamer, number-teams is required.');
     }
-    if (numberTeams < 2 || numberTeams > maxTeams) {
+    if (teams < limits.Teamer.minTeams || teams > limits.Teamer.maxTeams) {
       throw new DraftError(
         'VALIDATION',
-        `For Teamer, number-teams must be between 2 and ${maxTeams}.`
+        `For Teamer, number-teams must be between ${limits.Teamer.minTeams} and ${limits.Teamer.maxTeams}.`,
       );
     }
-    return { groupKind: 'Team', groupCount: numberTeams };
+    return { groupKind: 'Team', groupCount: teams };
   }
 
-  // Duel
-  if (numberPlayers !== undefined || numberTeams !== undefined) {
-    throw new DraftError(
-      'VALIDATION',
-      'For Duel, do not provide number-players or number-teams.'
-    );
-  }
-  return { groupKind: 'Player', groupCount: 2 };
-}
-
-function dealUnique(pool: string[], count: number): string[] {
-  return pool.splice(0, count);
-}
-
-function pickDistinct<T>(pool: readonly T[], count: number): T[] {
-  if (count <= 0) return [];
-  const copy = pool.slice();
-  shuffle(copy);
-  return copy.slice(0, count);
-}
-
-function clampAtLeast1(n: number): number {
-  return n < 1 ? 1 : n;
-}
-
-function teamTargetCiv6(teams: number): number {
-  if (teams === 2) return 20;
-  if (teams >= 3 && teams <= 6) return 10;
-  return 6;
-}
-
-function teamTargetCiv7Leaders(teams: number): number {
-  if (teams === 2) return 10;
-  if (teams === 3) return 6;
-  if (teams === 4) return 6;
-  return 5;
-}
-
-function teamTargetCiv7Civs(teams: number): number {
-  if (teams === 2) return 7;
-  if (teams === 3) return 5;
-  if (teams === 4) return 5;
-  return 4;
-}
-
-function noteReduced(args: Readonly<{ label: string; from: number; to: number }>): string {
-  return `${args.label} reduced from ${args.from} to ${args.to} due to bans/pool size.`;
-}
-
-function computeLeadersPerGroup(args: Readonly<{
-  gameVersion: 'civ6' | 'civ7';
-  gameType: DraftGameType;
-  groupCount: number;
-  remainingLeaderCount: number;
-}>): Readonly<{ leadersPerGroup: number; note?: string }> {
-  const { gameVersion, gameType, groupCount, remainingLeaderCount } = args;
-
-  if (gameType === 'Duel') {
-    const required = DUEL_LEADERS_PER_PLAYER * groupCount;
-    if (remainingLeaderCount < required) {
-      throw new DraftError(
-        'NO_POOL',
-        `Not enough leaders after bans for Duel. Need ${required} but have ${remainingLeaderCount}.`
-      );
-    }
-    return { leadersPerGroup: DUEL_LEADERS_PER_PLAYER };
+  if (args.numberPlayers !== undefined || args.numberTeams !== undefined) {
+    throw new DraftError('VALIDATION', 'For Duel, do not provide number-players or number-teams.');
   }
 
-  if (gameType === 'FFA') {
-    const computed = Math.floor(remainingLeaderCount / groupCount);
-    const leadersPerGroup = Math.min(FFA_MAX_LEADERS_PER_PLAYER, computed);
-    if (leadersPerGroup < 1) {
-      throw new DraftError(
-        'NO_POOL',
-        `Not enough leaders for ${groupCount} players after bans. Remove bans or reduce players.`
-      );
-    }
+  return { groupKind: 'Player', groupCount: limits.Duel.maxUsers };
+}
 
-    const note =
-      leadersPerGroup < FFA_MAX_LEADERS_PER_PLAYER
-        ? `Leaders: ${leadersPerGroup} each due to pool size/bans.`
-        : undefined;
-    return { leadersPerGroup, note };
-  }
-
-  // Teamer
-  const target =
-    gameVersion === 'civ6' ? teamTargetCiv6(groupCount) : teamTargetCiv7Leaders(groupCount);
-  const maxPossible = Math.floor(remainingLeaderCount / groupCount);
-  const leadersPerGroup = Math.min(target, maxPossible);
-  if (leadersPerGroup < 1) {
+function trimToEqualGroups<T>(
+  label: 'leader' | 'civ',
+  pool: readonly T[],
+  groupCount: number,
+): Readonly<{ perGroup: number; usable: readonly T[]; trimmed: number; note?: string }> {
+  if (pool.length < groupCount) {
+    const plural = label === 'leader' ? 'leaders' : 'civs';
     throw new DraftError(
       'NO_POOL',
-      `Not enough leaders for ${groupCount} teams after bans. Remove bans or reduce teams.`
+      `Not enough ${plural} remain after bans for ${groupCount} groups. Remove bans or reduce the draft size.`,
     );
   }
-  const note = leadersPerGroup < target ? noteReduced({ label: 'Leaders', from: target, to: leadersPerGroup }) : undefined;
-  return { leadersPerGroup, note };
+
+  const trimmed = pool.length % groupCount;
+  const usableCount = pool.length - trimmed;
+  const perGroup = usableCount / groupCount;
+
+  if (perGroup < 1) {
+    const plural = label === 'leader' ? 'leaders' : 'civs';
+    throw new DraftError(
+      'NO_POOL',
+      `Not enough ${plural} remain after bans for ${groupCount} groups. Remove bans or reduce the draft size.`,
+    );
+  }
+
+  const shuffled = [...pool];
+  shuffle(shuffled);
+  const note = trimmed > 0
+    ? `${trimmed} ${label}${trimmed === 1 ? '' : 's'} removed from the usable pool to split evenly.`
+    : undefined;
+
+  return {
+    perGroup,
+    usable: shuffled.slice(0, usableCount),
+    trimmed,
+    note,
+  };
+}
+
+function splitEvenly<T>(usable: readonly T[], groupCount: number, perGroup: number): T[][] {
+  const groups: T[][] = [];
+  for (let index = 0; index < groupCount; index += 1) {
+    const start = index * perGroup;
+    groups.push(usable.slice(start, start + perGroup));
+  }
+  return groups;
 }
 
 function buildAllocationNote(notes: readonly (string | undefined)[]): string | undefined {
-  const parts = notes.filter((n): n is string => Boolean(n));
-  return parts.length ? parts.join(' ') : undefined;
-}
-
-function dealCiv6LeadersByType(args: Readonly<{
-  availableKeys: readonly Civ6LeaderKey[];
-  leadersPerGroup: number;
-  groupCount: number;
-}>): DraftGroup[] {
-  const { availableKeys, leadersPerGroup, groupCount } = args;
-
-  const buckets = new Map<LeaderType, Civ6LeaderKey[]>();
-  for (const t of LEADER_TYPES) buckets.set(t, []);
-
-  for (const k of availableKeys) {
-    const meta = CIV6_LEADERS[k];
-    const t = meta?.type ?? 'None';
-    (buckets.get(t) ?? buckets.get('None')!).push(k);
-  }
-
-  for (const arr of buckets.values()) shuffle(arr);
-
-  const groups: DraftGroup[] = Array.from({ length: groupCount }, () => ({ leaders: [] }));
-  const types = LEADER_TYPES;
-  const typeCount = types.length;
-
-  for (let g = 0; g < groupCount; g++) {
-    const picks: Civ6LeaderKey[] = [];
-    let cursor = g % typeCount;
-    for (let i = 0; i < leadersPerGroup; i++) {
-      let chosen: Civ6LeaderKey | undefined;
-      for (let step = 0; step < typeCount; step++) {
-        const t = types[(cursor + step) % typeCount];
-        const arr = buckets.get(t);
-        const v = arr?.pop();
-        if (v) {
-          chosen = v;
-          cursor = (cursor + step + 1) % typeCount;
-          break;
-        }
-      }
-      if (!chosen) {
-        throw new DraftError(
-          'NO_POOL',
-          'Not enough leaders remaining to complete the draft. Remove bans or reduce players/teams.'
-        );
-      }
-      picks.push(chosen);
-    }
-    groups[g] = { leaders: picks };
-  }
-  return groups;
+  const parts = notes.filter((note): note is string => Boolean(note));
+  return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
 export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
@@ -351,24 +222,14 @@ export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
   });
 
   const leaderIndex = buildLeaderBanIndex(CIV6_LEADERS);
-  const leaderBans = resolveEmojiBans(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
-  const banned = leaderBans.banned;
-
-  const allLeaderKeys = Object.keys(CIV6_LEADERS) as Civ6LeaderKey[];
-  const available = allLeaderKeys.filter((k) => !banned.has(k));
-
-  const { leadersPerGroup, note } = computeLeadersPerGroup({
-    gameVersion: 'civ6',
-    gameType: req.gameType,
-    groupCount,
-    remainingLeaderCount: available.length,
-  });
-
-  const groups = dealCiv6LeadersByType({
-    availableKeys: available,
-    leadersPerGroup,
-    groupCount,
-  });
+  const leaderBans = resolveBansFromTokens(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
+  const leaderPool = (Object.keys(CIV6_LEADERS) as Civ6LeaderKey[]).filter(
+    (key) => !leaderBans.banned.has(key),
+  );
+  const leaderGroups = trimToEqualGroups('leader', leaderPool, groupCount);
+  const groups = splitEvenly(leaderGroups.usable, groupCount, leaderGroups.perGroup).map(
+    (leaders) => ({ leaders }),
+  );
 
   return {
     gameVersion: 'civ6',
@@ -376,8 +237,9 @@ export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
     allocation: {
       groupKind,
       groupCount,
-      leadersPerGroup,
-      note,
+      leadersPerGroup: leaderGroups.perGroup,
+      note: buildAllocationNote([leaderGroups.note]),
+      trimmedLeaders: leaderGroups.trimmed,
       bannedLeaders: leaderBans.accepted,
       ignoredLeaderBans: leaderBans.ignored,
     },
@@ -395,79 +257,31 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
 
   const leaderIndex = buildLeaderBanIndex(CIV7_LEADERS);
   const civIndex = buildCivBanIndex(CIV7_CIVS);
-
-  const leaderBans = resolveEmojiBans(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
-  const civBansAll = resolveEmojiBans(tokenizeBans(req.civBansRaw), civIndex, 'civ');
-
-  const bannedLeaders = leaderBans.banned;
+  const leaderBans = resolveBansFromTokens(tokenizeBans(req.leaderBansRaw), leaderIndex, 'leader');
+  const civBans = resolveBansFromTokens(tokenizeBans(req.civBansRaw), civIndex, 'civ');
   const allowAllAges = req.startingAge === 'None';
-  const bannedCivs = new Set<Civ7CivKey>();
-  const acceptedCivs: Civ7CivKey[] = [];
-  const ignoredCivBans: string[] = [...civBansAll.ignored];
-  for (const key of civBansAll.accepted) {
-    const meta = CIV7_CIVS[key];
-    if (!allowAllAges && meta.agePool !== req.startingAge) {
-      ignoredCivBans.push(`${meta.gameId} (not in ${req.startingAge})`);
-      continue;
-    }
-    bannedCivs.add(key);
-    acceptedCivs.push(key);
-  }
 
-  const allLeaderKeys = Object.keys(CIV7_LEADERS) as Civ7LeaderKey[];
-  const leaderPool = allLeaderKeys.filter((k) => !bannedLeaders.has(k));
-
-  const leaderSizing = computeLeadersPerGroup({
-    gameVersion: 'civ7',
-    gameType: req.gameType,
-    groupCount,
-    remainingLeaderCount: leaderPool.length,
-  });
-
-  const civPool = (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][]) 
-    .filter(([key, meta]) => (allowAllAges || meta.agePool === req.startingAge) && !bannedCivs.has(key))
+  const leaderPool = (Object.keys(CIV7_LEADERS) as Civ7LeaderKey[]).filter(
+    (key) => !leaderBans.banned.has(key),
+  );
+  const civPool = (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][])
+    .filter(([key, meta]) => !civBans.banned.has(key) && (allowAllAges || meta.agePool === req.startingAge))
     .map(([key]) => key);
 
-  if (civPool.length < 1) {
+  if (civPool.length === 0) {
     const label = allowAllAges ? 'all ages' : String(req.startingAge);
-    throw new DraftError(
-      'NO_POOL',
-      `No civs available for ${label} after bans. Remove civ bans or pick a different age.`
-    );
+    throw new DraftError('NO_POOL', `No civs remain for ${label} after bans.`);
   }
 
-  let civTarget: number;
-  if (req.gameType === 'Duel') civTarget = CIV7_DUEL_CIVS_PER_PLAYER;
-  else if (req.gameType === 'FFA') civTarget = CIV7_FFA_CIVS_PER_PLAYER;
-  else civTarget = teamTargetCiv7Civs(groupCount);
+  const leaderGroups = trimToEqualGroups('leader', leaderPool, groupCount);
+  const civGroups = trimToEqualGroups('civ', civPool, groupCount);
+  const leaders = splitEvenly(leaderGroups.usable, groupCount, leaderGroups.perGroup);
+  const civs = splitEvenly(civGroups.usable, groupCount, civGroups.perGroup);
 
-  const civsPerGroup = clampAtLeast1(Math.min(civTarget, civPool.length));
-
-  const allocationNote = buildAllocationNote([
-    leaderSizing.note,
-    civsPerGroup < civTarget ? noteReduced({ label: 'Civs', from: civTarget, to: civsPerGroup }) : undefined,
-  ]);
-
-  shuffle(leaderPool);
-  const groups: DraftGroup[] = [];
-
-  // Leaders are always globally unique.
-  const leadersPerGroup = leaderSizing.leadersPerGroup;
-  for (let i = 0; i < groupCount; i++) {
-    const leaders = dealUnique(leaderPool, leadersPerGroup);
-    groups.push({ leaders, civs: [] });
-  }
-
-  if (req.gameType === 'Duel' && civPool.length >= civsPerGroup * 2) {
-    const copy = civPool.slice();
-    shuffle(copy);
-    groups[0] = { leaders: groups[0].leaders, civs: dealUnique(copy, civsPerGroup) };
-    groups[1] = { leaders: groups[1].leaders, civs: dealUnique(copy, civsPerGroup) };
-  } else {
-    for (let i = 0; i < groupCount; i++) {
-      groups[i] = { leaders: groups[i].leaders, civs: pickDistinct(civPool, civsPerGroup) };
-    }
-  }
+  const groups: DraftGroup[] = leaders.map((groupLeaders, index) => ({
+    leaders: groupLeaders,
+    civs: civs[index],
+  }));
 
   return {
     gameVersion: 'civ7',
@@ -476,13 +290,15 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
     allocation: {
       groupKind,
       groupCount,
-      leadersPerGroup: leaderSizing.leadersPerGroup,
-      civsPerGroup,
-      note: allocationNote,
+      leadersPerGroup: leaderGroups.perGroup,
+      civsPerGroup: civGroups.perGroup,
+      note: buildAllocationNote([leaderGroups.note, civGroups.note]),
+      trimmedLeaders: leaderGroups.trimmed,
+      trimmedCivs: civGroups.trimmed,
       bannedLeaders: leaderBans.accepted,
       ignoredLeaderBans: leaderBans.ignored,
-      bannedCivs: acceptedCivs,
-      ignoredCivBans,
+      bannedCivs: civBans.accepted,
+      ignoredCivBans: civBans.ignored,
     },
     groups,
   };

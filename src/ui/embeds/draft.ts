@@ -2,7 +2,7 @@ import { EmbedBuilder } from 'discord.js';
 
 import { lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import { lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
-import type { Civ6DraftResult, Civ7DraftResult, DraftGameType } from '../../types/draft.js';
+import type { Civ6DraftResult, Civ7DraftResult, DraftAllocation } from '../../types/draft.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
 const EMOJI_NAME_SAFE_RE = /[^A-Za-z0-9_]/g;
@@ -21,24 +21,6 @@ function renderLine(
   const emojiId = meta?.emojiId?.trim();
   if (!emojiId || !meta) return readable;
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${readable}`;
-}
-
-function labelForGroup(kind: 'Player' | 'Team', idx: number): string {
-  return kind === 'Team' ? `Team ${idx + 1}` : `Player ${idx + 1}`;
-}
-
-function formatHeader(args: Readonly<{
-  game: 'civ6' | 'civ7';
-  gameType: DraftGameType;
-  leadersPerGroup: number;
-  civsPerGroup?: number;
-  startingAge?: string;
-}>): string {
-  const line1 = args.game === 'civ6' ? `Civ 6 • ${args.gameType}` : `Civ 7 • ${args.gameType} • ${args.startingAge ?? '—'}`;
-  const line2 = args.game === 'civ6'
-    ? `Leaders: ${args.leadersPerGroup} each`
-    : `Leaders: ${args.leadersPerGroup} each • Civs: ${args.civsPerGroup ?? 0} each`;
-  return `${line1}\n${line2}`;
 }
 
 function renderBanList(args: Readonly<{
@@ -70,91 +52,112 @@ function formatIgnoredLine(args: Readonly<{ leader?: readonly string[]; civ?: re
   return `Ignored bans: ${parts.join(' • ')}`;
 }
 
-export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
-  const header = formatHeader({
-    game: 'civ6',
-    gameType: draft.gameType,
-    leadersPerGroup: draft.allocation.leadersPerGroup,
-  });
-
-  const lines: string[] = [
-    header,
-    `Leaders banned: ${renderBanList({ keys: draft.allocation.bannedLeaders, lookup: lookupCiv6LeaderMeta, emptyLabel: 'none' })}`,
-  ];
-
-  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans });
-  if (ignoredLine) lines.push(ignoredLine);
-  for (let i = 0; i < draft.groups.length; i += 1) {
-    lines.push('', `**${labelForGroup(draft.allocation.groupKind, i)}**`);
-    for (const key of draft.groups[i].leaders) {
-      lines.push(renderLine(lookupCiv6LeaderMeta(key), key));
-    }
-  }
-
-  return new EmbedBuilder().setTitle('Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
-}
-
-export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
-  const header = formatHeader({
-    game: 'civ7',
-    gameType: draft.gameType,
-    startingAge: draft.startingAge,
-    leadersPerGroup: draft.allocation.leadersPerGroup,
-    civsPerGroup: draft.allocation.civsPerGroup,
-  });
-
-  const lines: string[] = [
-    header,
-    `Leaders banned: ${renderBanList({ keys: draft.allocation.bannedLeaders, lookup: lookupCiv7LeaderMeta, emptyLabel: 'none' })}`,
-    `Civs banned: ${renderBanList({ keys: draft.allocation.bannedCivs, lookup: lookupCiv7CivMeta, emptyLabel: 'none' })}`,
-  ];
-
-  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans, civ: draft.allocation.ignoredCivBans });
-  if (ignoredLine) lines.push(ignoredLine);
-
-  for (let i = 0; i < draft.groups.length; i += 1) {
-    const group = draft.groups[i];
-    lines.push('', `**${labelForGroup(draft.allocation.groupKind, i)}**`, '**Leaders**');
-    for (const key of group.leaders) {
-      lines.push(renderLine(lookupCiv7LeaderMeta(key), key));
-    }
-    lines.push('', '**Civs**');
-    for (const key of group.civs ?? []) {
-      lines.push(renderLine(lookupCiv7CivMeta(key), key));
-    }
-  }
-
-  return new EmbedBuilder().setTitle('Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
-}
-
 function addGroupSummaryLine(lines: string[], kind: 'Player' | 'Team', count: number): void {
   lines.push(`${kind === 'Team' ? 'Teams' : 'Players'}: ${count}`);
+}
+
+function pushEvenSplitAdjustment(lines: string[], allocation: DraftAllocation): void {
+  const parts: string[] = [];
+  if ((allocation.trimmedLeaders ?? 0) > 0) {
+    const count = allocation.trimmedLeaders ?? 0;
+    parts.push(`${count} leader${count === 1 ? '' : 's'}`);
+  }
+  if ((allocation.trimmedCivs ?? 0) > 0) {
+    const count = allocation.trimmedCivs ?? 0;
+    parts.push(`${count} civ${count === 1 ? '' : 's'}`);
+  }
+  if (parts.length > 0) {
+    lines.push(`Even split adjustment: ${parts.join(' and ')} removed from the usable pool.`);
+  }
+}
+
+function buildSummaryEmbed(title: string, lines: readonly string[]): EmbedBuilder {
+  return new EmbedBuilder().setTitle(title).setDescription(lines.join('\n')).setColor(0x00ff00);
 }
 
 export function buildCiv6DirectDraftSummaryEmbed(draft: Civ6DraftResult): EmbedBuilder {
   const lines: string[] = [`Game Type: ${draft.gameType}`];
   addGroupSummaryLine(lines, draft.allocation.groupKind, draft.allocation.groupCount);
-  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} per draft`);
-  lines.push(`Leaders banned: ${renderBanList({ keys: draft.allocation.bannedLeaders, lookup: lookupCiv6LeaderMeta, emptyLabel: 'none' })}`);
+  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} each`);
+  lines.push(
+    `Leaders banned: ${renderBanList({
+      keys: draft.allocation.bannedLeaders,
+      lookup: lookupCiv6LeaderMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
 
   const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans });
   if (ignoredLine) lines.push(ignoredLine);
-  if (draft.allocation.note) lines.push(draft.allocation.note);
+  pushEvenSplitAdjustment(lines, draft.allocation);
 
-  return new EmbedBuilder().setTitle('Direct Draft Civ 6').setDescription(lines.join('\n')).setColor(0x00ff00);
+  return buildSummaryEmbed('Direct Draft Civ 6', lines);
 }
 
 export function buildCiv7DirectDraftSummaryEmbed(draft: Civ7DraftResult): EmbedBuilder {
   const lines: string[] = [`Game Type: ${draft.gameType}`, `Starting Age: ${draft.startingAge}`];
   addGroupSummaryLine(lines, draft.allocation.groupKind, draft.allocation.groupCount);
-  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} per draft`);
-  lines.push(`Civs: ${draft.allocation.civsPerGroup ?? 0} per draft`);
-  lines.push(`Leaders banned: ${renderBanList({ keys: draft.allocation.bannedLeaders, lookup: lookupCiv7LeaderMeta, emptyLabel: 'none' })}`);
-  lines.push(`Civs banned: ${renderBanList({ keys: draft.allocation.bannedCivs, lookup: lookupCiv7CivMeta, emptyLabel: 'none' })}`);
+  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} each`);
+  lines.push(`Civs: ${draft.allocation.civsPerGroup ?? 0} each`);
+  lines.push(
+    `Leaders banned: ${renderBanList({
+      keys: draft.allocation.bannedLeaders,
+      lookup: lookupCiv7LeaderMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
+  lines.push(
+    `Civs banned: ${renderBanList({
+      keys: draft.allocation.bannedCivs,
+      lookup: lookupCiv7CivMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
 
-  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans, civ: draft.allocation.ignoredCivBans });
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+    civ: draft.allocation.ignoredCivBans,
+  });
   if (ignoredLine) lines.push(ignoredLine);
-  if (draft.allocation.note) lines.push(draft.allocation.note);
+  pushEvenSplitAdjustment(lines, draft.allocation);
 
-  return new EmbedBuilder().setTitle('Direct Draft Civ 7').setDescription(lines.join('\n')).setColor(0x00ff00);
+  return buildSummaryEmbed('Direct Draft Civ 7', lines);
+}
+
+export function buildCiv6VoteDraftSummaryEmbed(draft: Civ6DraftResult): EmbedBuilder {
+  const lines: string[] = [`Game Type: ${draft.gameType}`];
+  addGroupSummaryLine(lines, draft.allocation.groupKind, draft.allocation.groupCount);
+  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} each`);
+  lines.push(
+    `Leaders banned: ${renderBanList({
+      keys: draft.allocation.bannedLeaders,
+      lookup: lookupCiv6LeaderMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
+  pushEvenSplitAdjustment(lines, draft.allocation);
+  return buildSummaryEmbed('Standard Draft Civ 6', lines);
+}
+
+export function buildCiv7VoteDraftSummaryEmbed(draft: Civ7DraftResult): EmbedBuilder {
+  const lines: string[] = [`Game Type: ${draft.gameType}`, `Starting Age: ${draft.startingAge}`];
+  addGroupSummaryLine(lines, draft.allocation.groupKind, draft.allocation.groupCount);
+  lines.push(`Leaders: ${draft.allocation.leadersPerGroup} each`);
+  lines.push(`Civs: ${draft.allocation.civsPerGroup ?? 0} each`);
+  lines.push(
+    `Leaders banned: ${renderBanList({
+      keys: draft.allocation.bannedLeaders,
+      lookup: lookupCiv7LeaderMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
+  lines.push(
+    `Civs banned: ${renderBanList({
+      keys: draft.allocation.bannedCivs,
+      lookup: lookupCiv7CivMeta,
+      emptyLabel: 'none',
+    })}`,
+  );
+  pushEvenSplitAdjustment(lines, draft.allocation);
+  return buildSummaryEmbed('Standard Draft Civ 7', lines);
 }

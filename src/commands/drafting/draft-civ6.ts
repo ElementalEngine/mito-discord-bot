@@ -6,6 +6,7 @@ import {
 
 import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
+import { getDraftLimits } from '../../config/draft.config.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { executeDraftCommand } from '../../services/drafting.service.js';
 
@@ -26,6 +27,8 @@ const ACCESS_POLICY = {
 
 const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 type GameType = (typeof GAME_TYPES)[number];
+
+const LIMITS = getDraftLimits('CIV6');
 
 async function replyError(
   interaction: ChatInputCommandInteraction,
@@ -68,22 +71,22 @@ export const data = new SlashCommandBuilder()
     opt
       .setName('number-players')
       .setDescription('Required for FFA (2–14). Do not use for Teamer/Duel.')
-      .setMinValue(2)
-      .setMaxValue(14)
+      .setMinValue(LIMITS.FFA.minUsers)
+      .setMaxValue(LIMITS.FFA.maxUsers)
       .setRequired(false)
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
-      .setDescription('Required for Teamer (2–7). Do not use for FFA/Duel.')
-      .setMinValue(2)
-      .setMaxValue(7)
+      .setDescription('Required for Teamer (2–5). Do not use for FFA/Duel.')
+      .setMinValue(LIMITS.Teamer.minTeams)
+      .setMaxValue(LIMITS.Teamer.maxTeams)
       .setRequired(false)
   )
   .addStringOption((opt) =>
     opt
       .setName('leader-bans')
-      .setDescription('Optional. Paste leader emojis separated by commas.')
+      .setDescription('Optional. Use emoji mention, :GameId:, or raw GameId; separate with commas/new lines.')
       .setRequired(false)
   );
 

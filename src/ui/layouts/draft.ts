@@ -1,3 +1,5 @@
+import { userMention } from 'discord.js';
+
 import { MAX_DISCORD_LEN } from '../../config/constants.js';
 import { formatCiv6Leader, lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import {
@@ -9,21 +11,24 @@ import {
 import type { Civ6DraftResult, Civ7DraftResult, DraftGroupKind } from '../../types/draft.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
-function labelForGroup(kind: DraftGroupKind, index: number): string {
+function directLabel(kind: DraftGroupKind, index: number): string {
   return kind === 'Team' ? `Team n°${index + 1}` : `Player n°${index + 1}`;
+}
+
+function voteLabel(kind: DraftGroupKind, index: number, voterIds: readonly string[]): string {
+  if (kind === 'Team') return `Team n°${index + 1}`;
+  const voterId = voterIds[index];
+  return voterId ? userMention(voterId) : `Player n°${index + 1}`;
 }
 
 function renderName(gameId: string | undefined, fallbackKey: string): string {
   return humanizeGameId(gameId ?? fallbackKey);
 }
 
-function splitLongSection(section: string): string[] {
-  if (section.length <= MAX_DISCORD_LEN) return [section];
-
-  const lines = section.split('\n');
-  const header = lines.shift() ?? 'Draft';
+function splitSection(header: string, lines: readonly string[]): string[] {
   const messages: string[] = [];
-  let current = header;
+  let currentHeader = header;
+  let current = currentHeader;
 
   for (const line of lines) {
     const next = `${current}\n${line}`;
@@ -33,27 +38,26 @@ function splitLongSection(section: string): string[] {
     }
 
     messages.push(current);
-    current = `${header} (cont.)\n${line}`;
+    currentHeader = `${header} (cont.)`;
+    current = `${currentHeader}\n${line}`;
   }
 
   if (current) messages.push(current);
   return messages;
 }
 
-function buildCiv6Section(draft: Civ6DraftResult, index: number): string {
-  const lines: string[] = [labelForGroup(draft.allocation.groupKind, index)];
-
+function buildCiv6Section(draft: Civ6DraftResult, index: number, header: string): string[] {
+  const lines: string[] = [];
   for (const key of draft.groups[index].leaders) {
     const meta = lookupCiv6LeaderMeta(key);
     lines.push(`${formatCiv6Leader(key)} ${renderName(meta?.gameId, key)}`);
   }
-
-  return lines.join('\n');
+  return splitSection(header, lines);
 }
 
-function buildCiv7Section(draft: Civ7DraftResult, index: number): string {
+function buildCiv7Section(draft: Civ7DraftResult, index: number, header: string): string[] {
   const group = draft.groups[index];
-  const lines: string[] = [labelForGroup(draft.allocation.groupKind, index), 'Leaders'];
+  const lines: string[] = ['Leaders'];
 
   for (const key of group.leaders) {
     const meta = lookupCiv7LeaderMeta(key);
@@ -66,13 +70,21 @@ function buildCiv7Section(draft: Civ7DraftResult, index: number): string {
     lines.push(`${formatCiv7Civ(key)} ${renderName(meta?.gameId, key)}`);
   }
 
-  return lines.join('\n');
+  return splitSection(header, lines);
 }
 
 export function buildCiv6DirectDraftMessages(draft: Civ6DraftResult): string[] {
-  return draft.groups.flatMap((_, index) => splitLongSection(buildCiv6Section(draft, index)));
+  return draft.groups.flatMap((_, index) => buildCiv6Section(draft, index, directLabel(draft.allocation.groupKind, index)));
 }
 
 export function buildCiv7DirectDraftMessages(draft: Civ7DraftResult): string[] {
-  return draft.groups.flatMap((_, index) => splitLongSection(buildCiv7Section(draft, index)));
+  return draft.groups.flatMap((_, index) => buildCiv7Section(draft, index, directLabel(draft.allocation.groupKind, index)));
+}
+
+export function buildCiv6VoteDraftMessages(draft: Civ6DraftResult, voterIds: readonly string[]): string[] {
+  return draft.groups.flatMap((_, index) => buildCiv6Section(draft, index, voteLabel(draft.allocation.groupKind, index, voterIds)));
+}
+
+export function buildCiv7VoteDraftMessages(draft: Civ7DraftResult, voterIds: readonly string[]): string[] {
+  return draft.groups.flatMap((_, index) => buildCiv7Section(draft, index, voteLabel(draft.allocation.groupKind, index, voterIds)));
 }

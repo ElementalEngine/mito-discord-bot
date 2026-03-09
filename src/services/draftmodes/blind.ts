@@ -9,11 +9,11 @@ import type {
 } from 'discord.js';
 
 import { EMOJI_ERROR } from '../../config/constants.js';
+import { DRAFT_TIMERS_MS } from '../../config/draft.config.js';
 import type { VoteDraftRequest } from '../../types/draft.js';
 import type {
   BlindDraftAssignment,
   BlindDraftPageState,
-  BlindDraftPick,
   BlindDraftSession,
   DraftModeOutput,
 } from '../../types/drafting.types.js';
@@ -28,7 +28,6 @@ import {
 import { DraftError } from '../draft.service.js';
 import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
 
-const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const BLIND_MENU_PAGE_SIZE = 25;
 const DM_CONCURRENCY = 8;
 
@@ -274,7 +273,7 @@ async function startBlindDraftSession(
     voteMessage: request.publicMessage,
     trackingMessage: null,
     dmMessages: new Map(),
-    endsAtMs: Date.now() + BLIND_DRAFT_DURATION_MS,
+    endsAtMs: Date.now() + DRAFT_TIMERS_MS.blind,
     timeout: null,
     pools: new Map(),
     picks: new Map(),
@@ -308,7 +307,7 @@ async function startBlindDraftSession(
 
   session.timeout = setTimeout(() => {
     void finalizeBlindDraftSession(session, 'timeout');
-  }, BLIND_DRAFT_DURATION_MS);
+  }, DRAFT_TIMERS_MS.blind);
 }
 
 function fallbackToStandardPayload(request: VoteDraftRequest, message: string): Promise<DraftModeOutput> {

@@ -17,7 +17,7 @@ import {
 } from 'discord.js';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
+import { getGameVoteBanLimits, getVoteDurationMs } from '../config/draft.config.js';
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
@@ -36,7 +36,6 @@ import type {
 } from '../types/voting.types.js';
 import type { VoteDraftRequest } from '../types/draft.js';
 
-const VOTE_DURATION_MS = 10 * 60_000;
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
 
@@ -105,7 +104,7 @@ function cloneBanSubmission(bans: BanSubmission): BanSubmission {
 }
 
 function getBanLimits(v: GameVoteSession): Readonly<{ leader: number; civ: number }> {
-  return GAMEVOTE_BAN_LIMITS[v.edition];
+  return getGameVoteBanLimits(v.edition, v.startingAge);
 }
 
 function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSubmission {
@@ -1005,7 +1004,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       voterUsersById,
 
       startedAtMs: now,
-      endsAtMs: now + VOTE_DURATION_MS,
+      endsAtMs: now + getVoteDurationMs(args.edition),
       completedAtMs: null,
 
       phase: 'voting',
@@ -1031,7 +1030,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       isFinalized: false,
     };
 
-    v.timeout = setTimeout(() => void closeVote(v), VOTE_DURATION_MS);
+    v.timeout = setTimeout(() => void closeVote(v), getVoteDurationMs(args.edition));
 
     const init = await openInitialMessages(v, args.guild);
     if (!init.ok) {
