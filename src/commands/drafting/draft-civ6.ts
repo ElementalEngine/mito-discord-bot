@@ -7,8 +7,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { generateCiv6Draft, DraftError } from '../../services/draft.service.js';
-import { buildCiv6DraftEmbed } from '../../ui/embeds/draft.js';
+import { executeDraftCommand } from '../../services/drafting.service.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -104,22 +103,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     await interaction.deferReply();
 
-    const draft = generateCiv6Draft({
+    await executeDraftCommand(interaction, {
+      source: 'command',
+      edition: 'CIV6',
+      draftMode: 'standard',
       gameType: gameTypeRaw as GameType,
       numberPlayers,
       numberTeams,
       leaderBansRaw,
     });
-
-    const embed = buildCiv6DraftEmbed(draft);
-
-    await interaction.editReply({ embeds: [embed] });
   } catch (err: unknown) {
-    if (err instanceof DraftError) {
-      await replyError(interaction, `${EMOJI_ERROR} ${err.message}`);
-      return;
-    }
-
     console.error('draftciv6 failed', {
       err,
       guildId: interaction.guildId ?? null,

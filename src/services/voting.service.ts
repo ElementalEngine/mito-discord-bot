@@ -17,24 +17,13 @@ import {
 } from 'discord.js';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 
-import {
-  EMOJI_BAN_PANEL,
-  EMOJI_BANS,
-  EMOJI_CONFIRM,
-  EMOJI_EMPTY_SELECTION,
-  EMOJI_ERROR,
-  EMOJI_FAIL,
-  EMOJI_NEXT,
-  EMOJI_RANDOM,
-  EMOJI_VOTE_PANEL,
-  GAMEVOTE_BAN_LIMITS,
-} from '../config/constants.js';
+import { EMOJI_ERROR, GAMEVOTE_BAN_LIMITS } from '../config/constants.js';
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
-import { DraftError, generateCiv6Draft, generateCiv7Draft } from './draft.service.js';
-import { buildCiv6DraftEmbed, buildCiv7DraftEmbed } from '../ui/embeds/draft.js';
+import { executeVoteDraft } from './drafting.service.js';
+import { buildStandardDraftResult } from './draftmodes/standard.js';
 import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
 import type {
   GameVoteSession,
@@ -46,6 +35,7 @@ import type {
   VoteRecord,
   BanSubmission,
 } from '../types/voting.types.js';
+import type { VoteDraftRequest } from '../types/draft.js';
 
 const VOTE_DURATION_MS = 10 * 60_000;
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
@@ -383,12 +373,12 @@ function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<Butto
   const voteBtn = new ButtonBuilder()
     .setCustomId(`gv:ballot:${v.sessionId}`)
     .setStyle(ButtonStyle.Primary)
-    .setLabel(`${EMOJI_VOTE_PANEL} Vote Panel`);
+    .setLabel('🗳️ Vote Panel');
 
   const bansBtn = new ButtonBuilder()
     .setCustomId(`gv:ban:${v.sessionId}`)
     .setStyle(ButtonStyle.Primary)
-    .setLabel(`${EMOJI_BAN_PANEL} Ban Panel`);
+    .setLabel('🔨 Ban Panel');
 
   const finishBtn = new ButtonBuilder()
     .setCustomId(`gv:finishvote:${v.sessionId}`)
@@ -398,7 +388,7 @@ function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<Butto
   const randomizeBtn = new ButtonBuilder()
     .setCustomId(`gv:randomvote:${v.sessionId}`)
     .setStyle(ButtonStyle.Danger)
-    .setLabel(`${EMOJI_RANDOM} Randomize My Vote`);
+    .setLabel('🎲 Randomize My Vote');
 
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(voteBtn, bansBtn, finishBtn, randomizeBtn)];
 }
@@ -430,8 +420,8 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
     const pickId = staged.get(q.id);
     const pick = pickId ? q.options.find((o) => o.id === pickId) : undefined;
     const pickLabel = pick ? `${pick.emoji ? `${pick.emoji} ` : ''}${pick.label}` : '—';
-    const mark = pickId ? EMOJI_CONFIRM : EMOJI_EMPTY_SELECTION;
-    const cursor = q.id === activeQuestionId ? `${EMOJI_NEXT} ` : '';
+    const mark = pickId ? '✅' : '⬜';
+    const cursor = q.id === activeQuestionId ? '➡️ ' : '';
     return `${cursor}${mark} ${idx + 1}. ${q.title} — ${pickLabel}`;
   });
 
@@ -440,7 +430,7 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
     : '';
 
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_VOTE_PANEL} Vote Panel`)
+    .setTitle('🗳️ Vote Panel')
     .setDescription([header, '', lines.join('\n') || '—'].join('\n') + footer);
 }
 
@@ -568,10 +558,10 @@ function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder 
     'Choose one or more bans with the menus below, then press **Submit Bans**.',
     `**Leader bans (${leaderItems.length}):** ${clampBanList(leaderItems, 900)}`,
     v.edition === 'CIV7' ? `**Civ bans (${civItems.length}):** ${clampBanList(civItems, 900)}` : undefined,
-    submitted ? `${EMOJI_CONFIRM} **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.` : undefined,
+    submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
   ].filter(Boolean) as string[];
 
-  return new EmbedBuilder().setTitle(`${EMOJI_BANS} Bans`).setDescription(desc.join('\n'));
+  return new EmbedBuilder().setTitle('🛑 Bans').setDescription(desc.join('\n'));
 }
 
 function buildBansPanelComponents(
@@ -949,16 +939,6 @@ function getCiv7CivMeta(): Record<string, { gameId: string; emojiId?: string }> 
   return CIV7_CIVS as unknown as Record<string, { gameId: string; emojiId?: string }>;
 }
 
-function keysToColonTokens(keys: readonly string[], source: Record<string, { gameId: string }>): string {
-  return keys
-    .map((k) => {
-      const meta = source[k];
-      return meta?.gameId ? `:${meta.gameId}:` : '';
-    })
-    .filter(Boolean)
-    .join('\n');
-}
-
 function majorityBans<K extends string>(
   voterIds: readonly string[],
   perVoter: ReadonlyMap<string, ReadonlySet<K>>
@@ -980,7 +960,6 @@ function majorityBans<K extends string>(
   }
   return out;
 }
-
 
 function formatUnknownError(err: unknown): string {
   if (!err || typeof err !== 'object') return '';
@@ -1041,8 +1020,6 @@ async function openInitialMessages(
   }
 }
 
-
-
 async function finalizeCleanup(v: GameVoteSession): Promise<void> {
   if (v.timeout) { clearTimeout(v.timeout); v.timeout = null; }
   if (v.blindDraftTimeout) {
@@ -1053,7 +1030,7 @@ async function finalizeCleanup(v: GameVoteSession): Promise<void> {
   activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
 }
 
-async function publishDraftResult(v: GameVoteSession): Promise<void> {
+function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
   const leaderPerVoter = new Map<string, ReadonlySet<string>>();
   const civPerVoter = new Map<string, ReadonlySet<string>>();
 
@@ -1062,309 +1039,60 @@ async function publishDraftResult(v: GameVoteSession): Promise<void> {
     if (v.edition === 'CIV7' && bans.civKeys.length > 0) civPerVoter.set(id, new Set(bans.civKeys));
   }
 
-  const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
-  const bannedCivKeys = v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [];
+  return {
+    source: 'vote',
+    edition: v.edition,
+    draftMode: getDraftMode(v),
+    gameType: v.gameType,
+    startingAge: v.startingAge,
+    numberPlayers: v.gameType === 'FFA' ? v.voters.length : undefined,
+    numberTeams: v.gameType === 'Teamer' ? v.numberTeams : undefined,
+    voterIds: v.voterIds,
+    hostId: v.hostId,
+    commandChannel: v.commandChannel,
+    bannedLeaderKeys: majorityBans(v.voterIds, leaderPerVoter),
+    bannedCivKeys: v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [],
+    voterUsersById: v.voterUsersById,
+  };
+}
 
-  const leaderBansRaw =
-    v.edition === 'CIV6'
-      ? keysToColonTokens(bannedLeaderKeys, getCiv6LeaderMeta())
-      : keysToColonTokens(bannedLeaderKeys, getCiv7LeaderMeta());
+async function publishDraftResult(request: VoteDraftRequest): Promise<void> {
+  await executeVoteDraft(request);
+}
 
-  const civBansRaw = v.edition === 'CIV7'
-    ? keysToColonTokens(bannedCivKeys, getCiv7CivMeta())
-    : undefined;
 
-  const draftMode = getDraftMode(v);
-
-  // For FFA, numberPlayers comes from voter count.
-  const numberPlayers = v.gameType === 'FFA' ? v.voters.length : undefined;
-  const numberTeams = v.gameType === 'Teamer' ? v.numberTeams : undefined;
-
-  if (draftMode === 'snake') {
-    await publishSnake(v);
-    return;
-  }
-
-  if (draftMode === 'random') {
-    await publishRandom(v, bannedLeaderKeys, bannedCivKeys);
-    return;
-  }
-
-  if (draftMode === 'cwc') {
-    await publishCwc(v, bannedLeaderKeys, bannedCivKeys);
-    return;
-  }
-
+async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest): Promise<void> {
   try {
-    if (v.edition === 'CIV6') {
-      const draft = generateCiv6Draft({
-        gameType: v.gameType,
-        numberPlayers,
-        numberTeams,
-        leaderBansRaw,
-      });
-      await v.commandChannel.send({ embeds: [buildCiv6DraftEmbed(draft)] });
-      return;
-    }
-
-    const draft = generateCiv7Draft({
-      gameType: v.gameType,
-      startingAge: v.startingAge ?? 'Antiquity_Age',
-      numberPlayers,
-      numberTeams,
-      leaderBansRaw,
-      civBansRaw,
+    const draft = buildStandardDraftResult({
+      ...request,
+      draftMode: 'standard',
     });
-    await v.commandChannel.send({ embeds: [buildCiv7DraftEmbed(draft)] });
-  } catch (err: unknown) {
-    const msg = err instanceof DraftError ? err.message : 'Draft failed.';
-    await v.commandChannel.send({
-      content: `${EMOJI_ERROR} ${msg}`,
-      allowedMentions: { parse: [] as const },
-    });
-  }
-}
 
-async function publishSnake(v: GameVoteSession): Promise<void> {
-  const order = v.voterIds.slice();
-
-  const lines: string[] = [];
-  lines.push(`**Snake draft order** (${v.edition === 'CIV6' ? '1 round' : '2 rounds'})`);
-  lines.push('');
-  lines.push(
-    `Round 1: ${order.map((id: string, i: number) => `${i + 1}. <@${id}>`).join('  ')}`
-  );
-  if (v.edition === 'CIV7') {
-    const rev = order.slice().reverse();
-    lines.push('');
-    lines.push(
-      `Round 2: ${rev.map((id: string, i: number) => `${i + 1}. <@${id}>`).join('  ')}`
-    );
-  }
-  await v.commandChannel.send({
-    content: lines.join('\n'),
-    allowedMentions: { parse: [] as const },
-  });
-}
-
-async function publishRandom(
-  v: GameVoteSession,
-  bannedLeaderKeys: readonly string[],
-  bannedCivKeys: readonly string[]
-): Promise<void> {
-  const bannedLeaders = new Set(bannedLeaderKeys);
-  const bannedCivs = new Set(bannedCivKeys);
-
-  if (v.edition === 'CIV6') {
-    const pool = Object.keys(CIV6_LEADERS).filter((k) => !bannedLeaders.has(k));
-    const lines = v.voterIds.map((id: string) => {
-      const pick = pickRandom(pool);
-      return `• <@${id}> — **${CIV6_LEADERS[pick as keyof typeof CIV6_LEADERS].gameId}**`;
-    });
-    await v.commandChannel.send({
-      content: `${EMOJI_RANDOM} **Random leaders**\n${lines.join('\n')}`,
-      allowedMentions: { parse: [] as const },
-    });
-    return;
-  }
-
-  const leaderPool = Object.keys(CIV7_LEADERS).filter((k) => !bannedLeaders.has(k));
-  const allowAllAges = v.startingAge === 'None';
-  const civPool = Object.entries(CIV7_CIVS)
-    .filter(([key, meta]) => !bannedCivs.has(key) && (allowAllAges || meta.agePool === v.startingAge))
-    .map(([key]) => key);
-
-  const lines = v.voterIds.map((id: string) => {
-    const leaderKey = pickRandom(leaderPool);
-    const civKey = pickRandom(civPool);
-    const leader = CIV7_LEADERS[leaderKey as keyof typeof CIV7_LEADERS].gameId;
-    const civ = CIV7_CIVS[civKey as keyof typeof CIV7_CIVS].gameId;
-    return `• <@${id}> — **${civ}** + **${leader}**`;
-  });
-
-  await v.commandChannel.send({
-    content: `${EMOJI_RANDOM} **Random civs + leaders**\n${lines.join('\n')}`,
-    allowedMentions: { parse: [] as const },
-  });
-}
-
-async function publishCwc(
-  v: GameVoteSession,
-  bannedLeaderKeys: readonly string[],
-  bannedCivKeys: readonly string[]
-): Promise<void> {
-  if (v.gameType !== 'Teamer') {
-    await v.commandChannel.send({
-      content: `${EMOJI_FAIL} CWC is only available for **Teamer**.`,
-      allowedMentions: { parse: [] as const },
-    });
-    return;
-  }
-  if (v.numberTeams !== 2) {
-    await v.commandChannel.send({
-      content: `${EMOJI_FAIL} CWC requires **number-teams=2**. Use Standard instead.`,
-      allowedMentions: { parse: [] as const },
-    });
-    return;
-  }
-
-  // Expected CWC lobby format: 4v4 (8 voters).
-  if (v.voters.length !== 8) {
-    await v.commandChannel.send({
-      content: `${EMOJI_FAIL} CWC currently supports **8 players** (4v4). Use Standard instead.`,
-      allowedMentions: { parse: [] as const },
-    });
-    return;
-  }
-
-  const pickOrder = [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0] as const;
-
-  const leaderBanned = new Set(bannedLeaderKeys);
-  const civBanned = new Set(bannedCivKeys);
-
-  const leaderPoolAll =
-    v.edition === 'CIV6'
-      ? Object.keys(CIV6_LEADERS).filter((k) => !leaderBanned.has(k))
-      : Object.keys(CIV7_LEADERS).filter((k) => !leaderBanned.has(k));
-
-  const leadersPickPool = pickDistinctStable(leaderPoolAll, v.edition === 'CIV6' ? 20 : 20);
-
-  let civPickPool: string[] = [];
-  if (v.edition === 'CIV7') {
-    const allowAllAges = v.startingAge === 'None';
-    const civAll = Object.entries(CIV7_CIVS)
-      .filter(([key, meta]) => !civBanned.has(key) && (allowAllAges || meta.agePool === v.startingAge))
-      .map(([key]) => key);
-    civPickPool = pickDistinctStable(civAll, 14);
-  }
-
-  const lines: string[] = [];
-  lines.push('**CWC draft** (shared pool)');
-  if (v.edition === 'CIV7') {
-    lines.push(`Starting Age: **${v.startingAge ?? '—'}**`);
-  }
-  lines.push('');
-
-  const picksPerRound = 8;
-  if (v.edition === 'CIV6') {
-    lines.push('**Round 1 (Leaders)**');
-    for (let i = 0; i < picksPerRound; i++) {
-      lines.push(`Pick ${i + 1}: Team ${pickOrder[i] + 1}`);
-    }
-  } else {
-    lines.push('**Round 1 (Civs)**');
-    for (let i = 0; i < picksPerRound; i++) {
-      lines.push(`Pick ${i + 1}: Team ${pickOrder[i] + 1}`);
-    }
-    lines.push('');
-    lines.push('**Round 2 (Leaders)**');
-    for (let i = 0; i < picksPerRound; i++) {
-      lines.push(`Pick ${i + 1}: Team ${pickOrder[picksPerRound + i] + 1}`);
-    }
-  }
-
-  lines.push('');
-  if (v.edition === 'CIV7') {
-    lines.push(`**Shared Civ Pool (${civPickPool.length})**`);
-    for (const key of civPickPool) {
-      lines.push(`• ${CIV7_CIVS[key as keyof typeof CIV7_CIVS].gameId}`);
-    }
-    lines.push('');
-  }
-
-  lines.push(`**Shared Leader Pool (${leadersPickPool.length})**`);
-  for (const key of leadersPickPool) {
-    const meta =
-      v.edition === 'CIV6'
-        ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]
-        : CIV7_LEADERS[key as keyof typeof CIV7_LEADERS];
-    lines.push(`• ${meta.gameId}`);
-  }
-
-  await v.commandChannel.send({
-    content: lines.join('\n'),
-    allowedMentions: { parse: [] as const },
-  });
-}
-
-function pickDistinctStable<T>(pool: readonly T[], count: number): T[] {
-  if (count <= 0) return [];
-  const copy = pool.slice();
-  // shuffle copy
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = randomInt(0, i + 1);
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, Math.min(count, copy.length));
-}
-
-async function startBlindDraft(v: GameVoteSession): Promise<void> {
-  // Build a standard draft as the per-player pool to pick from.
-  const leaderPerVoter = new Map<string, ReadonlySet<string>>();
-  const civPerVoter = new Map<string, ReadonlySet<string>>();
-
-  for (const [id, bans] of v.bansByVoter.entries()) {
-    if (bans.leaderKeys.length > 0) leaderPerVoter.set(id, new Set(bans.leaderKeys));
-    if (v.edition === 'CIV7' && bans.civKeys.length > 0) civPerVoter.set(id, new Set(bans.civKeys));
-  }
-
-  const bannedLeaderKeys = majorityBans(v.voterIds, leaderPerVoter);
-  const bannedCivKeys = v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [];
-
-  const leaderBansRaw =
-    v.edition === 'CIV6'
-      ? keysToColonTokens(bannedLeaderKeys, getCiv6LeaderMeta())
-      : keysToColonTokens(bannedLeaderKeys, getCiv7LeaderMeta());
-
-  const civBansRaw = v.edition === 'CIV7'
-    ? keysToColonTokens(bannedCivKeys, getCiv7CivMeta())
-    : undefined;
-
-  const numberPlayers = v.gameType === 'FFA' ? v.voters.length : undefined;
-  const numberTeams = undefined;
-
-  try {
-    if (v.edition === 'CIV6') {
-      const draft = generateCiv6Draft({
-        gameType: v.gameType,
-        numberPlayers,
-        numberTeams,
-        leaderBansRaw,
-      });
-      for (let i = 0; i < v.voterIds.length; i++) {
-        const voterId = v.voterIds[i];
-        const g = draft.groups[i];
-        v.blindDraftPools.set(voterId, { leaders: g.leaders });
-        v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
-      }
-    } else {
-      const draft = generateCiv7Draft({
-        gameType: v.gameType,
-        startingAge: v.startingAge ?? 'Antiquity_Age',
-        numberPlayers,
-        numberTeams,
-        leaderBansRaw,
-        civBansRaw,
-      });
-      for (let i = 0; i < v.voterIds.length; i++) {
-        const voterId = v.voterIds[i];
-        const g = draft.groups[i];
-        v.blindDraftPools.set(voterId, { leaders: g.leaders, civs: g.civs ?? [] });
-        v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
-      }
+    for (let i = 0; i < v.voterIds.length; i++) {
+      const voterId = v.voterIds[i];
+      const group = draft.groups[i];
+      v.blindDraftPools.set(
+        voterId,
+        v.edition === 'CIV6'
+          ? { leaders: group.leaders }
+          : { leaders: group.leaders, civs: group.civs ?? [] }
+      );
+      v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
     }
   } catch (err: unknown) {
-    const msg = err instanceof DraftError ? err.message : 'Blind draft setup failed.';
+    const message = err instanceof Error ? err.message : 'Blind draft setup failed.';
     await v.commandChannel.send({
-      content: `${EMOJI_ERROR} ${msg}`,
+      content: `${EMOJI_ERROR} ${message}`,
       allowedMentions: { parse: [] as const },
     });
+
     v.isFinalized = true;
     v.phase = 'final';
     v.status = 'completed';
     v.completedAtMs = Date.now();
+
     await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-    await publishDraftResult(v);
+    await executeVoteDraft({ ...request, draftMode: 'standard' });
     await finalizeCleanup(v);
     return;
   }
@@ -1374,32 +1102,29 @@ async function startBlindDraft(v: GameVoteSession): Promise<void> {
   v.completedAtMs = Date.now();
   v.blindDraftEndsAtMs = Date.now() + BLIND_DRAFT_DURATION_MS;
 
-  // Update public status message.
   await safeEditMessage(v.publicMessage, buildRenderPayload(v));
 
-  
-// Push pick UI to each DM (create a DM message if needed).
-const basePayload = buildRenderPayload(v);
+  const basePayload = buildRenderPayload(v);
 
-await forEachLimit<string>(v.voterIds, DM_CONCURRENCY, async (id) => {
-  const rows = buildBlindPickComponents({ session: v, voterId: id });
+  await forEachLimit<string>(v.voterIds, DM_CONCURRENCY, async (id) => {
+    const rows = buildBlindPickComponents({ session: v, voterId: id });
 
-  const existing = v.dmMessages.get(id);
-  if (existing) {
-    await safeEditMessage(existing, { ...basePayload, components: rows });
-    return;
-  }
+    const existing = v.dmMessages.get(id);
+    if (existing) {
+      await safeEditMessage(existing, { ...basePayload, components: rows });
+      return;
+    }
 
-  const user = v.voterUsersById.get(id);
-  if (!user) return;
+    const user = v.voterUsersById.get(id);
+    if (!user) return;
 
-  try {
-    const dmMsg = await user.send({ ...basePayload, components: rows });
-    v.dmMessages.set(id, dmMsg);
-  } catch (err) {
-    console.info('[gamevote] dm send failed', { sessionId: v.sessionId, voterId: id, err });
-  }
-});
+    try {
+      const dmMsg = await user.send({ ...basePayload, components: rows });
+      v.dmMessages.set(id, dmMsg);
+    } catch (err) {
+      console.info('[gamevote] dm send failed', { sessionId: v.sessionId, voterId: id, err });
+    }
+  });
 
   v.blindDraftTimeout = setTimeout(() => {
     void finalizeBlindDraft(v, 'timeout');
@@ -1439,7 +1164,7 @@ async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'compl
   }
 
   const lines: string[] = [];
-  lines.push(`${EMOJI_CONFIRM} **Blind draft results** (${reason === 'timeout' ? 'timeout' : 'complete'})`);
+  lines.push(`✅ **Blind draft results** (${reason === 'timeout' ? 'timeout' : 'complete'})`);
   lines.push('');
   for (const id of v.voterIds) {
     const pick = v.blindDraftPicks.get(id);
@@ -1508,8 +1233,12 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   v.status = 'completed';
   v.completedAtMs = Date.now();
 
-  if (getDraftMode(v) === 'blind') {
-    await startBlindDraft(v);
+  const request = buildVoteDraftRequest(v);
+
+  if (request.draftMode === 'blind') {
+    await executeVoteDraft(request, {
+      startBlindDraft: async (blindRequest) => startBlindDraft(v, blindRequest),
+    });
     return;
   }
 
@@ -1517,7 +1246,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   v.isFinalized = true;
 
   await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-  await publishDraftResult(v);
+  await publishDraftResult(request);
   await finalizeCleanup(v);
 }
 

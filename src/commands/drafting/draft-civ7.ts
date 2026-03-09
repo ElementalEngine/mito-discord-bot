@@ -8,8 +8,7 @@ import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
 import type { AgePool } from '../../data/index.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { DraftError, generateCiv7Draft } from '../../services/draft.service.js';
-import { buildCiv7DraftEmbed } from '../../ui/embeds/draft.js';
+import { executeDraftCommand } from '../../services/drafting.service.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -132,7 +131,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     await interaction.deferReply();
 
-    const draft = generateCiv7Draft({
+    await executeDraftCommand(interaction, {
+      source: 'command',
+      edition: 'CIV7',
+      draftMode: 'standard',
       gameType: gameTypeRaw as GameType,
       startingAge: startingAgeRaw as AgePool,
       numberPlayers,
@@ -140,16 +142,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       leaderBansRaw,
       civBansRaw,
     });
-
-    const embed = buildCiv7DraftEmbed(draft);
-
-    await interaction.editReply({ embeds: [embed] });
   } catch (err: unknown) {
-    if (err instanceof DraftError) {
-      await replyError(interaction, `${EMOJI_ERROR} ${err.message}`);
-      return;
-    }
-
     console.error('draftciv7 failed', {
       err,
       guildId: interaction.guildId ?? null,

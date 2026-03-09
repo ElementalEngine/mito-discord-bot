@@ -1,3 +1,5 @@
+import type { DraftMode } from '../types/draft.js';
+
 export type CivEdition = 'CIV6' | 'CIV7';
 
 export type VoteEmoji = string;
@@ -15,7 +17,7 @@ export type VoteQuestion = Readonly<{
   defaultOptionId: string;
 }>;
 
-export type DraftModeId = 'standard' | 'snake' | 'random' | 'cwc' | 'blind';
+export type DraftModeId = DraftMode;
 
 export type GameVoteConfig = Readonly<{
   questions: readonly VoteQuestion[];
