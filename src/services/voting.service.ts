@@ -23,8 +23,9 @@ import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
 import { executeVoteDraft } from './drafting.service.js';
-import { buildStandardDraftResult } from './draftmodes/standard.js';
+import { buildBlindDraftResultOutput } from './draftmodes/blind.js';
 import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
+import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../ui/components/blind-draft.js';
 import type {
   GameVoteSession,
   GameVoteDraftMode,
@@ -36,6 +37,7 @@ import type {
   BanSubmission,
 } from '../types/voting.types.js';
 import type { VoteDraftRequest } from '../types/draft.js';
+import type { BlindDraftLaunch } from '../types/drafting.types.js';
 
 const VOTE_DURATION_MS = 10 * 60_000;
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
@@ -697,112 +699,27 @@ function buildBansPanelPayload(v: GameVoteSession, voterId: string): Interaction
   };
 }
 
-function buildBlindPickComponents(args: Readonly<{
-  session: GameVoteSession;
-  voterId: string;
-}>): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
-  const v = args.session;
-  const pools = v.blindDraftPools.get(args.voterId);
+function getBlindDraftComponents(v: GameVoteSession, voterId: string): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
+  const pools = v.blindDraftPools.get(voterId);
   if (!pools) return [];
 
-  const state = v.blindDraftPages.get(args.voterId) ?? { civPage: 0, leaderPage: 0 };
-  const navButtons: ButtonBuilder[] = [];
-  const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
+  const currentState = v.blindDraftPages.get(voterId) ?? { civPage: 0, leaderPage: 0 };
+  const state = clampBlindDraftPageState({
+    edition: v.edition,
+    pools,
+    state: currentState,
+  });
 
-  if (v.edition === 'CIV7' && pools.civs) {
-    const totalPages = Math.max(1, Math.ceil(pools.civs.length / BLIND_MENU_PAGE_SIZE));
-    const civPage = Math.max(0, Math.min(state.civPage, totalPages - 1));
-    if (civPage !== state.civPage) {
-      v.blindDraftPages.set(args.voterId, { ...state, civPage });
-    }
-
-    const pageKeys = pools.civs.slice(
-      civPage * BLIND_MENU_PAGE_SIZE,
-      (civPage + 1) * BLIND_MENU_PAGE_SIZE
-    );
-
-    const civMenu = new StringSelectMenuBuilder()
-      .setCustomId(`gv:pick:civ:${v.sessionId}`)
-      .setPlaceholder(
-        totalPages > 1 ? `Pick your civ (Page ${civPage + 1}/${totalPages})` : 'Pick your civ'
-      )
-      .setMinValues(1)
-      .setMaxValues(1)
-      .addOptions(
-        pageKeys.map((key: string) => {
-          const meta = CIV7_CIVS[key as keyof typeof CIV7_CIVS];
-          return { label: meta.gameId, value: key };
-        })
-      );
-    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
-
-    if (totalPages > 1) {
-      navButtons.push(
-        new ButtonBuilder()
-          .setCustomId(`gv:nav:civ:prev:${v.sessionId}`)
-          .setStyle(ButtonStyle.Secondary)
-          .setLabel('◀ Back')
-          .setDisabled(civPage <= 0),
-        new ButtonBuilder()
-          .setCustomId(`gv:nav:civ:next:${v.sessionId}`)
-          .setStyle(ButtonStyle.Secondary)
-          .setLabel('Next ▶')
-          .setDisabled(civPage >= totalPages - 1)
-      );
-    }
+  if (state.civPage !== currentState.civPage || state.leaderPage !== currentState.leaderPage) {
+    v.blindDraftPages.set(voterId, state);
   }
 
-  const leaderTotalPages = Math.max(1, Math.ceil(pools.leaders.length / BLIND_MENU_PAGE_SIZE));
-  const leaderPage = Math.max(0, Math.min(state.leaderPage, leaderTotalPages - 1));
-  if (leaderPage !== state.leaderPage) {
-    v.blindDraftPages.set(args.voterId, { ...state, leaderPage });
-  }
-
-  const leaderPageKeys = pools.leaders.slice(
-    leaderPage * BLIND_MENU_PAGE_SIZE,
-    (leaderPage + 1) * BLIND_MENU_PAGE_SIZE
-  );
-
-  const leaderMenu = new StringSelectMenuBuilder()
-    .setCustomId(`gv:pick:leader:${v.sessionId}`)
-    .setPlaceholder(
-      leaderTotalPages > 1
-        ? `Pick your leader (Page ${leaderPage + 1}/${leaderTotalPages})`
-        : 'Pick your leader'
-    )
-    .setMinValues(1)
-    .setMaxValues(1)
-    .addOptions(
-      leaderPageKeys.map((key: string) => {
-        const meta =
-          v.edition === 'CIV6'
-            ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]
-            : CIV7_LEADERS[key as keyof typeof CIV7_LEADERS];
-        return { label: meta.gameId, value: key };
-      })
-    );
-  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(leaderMenu));
-
-  if (leaderTotalPages > 1) {
-    navButtons.push(
-      new ButtonBuilder()
-        .setCustomId(`gv:nav:leader:prev:${v.sessionId}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Back')
-        .setDisabled(leaderPage <= 0),
-      new ButtonBuilder()
-        .setCustomId(`gv:nav:leader:next:${v.sessionId}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setLabel('Next ▶')
-        .setDisabled(leaderPage >= leaderTotalPages - 1)
-    );
-  }
-
-  if (navButtons.length) {
-    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(navButtons));
-  }
-
-  return rows;
+  return buildBlindDraftPickComponents({
+    edition: v.edition,
+    sessionId: v.sessionId,
+    pools,
+    state,
+  });
 }
 
 function buildRenderPayload(v: GameVoteSession): RenderPayload {
@@ -1061,28 +978,10 @@ async function publishDraftResult(request: VoteDraftRequest): Promise<void> {
 }
 
 
-async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest): Promise<void> {
-  try {
-    const draft = buildStandardDraftResult({
-      ...request,
-      draftMode: 'standard',
-    });
-
-    for (let i = 0; i < v.voterIds.length; i++) {
-      const voterId = v.voterIds[i];
-      const group = draft.groups[i];
-      v.blindDraftPools.set(
-        voterId,
-        v.edition === 'CIV6'
-          ? { leaders: group.leaders }
-          : { leaders: group.leaders, civs: group.civs ?? [] }
-      );
-      v.blindDraftPages.set(voterId, { civPage: 0, leaderPage: 0 });
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Blind draft setup failed.';
+async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest, launch: BlindDraftLaunch): Promise<void> {
+  if (!launch.ok) {
     await v.commandChannel.send({
-      content: `${EMOJI_ERROR} ${message}`,
+      content: `${EMOJI_ERROR} ${launch.message}`,
       allowedMentions: { parse: [] as const },
     });
 
@@ -1097,6 +996,16 @@ async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest): P
     return;
   }
 
+  for (const assignment of launch.assignments) {
+    v.blindDraftPools.set(
+      assignment.voterId,
+      v.edition === 'CIV6'
+        ? { leaders: assignment.leaders }
+        : { leaders: assignment.leaders, civs: assignment.civs ?? [] }
+    );
+    v.blindDraftPages.set(assignment.voterId, { civPage: 0, leaderPage: 0 });
+  }
+
   v.phase = 'blind_draft';
   v.status = 'completed';
   v.completedAtMs = Date.now();
@@ -1107,7 +1016,7 @@ async function startBlindDraft(v: GameVoteSession, request: VoteDraftRequest): P
   const basePayload = buildRenderPayload(v);
 
   await forEachLimit<string>(v.voterIds, DM_CONCURRENCY, async (id) => {
-    const rows = buildBlindPickComponents({ session: v, voterId: id });
+    const rows = getBlindDraftComponents(v, id);
 
     const existing = v.dmMessages.get(id);
     if (existing) {
@@ -1163,33 +1072,14 @@ async function finalizeBlindDraft(v: GameVoteSession, reason: 'timeout' | 'compl
     v.blindDraftPicks.set(id, pick);
   }
 
-  const lines: string[] = [];
-  lines.push(`✅ **Blind draft results** (${reason === 'timeout' ? 'timeout' : 'complete'})`);
-  lines.push('');
-  for (const id of v.voterIds) {
-    const pick = v.blindDraftPicks.get(id);
-    if (!pick) continue;
-    const mark = pick.defaulted ? ' *(defaulted)*' : '';
-    if (v.edition === 'CIV6') {
-      const leader = pick.leaderKey
-        ? CIV6_LEADERS[pick.leaderKey as keyof typeof CIV6_LEADERS].gameId
-        : '—';
-      lines.push(`• <@${id}> — **${leader}**${mark}`);
-    } else {
-      const civ = pick.civKey
-        ? CIV7_CIVS[pick.civKey as keyof typeof CIV7_CIVS].gameId
-        : '—';
-      const leader = pick.leaderKey
-        ? CIV7_LEADERS[pick.leaderKey as keyof typeof CIV7_LEADERS].gameId
-        : '—';
-      lines.push(`• <@${id}> — **${civ}** + **${leader}**${mark}`);
-    }
-  }
-
-  await v.commandChannel.send({
-    content: lines.join('\n'),
-    allowedMentions: { parse: [] as const },
+  const resultPayload = buildBlindDraftResultOutput({
+    edition: v.edition,
+    voterIds: v.voterIds,
+    picks: v.blindDraftPicks,
+    reason,
   });
+
+  await v.commandChannel.send(resultPayload);
 
   v.phase = 'final';
   v.status = 'completed';
@@ -1237,7 +1127,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
 
   if (request.draftMode === 'blind') {
     await executeVoteDraft(request, {
-      startBlindDraft: async (blindRequest) => startBlindDraft(v, blindRequest),
+      startBlindDraft: async (blindRequest, launch) => startBlindDraft(v, blindRequest, launch),
     });
     return;
   }
@@ -1456,7 +1346,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
 
     v.blindDraftPicks.set(userId, pick);
 
-    const components = buildBlindPickComponents({ session: v, voterId: userId });
+    const components = getBlindDraftComponents(v, userId);
 
     await interaction.update({ components });
 
@@ -1758,7 +1648,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     const updated = key === 'civPage' ? { ...pages, civPage: page } : { ...pages, leaderPage: page };
     v.blindDraftPages.set(userId, updated);
 
-    const components = buildBlindPickComponents({ session: v, voterId: userId });
+    const components = getBlindDraftComponents(v, userId);
     await interaction.update({ components });
 
     return true;

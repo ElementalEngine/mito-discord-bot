@@ -1,6 +1,6 @@
 import type { VoteDraftRequest } from '../../types/draft.js';
 import { DraftError } from '../draft.service.js';
-import type { DraftModeOutput } from '../drafting.service.js';
+import type { DraftModeOutput } from '../../types/drafting.types.js';
 
 export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<DraftModeOutput> {
   if (request.source !== 'vote') {

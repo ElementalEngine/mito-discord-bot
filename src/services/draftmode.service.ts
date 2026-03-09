@@ -1,5 +1,5 @@
 import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.js';
-import type { DraftModeOutput } from './drafting.service.js';
+import type { BlindDraftLaunch, DraftModeOutput } from '../types/drafting.types.js';
 import { runBlindDraftMode } from './draftmodes/blind.js';
 import { runCwcDraftMode } from './draftmodes/cwc.js';
 import { runRandomDraftMode } from './draftmodes/random.js';
@@ -7,7 +7,7 @@ import { runSnakeDraftMode } from './draftmodes/snake.js';
 import { runStandardDraftMode } from './draftmodes/standard.js';
 
 export type DraftModeDeps = Readonly<{
-  startBlindDraft?: (request: VoteDraftRequest) => Promise<void>;
+  startBlindDraft?: (request: VoteDraftRequest, launch: BlindDraftLaunch) => Promise<void>;
 }>;
 
 export async function executeDraftMode(

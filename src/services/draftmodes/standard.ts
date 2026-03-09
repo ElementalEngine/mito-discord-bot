@@ -2,7 +2,7 @@ import type { Civ6DraftResult, Civ7DraftResult, DraftCommandRequest, VoteDraftRe
 import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
 import { buildCiv6DraftEmbed, buildCiv7DraftEmbed } from '../../ui/embeds/draft.js';
-import type { DraftModeOutput } from '../drafting.service.js';
+import type { DraftModeOutput } from '../../types/drafting.types.js';
 import { generateCiv6Draft, generateCiv7Draft } from '../draft.service.js';
 
 function keysToColonTokens(

@@ -65,6 +65,8 @@ export type {
   StartSecretVoteResult,
 } from './secretvote.types.js';
 
+export type { BlindDraftAssignment, BlindDraftLaunch, DraftModeOutput } from './drafting.types.js';
+
 export type { Leaderboard } from '../data/types.js';
 
 export type {

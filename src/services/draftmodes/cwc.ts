@@ -5,7 +5,7 @@ import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
 import type { VoteDraftRequest } from '../../types/draft.js';
 import { DraftError } from '../draft.service.js';
-import type { DraftModeOutput } from '../drafting.service.js';
+import type { DraftModeOutput } from '../../types/drafting.types.js';
 
 function pickDistinctStable<T>(pool: readonly T[], count: number): T[] {
   if (count <= 0) return [];

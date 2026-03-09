@@ -1,18 +1,13 @@
-import type { ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { EMOJI_ERROR } from '../config/constants.js';
 import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.js';
+import type { BlindDraftLaunch } from '../types/drafting.types.js';
 import { DraftError } from './draft.service.js';
 import { executeDraftMode } from './draftmode.service.js';
 
-export type DraftModeOutput = Readonly<{
-  content?: string;
-  embeds?: readonly EmbedBuilder[];
-  allowedMentions?: Readonly<{ parse: readonly [] }>;
-}>;
-
 type VoteDraftingDeps = Readonly<{
-  startBlindDraft?: (request: VoteDraftRequest) => Promise<void>;
+  startBlindDraft?: (request: VoteDraftRequest, launch: BlindDraftLaunch) => Promise<void>;
 }>;
 
 export async function executeDraftCommand(
