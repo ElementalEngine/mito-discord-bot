@@ -17,7 +17,7 @@ import {
 } from 'discord.js';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { getGameVoteBanLimits, getVoteDurationMs } from '../config/draft.config.js';
+import { getGameVoteBanLimits } from '../config/draft.config.js';;
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
@@ -34,8 +34,9 @@ import type {
   VoteRecord,
   BanSubmission,
 } from '../types/voting.types.js';
-import type { VoteDraftRequest } from '../types/draft.js';
+import type { VoteDraftRequest } from '../types/draft.types.js';
 
+const VOTE_DURATION_MS = 10 * 60_000;
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
 
@@ -677,6 +678,7 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     gameType: v.gameType,
     startingAge: v.startingAge,
     status: v.status,
+    phase: v.phase,
     startedAtMs: v.startedAtMs,
     endsAtMs: v.endsAtMs,
     completedAtMs: v.completedAtMs,
@@ -949,7 +951,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   ensureLockedAll(v);
   v.status = 'completed';
   v.completedAtMs = Date.now();
-  v.phase = 'final';
+  v.phase = getDraftMode(v) === 'blind' ? 'blind_draft' : 'final';
   v.isFinalized = true;
 
   const request = buildVoteDraftRequest(v);
@@ -1003,7 +1005,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       voterUsersById,
 
       startedAtMs: now,
-      endsAtMs: now + getVoteDurationMs(args.edition),
+      endsAtMs: now + VOTE_DURATION_MS,
       completedAtMs: null,
 
       phase: 'voting',
@@ -1029,7 +1031,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       isFinalized: false,
     };
 
-    v.timeout = setTimeout(() => void closeVote(v), getVoteDurationMs(args.edition));
+    v.timeout = setTimeout(() => void closeVote(v), VOTE_DURATION_MS);
 
     const init = await openInitialMessages(v, args.guild);
     if (!init.ok) {

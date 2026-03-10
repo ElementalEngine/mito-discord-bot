@@ -1,12 +1,12 @@
 import type { Guild, Message, SendableChannels, User } from 'discord.js';
 
 import type { VoteQuestion } from '../config/types.js';
-import type { DraftGameType, DraftMode } from './draft.js';
+import type { DraftGameType, DraftMode } from './draft.types.js';
 import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 import type { VoterUser } from '../utils/types.js';
 
-export type GameVotePhase = 'voting' | 'final';
+export type GameVotePhase = 'voting' | 'blind_draft' | 'final';
 export type GameVoteStatus = 'in_progress' | 'completed' | 'closed';
 
 export type GameVoteDraftMode = DraftMode;

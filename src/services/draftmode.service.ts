@@ -1,4 +1,4 @@
-import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.js';
+import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.types.js';
 import type { DraftModeOutput } from '../types/drafting.types.js';
 import { runBlindDraftMode } from './draftmodes/blind.js';
 import { runCwcDraftMode } from './draftmodes/cwc.js';

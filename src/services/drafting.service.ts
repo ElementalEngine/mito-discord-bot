@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { EMOJI_ERROR } from '../config/constants.js';
-import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.js';
+import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.types.js';
 import type { DraftMessagePayload, DraftModeOutput } from '../types/drafting.types.js';
 import { DraftError } from './draft.service.js';
 import { executeDraftMode } from './draftmode.service.js';

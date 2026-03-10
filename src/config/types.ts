@@ -1,4 +1,4 @@
-import type { DraftMode } from '../types/draft.js';
+import type { DraftMode } from '../types/draft.types.js';
 
 export type CivEdition = 'CIV6' | 'CIV7';
 

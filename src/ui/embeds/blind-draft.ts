@@ -4,7 +4,6 @@ import { EMOJI_LOCK } from '../../config/constants.js';
 import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
-import { humanizeGameId } from '../../utils/humanize-game-id.js';
 import type { BlindDraftPick } from '../../types/drafting.types.js';
 
 function ts(ms: number, style: 't' | 'f' | 'R'): string {
@@ -14,13 +13,13 @@ function ts(ms: number, style: 't' | 'f' | 'R'): string {
 function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return 'Not selected';
   return edition === 'CIV6'
-    ? `${formatCiv6Leader(key)} ${humanizeGameId(lookupCiv6Leader(key))}`
-    : `${formatCiv7Leader(key)} ${humanizeGameId(lookupCiv7Leader(key))}`;
+    ? `${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`
+    : `${formatCiv7Leader(key)} ${lookupCiv7Leader(key)}`;
 }
 
 function civLine(key?: string): string {
   if (!key) return 'Not selected';
-  return `${formatCiv7Civ(key)} ${humanizeGameId(lookupCiv7Civ(key))}`;
+  return `${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`;
 }
 
 function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {

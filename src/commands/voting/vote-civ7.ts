@@ -8,16 +8,13 @@ import {
 
 import { config } from '../../config.js';
 import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
-import { getDraftLimits, getVoteDurationMs } from '../../config/draft.config.js';
 import { startGameVote } from '../../services/voting.service.js';
-import type { DraftGameType } from '../../types/draft.js';
+import type { DraftGameType } from '../../types/draft.types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 
 const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
-const LIMITS = getDraftLimits('CIV7');
-const VOTE_DURATION_MINUTES = getVoteDurationMs('CIV7') / 60_000;
 const STARTING_AGES = [
   'Antiquity_Age',
   'Exploration_Age',
@@ -171,25 +168,22 @@ export async function execute(
       return;
     }
 
-    if (gameType === 'FFA' && (voters.length < LIMITS.FFA.minUsers || voters.length > LIMITS.FFA.maxUsers)) {
+    if (gameType === 'FFA' && (voters.length < 2 || voters.length > 10)) {
       await replyEphemeral(
         interaction,
-        `${EMOJI_FAIL} Civ7 FFA requires **${LIMITS.FFA.minUsers}–${LIMITS.FFA.maxUsers}** voters (you have **${voters.length}** after adjustments).`
+        `${EMOJI_FAIL} Civ7 FFA requires **2–10** voters (you have **${voters.length}** after adjustments).`
       );
       return;
     }
 
     if (gameType === 'Teamer') {
       const teams = numberTeams ?? 0;
-      if (voters.length < LIMITS.Teamer.minUsers || voters.length > LIMITS.Teamer.maxUsers) {
-        await replyEphemeral(
-          interaction,
-          `${EMOJI_FAIL} Teamer requires **${LIMITS.Teamer.minUsers}–${LIMITS.Teamer.maxUsers}** voters (you have **${voters.length}** after adjustments).`,
-        );
+      if (voters.length < 2) {
+        await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires at least **2** voters.`);
         return;
       }
-      if (teams < LIMITS.Teamer.minTeams || teams > LIMITS.Teamer.maxTeams) {
-        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **${LIMITS.Teamer.minTeams}–${LIMITS.Teamer.maxTeams}**.`);
+      if (teams < 2 || teams > 5) {
+        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–5**.`);
         return;
       }
       if (voters.length % teams !== 0) {
@@ -226,7 +220,7 @@ export async function execute(
 
     await replyEphemeral(
       interaction,
-      `${EMOJI_CONFIRM} Vote started • ${VOTE_DURATION_MINUTES} minutes\n` +
+      `${EMOJI_CONFIRM} Vote started • 10 minutes\n` +
         `Voters: **${voters.length}** • Mode: **${gameType}** • Age: **${startingAge}**\n` +
         `Panel: <#${interaction.channelId}>`
     );

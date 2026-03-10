@@ -26,8 +26,9 @@ export type {
 } from '../utils/types.js';
 
 // Feature/domain types (commands/services/ui)
-export type { DraftGameType } from './draft.js';
 export type {
+  DraftGameType,
+  DraftMode,
   Civ6DraftRequest,
   Civ7DraftRequest,
   DraftAllocation,
@@ -35,7 +36,15 @@ export type {
   DraftGroupKind,
   Civ6DraftResult,
   Civ7DraftResult,
-} from './draft.js';
+  DraftCommandRequest,
+  VoteDraftRequest,
+  DraftRequest,
+} from './draft.types.js';
+
+export {
+  DRAFT_GAME_TYPES,
+  DRAFT_MODES,
+} from './draft.types.js';
 
 export type {
   BanSubmission,

@@ -1,17 +1,20 @@
+import { randomInt } from 'node:crypto';
+
 import { EMOJI_FAIL } from '../../config/constants.js';
-import { CWC_PICK_ORDER } from '../../config/draft.config.js';
 import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
-import type { VoteDraftRequest } from '../../types/draft.js';
+import type { VoteDraftRequest } from '../../types/draft.types.js';
 import { DraftError } from '../draft.service.js';
 import type { DraftModeOutput } from '../../types/drafting.types.js';
 
-function buildPickLines(roundLabel: string, pickCount: number): string[] {
-  const lines = [`**${roundLabel}**`];
-  for (let i = 0; i < pickCount; i += 1) {
-    lines.push(`Pick ${i + 1}: Team ${CWC_PICK_ORDER[i] + 1}`);
+function pickDistinctStable<T>(pool: readonly T[], count: number): T[] {
+  if (count <= 0) return [];
+  const copy = pool.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = randomInt(0, i + 1);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return lines;
+  return copy.slice(0, Math.min(count, copy.length));
 }
 
 export async function runCwcDraftMode(request: VoteDraftRequest): Promise<DraftModeOutput> {
@@ -31,52 +34,65 @@ export async function runCwcDraftMode(request: VoteDraftRequest): Promise<DraftM
       allowedMentions: { parse: [] as const },
     };
   }
-
-  const teamSize = request.voterIds.length / 2;
-  if (!Number.isInteger(teamSize) || teamSize < 2 || teamSize > 8) {
+  if (request.voterIds.length !== 8) {
     return {
-      content: `${EMOJI_FAIL} CWC supports **2v2** through **8v8** only. Use Standard instead.`,
+      content: `${EMOJI_FAIL} CWC currently supports **8 players** (4v4). Use Standard instead.`,
       allowedMentions: { parse: [] as const },
     };
   }
 
-  const pickCount = request.voterIds.length;
+  const pickOrder = [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0] as const;
   const bannedLeaders = new Set(request.bannedLeaderKeys);
   const bannedCivs = new Set(request.bannedCivKeys);
 
-  const leaderPool = request.edition === 'CIV6'
-    ? Object.keys(CIV6_LEADERS).filter((key) => !bannedLeaders.has(key))
-    : Object.keys(CIV7_LEADERS).filter((key) => !bannedLeaders.has(key));
+  const leaderPoolAll =
+    request.edition === 'CIV6'
+      ? Object.keys(CIV6_LEADERS).filter((key) => !bannedLeaders.has(key))
+      : Object.keys(CIV7_LEADERS).filter((key) => !bannedLeaders.has(key));
 
-  const lines: string[] = ['**CWC draft** (shared pool)'];
+  const leadersPickPool = pickDistinctStable(leaderPoolAll, 20);
+
+  let civPickPool: string[] = [];
+  if (request.edition === 'CIV7') {
+    const allowAllAges = request.startingAge === 'None';
+    const civAll = Object.entries(CIV7_CIVS)
+      .filter(([key, meta]) => !bannedCivs.has(key) && (allowAllAges || meta.agePool === request.startingAge))
+      .map(([key]) => key);
+    civPickPool = pickDistinctStable(civAll, 14);
+  }
+
+  const lines: string[] = [];
+  lines.push('**CWC draft** (shared pool)');
   if (request.edition === 'CIV7') {
     lines.push(`Starting Age: **${request.startingAge ?? '—'}**`);
   }
   lines.push('');
-  lines.push(...buildPickLines('Round 1 — Leaders', pickCount));
 
-  if (request.edition === 'CIV7') {
+  const picksPerRound = 8;
+  if (request.edition === 'CIV6') {
+    lines.push('**Round 1 (Leaders)**');
+    for (let i = 0; i < picksPerRound; i++) lines.push(`Pick ${i + 1}: Team ${pickOrder[i] + 1}`);
+  } else {
+    lines.push('**Round 1 (Civs)**');
+    for (let i = 0; i < picksPerRound; i++) lines.push(`Pick ${i + 1}: Team ${pickOrder[i] + 1}`);
     lines.push('');
-    lines.push(...buildPickLines('Round 2 — Civs', pickCount));
+    lines.push('**Round 2 (Leaders)**');
+    for (let i = 0; i < picksPerRound; i++) lines.push(`Pick ${i + 1}: Team ${pickOrder[picksPerRound + i] + 1}`);
   }
 
   lines.push('');
-  lines.push(`**Shared Leader Pool (${leaderPool.length})**`);
-  for (const key of leaderPool) {
+  if (request.edition === 'CIV7') {
+    lines.push(`**Shared Civ Pool (${civPickPool.length})**`);
+    for (const key of civPickPool) lines.push(`• ${CIV7_CIVS[key as keyof typeof CIV7_CIVS].gameId}`);
+    lines.push('');
+  }
+
+  lines.push(`**Shared Leader Pool (${leadersPickPool.length})**`);
+  for (const key of leadersPickPool) {
     const meta = request.edition === 'CIV6'
       ? CIV6_LEADERS[key as keyof typeof CIV6_LEADERS]
       : CIV7_LEADERS[key as keyof typeof CIV7_LEADERS];
     lines.push(`• ${meta.gameId}`);
-  }
-
-  if (request.edition === 'CIV7') {
-    const allowAllAges = request.startingAge === 'None';
-    const civPool = Object.entries(CIV7_CIVS)
-      .filter(([key, meta]) => !bannedCivs.has(key) && (allowAllAges || meta.agePool === request.startingAge))
-      .map(([, meta]) => meta.gameId);
-    lines.push('');
-    lines.push(`**Shared Civ Pool (${civPool.length})**`);
-    for (const civ of civPool) lines.push(`• ${civ}`);
   }
 
   return {

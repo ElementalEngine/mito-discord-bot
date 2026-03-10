@@ -9,11 +9,11 @@ import type {
 } from 'discord.js';
 
 import { EMOJI_ERROR } from '../../config/constants.js';
-import { DRAFT_TIMERS_MS } from '../../config/draft.config.js';
-import type { VoteDraftRequest } from '../../types/draft.js';
+import type { VoteDraftRequest } from '../../types/draft.types.js';
 import type {
   BlindDraftAssignment,
   BlindDraftPageState,
+  BlindDraftPick,
   BlindDraftSession,
   DraftModeOutput,
 } from '../../types/drafting.types.js';
@@ -28,6 +28,7 @@ import {
 import { DraftError } from '../draft.service.js';
 import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
 
+const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const BLIND_MENU_PAGE_SIZE = 25;
 const DM_CONCURRENCY = 8;
 
@@ -160,7 +161,6 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
       sessionId: session.sessionId,
       pools,
       state,
-      pick: session.picks.get(voterId),
     }),
     allowedMentions: { parse: [] as const },
   };
@@ -274,7 +274,7 @@ async function startBlindDraftSession(
     voteMessage: request.publicMessage,
     trackingMessage: null,
     dmMessages: new Map(),
-    endsAtMs: Date.now() + DRAFT_TIMERS_MS.blind,
+    endsAtMs: Date.now() + BLIND_DRAFT_DURATION_MS,
     timeout: null,
     pools: new Map(),
     picks: new Map(),
@@ -308,7 +308,7 @@ async function startBlindDraftSession(
 
   session.timeout = setTimeout(() => {
     void finalizeBlindDraftSession(session, 'timeout');
-  }, DRAFT_TIMERS_MS.blind);
+  }, BLIND_DRAFT_DURATION_MS);
 }
 
 function fallbackToStandardPayload(request: VoteDraftRequest, message: string): Promise<DraftModeOutput> {
@@ -354,17 +354,6 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
 
   const pickId = interaction.values[0];
   const pick = session.picks.get(userId) ?? {};
-
-  if (parsed.pickType === 'civ' && pick.civKey) {
-    await replyNotice(interaction, '⚠️ Your civ pick is already locked.');
-    return true;
-  }
-
-  if (parsed.pickType === 'leader' && pick.leaderKey) {
-    await replyNotice(interaction, '⚠️ Your leader pick is already locked.');
-    return true;
-  }
-
   if (parsed.pickType === 'civ') pick.civKey = pickId;
   if (parsed.pickType === 'leader') pick.leaderKey = pickId;
   session.picks.set(userId, pick);

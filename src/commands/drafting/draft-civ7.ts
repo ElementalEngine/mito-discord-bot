@@ -6,10 +6,9 @@ import {
 
 import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
-import { getDraftLimits } from '../../config/draft.config.js';
 import type { Civ7StartingAge } from '../../data/types.js';
-import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { executeDraftCommand } from '../../services/drafting.service.js';
+import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -29,14 +28,15 @@ const ACCESS_POLICY = {
 const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 type GameType = (typeof GAME_TYPES)[number];
 
-const LIMITS = getDraftLimits('CIV7');
-
 const STARTING_AGES = ['Antiquity_Age', 'Exploration_Age', 'Modern_Age', 'None'] as const;
 type StartingAge = (typeof STARTING_AGES)[number];
 
+const MAX_FFA_PLAYERS = 10;
+const MAX_TEAMS = 5;
+
 async function replyError(
   interaction: ChatInputCommandInteraction,
-  content: string
+  content: string,
 ): Promise<void> {
   const base = { content, allowedMentions: { parse: [] as const } } as const;
   try {
@@ -56,9 +56,49 @@ async function replyError(
   }
 }
 
+function validateDraftCommand(args: Readonly<{
+  gameType: GameType;
+  numberPlayers?: number;
+  numberTeams?: number;
+}>): string | null {
+  const { gameType, numberPlayers, numberTeams } = args;
+
+  if (gameType === 'FFA') {
+    if (numberTeams !== undefined) {
+      return `${EMOJI_ERROR} For FFA, use number-players only.`;
+    }
+    if (numberPlayers === undefined) {
+      return `${EMOJI_ERROR} For FFA, number-players is required.`;
+    }
+    if (numberPlayers > MAX_FFA_PLAYERS) {
+      return `${EMOJI_ERROR} Civ7 FFA supports up to ${MAX_FFA_PLAYERS} players.`;
+    }
+    return null;
+  }
+
+  if (gameType === 'Teamer') {
+    if (numberPlayers !== undefined) {
+      return `${EMOJI_ERROR} For Teamer, use number-teams only.`;
+    }
+    if (numberTeams === undefined) {
+      return `${EMOJI_ERROR} For Teamer, number-teams is required.`;
+    }
+    if (numberTeams > MAX_TEAMS) {
+      return `${EMOJI_ERROR} Civ7 Teamer supports up to ${MAX_TEAMS} teams.`;
+    }
+    return null;
+  }
+
+  if (numberPlayers !== undefined || numberTeams !== undefined) {
+    return `${EMOJI_ERROR} Duel is fixed at 2 players. Do not provide number-players or number-teams.`;
+  }
+
+  return null;
+}
+
 export const data = new SlashCommandBuilder()
   .setName('draft-civ7')
-  .setDescription('Generate a Civ 7 draft (leaders + civs).')
+  .setDescription('Generate a Civ 7 standard draft (leaders + civs).')
   .setDMPermission(false)
   .addStringOption((opt) =>
     opt
@@ -68,8 +108,8 @@ export const data = new SlashCommandBuilder()
       .addChoices(
         { name: 'FFA', value: 'FFA' },
         { name: 'Teamer', value: 'Teamer' },
-        { name: 'Duel', value: 'Duel' }
-      )
+        { name: 'Duel', value: 'Duel' },
+      ),
   )
   .addStringOption((opt) =>
     opt
@@ -80,36 +120,36 @@ export const data = new SlashCommandBuilder()
         { name: 'Antiquity_Age', value: 'Antiquity_Age' },
         { name: 'Exploration_Age', value: 'Exploration_Age' },
         { name: 'Modern_Age', value: 'Modern_Age' },
-        { name: 'None', value: 'None' }
-      )
+        { name: 'None', value: 'None' },
+      ),
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-players')
-      .setDescription('Required for FFA (2–10). Do not use for Teamer/Duel.')
-      .setMinValue(LIMITS.FFA.minUsers)
-      .setMaxValue(LIMITS.FFA.maxUsers)
-      .setRequired(false)
+      .setDescription('Required for FFA only.')
+      .setMinValue(2)
+      .setMaxValue(MAX_FFA_PLAYERS)
+      .setRequired(false),
   )
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
-      .setDescription('Required for Teamer (2–5). Do not use for FFA/Duel.')
-      .setMinValue(LIMITS.Teamer.minTeams)
-      .setMaxValue(LIMITS.Teamer.maxTeams)
-      .setRequired(false)
+      .setDescription('Required for Teamer only.')
+      .setMinValue(2)
+      .setMaxValue(MAX_TEAMS)
+      .setRequired(false),
   )
   .addStringOption((opt) =>
     opt
       .setName('leader-bans')
-      .setDescription('Optional. Use emoji mention, :GameId:, or raw GameId; separate with commas/new lines.')
-      .setRequired(false)
+      .setDescription('Optional. Paste leader emojis separated by commas or new lines.')
+      .setRequired(false),
   )
   .addStringOption((opt) =>
     opt
       .setName('civ-bans')
-      .setDescription('Optional. Use emoji mention, :GameId:, or raw GameId; separate with commas/new lines.')
-      .setRequired(false)
+      .setDescription('Optional. Paste civ emojis separated by commas or new lines.')
+      .setRequired(false),
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -128,10 +168,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
+    const gameType = gameTypeRaw as GameType;
     const numberPlayers = interaction.options.getInteger('number-players') ?? undefined;
     const numberTeams = interaction.options.getInteger('number-teams') ?? undefined;
     const leaderBansRaw = interaction.options.getString('leader-bans') ?? undefined;
     const civBansRaw = interaction.options.getString('civ-bans') ?? undefined;
+
+    const validationError = validateDraftCommand({ gameType, numberPlayers, numberTeams });
+    if (validationError) {
+      await replyError(interaction, validationError);
+      return;
+    }
 
     await interaction.deferReply();
 
@@ -139,7 +186,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       source: 'command',
       edition: 'CIV7',
       draftMode: 'standard',
-      gameType: gameTypeRaw as GameType,
+      gameType,
       startingAge: startingAgeRaw as Civ7StartingAge,
       numberPlayers,
       numberTeams,

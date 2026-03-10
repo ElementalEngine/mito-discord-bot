@@ -1,4 +1,4 @@
-import type { DraftGameType } from '../types/draft.js';
+import type { DraftGameType } from '../types/draft.types.js';
 import type { GameVoteConfig, VoteOption, VoteQuestion } from './types.js';
 
 // Unicode helpers (safe everywhere)
