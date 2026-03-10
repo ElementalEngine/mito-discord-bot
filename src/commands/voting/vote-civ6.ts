@@ -72,9 +72,9 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName('number-teams')
-      .setDescription('Required for Teamer (2–7).')
+      .setDescription('Required for Teamer (2–5).')
       .setMinValue(2)
-      .setMaxValue(7)
+      .setMaxValue(5)
       .setRequired(false)
   )
   .addStringOption((opt) =>
@@ -157,8 +157,8 @@ export async function execute(
         await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires at least **2** voters.`);
         return;
       }
-      if (teams < 2 || teams > 7) {
-        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–7**.`);
+      if (teams < 2 || teams > 5) {
+        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–5**.`);
         return;
       }
       if (voters.length % teams !== 0) {

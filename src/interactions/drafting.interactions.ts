@@ -5,15 +5,18 @@ import type {
 } from 'discord.js';
 
 import { handleBlindDraftButton, handleBlindDraftSelect } from '../services/draftmodes/blind.js';
+import { handleSnakeDraftButton, handleSnakeDraftSelect } from '../services/draftmodes/snake.js';
 
 export async function handleDraftingInteraction(
   interaction: Interaction,
 ): Promise<boolean> {
   if (interaction.isButton()) {
+    if (await handleSnakeDraftButton(interaction as ButtonInteraction)) return true;
     return handleBlindDraftButton(interaction as ButtonInteraction);
   }
 
   if (interaction.isStringSelectMenu()) {
+    if (await handleSnakeDraftSelect(interaction as StringSelectMenuInteraction)) return true;
     return handleBlindDraftSelect(interaction as StringSelectMenuInteraction);
   }
 

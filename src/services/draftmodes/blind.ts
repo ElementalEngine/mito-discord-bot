@@ -8,12 +8,12 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 
+import { DRAFT_TIMERS_MS } from '../../config/draft.config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
 import type { VoteDraftRequest } from '../../types/draft.types.js';
 import type {
   BlindDraftAssignment,
   BlindDraftPageState,
-  BlindDraftPick,
   BlindDraftSession,
   DraftModeOutput,
 } from '../../types/drafting.types.js';
@@ -28,7 +28,7 @@ import {
 import { DraftError } from '../draft.service.js';
 import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
 
-const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
+const BLIND_DRAFT_DURATION_MS = DRAFT_TIMERS_MS.blind;
 const BLIND_MENU_PAGE_SIZE = 25;
 const DM_CONCURRENCY = 8;
 
