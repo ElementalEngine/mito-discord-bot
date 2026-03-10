@@ -1,15 +1,20 @@
 import { EmbedBuilder } from 'discord.js';
 
 import { lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
-import { lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
+import {
+  lookupCiv7CivMeta,
+  lookupCiv7LeaderMeta,
+} from '../../data/civ7.data.js';
 import type {
   Civ6DraftResult,
   Civ7DraftResult,
   DraftAllocation,
   DraftGameType,
+  DraftGroup,
 } from '../../types/draft.types.js';
 
 const EMOJI_NAME_SAFE_RE = /[^A-Za-z0-9_]/g;
+const EMBED_FIELD_VALUE_LIMIT = 1024;
 
 function sanitizeEmojiName(name: string): string {
   const cleaned = name.replace(EMOJI_NAME_SAFE_RE, '_').replace(/_+/g, '_');
@@ -25,7 +30,11 @@ function titleCaseWord(w: string): string {
 }
 
 function humanizeKey(key: string): string {
-  const stripped = key.replace(/^LEADER_/, '').replace(/^CIVILIZATION_/, '').trim();
+  const stripped = key
+    .replace(/^LEADER_/, '')
+    .replace(/^CIVILIZATION_/, '')
+    .trim();
+
   return stripped
     .split('_')
     .filter(Boolean)
@@ -59,23 +68,41 @@ function formatHeader(args: Readonly<{
 
 function renderBanList(args: Readonly<{
   keys?: readonly string[];
-  lookup: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+  lookup: (
+    key: string,
+  ) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
   max?: number;
 }>): { text: string; more: number } | undefined {
   const { keys, max = 8 } = args;
   if (!keys || keys.length === 0) return undefined;
-  const shown = keys.slice(0, max).map((key) => renderLine(args.lookup(key), key));
-  return { text: shown.join(', '), more: Math.max(0, keys.length - shown.length) };
+
+  const shown = keys
+    .slice(0, max)
+    .map((key) => renderLine(args.lookup(key), key));
+
+  return {
+    text: shown.join(', '),
+    more: Math.max(0, keys.length - shown.length),
+  };
 }
 
 function formatBansLine(args: Readonly<{
   leaderKeys?: readonly string[];
   civKeys?: readonly string[];
-  leaderLookup: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
-  civLookup?: (key: string) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+  leaderLookup: (
+    key: string,
+  ) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
+  civLookup?: (
+    key: string,
+  ) => Readonly<{ gameId: string; emojiId?: string }> | undefined;
 }>): string | undefined {
-  const leaders = renderBanList({ keys: args.leaderKeys, lookup: args.leaderLookup });
-  const civs = args.civLookup ? renderBanList({ keys: args.civKeys, lookup: args.civLookup }) : undefined;
+  const leaders = renderBanList({
+    keys: args.leaderKeys,
+    lookup: args.leaderLookup,
+  });
+  const civs = args.civLookup
+    ? renderBanList({ keys: args.civKeys, lookup: args.civLookup })
+    : undefined;
 
   if (!leaders && !civs) return undefined;
 
@@ -84,14 +111,23 @@ function formatBansLine(args: Readonly<{
   }
 
   const parts: string[] = [];
-  if (leaders) parts.push(`Leaders ${leaders.text}${leaders.more ? ` (+${leaders.more})` : ''}`);
-  if (civs) parts.push(`Civs ${civs.text}${civs.more ? ` (+${civs.more})` : ''}`);
+  if (leaders) {
+    parts.push(`Leaders ${leaders.text}${leaders.more ? ` (+${leaders.more})` : ''}`);
+  }
+  if (civs) {
+    parts.push(`Civs ${civs.text}${civs.more ? ` (+${civs.more})` : ''}`);
+  }
+
   return `Bans: ${parts.join(' • ')}`;
 }
 
-function formatIgnoredLine(args: Readonly<{ leader?: readonly string[]; civ?: readonly string[] }>): string | undefined {
+function formatIgnoredLine(args: Readonly<{
+  leader?: readonly string[];
+  civ?: readonly string[];
+}>): string | undefined {
   const leader = args.leader?.filter(Boolean) ?? [];
   const civ = args.civ?.filter(Boolean) ?? [];
+
   if (leader.length === 0 && civ.length === 0) return undefined;
 
   if (leader.length > 0 && civ.length === 0) {
@@ -100,11 +136,16 @@ function formatIgnoredLine(args: Readonly<{ leader?: readonly string[]; civ?: re
 
   const parts: string[] = [];
   if (leader.length > 0) {
-    parts.push(`Leaders ${leader.slice(0, 8).join(', ')}${leader.length > 8 ? ` (+${leader.length - 8})` : ''}`);
+    parts.push(
+      `Leaders ${leader.slice(0, 8).join(', ')}${leader.length > 8 ? ` (+${leader.length - 8})` : ''}`,
+    );
   }
   if (civ.length > 0) {
-    parts.push(`Civs ${civ.slice(0, 8).join(', ')}${civ.length > 8 ? ` (+${civ.length - 8})` : ''}`);
+    parts.push(
+      `Civs ${civ.slice(0, 8).join(', ')}${civ.length > 8 ? ` (+${civ.length - 8})` : ''}`,
+    );
   }
+
   return `Ignored: ${parts.join(' • ')}`;
 }
 
@@ -113,9 +154,11 @@ function renderLine(
   fallbackKey: string,
 ): string {
   if (!meta) return humanizeKey(fallbackKey);
+
   const name = meta.gameId;
   const emojiId = meta.emojiId?.trim();
   if (!emojiId) return name;
+
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${name}`;
 }
 
@@ -130,12 +173,73 @@ function addSummaryLines(lines: string[], args: Readonly<{
   civsLabel?: string;
 }>): void {
   lines.push(`${args.allocation.groupKind}s: ${args.allocation.groupCount}`);
-  lines.push(`${args.leadersLabel}: ${formatCountRange(args.allocation.leadersPerGroup, args.allocation.leadersPerGroupMax)}`);
+  lines.push(
+    `${args.leadersLabel}: ${formatCountRange(
+      args.allocation.leadersPerGroup,
+      args.allocation.leadersPerGroupMax,
+    )}`,
+  );
+
   if (args.civsLabel && args.allocation.civsPerGroup !== undefined) {
-    lines.push(`${args.civsLabel}: ${formatCountRange(args.allocation.civsPerGroup, args.allocation.civsPerGroupMax)}`);
+    lines.push(
+      `${args.civsLabel}: ${formatCountRange(
+        args.allocation.civsPerGroup,
+        args.allocation.civsPerGroupMax,
+      )}`,
+    );
   }
+
   if (args.allocation.note) {
     lines.push(args.allocation.note);
+  }
+}
+
+function chunkFieldLines(lines: readonly string[]): string[] {
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const line of lines) {
+    const next = current ? `${current}\n${line}` : line;
+
+    if (next.length <= EMBED_FIELD_VALUE_LIMIT) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = line;
+      continue;
+    }
+
+    chunks.push(line.slice(0, EMBED_FIELD_VALUE_LIMIT));
+    current = line.slice(EMBED_FIELD_VALUE_LIMIT);
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks.length > 0 ? chunks : ['—'];
+}
+
+function addGroupFields(args: Readonly<{
+  embed: EmbedBuilder;
+  groupKind: 'Player' | 'Team';
+  groups: readonly DraftGroup[];
+  renderGroupLines: (group: DraftGroup) => string[];
+}>): void {
+  for (let i = 0; i < args.groups.length; i += 1) {
+    const fieldNameBase = labelForGroup(args.groupKind, i);
+    const chunks = chunkFieldLines(args.renderGroupLines(args.groups[i]));
+
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+      args.embed.addFields({
+        name: chunkIndex === 0 ? fieldNameBase : `${fieldNameBase} (cont.)`,
+        value: chunks[chunkIndex],
+        inline: true,
+      });
+    }
   }
 }
 
@@ -152,18 +256,27 @@ export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
     leaderKeys: draft.allocation.bannedLeaders,
     leaderLookup: lookupCiv6LeaderMeta,
   });
-  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans });
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+  });
+
   if (bansLine) lines.push(bansLine);
   if (ignoredLine) lines.push(ignoredLine);
-  for (let i = 0; i < draft.groups.length; i += 1) {
-    lines.push('');
-    lines.push(`**${labelForGroup(draft.allocation.groupKind, i)}**`);
-    for (const key of draft.groups[i].leaders) {
-      lines.push(renderLine(lookupCiv6LeaderMeta(key), key));
-    }
-  }
 
-  return new EmbedBuilder().setTitle('Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
+  const embed = new EmbedBuilder()
+    .setTitle('Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
+
+  addGroupFields({
+    embed,
+    groupKind: draft.allocation.groupKind,
+    groups: draft.groups,
+    renderGroupLines: (group) =>
+      group.leaders.map((key) => renderLine(lookupCiv6LeaderMeta(key), key)),
+  });
+
+  return embed;
 }
 
 export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
@@ -187,29 +300,40 @@ export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
     leader: draft.allocation.ignoredLeaderBans,
     civ: draft.allocation.ignoredCivBans,
   });
+
   if (bansLine) lines.push(bansLine);
   if (ignoredLine) lines.push(ignoredLine);
 
-  for (let i = 0; i < draft.groups.length; i += 1) {
-    const group = draft.groups[i];
-    lines.push('');
-    lines.push(`**${labelForGroup(draft.allocation.groupKind, i)}**`);
-    lines.push('**Leaders**');
-    for (const key of group.leaders) {
-      lines.push(renderLine(lookupCiv7LeaderMeta(key), key));
-    }
-    lines.push('');
-    lines.push('**Civs**');
-    for (const key of group.civs ?? []) {
-      lines.push(renderLine(lookupCiv7CivMeta(key), key));
-    }
-  }
+  const embed = new EmbedBuilder()
+    .setTitle('Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
 
-  return new EmbedBuilder().setTitle('Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
+  addGroupFields({
+    embed,
+    groupKind: draft.allocation.groupKind,
+    groups: draft.groups,
+    renderGroupLines: (group) => {
+      const groupLines = ['**Leaders**'];
+      groupLines.push(
+        ...group.leaders.map((key) => renderLine(lookupCiv7LeaderMeta(key), key)),
+      );
+      groupLines.push('', '**Civs**');
+      groupLines.push(
+        ...(group.civs ?? []).map((key) => renderLine(lookupCiv7CivMeta(key), key)),
+      );
+      return groupLines;
+    },
+  });
+
+  return embed;
 }
 
-export function buildCiv6DirectDraftSummaryEmbed(draft: Civ6DraftResult): EmbedBuilder {
+export function buildCiv6DirectDraftSummaryEmbed(
+  draft: Civ6DraftResult,
+): EmbedBuilder {
   const lines: string[] = ['civ6 • standard', `Game Type: ${draft.gameType}`];
+
   addSummaryLines(lines, {
     allocation: draft.allocation,
     leadersLabel: 'Leaders',
@@ -219,14 +343,22 @@ export function buildCiv6DirectDraftSummaryEmbed(draft: Civ6DraftResult): EmbedB
     leaderKeys: draft.allocation.bannedLeaders,
     leaderLookup: lookupCiv6LeaderMeta,
   });
-  const ignoredLine = formatIgnoredLine({ leader: draft.allocation.ignoredLeaderBans });
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+  });
+
   if (bansLine) lines.push(bansLine);
   if (ignoredLine) lines.push(ignoredLine);
 
-  return new EmbedBuilder().setTitle('Direct Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
+  return new EmbedBuilder()
+    .setTitle('Direct Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
 }
 
-export function buildCiv7DirectDraftSummaryEmbed(draft: Civ7DraftResult): EmbedBuilder {
+export function buildCiv7DirectDraftSummaryEmbed(
+  draft: Civ7DraftResult,
+): EmbedBuilder {
   const lines: string[] = [
     'civ7 • standard',
     `Game Type: ${draft.gameType}`,
@@ -235,6 +367,7 @@ export function buildCiv7DirectDraftSummaryEmbed(draft: Civ7DraftResult): EmbedB
       ? 'Civ duplicates across groups: Not allowed'
       : 'Civ duplicates across groups: Allowed',
   ];
+
   addSummaryLines(lines, {
     allocation: draft.allocation,
     leadersLabel: 'Leaders',
@@ -251,8 +384,12 @@ export function buildCiv7DirectDraftSummaryEmbed(draft: Civ7DraftResult): EmbedB
     leader: draft.allocation.ignoredLeaderBans,
     civ: draft.allocation.ignoredCivBans,
   });
+
   if (bansLine) lines.push(bansLine);
   if (ignoredLine) lines.push(ignoredLine);
 
-  return new EmbedBuilder().setTitle('Direct Draft').setDescription(lines.join('\n')).setColor(0x00ff00);
+  return new EmbedBuilder()
+    .setTitle('Direct Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
 }

@@ -55,6 +55,41 @@ export type BlindDraftSession = {
   pages: Map<string, BlindDraftPageState>;
 };
 
+export type SnakeRoundKind = 'leader' | 'civ' | 'complete';
+
+export type SnakeDraftPick = Readonly<{
+  leaderKey?: string;
+  civKey?: string;
+}>;
+
+export type SnakeDraftPageState = Readonly<{
+  leaderPage: number;
+  civPage: number;
+}>;
+
+export type SnakeDraftSession = {
+  sessionId: string;
+  edition: CivEdition;
+  startingAge?: string;
+  voterIds: readonly string[];
+  order: readonly string[];
+  civOrder: readonly string[];
+  commandChannel: SendableChannels;
+  voterUsersById: ReadonlyMap<string, User>;
+  trackingMessage: Message | null;
+  dmMessages: Map<string, Message<false>>;
+  leaderPool: readonly string[];
+  civPool: readonly string[];
+  picks: Map<string, SnakeDraftPick>;
+  pages: Map<string, SnakeDraftPageState>;
+  round: SnakeRoundKind;
+  turnIndex: number;
+  turnToken: number;
+  turnEndsAtMs: number;
+  timeout: NodeJS.Timeout | null;
+  lastEvent?: string;
+};
+
 export type CwcRoundKind = 'captains' | 'leader' | 'civ' | 'complete';
 
 export type CwcDraftPageState = Readonly<{
