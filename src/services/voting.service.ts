@@ -17,7 +17,7 @@ import {
 } from 'discord.js';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { DRAFT_TIMERS_MS, getGameVoteBanLimits } from '../config/draft.config.js';
+import { getGameVoteBanLimits, getVoteDurationMs } from '../config/draft.config.js';
 import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
@@ -790,6 +790,7 @@ function getDraftMode(v: GameVoteSession): GameVoteDraftMode {
 }
 
 
+
 function getCiv6LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
   return CIV6_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
 }
@@ -959,6 +960,8 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   await finalizeCleanup(v);
 }
 
+
+
 export async function startGameVote(args: StartGameVoteOptions): Promise<StartGameVoteResult> {
   const vkey = voiceKey(args.guild.id, args.voiceChannelId);
   if (activeByVoice.has(vkey) || reservedByVoice.has(vkey)) {
@@ -1001,7 +1004,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       voterUsersById,
 
       startedAtMs: now,
-      endsAtMs: now + DRAFT_TIMERS_MS.vote[args.edition],
+      endsAtMs: now + getVoteDurationMs(args.edition),
       completedAtMs: null,
 
       phase: 'voting',
@@ -1027,7 +1030,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       isFinalized: false,
     };
 
-    v.timeout = setTimeout(() => void closeVote(v), DRAFT_TIMERS_MS.vote[args.edition]);
+    v.timeout = setTimeout(() => void closeVote(v), getVoteDurationMs(args.edition));
 
     const init = await openInitialMessages(v, args.guild);
     if (!init.ok) {
@@ -1044,9 +1047,15 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
   }
 }
 
+
+
+
+
 type ParsedCustomId =
   | Readonly<{ action: 'ballot' | 'ballotv' | 'submitvote' | 'finishvote' | 'randomvote' | 'ban' | 'bansubmit'; sessionId: string }>
   | Readonly<{ action: 'ballotnav'; navDir: 'prev' | 'next'; sessionId: string }>
+  | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
+  | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
   | Readonly<{ action: 'banpick'; banType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'bannav'; banType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
@@ -1055,6 +1064,24 @@ function parseCustomId(id: string): ParsedCustomId | null {
   if (parts[0] !== 'gv') return null;
 
   const action = parts[1] as ParsedCustomId['action'];
+
+  if (action === 'pick') {
+    // gv:pick:civ|leader:<sessionId>
+    const pickType = parts[2] as 'civ' | 'leader';
+    const sessionId = parts[3];
+    if (!sessionId || (pickType !== 'civ' && pickType !== 'leader')) return null;
+    return { action: 'pick', pickType, sessionId };
+  }
+
+  if (action === 'nav') {
+    // gv:nav:civ|leader:prev|next:<sessionId>
+    const pickType = parts[2] as 'civ' | 'leader';
+    const navDir = parts[3] as 'prev' | 'next';
+    const sessionId = parts[4];
+    if (!sessionId || (pickType !== 'civ' && pickType !== 'leader')) return null;
+    if (navDir !== 'prev' && navDir !== 'next') return null;
+    return { action: 'nav', pickType, navDir, sessionId };
+  }
 
   if (action === 'banpick') {
     // gv:banpick:civ|leader:<sessionId>
@@ -1100,6 +1127,7 @@ function parseCustomId(id: string): ParsedCustomId | null {
 
   return null;
 }
+
 
 
 function getSessionById(sessionId: string): GameVoteSession | null {
@@ -1197,6 +1225,8 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
 
   return true;
 }
+
+
 
 export async function handleGameVoteButton(interaction: ButtonInteraction): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);

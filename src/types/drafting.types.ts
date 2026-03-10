@@ -55,34 +55,34 @@ export type BlindDraftSession = {
   pages: Map<string, BlindDraftPageState>;
 };
 
-export type SnakeRoundKind = 'leader' | 'civ' | 'complete';
+export type CwcRoundKind = 'captains' | 'leader' | 'civ' | 'complete';
 
-export type SnakeDraftPick = Readonly<{
-  leaderKey?: string;
-  civKey?: string;
-}>;
-
-export type SnakeDraftPageState = Readonly<{
+export type CwcDraftPageState = Readonly<{
   leaderPage: number;
   civPage: number;
 }>;
 
-export type SnakeDraftSession = {
+export type CwcTeamPicks = {
+  leaders: string[];
+  civs: string[];
+};
+
+export type CwcDraftSession = {
   sessionId: string;
   edition: CivEdition;
   startingAge?: string;
+  hostId: string;
   voterIds: readonly string[];
-  order: readonly string[];
-  civOrder: readonly string[];
   commandChannel: SendableChannels;
   voterUsersById: ReadonlyMap<string, User>;
   trackingMessage: Message | null;
-  dmMessages: Map<string, Message<false>>;
+  captainIds: [string | null, string | null];
+  pages: Map<string, CwcDraftPageState>;
   leaderPool: readonly string[];
   civPool: readonly string[];
-  picks: Map<string, SnakeDraftPick>;
-  pages: Map<string, SnakeDraftPageState>;
-  round: SnakeRoundKind;
+  picks: [CwcTeamPicks, CwcTeamPicks];
+  pickOrder: readonly number[];
+  round: CwcRoundKind;
   turnIndex: number;
   turnToken: number;
   turnEndsAtMs: number;

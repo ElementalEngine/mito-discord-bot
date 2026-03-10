@@ -38,8 +38,9 @@ export const GAMEVOTE_CPL_STANDARD_RULES = [
   'Ridges Definition: Classic',
   'Wonders: Standard',
 ] as const;
-// ─ Rank defs 
 
+
+// ─ Rank defs 
 export const RANK_DEFS_CIV6 = [
   { name: 'Deity_3_STAR', threshold: 2400, color: '#ff0000' },
   { name: 'Deity_2_STAR', threshold: 2200, color: '#e60000' },
