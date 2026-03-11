@@ -272,13 +272,16 @@ export class ApiClient {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30_000);
-        const res = await this.fetcher(input, { ...init, signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) {
-          const body = await this.safeJson(res);
-          throw new ApiError(`HTTP ${res.status}`, res.status, body);
+        try {
+          const res = await this.fetcher(input, { ...init, signal: controller.signal });
+          if (!res.ok) {
+            const body = await this.safeJson(res);
+            throw new ApiError(`HTTP ${res.status}`, res.status, body);
+          }
+          return res;
+        } finally {
+          clearTimeout(timeout);
         }
-        return res;
       } catch (err) {
         lastErr = err;
         const status = err instanceof ApiError ? err.status : 0;

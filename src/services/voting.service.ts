@@ -289,7 +289,8 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
   if (v.status === 'closed') return [];
 
   const showWinners = v.status === 'completed';
-  const bansTitle = showWinners ? '10. Bans' : '10. Ban Votes';
+  const bansIndex = v.questions.length + 1;
+  const bansTitle = showWinners ? `${bansIndex}. Bans` : `${bansIndex}. Ban Votes`;
   const bansBlock = [`**${bansTitle}**`, buildBansQuestionValue(v)].join('\n');
 
   if (!showWinners) {

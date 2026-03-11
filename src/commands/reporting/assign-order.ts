@@ -53,7 +53,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can use the assign order command`);
       return;
     }
-    console.log('gameMode', getMatchRes?.game_mode);
     if (getMatchRes?.game_mode === "teamer") {
       await interaction.editReply(`${EMOJI_FAIL} This command is not available for teamer games. Use /assign-order-teamer instead.`);
       return;
