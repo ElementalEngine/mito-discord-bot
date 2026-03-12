@@ -7,6 +7,7 @@ import { approveMatch } from "../../services/reporting.service.js";
 import { updateRankRolesForApprovedMatch } from "../../services/rank-role.service.js";
 import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 
@@ -82,6 +83,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await safeDefer(interaction))) return;
 
   const matchId = interaction.options.getString("match-id", true);
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+    }
+  );
 
   try {
     if (!memberHasRole(interaction, config.discord.roles.moderator)) {

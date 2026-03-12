@@ -9,6 +9,7 @@ import { deletePendingMatch, getMatch } from "../../services/reporting.service.j
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 export const data = new SlashCommandBuilder()
   .setName("remove-match")
@@ -29,6 +30,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const matchId = interaction.options.getString("match-id", true) as string;
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+    }
+  );
 
   await interaction.deferReply({
     flags: MessageFlags.Ephemeral,

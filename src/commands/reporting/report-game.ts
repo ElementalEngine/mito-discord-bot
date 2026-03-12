@@ -112,7 +112,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await logCommand(interaction, 
       config.discord.channels.reportLogChannel,
-      "report-game",
+      data.name,
       {
         edition: interaction.channelId === config.discord.channels.civ6realtimeUploads || interaction.channelId === config.discord.channels.civ6cloudUploads ? "CIV6" : "CIV7",
         missingSteamIds: res.players.filter(p => p.discord_id?.startsWith("-")).map(p => getInfo(p)),

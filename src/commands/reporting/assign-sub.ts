@@ -12,6 +12,7 @@ import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 
@@ -47,6 +48,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const subInId = interaction.options.getString("sub-in-slot-id", true) as string;
   const subOutRaw = interaction.options.getString("sub-out-discord-id", true) as string;
   const subOutDiscordID = parseDiscordUserId(subOutRaw);
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      subInId: subInId,
+      subOutDiscordID: subOutDiscordID,
+    }
+  );
+
   if (!subOutDiscordID) {
     await interaction.reply({
       content: `${EMOJI_FAIL} Invalid sub-out Discord ID. Use a numeric ID or tag the user (e.g. <@123...>).`,

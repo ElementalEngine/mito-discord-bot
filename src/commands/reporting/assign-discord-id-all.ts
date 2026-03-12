@@ -12,6 +12,7 @@ import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 
@@ -40,6 +41,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
   const discordIdList = interaction.options.getString("discord-id-list", true) as string;
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      discordIdList: discordIdList,
+    }
+  );
   const rawTokens = discordIdList.trim().split(/\s+/).filter(Boolean);
   const parsed = rawTokens.map((t) => parseDiscordUserId(t));
   const invalidIdx = parsed.findIndex((v) => v === null);

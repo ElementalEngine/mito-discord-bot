@@ -11,6 +11,7 @@ import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import { chunkByLength } from "../../utils/chunk-by-length.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 
@@ -39,6 +40,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
   const subOutId = interaction.options.getString("sub-out-slot-id", true) as string;
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      subOutId: subOutId,
+    }
+  );
 
   await interaction.deferReply();
 

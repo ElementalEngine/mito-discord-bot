@@ -10,6 +10,7 @@ import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { getPlayerListMessage, isValidOrder } from "../../utils/convert-match-to-str.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 
@@ -38,6 +39,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
   const newOrder = interaction.options.getString("new-order", true) as string;
+
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      newOrder: newOrder,
+    }
+  );
 
   await interaction.deferReply({
     flags: MessageFlags.Ephemeral,

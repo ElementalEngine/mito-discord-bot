@@ -3,11 +3,13 @@ import {
   ChatInputCommandInteraction,
   MessageFlags,
 } from "discord.js";
+import { config } from "../../config.js";
 import { EMOJI_CONFIRM, EMOJI_FAIL, EMOJI_REPORT } from "../../config/constants.js";
 import { contestReport, getMatch } from "../../services/reporting.service.js";
 import { buildReportEmbed } from "../../ui/embeds/reporting.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 import { isOnlyLatinCharacters } from "../../utils/only-latin.js";
@@ -44,6 +46,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
     return;
   }
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      reason: reason,
+    }
+  );
   if (!isOnlyLatinCharacters(reason)) {
     await interaction.reply({
       content: `${EMOJI_FAIL} Reason has invalid characters. Please only include latin characters.`,

@@ -5,6 +5,7 @@ import { config } from "../../config.js";
 import { EMOJI_FAIL } from "../../config/constants.js";
 import { revertMatch } from "../../services/reporting.service.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
+import { logCommand } from "../../utils/log-command.js";
 
 export const data = new SlashCommandBuilder()
   .setName("revert-report")
@@ -63,6 +64,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await safeDefer(interaction))) return;
 
   const matchId = interaction.options.getString("match-id", true);
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+    }
+  );
 
   try {
     if (!memberHasRole(interaction, config.discord.roles.developer)) {

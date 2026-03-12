@@ -40,19 +40,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const matchId = interaction.options.getString("match-id", true) as string;
   const playerOrder = interaction.options.getString("player-order", true) as string;
 
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
+  let interactionReply: Awaited<ReturnType<typeof interaction.followUp>> | null = null;
+
   await logCommand(interaction, 
     config.discord.channels.reportLogChannel,
-    "assign-order",
+    data.name,
     {
       matchId: matchId,
       playerOrder: playerOrder,
     }
   );
-
-  await interaction.deferReply({
-    flags: MessageFlags.Ephemeral,
-  });
-  let interactionReply: Awaited<ReturnType<typeof interaction.followUp>> | null = null;
 
   try {
     await interaction.editReply(`Processing assign order request...`);

@@ -11,6 +11,7 @@ import type { BaseReport } from "../../types/reporting.types.js";
 import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
   const member = interaction.member;
@@ -81,6 +82,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const playerId = interaction.options.getString("player-slot-id", true);
   const rawDiscordId = interaction.options.getString("discord-id", true);
   const playerDiscordId = parseDiscordUserId(rawDiscordId);
+
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    data.name,
+    {
+      matchId: matchId,
+      playerId: playerId,
+      playerDiscordId: playerDiscordId,
+    }
+  );
 
   if (!playerDiscordId) {
     const msg = await interaction.editReply(
