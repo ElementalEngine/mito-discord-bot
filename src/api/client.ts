@@ -266,7 +266,7 @@ export class ApiClient {
     return (await this.parseJson(res)) as BatchStatsResponse;
   }
 
-  private async fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, attempts = 3): Promise<Response> {
+  private async fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, attempts = 1): Promise<Response> {
     let lastErr: unknown;
     for (let i = 0; i < attempts; i++) {
       try {
