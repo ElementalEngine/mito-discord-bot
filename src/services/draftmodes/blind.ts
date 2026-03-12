@@ -37,7 +37,8 @@ type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptio
 
 type BlindCustomId =
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
-  | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
+  | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
+  | Readonly<{ action: 'submit'; sessionId: string }>;
 
 function parseBlindCustomId(customId: string): BlindCustomId | null {
   const pickMatch = /^gv:pick:(civ|leader):([A-Za-z0-9-]+)$/.exec(customId);
@@ -53,6 +54,11 @@ function parseBlindCustomId(customId: string): BlindCustomId | null {
       navDir: navMatch[2] as 'prev' | 'next',
       sessionId: navMatch[3],
     };
+  }
+
+  const submitMatch = /^gv:submit:([A-Za-z0-9-]+)$/.exec(customId);
+  if (submitMatch) {
+    return { action: 'submit', sessionId: submitMatch[1] };
   }
 
   return null;
@@ -152,6 +158,7 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
       buildBlindDraftEmbed({
         edition: session.edition,
         pick: session.picks.get(voterId),
+        stagedPick: session.stagedPicks.get(voterId),
         endsAtMs: session.endsAtMs,
       }),
     ],
@@ -160,6 +167,8 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
       sessionId: session.sessionId,
       pools,
       state,
+      pick: session.picks.get(voterId),
+      stagedPick: session.stagedPicks.get(voterId),
     }),
     allowedMentions: { parse: [] as const },
   };
@@ -199,6 +208,7 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
         edition: session.edition,
         voterIds: session.voterIds,
         picks: session.picks,
+        stagedPicks: session.stagedPicks,
         endsAtMs: session.endsAtMs,
       }),
     ],
@@ -277,7 +287,9 @@ async function startBlindDraftSession(
     timeout: null,
     pools: new Map(),
     picks: new Map(),
+    stagedPicks: new Map(),
     pages: new Map(),
+    voteUuid: request.voteUuid,
   };
 
   for (const assignment of assignments) {
@@ -367,23 +379,19 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
     return true;
   }
 
-  const pick = session.picks.get(userId) ?? {};
+  const pick = { ...(session.stagedPicks.get(userId) ?? session.picks.get(userId) ?? {}) };
   if (parsed.pickType === 'civ') pick.civKey = pickId;
   if (parsed.pickType === 'leader') pick.leaderKey = pickId;
-  session.picks.set(userId, pick);
+  session.stagedPicks.set(userId, pick);
 
   await interaction.update(buildBlindDmPayload(session, userId));
   await updateTrackingMessage(session);
-
-  if (isBlindComplete(session)) {
-    await finalizeBlindDraftSession(session, 'complete');
-  }
   return true;
 }
 
 export async function handleBlindDraftButton(interaction: ButtonInteraction): Promise<boolean> {
   const parsed = parseBlindCustomId(interaction.customId);
-  if (!parsed || parsed.action !== 'nav') return false;
+  if (!parsed) return false;
 
   const session = getSession(parsed.sessionId);
   if (!session) {
@@ -403,6 +411,30 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
     await replyNotice(interaction, '⚠️ Blind draft options are unavailable.');
     return true;
   }
+
+  if (parsed.action === 'submit') {
+    const staged = session.stagedPicks.get(userId) ?? session.picks.get(userId);
+    if (!staged?.leaderKey || (session.edition === 'CIV7' && !staged.civKey)) {
+      await replyNotice(interaction, '⚠️ Pick all required options before submitting.');
+      return true;
+    }
+
+    if (!pools.leaders.includes(staged.leaderKey) || (session.edition === 'CIV7' && !(pools.civs ?? []).includes(staged.civKey!))) {
+      await replyNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
+      return true;
+    }
+
+    session.picks.set(userId, { ...staged });
+    await interaction.update(buildBlindDmPayload(session, userId));
+    await updateTrackingMessage(session);
+
+    if (isBlindComplete(session)) {
+      await finalizeBlindDraftSession(session, 'complete');
+    }
+    return true;
+  }
+
+  if (parsed.action !== 'nav') return false;
 
   const pageKey = parsed.pickType === 'civ' ? 'civPage' : 'leaderPage';
   const maxPage = parsed.pickType === 'civ'

@@ -359,13 +359,28 @@ export function buildCiv6DirectDraftSummaryEmbed(
 export function buildCiv7DirectDraftSummaryEmbed(
   draft: Civ7DraftResult,
 ): EmbedBuilder {
+  const seenCivs = new Set<string>();
+  let hasDuplicateCivsAcrossGroups = false;
+
+  for (const group of draft.groups) {
+    for (const civKey of group.civs ?? []) {
+      if (seenCivs.has(civKey)) {
+        hasDuplicateCivsAcrossGroups = true;
+        break;
+      }
+      seenCivs.add(civKey);
+    }
+
+    if (hasDuplicateCivsAcrossGroups) break;
+  }
+
   const lines: string[] = [
     'civ7 • standard',
     `Game Type: ${draft.gameType}`,
     `Starting Age: ${draft.startingAge}`,
-    draft.startingAge === 'None'
-      ? 'Civ duplicates across groups: Not allowed'
-      : 'Civ duplicates across groups: Allowed',
+    hasDuplicateCivsAcrossGroups
+      ? 'Civ duplicates across groups: Allowed'
+      : 'Civ duplicates across groups: Not allowed',
   ];
 
   addSummaryLines(lines, {

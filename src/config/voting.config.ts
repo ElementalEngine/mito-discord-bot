@@ -25,9 +25,10 @@ function q(
   id: string,
   title: string,
   options: readonly VoteOption[],
-  defaultOptionId: string
+  defaultOptionId: string,
+  maxSelections?: number
 ): VoteQuestion {
-  return { id, title, options, defaultOptionId };
+  return { id, title, options, defaultOptionId, maxSelections };
 }
 
 const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
@@ -82,7 +83,8 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
       { id: 'wetlands', emoji: '💦', label: 'Wetlands' },
       { id: 'terra', emoji: '🦖', label: 'Terra' },
     ],
-    'pangea_standard'
+    'pangea_standard',
+    2
   ),
   q(
     'sea_level',

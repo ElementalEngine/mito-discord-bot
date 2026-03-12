@@ -82,6 +82,7 @@ export type VoteDraftRequest = Readonly<{
   numberPlayers?: number;
   numberTeams?: number;
   voterIds: readonly string[];
+  voteUuid: string;
   commandChannel: SendableChannels;
   hostId: string;
   bannedLeaderKeys: readonly string[];

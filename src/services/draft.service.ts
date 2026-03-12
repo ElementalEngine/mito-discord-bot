@@ -332,33 +332,6 @@ function dealCiv6LeadersByType(args: Readonly<{
   return groups;
 }
 
-function buildEvenTargets(total: number, groupCount: number): Readonly<{
-  minPerGroup: number;
-  maxPerGroup: number;
-  targets: readonly number[];
-}> {
-  const minPerGroup = Math.floor(total / groupCount);
-  const remainder = total % groupCount;
-
-  if (minPerGroup < 1) {
-    throw new DraftError('NO_POOL', 'Not enough items remain after bans for the selected draft size.');
-  }
-
-  const targets = Array.from({ length: groupCount }, () => minPerGroup);
-  const groupOrder = Array.from({ length: groupCount }, (_, index) => index);
-  shuffle(groupOrder);
-
-  for (let i = 0; i < remainder; i += 1) {
-    targets[groupOrder[i]] += 1;
-  }
-
-  return {
-    minPerGroup,
-    maxPerGroup: remainder > 0 ? minPerGroup + 1 : minPerGroup,
-    targets,
-  };
-}
-
 function dealEvenUniqueGroups<T>(pool: readonly T[], targets: readonly number[]): T[][] {
   const remaining = pool.slice();
   const groups: T[][] = [];
@@ -373,13 +346,41 @@ function dealEvenUniqueGroups<T>(pool: readonly T[], targets: readonly number[])
   return groups;
 }
 
-function buildEvenSplitNote(args: Readonly<{
-  label: string;
-  minPerGroup: number;
-  maxPerGroup: number;
+function buildUniformTargets(total: number, groupCount: number): Readonly<{
+  perGroup: number;
+  removedCount: number;
+  targets: readonly number[];
+}> {
+  const perGroup = Math.floor(total / groupCount);
+  const removedCount = total % groupCount;
+
+  if (perGroup < 1) {
+    throw new DraftError('NO_POOL', 'Not enough items remain after bans for the selected draft size.');
+  }
+
+  return {
+    perGroup,
+    removedCount,
+    targets: Array.from({ length: groupCount }, () => perGroup),
+  };
+}
+
+function buildRemovedPoolNote(args: Readonly<{
+  leaderRemovedCount?: number;
+  civRemovedCount?: number;
 }>): string | undefined {
-  if (args.maxPerGroup <= args.minPerGroup) return undefined;
-  return `${args.label}: ${args.minPerGroup}-${args.maxPerGroup} each due to even split.`;
+  const parts: string[] = [];
+
+  if ((args.leaderRemovedCount ?? 0) > 0) {
+    parts.push(`${args.leaderRemovedCount} leader${args.leaderRemovedCount === 1 ? '' : 's'}`);
+  }
+
+  if ((args.civRemovedCount ?? 0) > 0) {
+    parts.push(`${args.civRemovedCount} civ${args.civRemovedCount === 1 ? '' : 's'}`);
+  }
+
+  if (parts.length === 0) return undefined;
+  return `Even split adjustment: ${parts.join(' and ')} removed from the usable pool.`;
 }
 
 export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
@@ -440,7 +441,7 @@ export function generateDirectCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult 
   const leaderPool = (Object.keys(CIV6_LEADERS) as Civ6LeaderKey[]).filter((key) => !banned.has(key));
   shuffle(leaderPool);
 
-  const leaderTargets = buildEvenTargets(leaderPool.length, groupCount);
+  const leaderTargets = buildUniformTargets(leaderPool.length, groupCount);
   const leaderGroups = dealEvenUniqueGroups(leaderPool, leaderTargets.targets);
 
   return {
@@ -449,12 +450,9 @@ export function generateDirectCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult 
     allocation: {
       groupKind,
       groupCount,
-      leadersPerGroup: leaderTargets.minPerGroup,
-      leadersPerGroupMax: leaderTargets.maxPerGroup,
-      note: buildEvenSplitNote({
-        label: 'Leaders',
-        minPerGroup: leaderTargets.minPerGroup,
-        maxPerGroup: leaderTargets.maxPerGroup,
+      leadersPerGroup: leaderTargets.perGroup,
+      note: buildRemovedPoolNote({
+        leaderRemovedCount: leaderTargets.removedCount,
       }),
       bannedLeaders: leaderBans.accepted,
       ignoredLeaderBans: leaderBans.ignored,
@@ -520,12 +518,9 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
     civTarget = teamTargetCiv7Civs(groupCount);
   }
 
-  const civsPerGroup = clampAtLeast1(Math.min(civTarget, civPool.length));
+  const civsPerGroup = civTarget;
 
-  const allocationNote = buildAllocationNote([
-    leaderSizing.note,
-    civsPerGroup < civTarget ? noteReduced({ label: 'Civs', from: civTarget, to: civsPerGroup }) : undefined,
-  ]);
+  const allocationNote = buildAllocationNote([leaderSizing.note]);
 
   shuffle(leaderPool);
   const groups: DraftGroup[] = [];
@@ -536,11 +531,15 @@ export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
     groups.push({ leaders, civs: [] });
   }
 
-  if (req.gameType === 'Duel' && civPool.length >= civsPerGroup * 2) {
+  if (civPool.length >= civsPerGroup * groupCount) {
     const copy = civPool.slice();
     shuffle(copy);
-    groups[0] = { leaders: groups[0].leaders, civs: dealUnique(copy, civsPerGroup) };
-    groups[1] = { leaders: groups[1].leaders, civs: dealUnique(copy, civsPerGroup) };
+    const civTargets = Array.from({ length: groupCount }, () => civsPerGroup);
+    const civGroups = dealEvenUniqueGroups(copy, civTargets);
+
+    for (let i = 0; i < groupCount; i += 1) {
+      groups[i] = { leaders: groups[i].leaders, civs: civGroups[i] };
+    }
   } else {
     for (let i = 0; i < groupCount; i += 1) {
       groups[i] = { leaders: groups[i].leaders, civs: pickDistinct(civPool, civsPerGroup) };
@@ -597,38 +596,41 @@ export function generateDirectCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult 
 
   const leaderPool = (Object.keys(CIV7_LEADERS) as Civ7LeaderKey[]).filter((key) => !bannedLeaders.has(key));
   shuffle(leaderPool);
-  const leaderTargets = buildEvenTargets(leaderPool.length, groupCount);
+  const leaderTargets = buildUniformTargets(leaderPool.length, groupCount);
   const leaderGroups = dealEvenUniqueGroups(leaderPool, leaderTargets.targets);
 
   const civPool = (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][])
     .filter(([key, meta]) => (allowAllAges || meta.agePool === req.startingAge) && !bannedCivs.has(key))
     .map(([key]) => key);
 
-  if (civPool.length < groupCount) {
+  if (civPool.length < 1) {
     const label = allowAllAges ? 'all ages' : String(req.startingAge);
     throw new DraftError(
       'NO_POOL',
-      `Not enough civs remain for ${groupCount} ${groupCount === 1 ? 'group' : 'groups'} in ${label}. Remove civ bans or reduce the draft size.`,
+      `No civs remain in ${label} after bans. Remove civ bans or reduce the draft size.`,
     );
   }
 
-  const civTargets = buildEvenTargets(civPool.length, groupCount);
-  const civGroups = allowAllAges
-    ? dealEvenUniqueGroups([...civPool], civTargets.targets)
-    : civTargets.targets.map((target) => pickDistinct(civPool, target));
+  let civTarget: number;
+  if (req.gameType === 'Duel') {
+    civTarget = LEGACY_CIV7_DUEL_CIVS_PER_PLAYER;
+  } else if (req.gameType === 'FFA') {
+    civTarget = LEGACY_CIV7_FFA_CIVS_PER_PLAYER;
+  } else {
+    civTarget = teamTargetCiv7Civs(groupCount);
+  }
 
-  const note = buildAllocationNote([
-    buildEvenSplitNote({
-      label: 'Leaders',
-      minPerGroup: leaderTargets.minPerGroup,
-      maxPerGroup: leaderTargets.maxPerGroup,
-    }),
-    buildEvenSplitNote({
-      label: 'Civs',
-      minPerGroup: civTargets.minPerGroup,
-      maxPerGroup: civTargets.maxPerGroup,
-    }),
-  ]);
+  const evenFloor = Math.floor(civPool.length / groupCount);
+  const civsPerGroup = Math.max(civTarget, clampAtLeast1(evenFloor));
+  const canDealUniqueCivs = civPool.length >= civsPerGroup * groupCount;
+  const civGroups = canDealUniqueCivs
+    ? dealEvenUniqueGroups([...civPool], Array.from({ length: groupCount }, () => civsPerGroup))
+    : Array.from({ length: groupCount }, () => pickDistinct(civPool, civsPerGroup));
+
+  const note = buildRemovedPoolNote({
+    leaderRemovedCount: leaderTargets.removedCount,
+    civRemovedCount: canDealUniqueCivs ? civPool.length - civsPerGroup * groupCount : undefined,
+  });
 
   return {
     gameVersion: 'civ7',
@@ -637,10 +639,8 @@ export function generateDirectCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult 
     allocation: {
       groupKind,
       groupCount,
-      leadersPerGroup: leaderTargets.minPerGroup,
-      leadersPerGroupMax: leaderTargets.maxPerGroup,
-      civsPerGroup: civTargets.minPerGroup,
-      civsPerGroupMax: civTargets.maxPerGroup,
+      leadersPerGroup: leaderTargets.perGroup,
+      civsPerGroup,
       note,
       bannedLeaders: leaderBans.accepted,
       ignoredLeaderBans: leaderBans.ignored,

@@ -902,6 +902,7 @@ function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
 
   return {
     source: 'vote',
+    voteUuid: v.sessionId,
     edition: v.edition,
     draftMode: getDraftMode(v),
     gameType: v.gameType,

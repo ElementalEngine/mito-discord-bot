@@ -1,3 +1,4 @@
+import { MAX_DISCORD_LEN } from '../../config/constants.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import {
   formatCiv7Civ,
@@ -6,37 +7,43 @@ import {
   lookupCiv7Leader,
 } from '../../data/civ7.data.js';
 import type { Civ6DraftResult, Civ7DraftResult, DraftGroupKind } from '../../types/draft.types.js';
-import { MAX_DISCORD_LEN } from '../../config/constants.js';
 
 function labelForGroup(kind: DraftGroupKind, index: number): string {
   return kind === 'Team' ? `Team n°${index + 1}` : `Player n°${index + 1}`;
 }
 
-function packSections(sections: readonly string[]): string[] {
-  const messages: string[] = [];
+function splitSection(section: string): string[] {
+  if (section.length <= MAX_DISCORD_LEN) {
+    return [section];
+  }
+
+  const lines = section.split('\n');
+  const header = lines[0] ?? '';
+  const continuationHeader = header ? `${header} (cont.)` : '';
+  const chunks: string[] = [];
   let current = '';
 
-  for (const section of sections) {
+  for (const line of lines) {
     if (!current) {
-      current = section;
+      current = line;
       continue;
     }
 
-    const next = `${current}\n\n${section}`;
+    const next = `${current}\n${line}`;
     if (next.length <= MAX_DISCORD_LEN) {
       current = next;
       continue;
     }
 
-    messages.push(current);
-    current = section;
+    chunks.push(current);
+    current = continuationHeader ? `${continuationHeader}\n${line}` : line;
   }
 
   if (current) {
-    messages.push(current);
+    chunks.push(current);
   }
 
-  return messages;
+  return chunks;
 }
 
 function buildCiv6Section(draft: Civ6DraftResult, index: number): string {
@@ -69,11 +76,9 @@ function buildCiv7Section(draft: Civ7DraftResult, index: number): string {
 }
 
 export function buildCiv6DirectDraftMessages(draft: Civ6DraftResult): string[] {
-  const sections = draft.groups.map((_, index) => buildCiv6Section(draft, index));
-  return packSections(sections);
+  return draft.groups.flatMap((_, index) => splitSection(buildCiv6Section(draft, index)));
 }
 
 export function buildCiv7DirectDraftMessages(draft: Civ7DraftResult): string[] {
-  const sections = draft.groups.map((_, index) => buildCiv7Section(draft, index));
-  return packSections(sections);
+  return draft.groups.flatMap((_, index) => splitSection(buildCiv7Section(draft, index)));
 }

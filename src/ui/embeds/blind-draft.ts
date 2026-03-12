@@ -22,18 +22,23 @@ function civLine(key?: string): string {
   return `${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`;
 }
 
-function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
+function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick, stagedPick?: BlindDraftPick): string {
+  const current = stagedPick ?? pick;
   if (edition === 'CIV6') {
-    return pick?.leaderKey ? 'Leader picked' : 'Awaiting leader pick';
+    if (pick?.leaderKey) return 'Submitted';
+    return current?.leaderKey ? 'Ready to submit' : 'Awaiting leader pick';
   }
 
-  const hasLeader = Boolean(pick?.leaderKey);
-  const hasCiv = Boolean(pick?.civKey);
-  if (hasLeader && hasCiv) return 'Picks complete';
+  if (pick?.leaderKey && pick?.civKey) return 'Submitted';
+
+  const hasLeader = Boolean(current?.leaderKey);
+  const hasCiv = Boolean(current?.civKey);
+  if (hasLeader && hasCiv) return 'Ready to submit';
   if (hasLeader) return 'Awaiting civ pick';
   if (hasCiv) return 'Awaiting leader pick';
   return 'Awaiting leader & civ pick';
 }
+
 
 function timeoutStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
   if (edition === 'CIV6') {
@@ -50,18 +55,21 @@ function timeoutStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
 export function buildBlindDraftEmbed(args: Readonly<{
   edition: CivEdition;
   pick?: BlindDraftPick;
+  stagedPick?: BlindDraftPick;
   endsAtMs: number;
 }>): EmbedBuilder {
   const lines: string[] = [
-    'Choose your blind draft picks below.',
+    'Choose your blind draft picks below, then press **Submit** to lock them in.',
     `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
     '',
   ];
 
   if (args.edition === 'CIV7') {
-    lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
+    lines.push(`**Civ:** ${civLine((args.stagedPick ?? args.pick)?.civKey)}`);
   }
-  lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
+  lines.push(`**Leader:** ${leaderLine(args.edition, (args.stagedPick ?? args.pick)?.leaderKey)}`);
+  lines.push('');
+  lines.push(`**Status:** ${activeStatusLine(args.edition, args.pick, args.stagedPick)}`);
 
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft`)
@@ -82,6 +90,8 @@ export function buildBlindDraftClosedEmbed(args: Readonly<{
     lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
   }
   lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
+  lines.push('');
+  lines.push(`**Status:** ${timeoutStatusLine(args.edition, args.pick)}`);
 
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft`)
@@ -92,9 +102,10 @@ export function buildBlindDraftTrackingEmbed(args: Readonly<{
   edition: CivEdition;
   voterIds: readonly string[];
   picks: ReadonlyMap<string, BlindDraftPick>;
+  stagedPicks?: ReadonlyMap<string, BlindDraftPick>;
   endsAtMs: number;
 }>): EmbedBuilder {
-  const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${activeStatusLine(args.edition, args.picks.get(id))}`);
+  const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${activeStatusLine(args.edition, args.picks.get(id), args.stagedPicks?.get(id))}`);
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
     .setDescription([

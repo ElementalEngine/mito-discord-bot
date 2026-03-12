@@ -52,6 +52,8 @@ export type BlindDraftSession = {
   timeout: NodeJS.Timeout | null;
   pools: Map<string, BlindDraftPools>;
   picks: Map<string, BlindDraftPick>;
+  stagedPicks: Map<string, BlindDraftPick>;
+  voteUuid?: string;
   pages: Map<string, BlindDraftPageState>;
 };
 
@@ -88,6 +90,7 @@ export type SnakeDraftSession = {
   turnEndsAtMs: number;
   timeout: NodeJS.Timeout | null;
   lastEvent?: string;
+  voteUuid?: string;
 };
 
 export type CwcRoundKind = 'captains' | 'leader' | 'civ' | 'complete';
@@ -123,4 +126,5 @@ export type CwcDraftSession = {
   turnEndsAtMs: number;
   timeout: NodeJS.Timeout | null;
   lastEvent?: string;
+  voteUuid?: string;
 };

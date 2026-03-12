@@ -51,7 +51,7 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
     });
 
     return {
-      content: `${EMOJI_RANDOM} **Random leaders**\n${lines.join('\n')}`,
+      content: `Vote UUID: \`${request.voteUuid}\`\n${EMOJI_RANDOM} **Random leaders**\n${lines.join('\n')}`,
       allowedMentions: { parse: [] as const },
     };
   }
@@ -81,7 +81,7 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
   });
 
   return {
-    content: `${EMOJI_RANDOM} **Random civs + leaders**\n${lines.join('\n')}`,
+    content: `Vote UUID: \`${request.voteUuid}\`\n${EMOJI_RANDOM} **Random civs + leaders**\n${lines.join('\n')}`,
     allowedMentions: { parse: [] as const },
   };
 }

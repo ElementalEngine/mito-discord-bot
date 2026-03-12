@@ -51,6 +51,7 @@ export function buildBlindDraftPickComponents(args: Readonly<{
   pools: BlindDraftPools;
   state: BlindDraftPageState;
   pick?: BlindDraftPick;
+  stagedPick?: BlindDraftPick;
 }>): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
   const navButtons: ButtonBuilder[] = [];
@@ -78,7 +79,7 @@ export function buildBlindDraftPickComponents(args: Readonly<{
             label: civLabel(key),
             value: key,
             emoji: toSelectEmoji(meta?.emojiId),
-            default: args.pick?.civKey === key,
+            default: (args.stagedPick?.civKey ?? args.pick?.civKey) === key,
           };
         })
       )
@@ -126,7 +127,7 @@ export function buildBlindDraftPickComponents(args: Readonly<{
           label: leaderLabel(args.edition, key),
           value: key,
           emoji: toSelectEmoji(meta?.emojiId),
-          default: args.pick?.leaderKey === key,
+          default: (args.stagedPick?.leaderKey ?? args.pick?.leaderKey) === key,
         };
       })
     )
@@ -151,6 +152,21 @@ export function buildBlindDraftPickComponents(args: Readonly<{
   if (navButtons.length > 0) {
     rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(navButtons));
   }
+
+  const staged = args.stagedPick ?? args.pick;
+  const canSubmit = args.edition === 'CIV6'
+    ? Boolean(staged?.leaderKey)
+    : Boolean(staged?.leaderKey) && Boolean(staged?.civKey);
+
+  rows.push(
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`gv:submit:${args.sessionId}`)
+        .setStyle(ButtonStyle.Success)
+        .setLabel('Submit')
+        .setDisabled(!canSubmit)
+    )
+  );
 
   return rows;
 }

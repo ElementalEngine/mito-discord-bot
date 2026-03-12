@@ -15,6 +15,7 @@ export type VoteQuestion = Readonly<{
   title: string;
   options: readonly VoteOption[];
   defaultOptionId: string;
+  maxSelections?: number;
 }>;
 
 export type DraftModeId = DraftMode;

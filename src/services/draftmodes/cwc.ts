@@ -396,6 +396,7 @@ function createSession(request: VoteDraftRequest): CwcDraftSession {
     turnToken: 0,
     turnEndsAtMs: Date.now() + DRAFT_TIMERS_MS.cwcCaptainSelect,
     timeout: null,
+    voteUuid: request.voteUuid,
   };
 }
 

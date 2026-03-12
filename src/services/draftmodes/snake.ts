@@ -324,8 +324,8 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
   if (request.source !== 'vote') {
     throw new DraftError('VALIDATION', 'Snake draft is only available from the vote flow.');
   }
-  if (request.gameType !== 'FFA') {
-    throw new DraftError('VALIDATION', 'Snake draft is only available for FFA votes.');
+  if (request.gameType === 'Teamer') {
+    throw new DraftError('VALIDATION', 'Snake draft is only available for FFA or Duel votes.');
   }
   if (!request.voterUsersById || request.voterUsersById.size !== request.voterIds.length) {
     throw new DraftError('VALIDATION', 'Snake draft requires DM access for every voter.');

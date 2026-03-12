@@ -95,11 +95,13 @@ export function buildGameVoteEmbed(args: Readonly<{
   completedAtMs?: number | null;
   progress: GameVoteProgress;
   questionFields?: readonly GameVoteQuestionField[];
+  voteUuid?: string;
 }>): EmbedBuilder {
   const meta: string[] = [
     `**Game Type:** ${args.gameType}`,
     args.edition === 'CIV7' ? `**Starting Age:** ${args.startingAge ?? '—'}` : undefined,
     `**State:** ${fmtStatus(args.status)}`,
+    args.voteUuid ? `**Vote UUID:** \`${args.voteUuid}\`` : undefined,
     args.status === 'closed'
       ? undefined
       : args.status === 'completed' && args.completedAtMs

@@ -101,15 +101,13 @@ function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftMode
     ? buildCiv6DirectDraftMessages(draft)
     : buildCiv7DirectDraftMessages(draft);
 
-  const initialContent = messages[0];
-  const followUps = messages.slice(1).map((content) => ({
+  const followUps = messages.map((content) => ({
     content,
     allowedMentions: { parse: [] as const },
   }));
 
   if (draft.gameVersion === 'civ6') {
     return {
-      content: initialContent,
       embeds: [buildCiv6DirectDraftSummaryEmbed(draft)],
       allowedMentions: { parse: [] as const },
       followUps,
@@ -117,7 +115,6 @@ function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftMode
   }
 
   return {
-    content: initialContent,
     embeds: [buildCiv7DirectDraftSummaryEmbed(draft)],
     allowedMentions: { parse: [] as const },
     followUps,
