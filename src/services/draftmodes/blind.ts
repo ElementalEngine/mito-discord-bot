@@ -351,7 +351,22 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
     return true;
   }
 
+  const pools = session.pools.get(userId);
+  if (!pools) {
+    await replyNotice(interaction, '⚠️ Blind draft options are unavailable.');
+    return true;
+  }
+
   const pickId = interaction.values[0];
+  const allowed = parsed.pickType === 'civ'
+    ? (pools.civs ?? []).includes(pickId)
+    : pools.leaders.includes(pickId);
+
+  if (!allowed) {
+    await replyNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
+    return true;
+  }
+
   const pick = session.picks.get(userId) ?? {};
   if (parsed.pickType === 'civ') pick.civKey = pickId;
   if (parsed.pickType === 'leader') pick.leaderKey = pickId;

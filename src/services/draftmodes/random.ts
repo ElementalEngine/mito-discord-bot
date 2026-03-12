@@ -11,6 +11,24 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[randomInt(0, arr.length)];
 }
 
+function shuffle<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function drawAssignments<T>(pool: readonly T[], count: number): T[] {
+  if (count <= 0) return [];
+  if (pool.length >= count) {
+    const copy = pool.slice();
+    shuffle(copy);
+    return copy.slice(0, count);
+  }
+
+  return Array.from({ length: count }, () => pickRandom(pool));
+}
+
 export async function runRandomDraftMode(request: VoteDraftRequest): Promise<DraftModeOutput> {
   if (request.source !== 'vote') {
     throw new DraftError('VALIDATION', 'Random draft is only available from the vote flow.');
@@ -25,8 +43,10 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
       throw new DraftError('NO_POOL', 'No leaders remain after bans.');
     }
 
-    const lines = request.voterIds.map((id) => {
-      const key = pickRandom(pool);
+    const leaderAssignments = drawAssignments(pool, request.voterIds.length);
+
+    const lines = request.voterIds.map((id, index) => {
+      const key = leaderAssignments[index];
       return `• <@${id}> — **${CIV6_LEADERS[key as keyof typeof CIV6_LEADERS].gameId}**`;
     });
 
@@ -49,9 +69,12 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
     throw new DraftError('NO_POOL', 'No civs remain after bans.');
   }
 
-  const lines = request.voterIds.map((id) => {
-    const leaderKey = pickRandom(leaderPool);
-    const civKey = pickRandom(civPool);
+  const leaderAssignments = drawAssignments(leaderPool, request.voterIds.length);
+  const civAssignments = drawAssignments(civPool, request.voterIds.length);
+
+  const lines = request.voterIds.map((id, index) => {
+    const leaderKey = leaderAssignments[index];
+    const civKey = civAssignments[index];
     const leader = CIV7_LEADERS[leaderKey as keyof typeof CIV7_LEADERS].gameId;
     const civ = CIV7_CIVS[civKey as keyof typeof CIV7_CIVS].gameId;
     return `• <@${id}> — **${civ}** + **${leader}**`;
