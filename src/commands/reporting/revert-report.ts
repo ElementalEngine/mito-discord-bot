@@ -6,6 +6,7 @@ import { EMOJI_FAIL } from "../../config/constants.js";
 import { revertMatch } from "../../services/reporting.service.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 import { logCommand } from "../../utils/log-command.js";
+import { ApiError } from "../../api/errors.js";
 
 export const data = new SlashCommandBuilder()
   .setName("revert-report")
@@ -18,7 +19,7 @@ export const data = new SlashCommandBuilder()
   );
 
 function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
+  if (err instanceof Error) return err.message + (err instanceof ApiError ? `: ${JSON.stringify(err.body)}` : "");
   return typeof err === "string" ? err : "Unknown error";
 }
 
@@ -73,8 +74,8 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   );
 
   try {
-    if (!memberHasRole(interaction, config.discord.roles.developer)) {
-      await interaction.editReply(`${EMOJI_FAIL} Only user with developer role can revert a report`);
+    if (!memberHasRole(interaction, config.discord.roles.admin) && !memberHasRole(interaction, config.discord.roles.developer)) {
+      await interaction.editReply(`${EMOJI_FAIL} Only user with admin or developer role can revert a report`);
       return;
     }
 

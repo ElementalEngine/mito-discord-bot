@@ -104,6 +104,7 @@ const discord = {
 
   roles: {
     moderator: env('ROLE_MODERATOR'),
+    admin: env('ROLE_ADMIN'),
     developer: env('ROLE_DEVELOPER'),
     noviceManager: env('ROLE_NOVICE_MANAGER'),
     civ6Rank: env('ROLE_CIV6_RANKED'),
