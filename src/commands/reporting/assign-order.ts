@@ -12,6 +12,7 @@ import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
+import { logCommand } from "../../utils/log-command.js";
 
 export const data = new SlashCommandBuilder()
   .setName("assign-order")
@@ -38,6 +39,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const matchId = interaction.options.getString("match-id", true) as string;
   const playerOrder = interaction.options.getString("player-order", true) as string;
+
+  await logCommand(interaction, 
+    config.discord.channels.reportLogChannel,
+    "assign-order",
+    {
+      matchId: matchId,
+      playerOrder: playerOrder,
+    }
+  );
 
   await interaction.deferReply({
     flags: MessageFlags.Ephemeral,
