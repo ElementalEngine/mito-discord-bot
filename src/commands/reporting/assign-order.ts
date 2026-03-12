@@ -62,7 +62,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
     const normalizedPlayerOrder = normalizePlayerList(playerOrder);
-    const hasTie = normalizedPlayerOrder.split(/\s+/).includes('TIE');
+    const hasTie = normalizedPlayerOrder.includes('TIE');
     if (!isModerator && hasTie) {
       const msg = await interaction.editReply(`${EMOJI_FAIL} You do not have permission to set tie positions.`).catch(() => null);
       if (msg) deleteLater(msg, 60_000);
@@ -73,7 +73,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       if (msg) deleteLater(msg, 60_000);
       return;
     }
-    const playerOrderWithMentions = playerOrder.split(" ").map(p => p.toLowerCase() === "tie" ? p : `<@${p.replace(/<@/g, '').replace(/>/g, '')}>`).join(" ");
+    const playerOrderWithMentions = playerOrder.split(/\s+|<|>/).filter(p => p.length > 0).map(p => p.toLowerCase() === "tie" ? p : `<@${p.replace(/@/g, '')}>`).join(" ");
     const changingOrderMsg =
       `${EMOJI_REPORT} Processing assign order to ${playerOrderWithMentions} by <@${interaction.user.id}>\n` +
       `Match ID: **${matchId}**\n`;

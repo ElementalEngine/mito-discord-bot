@@ -19,7 +19,7 @@ export function allPlayersHaveDiscordId(players: ParsedPlayer[]): boolean {
 }
 
 export function isValidPlayerList(player_list: string, players: ParsedPlayer[]): boolean {
-  const tokens = player_list.trim().split(/\s+/).filter(Boolean);
+  const tokens = player_list.trim().split(/\s+|>/).map(p => p.startsWith('<@') ? p.substring(2) : p).filter(Boolean);
   const ids = tokens
     .filter((t) => !TIE_RE.test(t))
     .map(tokenToDiscordId);
@@ -38,8 +38,9 @@ export function isValidPlayerList(player_list: string, players: ParsedPlayer[]):
 export function normalizePlayerList(playerOrder: string): string {
   return playerOrder
     .trim()
-    .split(/\s+/)
-    .filter(Boolean)
+    .split(/\s+|<|>/)
+    .filter((token) => token.length > 0)
+    .map(token => token.startsWith('@') ? token.substring(1) : token)
     .map((token) => {
       if (TIE_RE.test(token)) return 'TIE';
       return tokenToDiscordId(token);
