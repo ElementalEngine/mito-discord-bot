@@ -75,7 +75,7 @@ export function getPlayerListMessage(match: BaseReport, new_order: string = "", 
   }
 
   return players
-    .map((p) => `<@${p.discord_id}> ${p.user_name ? `(${p.user_name})` : ``}`)
+    .map((p) => `${p.discord_id?.startsWith("-") ? `` : `<@${p.discord_id}>`} ${p.user_name ? `(${p.user_name})` : ``}`)
     .join(sep);
 }
 

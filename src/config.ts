@@ -56,6 +56,7 @@ const discord = {
 
   channels: {
     botTesting: env('CHANNEL_BOT_COMMANDS_ID'),
+    reportLogChannel: env('CHANNEL_REPORT_LOG'),
     // Command channels
     civ6Commands: env('CHANNEL_CIV6_COMMANDS_ID'),
     civ7Commands: env('CHANNEL_CIV7_COMMANDS_ID'),

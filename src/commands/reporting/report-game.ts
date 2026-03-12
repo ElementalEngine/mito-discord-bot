@@ -22,9 +22,10 @@ import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
 import { ensureCommandAccess } from "../../utils/ensure-command-access.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
+import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
-import type { UploadSaveResponse } from "../../api/types.js";
+import type { UploadSaveResponse, ParsedPlayer } from "../../api/types.js";
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -34,6 +35,13 @@ const ACCESS_POLICY = {
     config.discord.channels.civ7cloudUploads,
   ],
 } as const;
+
+function getInfo(p: ParsedPlayer) {
+  return {
+    user_name: p.user_name,
+    discord_id: p.discord_id
+  }
+}
 
 export const data = new SlashCommandBuilder()
   .setName("report-game")
@@ -100,6 +108,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       interaction.user.id,
       mode === "cloud",
       pendingMsg.id,
+    );
+
+    await logCommand(interaction, 
+      config.discord.channels.reportLogChannel,
+      "report-game",
+      {
+        edition: interaction.channelId === config.discord.channels.civ6realtimeUploads || interaction.channelId === config.discord.channels.civ6cloudUploads ? "CIV6" : "CIV7",
+        missingSteamIds: res.players.filter(p => p.discord_id?.startsWith("-")).map(p => getInfo(p)),
+      }
     );
 
     if (res?.repeated === true) {
