@@ -4,6 +4,7 @@ import {
   EMOJI_ERROR,
   EMOJI_VOTE_PANEL,
   GAMEVOTE_CPL_STANDARD_RULES,
+  GAMEVOTE_CPL_STANDARD_RULES_CIV7,
 } from '../../config/constants.js';
 
 import type { CivEdition } from '../../config/types.js';
@@ -76,10 +77,14 @@ function buildVoterField(progress: GameVoteProgress): EmbedField {
   };
 }
 
-function buildStandardRulesField(): EmbedField {
+function buildStandardRulesField(edition: CivEdition): EmbedField {
+  const lines = edition === 'CIV7'
+    ? GAMEVOTE_CPL_STANDARD_RULES_CIV7
+    : GAMEVOTE_CPL_STANDARD_RULES;
+
   return {
     name: 'CPL Standard Rules',
-    value: GAMEVOTE_CPL_STANDARD_RULES.map((line: string) => `• ${line}`).join('\n'),
+    value: lines.map((line: string) => `• ${line}`).join('\n'),
     inline: false,
   };
 }
@@ -137,7 +142,7 @@ export function buildGameVoteEmbed(args: Readonly<{
   }
 
   if (args.status !== 'closed') {
-    const rulesField = buildStandardRulesField();
+    const rulesField = buildStandardRulesField(args.edition);
     embed.addFields({
       name: clamp(rulesField.name, MAX_FIELD_NAME),
       value: clamp(rulesField.value, MAX_FIELD_VALUE),

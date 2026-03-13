@@ -41,6 +41,10 @@ export const GAMEVOTE_CPL_STANDARD_RULES = [
   'Wonders: Standard',
 ] as const;
 
+export const GAMEVOTE_CPL_STANDARD_RULES_CIV7 = [
+  'Awaiting update',
+] as const;
+
 
 // ─ Rank defs 
 export const RANK_DEFS_CIV6 = [

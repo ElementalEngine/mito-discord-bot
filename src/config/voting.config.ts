@@ -1,1 +1,0 @@
-export { buildGameVoteConfig } from '../services/voting/domain/questions.service.js';

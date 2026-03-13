@@ -75,15 +75,6 @@ const CIV7_VOTE_SETTINGS: readonly VoteQuestion[] = [
     'disabled',
   ),
   q(
-    'start_position',
-    'Start Position',
-    [
-      { id: 'balanced', emoji: '⚖️', label: 'Balanced' },
-      { id: 'standard', emoji: '⏺️', label: 'Standard' },
-    ],
-    'balanced',
-  ),
-  q(
     'map_type',
     'Map Type',
     [
@@ -99,6 +90,15 @@ const CIV7_VOTE_SETTINGS: readonly VoteQuestion[] = [
       { id: 'shattered_seas', emoji: '💥', label: 'Shattered Seas' },
     ],
     'continents_plus',
+  ),
+  q(
+    'start_position',
+    'Start Position',
+    [
+      { id: 'balanced', emoji: '⚖️', label: 'Balanced' },
+      { id: 'standard', emoji: '⏺️', label: 'Standard' },
+    ],
+    'balanced',
   ),
   q(
     'map_size',

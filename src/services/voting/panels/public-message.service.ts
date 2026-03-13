@@ -100,14 +100,14 @@ function buildBansQuestionValue(v: GameVoteSession): string {
 
   const leaderItems = finalLeaderKeys.map((key) => `${formatLeaderBan(v, key)} ×${summary.leader.get(key) ?? 0}`);
   if (leaderItems.length > 0) {
-    sections.push(buildVerticalBanSection('Leader bans', leaderItems, remaining));
+    sections.push(buildVerticalBanSection('Leader', leaderItems, remaining));
     remaining = Math.max(128, 1000 - sections.join('\n\n').length);
   }
 
   if (v.edition === 'CIV7') {
     const civItems = finalCivKeys.map((key) => `${formatCivBan(key)} ×${summary.civ.get(key) ?? 0}`);
     if (civItems.length > 0) {
-      sections.push(buildVerticalBanSection('Civ bans', civItems, remaining));
+      sections.push(buildVerticalBanSection('Civ', civItems, remaining));
     }
   }
 
@@ -134,13 +134,14 @@ function buildQuestionFields(v: GameVoteSession): readonly GameVoteQuestionField
     });
     blocks.push(bansBlock);
 
-    const left = blocks.slice(0, 5).join('\n\n');
-    const right = blocks.slice(5).join('\n\n');
+    const splitAt = v.edition === 'CIV7' ? 7 : 5;
+    const left = blocks.slice(0, splitAt).join('\n\n');
+    const right = blocks.slice(splitAt).join('\n\n');
 
     if (left.length <= 1024 && right.length <= 1024) {
       return [
-        { name: 'Questions (1–5)', value: left || '—', inline: true },
-        { name: 'Questions (6–10)', value: right || '—', inline: true },
+        { name: `Questions (1–${splitAt})`, value: left || '—', inline: true },
+        { name: `Questions (${splitAt + 1}–${blocks.length})`, value: right || '—', inline: true },
       ];
     }
 

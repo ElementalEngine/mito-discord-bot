@@ -159,6 +159,8 @@ export async function handleGameVoteSelect(
     }
 
     const cur = ensureStagedBans(v, userId);
+    const prevLeaderKeys = cur.leaderKeys.join('\u0000');
+    const prevCivKeys = cur.civKeys.join('\u0000');
 
     if (parsed.banType === 'leader') {
       const leaders = getLeaderBanSource(v);
@@ -202,7 +204,17 @@ export async function handleGameVoteSelect(
       );
     }
 
-    await interaction.deferUpdate();
+    const next = ensureStagedBans(v, userId);
+    if (
+      prevLeaderKeys === next.leaderKeys.join('\u0000')
+      && prevCivKeys === next.civKeys.join('\u0000')
+    ) {
+      await interaction.deferUpdate();
+      return true;
+    }
+
+    const payload = buildBansPanelViewPayload(v, userId);
+    await interaction.update({ embeds: payload.embeds, components: payload.components });
     return true;
   }
 
