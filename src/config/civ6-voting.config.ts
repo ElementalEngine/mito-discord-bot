@@ -79,7 +79,6 @@ const VOTE_SETTINGS_FFA: readonly VoteQuestion[] = [
       { id: 'tilted_axis', emoji: LETTER.T, label: 'Tilted Axis' },
       { id: 'inland_sea', emoji: '🌊', label: 'Inland Sea' },
       { id: 'fractal', emoji: LETTER.F, label: 'Fractal' },
-      { id: 'primordial', emoji: '🌋', label: 'Primordial' },
       { id: 'island_plates', emoji: '🏖️', label: 'Island Plates' },
       { id: 'wetlands', emoji: '💦', label: 'Wetlands' },
       { id: 'terra', emoji: '🦖', label: 'Terra' },
