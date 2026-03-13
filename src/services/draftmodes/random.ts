@@ -1,8 +1,16 @@
 import { randomInt } from 'node:crypto';
 
 import { EMOJI_RANDOM } from '../../config/constants.js';
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
+import { CIV6_LEADERS, formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
+import {
+  CIV7_CIVS,
+  CIV7_LEADERS,
+  formatCiv7Civ,
+  formatCiv7Leader,
+  lookupCiv7Civ,
+  lookupCiv7Leader,
+} from '../../data/civ7.data.js';
+import { humanizeGameId } from '../../utils/humanize-game-id.js';
 import type { VoteDraftRequest } from '../../types/draft.types.js';
 import { DraftError } from '../draft.service.js';
 import type { DraftModeOutput } from '../../types/drafting.types.js';
@@ -47,7 +55,7 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
 
     const lines = request.voterIds.map((id, index) => {
       const key = leaderAssignments[index];
-      return `• <@${id}> — **${CIV6_LEADERS[key as keyof typeof CIV6_LEADERS].gameId}**`;
+      return `• <@${id}> — ${formatCiv6Leader(key)} ${humanizeGameId(lookupCiv6Leader(key))}`;
     });
 
     return {
@@ -75,9 +83,7 @@ export async function runRandomDraftMode(request: VoteDraftRequest): Promise<Dra
   const lines = request.voterIds.map((id, index) => {
     const leaderKey = leaderAssignments[index];
     const civKey = civAssignments[index];
-    const leader = CIV7_LEADERS[leaderKey as keyof typeof CIV7_LEADERS].gameId;
-    const civ = CIV7_CIVS[civKey as keyof typeof CIV7_CIVS].gameId;
-    return `• <@${id}> — **${civ}** + **${leader}**`;
+    return `• <@${id}> — ${formatCiv7Civ(civKey)} ${humanizeGameId(lookupCiv7Civ(civKey))} + ${formatCiv7Leader(leaderKey)} ${humanizeGameId(lookupCiv7Leader(leaderKey))}`;
   });
 
   return {

@@ -5,6 +5,7 @@ import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { BlindDraftPick } from '../../types/drafting.types.js';
+import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
 function ts(ms: number, style: 't' | 'f' | 'R'): string {
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
@@ -13,13 +14,13 @@ function ts(ms: number, style: 't' | 'f' | 'R'): string {
 function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return 'Not selected';
   return edition === 'CIV6'
-    ? `${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`
-    : `${formatCiv7Leader(key)} ${lookupCiv7Leader(key)}`;
+    ? `${formatCiv6Leader(key)} ${humanizeGameId(lookupCiv6Leader(key))}`
+    : `${formatCiv7Leader(key)} ${humanizeGameId(lookupCiv7Leader(key))}`;
 }
 
 function civLine(key?: string): string {
   if (!key) return 'Not selected';
-  return `${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`;
+  return `${formatCiv7Civ(key)} ${humanizeGameId(lookupCiv7Civ(key))}`;
 }
 
 function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick, stagedPick?: BlindDraftPick): string {
@@ -39,7 +40,6 @@ function activeStatusLine(edition: CivEdition, pick?: BlindDraftPick, stagedPick
   return 'Awaiting leader & civ pick';
 }
 
-
 function timeoutStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
   if (edition === 'CIV6') {
     return pick?.leaderKey ? 'Picked' : 'No pick submitted';
@@ -52,17 +52,23 @@ function timeoutStatusLine(edition: CivEdition, pick?: BlindDraftPick): string {
   return 'No pick submitted';
 }
 
+function voteUuidLine(voteUuid?: string): string | undefined {
+  return voteUuid ? `Vote UUID: \`${voteUuid}\`` : undefined;
+}
+
 export function buildBlindDraftEmbed(args: Readonly<{
   edition: CivEdition;
   pick?: BlindDraftPick;
   stagedPick?: BlindDraftPick;
   endsAtMs: number;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [
     'Choose your blind draft picks below, then press **Submit** to lock them in.',
+    voteUuidLine(args.voteUuid),
     `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
     '',
-  ];
+  ].filter((line): line is string => Boolean(line));
 
   if (args.edition === 'CIV7') {
     lines.push(`**Civ:** ${civLine((args.stagedPick ?? args.pick)?.civKey)}`);
@@ -80,11 +86,13 @@ export function buildBlindDraftClosedEmbed(args: Readonly<{
   edition: CivEdition;
   pick?: BlindDraftPick;
   reason: 'timeout' | 'complete';
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [
     args.reason === 'timeout' ? 'Blind draft closed due to timeout.' : 'Blind draft completed.',
+    voteUuidLine(args.voteUuid),
     '',
-  ];
+  ].filter((line): line is string => Boolean(line));
 
   if (args.edition === 'CIV7') {
     lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
@@ -104,23 +112,28 @@ export function buildBlindDraftTrackingEmbed(args: Readonly<{
   picks: ReadonlyMap<string, BlindDraftPick>;
   stagedPicks?: ReadonlyMap<string, BlindDraftPick>;
   endsAtMs: number;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${activeStatusLine(args.edition, args.picks.get(id), args.stagedPicks?.get(id))}`);
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
     .setDescription([
+      voteUuidLine(args.voteUuid),
       `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
       '',
       ...lines,
-    ].join('\n'));
+    ].filter((line): line is string => Boolean(line)).join('\n'));
 }
 
 export function buildBlindDraftRevealEmbed(args: Readonly<{
   edition: CivEdition;
   voterIds: readonly string[];
   picks: ReadonlyMap<string, BlindDraftPick>;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [];
+  if (args.voteUuid) lines.push(voteUuidLine(args.voteUuid)!);
+  if (lines.length > 0) lines.push('');
   for (const id of args.voterIds) {
     const pick = args.picks.get(id);
     if (args.edition === 'CIV6') {
@@ -141,8 +154,12 @@ export function buildBlindDraftTimeoutEmbed(args: Readonly<{
   edition: CivEdition;
   voterIds: readonly string[];
   picks: ReadonlyMap<string, BlindDraftPick>;
+  voteUuid?: string;
 }>): EmbedBuilder {
-  const lines = args.voterIds.map((id) => `• ${userMention(id)} — ${timeoutStatusLine(args.edition, args.picks.get(id))}`);
+  const lines: string[] = [];
+  if (args.voteUuid) lines.push(voteUuidLine(args.voteUuid)!);
+  if (lines.length > 0) lines.push('');
+  lines.push(...args.voterIds.map((id) => `• ${userMention(id)} — ${timeoutStatusLine(args.edition, args.picks.get(id))}`));
 
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Blind Draft Closed (Timeout)`)

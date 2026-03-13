@@ -5,6 +5,7 @@ import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
+import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
 function ts(ms: number, style: 't' | 'R' | 'f'): string {
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
@@ -13,13 +14,13 @@ function ts(ms: number, style: 't' | 'R' | 'f'): string {
 function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return '—';
   return edition === 'CIV6'
-    ? `${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`
-    : `${formatCiv7Leader(key)} ${lookupCiv7Leader(key)}`;
+    ? `${formatCiv6Leader(key)} ${humanizeGameId(lookupCiv6Leader(key))}`
+    : `${formatCiv7Leader(key)} ${humanizeGameId(lookupCiv7Leader(key))}`;
 }
 
 function civLine(key?: string): string {
   if (!key) return '—';
-  return `${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`;
+  return `${formatCiv7Civ(key)} ${humanizeGameId(lookupCiv7Civ(key))}`;
 }
 
 function roundLabel(edition: CivEdition, round: SnakeRoundKind): string {
@@ -28,14 +29,21 @@ function roundLabel(edition: CivEdition, round: SnakeRoundKind): string {
   return 'Complete';
 }
 
+function voteUuidLine(voteUuid?: string): string | undefined {
+  return voteUuid ? `Vote UUID: \`${voteUuid}\`` : undefined;
+}
+
 export function buildSnakeDraftWaitingDmEmbed(args: Readonly<{
   edition: CivEdition;
   round: SnakeRoundKind;
   currentPickerId: string | null;
   pick?: SnakeDraftPick;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [];
+  if (args.voteUuid) lines.push(voteUuidLine(args.voteUuid)!);
   if (args.currentPickerId) {
+    if (lines.length > 0) lines.push('');
     lines.push(`Current picker: ${userMention(args.currentPickerId)}`);
     lines.push(`Round: ${roundLabel(args.edition, args.round)}`);
     lines.push('');
@@ -52,14 +60,22 @@ export function buildSnakeDraftActiveDmEmbed(args: Readonly<{
   round: Exclude<SnakeRoundKind, 'complete'>;
   endsAtMs: number;
   pick?: SnakeDraftPick;
+  stagedPick?: SnakeDraftPick;
+  voteUuid?: string;
 }>): EmbedBuilder {
+  const current = args.stagedPick ?? args.pick;
   const lines: string[] = [
-    args.round === 'leader' ? 'It is your turn to pick a leader.' : 'It is your turn to pick a civ.',
+    args.round === 'leader'
+      ? 'Choose your leader below, then press **Submit** to lock it in.'
+      : 'Choose your civ below, then press **Submit** to lock it in.',
+    voteUuidLine(args.voteUuid),
     `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
     '',
-  ];
-  if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
-  lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
+  ].filter((line): line is string => Boolean(line));
+  if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(current?.civKey)}`);
+  lines.push(`**Leader:** ${leaderLine(args.edition, current?.leaderKey)}`);
+  lines.push('');
+  lines.push(`**Status:** ${args.round === 'leader' ? (current?.leaderKey ? 'Ready to submit' : 'Awaiting leader pick') : (current?.civKey ? 'Ready to submit' : 'Awaiting civ pick')}`);
   return new EmbedBuilder()
     .setTitle(`${EMOJI_LOCK} Snake Draft`)
     .setDescription(lines.join('\n'));
@@ -73,12 +89,14 @@ export function buildSnakeDraftStatusEmbed(args: Readonly<{
   picks: ReadonlyMap<string, SnakeDraftPick>;
   endsAtMs: number;
   lastEvent?: string;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [
+    voteUuidLine(args.voteUuid),
     `Round: **${roundLabel(args.edition, args.round)}**`,
     `Current picker: ${userMention(args.currentPickerId)}`,
     `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
-  ];
+  ].filter((line): line is string => Boolean(line));
   if (args.lastEvent) {
     lines.push('', args.lastEvent);
   }
@@ -114,9 +132,12 @@ export function buildSnakeDraftCompleteEmbed(args: Readonly<{
   order: readonly string[];
   picks: ReadonlyMap<string, SnakeDraftPick>;
   lastEvent?: string;
+  voteUuid?: string;
 }>): EmbedBuilder {
   const lines: string[] = [];
-  if (args.lastEvent) lines.push(args.lastEvent, '');
+  if (args.voteUuid) lines.push(voteUuidLine(args.voteUuid)!);
+  if (args.lastEvent) lines.push(args.lastEvent);
+  if (lines.length > 0) lines.push('');
   for (const userId of args.order) {
     const pick = args.picks.get(userId);
     if (args.edition === 'CIV6') {

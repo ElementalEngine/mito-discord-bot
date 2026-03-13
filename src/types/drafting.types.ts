@@ -83,6 +83,7 @@ export type SnakeDraftSession = {
   leaderPool: readonly string[];
   civPool: readonly string[];
   picks: Map<string, SnakeDraftPick>;
+  stagedPicks: Map<string, SnakeDraftPick>;
   pages: Map<string, SnakeDraftPageState>;
   round: SnakeRoundKind;
   turnIndex: number;

@@ -142,7 +142,7 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
 
   if (!pools) {
     return {
-      embeds: [buildBlindDraftEmbed({ edition: session.edition, pick: session.picks.get(voterId), endsAtMs: session.endsAtMs })],
+      embeds: [buildBlindDraftEmbed({ edition: session.edition, pick: session.picks.get(voterId), endsAtMs: session.endsAtMs, voteUuid: session.voteUuid })],
       components: [],
       allowedMentions: { parse: [] as const },
     };
@@ -160,6 +160,7 @@ function buildBlindDmPayload(session: BlindDraftSession, voterId: string): Rende
         pick: session.picks.get(voterId),
         stagedPick: session.stagedPicks.get(voterId),
         endsAtMs: session.endsAtMs,
+        voteUuid: session.voteUuid,
       }),
     ],
     components: buildBlindDraftPickComponents({
@@ -185,6 +186,7 @@ function buildClosedDmPayload(
         edition: session.edition,
         pick: session.picks.get(voterId),
         reason,
+        voteUuid: session.voteUuid,
       }),
     ],
     components: [],
@@ -210,6 +212,7 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
         picks: session.picks,
         stagedPicks: session.stagedPicks,
         endsAtMs: session.endsAtMs,
+        voteUuid: session.voteUuid,
       }),
     ],
     allowedMentions: { parse: [] as const },
@@ -243,11 +246,13 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
             edition: session.edition,
             voterIds: session.voterIds,
             picks: session.picks,
+            voteUuid: session.voteUuid,
           })
         : buildBlindDraftTimeoutEmbed({
             edition: session.edition,
             voterIds: session.voterIds,
             picks: session.picks,
+            voteUuid: session.voteUuid,
           }),
     ],
     allowedMentions: { parse: [] as const },

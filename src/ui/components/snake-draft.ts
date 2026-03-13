@@ -8,7 +8,7 @@ import {
 import { CIV6_LEADERS, lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
 import type { CivEdition } from '../../config/types.js';
-import type { SnakeDraftPageState, SnakeRoundKind } from '../../types/drafting.types.js';
+import type { SnakeDraftPageState, SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
@@ -36,6 +36,8 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
   state: SnakeDraftPageState;
   leaders?: readonly string[];
   civs?: readonly string[];
+  pick?: SnakeDraftPick;
+  stagedPick?: SnakeDraftPick;
 }>): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
@@ -43,6 +45,7 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
     const keys = args.leaders ?? [];
     const totalPages = Math.max(1, Math.ceil(keys.length / SNAKE_MENU_PAGE_SIZE));
     const pageKeys = keys.slice(args.state.leaderPage * SNAKE_MENU_PAGE_SIZE, (args.state.leaderPage + 1) * SNAKE_MENU_PAGE_SIZE);
+    const stagedLeader = args.stagedPick?.leaderKey ?? args.pick?.leaderKey;
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`sd:pick:leader:${args.sessionId}:${args.turnToken}`)
       .setPlaceholder(totalPages > 1 ? `Pick your leader (Page ${args.state.leaderPage + 1}/${totalPages})` : 'Pick your leader')
@@ -56,6 +59,7 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
           label: leaderLabel(args.edition, key),
           value: key,
           emoji: toSelectEmoji(meta?.emojiId),
+          default: stagedLeader === key,
         };
       }));
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu));
@@ -75,12 +79,21 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
       ));
     }
 
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`sd:submit:${args.sessionId}:${args.turnToken}`)
+        .setStyle(ButtonStyle.Success)
+        .setLabel('Submit')
+        .setDisabled(!Boolean(stagedLeader)),
+    ));
+
     return rows;
   }
 
   const civKeys = args.civs ?? [];
   const totalPages = Math.max(1, Math.ceil(civKeys.length / SNAKE_MENU_PAGE_SIZE));
   const pageKeys = civKeys.slice(args.state.civPage * SNAKE_MENU_PAGE_SIZE, (args.state.civPage + 1) * SNAKE_MENU_PAGE_SIZE);
+  const stagedCiv = args.stagedPick?.civKey ?? args.pick?.civKey;
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`sd:pick:civ:${args.sessionId}:${args.turnToken}`)
     .setPlaceholder(totalPages > 1 ? `Pick your civ (Page ${args.state.civPage + 1}/${totalPages})` : 'Pick your civ')
@@ -92,6 +105,7 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
         label: civLabel(key),
         value: key,
         emoji: toSelectEmoji(meta?.emojiId),
+        default: stagedCiv === key,
       };
     }));
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu));
@@ -110,6 +124,14 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
         .setDisabled(args.state.civPage >= totalPages - 1),
     ));
   }
+
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`sd:submit:${args.sessionId}:${args.turnToken}`)
+      .setStyle(ButtonStyle.Success)
+      .setLabel('Submit')
+      .setDisabled(!Boolean(stagedCiv)),
+  ));
 
   return rows;
 }

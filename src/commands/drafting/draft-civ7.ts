@@ -10,13 +10,15 @@ import type { Civ7StartingAge } from '../../data/types.js';
 import { executeDraftCommand } from '../../services/drafting.service.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
-const ACCESS_POLICY = {
-  allowedChannelIds: [
+function allowedDraftChannels(): readonly string[] {
+  return [
     config.discord.channels.botTesting,
-    config.discord.channels.civ6Commands,
     config.discord.channels.civ7Commands,
-    config.discord.channels.cloudCommands,
-  ],
+  ];
+}
+
+const ACCESS_POLICY = {
+  allowedChannelIds: allowedDraftChannels(),
   requiredRoleIds: [
     config.discord.roles.civ6Rank,
     config.discord.roles.civ7Rank,

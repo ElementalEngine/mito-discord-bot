@@ -52,6 +52,62 @@ function majorityThreshold(n: number): number {
   return Math.floor(n / 2) + 1;
 }
 
+const MULTI_VALUE_DELIMITER = '|';
+
+function getQuestionMaxSelections(question: VoteQuestion): number {
+  return Math.max(1, Math.min(question.options.length, question.maxSelections ?? 1));
+}
+
+function isMultiSelectQuestion(question: VoteQuestion): boolean {
+  return getQuestionMaxSelections(question) > 1;
+}
+
+function decodeVoteSelections(question: VoteQuestion, stored?: string): string[] {
+  if (!stored) return [];
+  if (!isMultiSelectQuestion(question)) return [stored].filter(Boolean);
+
+  const allowed = new Set(question.options.map((option) => option.id));
+  return dedupeStable(stored.split(MULTI_VALUE_DELIMITER).map((value) => value.trim()).filter((value) => allowed.has(value)))
+    .slice(0, getQuestionMaxSelections(question));
+}
+
+function encodeVoteSelections(question: VoteQuestion, selectedIds: readonly string[]): string | null {
+  const allowed = new Set(question.options.map((option) => option.id));
+  const orderById = new Map(question.options.map((option, index) => [option.id, index] as const));
+  const normalized = dedupeStable(selectedIds)
+    .filter((value) => allowed.has(value))
+    .sort((a, b) => (orderById.get(a) ?? 0) - (orderById.get(b) ?? 0))
+    .slice(0, getQuestionMaxSelections(question));
+
+  if (normalized.length === 0) return null;
+  return isMultiSelectQuestion(question) ? normalized.join(MULTI_VALUE_DELIMITER) : normalized[0] ?? null;
+}
+
+function pickRandomVoteValue(question: VoteQuestion): string {
+  if (!isMultiSelectQuestion(question)) return pickRandom(question.options).id;
+
+  const count = Math.max(1, Math.min(getQuestionMaxSelections(question), 1 + Math.floor(Math.random() * getQuestionMaxSelections(question))));
+  const pool = question.options.map((option) => option.id);
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return encodeVoteSelections(question, pool.slice(0, count)) ?? question.defaultOptionId;
+}
+
+function pickLabelsForQuestion(question: VoteQuestion, stored?: string): string {
+  const selections = decodeVoteSelections(question, stored);
+  if (selections.length === 0) return '—';
+
+  return selections
+    .map((selectedId) => {
+      const option = question.options.find((candidate) => candidate.id === selectedId);
+      return option ? `${option.emoji ? `${option.emoji} ` : ''}${option.label}` : selectedId;
+    })
+    .join(', ');
+}
+
 
 function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -296,7 +352,7 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
   if (!showWinners) {
     const blocks = v.questions.map((q, idx) => {
       const header = `**${idx + 1}. ${q.title}**`;
-      const counts = voteCountByOption(v.votesByQuestion.get(q.id) ?? new Map<string, string>());
+      const counts = voteCountByOption(q, v.votesByQuestion.get(q.id) ?? new Map<string, string>());
       const lines = q.options.map((o) => {
         const count = counts.get(o.id) ?? 0;
         return `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}${count > 0 ? ` ×${count}` : ''}`;
@@ -318,7 +374,7 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
     return [
       ...v.questions.map((q, idx) => {
         const name = `${idx + 1}. ${q.title}`;
-        const counts = voteCountByOption(v.votesByQuestion.get(q.id) ?? new Map<string, string>());
+        const counts = voteCountByOption(q, v.votesByQuestion.get(q.id) ?? new Map<string, string>());
         const lines = q.options.map((o) => `• ${o.emoji ? `${o.emoji} ` : ''}${o.label}${(counts.get(o.id) ?? 0) > 0 ? ` ×${counts.get(o.id) ?? 0}` : ''}`);
         return { name, value: lines.join('\n') || '—' };
       }),
@@ -332,7 +388,7 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
       const winnerId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
       const winner = q.options.find((o) => o.id === winnerId);
       const label = winner ? `${winner.emoji ? `${winner.emoji} ` : ''}${winner.label}` : winnerId;
-      const count = (v.votesByQuestion.get(q.id) && voteCountByOption(v.votesByQuestion.get(q.id)!).get(winnerId)) ?? 0;
+      const count = (v.votesByQuestion.get(q.id) && voteCountByOption(q, v.votesByQuestion.get(q.id)!).get(winnerId)) ?? 0;
       const tb = v.tiebrokenQuestions.has(q.id) ? ' *(tiebreak)*' : '';
       return { name, value: `**${label}**${count > 0 ? ` ×${count}` : ''}${tb}` };
     }),
@@ -378,27 +434,32 @@ function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuesti
   return v.questions[currentIndex + 1]?.id ?? currentQuestionId;
 }
 
-function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId: string): EmbedBuilder {
+function buildBallotEmbed(
+  v: GameVoteSession,
+  voterId: string,
+  activeQuestionId: string,
+  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
+): EmbedBuilder {
   const ends = Math.floor(v.endsAtMs / 1000);
-  const hasDirtyChanges = hasStagedVoteChanges(v, voterId);
+  const hasDirtyChanges = !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
   const submitted = v.voteSubmitted.has(voterId) && !hasDirtyChanges;
-  const staged = ensureStagedVoteRecord(v, voterId);
   const header =
     v.status !== 'in_progress'
       ? '**Voting has ended.**'
-      : `Finish before <t:${ends}:R>. Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
+      : `**Ends:** <t:${ends}:t>
+Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
 
   const lines = v.questions.map((q, idx) => {
-    const pickId = staged.get(q.id);
-    const pick = pickId ? q.options.find((o) => o.id === pickId) : undefined;
-    const pickLabel = pick ? `${pick.emoji ? `${pick.emoji} ` : ''}${pick.label}` : '—';
-    const mark = pickId ? '✅' : '⬜';
+    const pickLabel = pickLabelsForQuestion(q, stagedRecord.get(q.id));
+    const mark = stagedRecord.has(q.id) ? '✅' : '⬜';
     const cursor = q.id === activeQuestionId ? '➡️ ' : '';
     return `${cursor}${mark} ${idx + 1}. ${q.title} — ${pickLabel}`;
   });
 
   const footer = submitted
-    ? `\n\n✅ **Vote saved** — you can reopen this panel and keep editing until **Finish Vote**.`
+    ? `
+
+✅ **Vote saved** — you can reopen this panel and keep editing until **Finish Vote**.`
     : '';
 
   return new EmbedBuilder()
@@ -409,27 +470,34 @@ function buildBallotEmbed(v: GameVoteSession, voterId: string, activeQuestionId:
 function buildBallotComponents(
   v: GameVoteSession,
   voterId: string,
-  activeQuestionId: string
+  activeQuestionId: string,
+  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
 ): readonly ActionRowBuilder<any>[] {
   const finished = v.finished.has(voterId);
-  const staged = ensureStagedVoteRecord(v, voterId);
   const total = v.questions.length;
-  const answered = answeredCountInRecord(v, staged);
-  const canSubmit = !finished && answered >= total && hasStagedVoteChanges(v, voterId);
+  const answered = answeredCountInRecord(v, stagedRecord);
+  const canSubmit = !finished && answered >= total && !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
   const activeIndex = Math.max(0, v.questions.findIndex((q) => q.id === activeQuestionId));
 
   const q = v.questions[activeIndex] ?? v.questions[0];
-  const currentPickId = staged.get(q.id);
+  const currentSelections = decodeVoteSelections(q, stagedRecord.get(q.id));
+  const maxSelections = getQuestionMaxSelections(q);
 
   const optionSelect = new StringSelectMenuBuilder()
     .setCustomId(`gv:ballotv:${v.sessionId}`)
-    .setPlaceholder(`Select an option for ${q.title}`.slice(0, 150))
+    .setPlaceholder(
+      (isMultiSelectQuestion(q)
+        ? `Select up to ${maxSelections} options for ${q.title}`
+        : `Select an option for ${q.title}`).slice(0, 150)
+    )
+    .setMinValues(1)
+    .setMaxValues(maxSelections)
     .setDisabled(finished)
     .addOptions(
       q.options.slice(0, 25).map((o) => ({
         label: `${o.emoji ? `${o.emoji} ` : ''}${o.label}`.slice(0, 100),
         value: o.id,
-        default: o.id === currentPickId,
+        default: currentSelections.includes(o.id),
       }))
     );
 
@@ -455,6 +523,19 @@ function buildBallotComponents(
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(optionSelect),
     new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn, submitBtn),
   ];
+}
+
+function buildBallotPayload(
+  v: GameVoteSession,
+  voterId: string,
+  activeQuestionId: string,
+  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
+): RenderPayload {
+  return {
+    embeds: [buildBallotEmbed(v, voterId, activeQuestionId, stagedRecord)],
+    components: [...buildBallotComponents(v, voterId, activeQuestionId, stagedRecord)],
+    allowedMentions: { parse: [] as const },
+  };
 }
 
 function sortKeysByGameId(source: Record<string, { gameId: string }>): string[] {
@@ -684,6 +765,7 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     completedAtMs: v.completedAtMs,
     progress,
     questionFields,
+    voteUuid: v.sessionId,
   });
 
   const components = v.status === 'in_progress' && v.phase === 'voting'
@@ -714,10 +796,12 @@ async function safeEditMessage(
   }
 }
 
-function voteCountByOption(record: VoteRecord): Map<string, number> {
+function voteCountByOption(question: VoteQuestion, record: VoteRecord): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const optId of record.values()) {
-    counts.set(optId, (counts.get(optId) ?? 0) + 1);
+  for (const stored of record.values()) {
+    for (const optId of decodeVoteSelections(question, stored)) {
+      counts.set(optId, (counts.get(optId) ?? 0) + 1);
+    }
   }
   return counts;
 }
@@ -740,7 +824,7 @@ function selectWinner(
   // If not everyone voted, fall back to default (existing behavior).
   if (record.size < voterIds.length) return question.defaultOptionId;
 
-  const counts = voteCountByOption(record);
+  const counts = voteCountByOption(question, record);
   const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
 
   if (entries.length === 0) return question.defaultOptionId;
@@ -1208,22 +1292,35 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   const q = v.questions.find((qq) => qq.id === qid);
   if (!q) { await replyNotice(interaction, '⚠️ Invalid question context.'); return true; }
 
-  const optId = interaction.values[0];
-  if (!q.options.some((o) => o.id === optId)) { await replyNotice(interaction, '⚠️ Invalid option selection.'); return true; }
+  const selectedIds = interaction.values;
+  const maxSelections = getQuestionMaxSelections(q);
+  if (selectedIds.length === 0 || selectedIds.length > maxSelections || !selectedIds.every((optId) => q.options.some((option) => option.id === optId))) {
+    await replyNotice(interaction, '⚠️ Invalid option selection.');
+    return true;
+  }
 
+  const nextStored = encodeVoteSelections(q, selectedIds);
+  if (!nextStored) {
+    await replyNotice(interaction, '⚠️ Invalid option selection.');
+    return true;
+  }
+
+  const nextActive = nextBallotQuestionId(v, userId, qid);
   const prev = stagedRecord.get(qid);
-  stagedRecord.set(qid, optId);
-  if (prev !== optId && v.voteSubmitted.has(userId)) {
+  if (prev === nextStored && (v.activeQuestionByVoter.get(userId) ?? activeFromState) === nextActive) {
+    await interaction.deferUpdate();
+    return true;
+  }
+
+  stagedRecord.set(qid, nextStored);
+  if (prev !== nextStored && v.voteSubmitted.has(userId)) {
     v.voteSubmitted.delete(userId);
   }
 
-  v.activeQuestionByVoter.set(userId, nextBallotQuestionId(v, userId, qid));
+  v.activeQuestionByVoter.set(userId, nextActive);
 
   const active = v.activeQuestionByVoter.get(userId) ?? activeFromState;
-  const embed = buildBallotEmbed(v, userId, active);
-  const components = buildBallotComponents(v, userId, active);
-
-  await interaction.update({ embeds: [embed], components: [...components] });
+  await interaction.update(buildBallotPayload(v, userId, active, stagedRecord));
 
   return true;
 }
@@ -1251,12 +1348,8 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
     v.activeQuestionByVoter.set(userId, active);
 
-    const embed = buildBallotEmbed(v, userId, active);
-    const components = buildBallotComponents(v, userId, active);
-
     await replySafe(interaction, {
-      embeds: [embed],
-      components: [...components],
+      ...buildBallotPayload(v, userId, active),
       flags: MessageFlags.Ephemeral,
     });
     return true;
@@ -1277,9 +1370,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (!nextQuestion) { await interaction.deferUpdate(); return true; }
 
     v.activeQuestionByVoter.set(userId, nextQuestion.id);
-    const embed = buildBallotEmbed(v, userId, nextQuestion.id);
-    const components = buildBallotComponents(v, userId, nextQuestion.id);
-    await interaction.update({ embeds: [embed], components: [...components] });
+    await interaction.update(buildBallotPayload(v, userId, nextQuestion.id));
     return true;
   }
 
@@ -1301,13 +1392,14 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
     const active =
       v.activeQuestionByVoter.get(userId) ?? firstUnansweredQuestionIdInRecord(v, staged) ?? v.questions[0]?.id;
-    const embed = active ? buildBallotEmbed(v, userId, active) : new EmbedBuilder().setDescription('Vote submitted.');
-    const components = active ? buildBallotComponents(v, userId, active) : [];
+    const payload = active
+      ? buildBallotPayload(v, userId, active, staged)
+      : { embeds: [new EmbedBuilder().setDescription('Vote submitted.')], components: [], allowedMentions: { parse: [] as const } };
 
     try {
-      await interaction.update({ embeds: [embed], components: [...components] });
+      await interaction.update(payload);
     } catch {
-      await replySafe(interaction, { embeds: [embed], components: [...components], flags: MessageFlags.Ephemeral });
+      await replySafe(interaction, { ...payload, flags: MessageFlags.Ephemeral });
     }
 
     return true;
@@ -1337,7 +1429,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
 
     const randomized = new Map<string, string>();
     for (const q of v.questions) {
-      randomized.set(q.id, pickRandom(q.options).id);
+      randomized.set(q.id, pickRandomVoteValue(q));
     }
 
     commitVoteRecord(v, userId, randomized);

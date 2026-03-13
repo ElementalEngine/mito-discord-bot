@@ -38,11 +38,11 @@ function fmtStatus(status: GameVoteStatus): string {
 }
 
 function fmtTimerLine(startedAtMs: number, endsAtMs: number): string {
-  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Ends:** ${toDiscordTimestamp(endsAtMs, 't')} (${toDiscordTimestamp(endsAtMs, 'R')})`;
+  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Ends:** ${toDiscordTimestamp(endsAtMs, 't')}`;
 }
 
 function fmtCompletedTimerLine(startedAtMs: number, completedAtMs: number): string {
-  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Completed:** ${toDiscordTimestamp(completedAtMs, 't')} (${toDiscordTimestamp(completedAtMs, 'R')})`;
+  return `**Started:** ${toDiscordTimestamp(startedAtMs, 't')} ~ **Completed:** ${toDiscordTimestamp(completedAtMs, 't')}`;
 }
 
 function formatVoterName(displayName: string, userId?: string): string {

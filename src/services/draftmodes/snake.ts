@@ -34,7 +34,8 @@ type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptio
 
 type SnakeCustomId =
   | Readonly<{ action: 'pick'; pickType: 'leader' | 'civ'; sessionId: string; turnToken: number }>
-  | Readonly<{ action: 'nav'; pickType: 'leader' | 'civ'; navDir: 'prev' | 'next'; sessionId: string; turnToken: number }>;
+  | Readonly<{ action: 'nav'; pickType: 'leader' | 'civ'; navDir: 'prev' | 'next'; sessionId: string; turnToken: number }>
+  | Readonly<{ action: 'submit'; sessionId: string; turnToken: number }> ;
 
 function parseSnakeCustomId(customId: string): SnakeCustomId | null {
   const pick = /^sd:pick:(leader|civ):([A-Za-z0-9-]+):(\d+)$/.exec(customId);
@@ -55,6 +56,15 @@ function parseSnakeCustomId(customId: string): SnakeCustomId | null {
       navDir: nav[2] as 'prev' | 'next',
       sessionId: nav[3],
       turnToken: Number.parseInt(nav[4], 10),
+    };
+  }
+
+  const submit = /^sd:submit:([A-Za-z0-9-]+):(\d+)$/.exec(customId);
+  if (submit) {
+    return {
+      action: 'submit',
+      sessionId: submit[1],
+      turnToken: Number.parseInt(submit[2], 10),
     };
   }
 
@@ -154,6 +164,7 @@ function buildWaitingPayload(session: SnakeDraftSession, userId: string): Render
       round: session.round,
       currentPickerId: getCurrentPickerId(session),
       pick: session.picks.get(userId),
+      voteUuid: session.voteUuid,
     })],
     components: [],
   };
@@ -168,6 +179,8 @@ function buildActivePayload(session: SnakeDraftSession, userId: string): RenderP
       round,
       endsAtMs: session.turnEndsAtMs,
       pick: session.picks.get(userId),
+      stagedPick: session.stagedPicks.get(userId),
+      voteUuid: session.voteUuid,
     })],
     components: buildSnakeDraftPickComponents({
       edition: session.edition,
@@ -177,6 +190,8 @@ function buildActivePayload(session: SnakeDraftSession, userId: string): RenderP
       state,
       leaders: round === 'leader' ? getAvailableLeaders(session) : undefined,
       civs: round === 'civ' ? getAvailableCivs(session) : undefined,
+      pick: session.picks.get(userId),
+      stagedPick: session.stagedPicks.get(userId),
     }),
   };
 }
@@ -191,6 +206,7 @@ async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> 
           order: session.order,
           picks: session.picks,
           lastEvent: session.lastEvent,
+          voteUuid: session.voteUuid,
         })],
         allowedMentions: { parse: [] as const },
       }
@@ -203,6 +219,7 @@ async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> 
           picks: session.picks,
           endsAtMs: session.turnEndsAtMs,
           lastEvent: session.lastEvent,
+          voteUuid: session.voteUuid,
         })],
         allowedMentions: { parse: [] as const },
       };
@@ -290,6 +307,7 @@ async function applyPick(session: SnakeDraftSession, userId: string, key: string
   }
 
   session.picks.set(userId, pick);
+  session.stagedPicks.delete(userId);
   advanceTurn(session);
   await scheduleNextTurn(session, previousPickerId);
 }
@@ -362,6 +380,7 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
     leaderPool,
     civPool,
     picks: new Map(),
+    stagedPicks: new Map(),
     pages: new Map(),
     round: 'leader',
     turnIndex: 0,
@@ -369,6 +388,7 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
     turnEndsAtMs: 0,
     timeout: null,
     lastEvent: 'Initial order randomized.',
+    voteUuid: request.voteUuid,
   };
 
   const dmMessages: Message<false>[] = [];
@@ -431,14 +451,18 @@ export async function handleSnakeDraftSelect(interaction: StringSelectMenuIntera
     return true;
   }
 
-  await interaction.deferUpdate();
-  await applyPick(session, userId, choice, false);
+  const staged = { ...(session.stagedPicks.get(userId) ?? session.picks.get(userId) ?? {}) };
+  if (parsed.pickType === 'leader') staged.leaderKey = choice;
+  if (parsed.pickType === 'civ') staged.civKey = choice;
+  session.stagedPicks.set(userId, staged);
+
+  await interaction.update(buildActivePayload(session, userId));
   return true;
 }
 
 export async function handleSnakeDraftButton(interaction: ButtonInteraction): Promise<boolean> {
   const parsed = parseSnakeCustomId(interaction.customId);
-  if (!parsed || parsed.action !== 'nav') return false;
+  if (!parsed) return false;
 
   const session = getSnakeSession(parsed.sessionId);
   if (!session) {
@@ -454,6 +478,27 @@ export async function handleSnakeDraftButton(interaction: ButtonInteraction): Pr
     await replyNotice(interaction, '⚠️ It is not your turn to pick.');
     return true;
   }
+
+  if (parsed.action === 'submit') {
+    const staged = session.stagedPicks.get(userId) ?? session.picks.get(userId);
+    const key = session.round === 'leader' ? staged?.leaderKey : staged?.civKey;
+    if (!key) {
+      await replyNotice(interaction, '⚠️ Choose a pick before submitting.');
+      return true;
+    }
+
+    const available = session.round === 'leader' ? getAvailableLeaders(session) : getAvailableCivs(session);
+    if (!available.includes(key)) {
+      await replyNotice(interaction, '⚠️ That choice is no longer available.');
+      return true;
+    }
+
+    await interaction.deferUpdate();
+    await applyPick(session, userId, key, false);
+    return true;
+  }
+
+  if (parsed.action !== 'nav') return false;
   if (parsed.pickType !== session.round) {
     await replyNotice(interaction, '⚠️ That picker is no longer active.');
     return true;
