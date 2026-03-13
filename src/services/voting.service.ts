@@ -3,7 +3,6 @@ import {
   MessageFlags,
   type ButtonInteraction,
   type Guild,
-  type InteractionReplyOptions,
   type ModalSubmitInteraction,
   type Message,
   type StringSelectMenuInteraction,
@@ -12,7 +11,7 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 
 import { getGameVoteBanLimits, getVoteDurationMs } from '../config/draft.config.js';
-import { buildGameVoteConfig } from '../config/voting.config.js';
+import { buildGameVoteConfig } from './voting/domain/questions.service.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
@@ -20,6 +19,10 @@ import { executeVoteDraft } from './drafting/orchestration.service.js';
 import { buildPublicVotePayload, type PublicVotePayload } from './voting/panels/public-message.service.js';
 import { buildVotePanelPayload as buildVotePanelPayloadView } from './voting/panels/vote-panel.service.js';
 import { buildBansPanelPayload as buildBansPanelPayloadView } from './voting/panels/bans-panel.service.js';
+import { getVoteSessionById, isVoteVoiceBusy, reserveVoteVoice, releaseReservedVoteVoice, registerActiveVoteSession, scheduleVoteSessionTimeout, clearVoteSessionTimeout, finalizeVoteSessionCleanup } from './voting/runtime/session-runtime.service.js';
+import { ensureStagedVoteRecord, getCommittedVoteRecordForVoter, answeredCountInRecord, firstUnansweredQuestionIdInRecord, voteRecordEquals, hasStagedVoteChanges, commitVoteRecord, nextBallotQuestionId } from './voting/runtime/vote-state.service.js';
+import { ensureStagedBans, hasStagedBanChanges, getBanPageState, setBanPageState, mergePagedBanSelection } from './voting/runtime/bans-state.service.js';
+import { replySafe, replyNotice, safeEditMessage, openInitialVoteMessages } from './voting/runtime/message-ops.service.js';
 import type {
   GameVoteSession,
   GameVoteDraftMode,
@@ -34,17 +37,7 @@ import type { VoteDraftRequest } from '../types/drafting.types.js';
 
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
-
-
-const activeById = new Map<string, GameVoteSession>();
-const activeByVoice = new Map<string, GameVoteSession>();
-const reservedByVoice = new Set<string>();
-const completedCleanupBySession = new Map<string, NodeJS.Timeout>();
 const COMPLETED_SESSION_RETENTION_MS = 15 * 60_000;
-
-function voiceKey(guildId: string, voiceChannelId: string): string {
-  return `${guildId}:${voiceChannelId}`;
-}
 
 function majorityThreshold(n: number): number {
   return Math.floor(n / 2) + 1;
@@ -111,32 +104,6 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-async function replySafe(
-  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
-  payload: InteractionReplyOptions,
-): Promise<void> {
-  try {
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // ignore
-  }
-}
-
-async function replyNotice(
-  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
-  content: string,
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-  const payload = interaction.inGuild()
-    ? ({ ...base, flags: MessageFlags.Ephemeral } as const)
-    : base;
-  await replySafe(interaction, payload);
-}
-
 function buildProgress(v: GameVoteSession): GameVoteProgress {
   return {
     edition: v.edition,
@@ -169,74 +136,6 @@ function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSub
   };
 }
 
-function banSubmissionEquals(a: BanSubmission, b: BanSubmission): boolean {
-  return a.leaderKeys.length === b.leaderKeys.length
-    && a.civKeys.length === b.civKeys.length
-    && a.leaderKeys.every((key, idx) => key === b.leaderKeys[idx])
-    && a.civKeys.every((key, idx) => key === b.civKeys[idx]);
-}
-
-function getCommittedVoteRecordForVoter(v: GameVoteSession, voterId: string): VoteRecord {
-  const record = new Map<string, string>();
-  for (const q of v.questions) {
-    const optId = v.votesByQuestion.get(q.id)?.get(voterId);
-    if (optId) record.set(q.id, optId);
-  }
-  return record;
-}
-
-function ensureStagedVoteRecord(v: GameVoteSession, voterId: string): VoteRecord {
-  const existing = v.stagedVotesByVoter.get(voterId);
-  if (existing) return existing;
-  const created = getCommittedVoteRecordForVoter(v, voterId);
-  v.stagedVotesByVoter.set(voterId, created);
-  return created;
-}
-
-function ensureStagedBans(v: GameVoteSession, voterId: string): BanSubmission {
-  const existing = v.stagedBansByVoter.get(voterId);
-  if (existing) return existing;
-  const created = normalizeBanSubmission(v, cloneBanSubmission(v.bansByVoter.get(voterId) ?? getEmptyBans()));
-  v.stagedBansByVoter.set(voterId, created);
-  return created;
-}
-
-function answeredCountInRecord(v: GameVoteSession, record: ReadonlyMap<string, string>): number {
-  let count = 0;
-  for (const q of v.questions) if (record.has(q.id)) count += 1;
-  return count;
-}
-
-function firstUnansweredQuestionIdInRecord(v: GameVoteSession, record: ReadonlyMap<string, string>): string | null {
-  for (const q of v.questions) {
-    if (!record.has(q.id)) return q.id;
-  }
-  return null;
-}
-
-function voteRecordEquals(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
-  if (a.size != b.size) return false;
-  for (const [key, value] of a) if (b.get(key) !== value) return false;
-  return true;
-}
-
-function hasStagedVoteChanges(v: GameVoteSession, voterId: string): boolean {
-  return !voteRecordEquals(ensureStagedVoteRecord(v, voterId), getCommittedVoteRecordForVoter(v, voterId));
-}
-
-function hasStagedBanChanges(v: GameVoteSession, voterId: string): boolean {
-  return !banSubmissionEquals(ensureStagedBans(v, voterId), v.bansByVoter.get(voterId) ?? getEmptyBans());
-}
-
-function commitVoteRecord(v: GameVoteSession, userId: string, record: ReadonlyMap<string, string>): void {
-  for (const q of v.questions) {
-    const optId = record.get(q.id);
-    const rec = v.votesByQuestion.get(q.id) ?? new Map<string, string>();
-    if (optId) rec.set(userId, optId);
-    else rec.delete(userId);
-    v.votesByQuestion.set(q.id, rec);
-  }
-}
 
 function dedupeStable(keys: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -530,46 +429,10 @@ function buildBansPanelPayload(v: GameVoteSession, voterId: string): RenderPaylo
 
 
 
-function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuestionId: string): string {
-  const currentIndex = v.questions.findIndex((q) => q.id === currentQuestionId);
-  if (currentIndex < 0) return currentQuestionId;
-
-  const staged = ensureStagedVoteRecord(v, voterId);
-  for (let i = currentIndex + 1; i < v.questions.length; i += 1) {
-    const question = v.questions[i];
-    if (!staged.has(question.id)) return question.id;
-  }
-
-  return v.questions[currentIndex + 1]?.id ?? currentQuestionId;
-}
-
 function sortKeysByGameId(source: Record<string, { gameId: string }>): string[] {
   return Object.entries(source)
     .sort((a, b) => a[1].gameId.localeCompare(b[1].gameId))
     .map(([key]) => key);
-}
-
-function getBanPageState(v: GameVoteSession, voterId: string): { leaderPage: number; civPage: number } {
-  return v.banPages.get(voterId) ?? { leaderPage: 0, civPage: 0 };
-}
-
-function setBanPageState(
-  v: GameVoteSession,
-  voterId: string,
-  next: Readonly<{ leaderPage: number; civPage: number }>,
-): void {
-  v.banPages.set(voterId, { leaderPage: next.leaderPage, civPage: next.civPage });
-}
-
-function mergePagedBanSelection(
-  currentKeys: readonly string[],
-  pageKeys: readonly string[],
-  selectedKeys: readonly string[],
-): string[] {
-  const pageSet = new Set(pageKeys);
-  const out = currentKeys.filter((key) => !pageSet.has(key));
-  out.push(...selectedKeys);
-  return dedupeStable(out);
 }
 
 function getLeaderBanSource(v: GameVoteSession): Record<string, { gameId: string; emojiId?: string }> {
@@ -605,21 +468,6 @@ function clampBanList(items: readonly string[], maxLength: number): string {
   return out.join('');
 }
 
-async function safeEditMessage(
-  msg: Message,
-  payload: RenderPayload
-): Promise<void> {
-  try {
-    if (!msg.editable) return;
-    await msg.edit({
-      ...payload,
-      allowedMentions: { parse: [] as const },
-    });
-  } catch {
-    // ignore
-  }
-}
-
 function voteCountByOption(question: VoteQuestion, record: VoteRecord): Map<string, number> {
   const counts = new Map<string, number>();
   for (const stored of record.values()) {
@@ -645,7 +493,6 @@ function selectWinner(
   voterIds: readonly string[],
   tiebrokenQuestions: Set<string>
 ): string {
-  // If not everyone voted, fall back to default (existing behavior).
   if (record.size < voterIds.length) return question.defaultOptionId;
 
   const counts = voteCountByOption(question, record);
@@ -697,8 +544,6 @@ function getDraftMode(v: GameVoteSession): GameVoteDraftMode {
   const opt = q.options.find((o) => o.id === optId);
   return (opt?.id as GameVoteDraftMode) ?? 'standard';
 }
-
-
 
 function getCiv6LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
   return CIV6_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
@@ -767,59 +612,11 @@ async function openInitialMessages(
     return { ok: false, message: `⚠️ I couldn't build the vote message${extra}.` };
   }
 
-  try {
-    const msg = await v.commandChannel.send(payload);
-    if (!msg.inGuild()) return { ok: false, message: '⚠️ This command must be used in a server channel.' };
-    if (msg.guildId !== guild.id) return { ok: false, message: '⚠️ Internal error: guild mismatch.' };
-    v.publicMessage = msg;
-    return { ok: true };
-  } catch (err: unknown) {
-    console.error('gamevote initial send failed', {
-      sessionId: v.sessionId,
-      guildId: v.guildId,
-      channelId: 'id' in v.commandChannel ? v.commandChannel.id : undefined,
-      edition: v.edition,
-      gameType: v.gameType,
-      error: err,
-    });
-    const code = typeof err === 'object' && err && 'code' in err ? (err as { code?: unknown }).code : undefined;
-    const detail = formatUnknownError(err);
-    const extra = typeof code === 'number' || typeof code === 'string'
-      ? ` (Discord error ${code})`
-      : detail
-        ? ` (${detail})`
-        : '';
-    return { ok: false, message: `⚠️ I couldn't post the vote message in that channel${extra}.` };
-  }
-}
-
-function clearCompletedCleanup(sessionId: string): void {
-  const timeout = completedCleanupBySession.get(sessionId);
-  if (!timeout) return;
-  clearTimeout(timeout);
-  completedCleanupBySession.delete(sessionId);
-}
-
-function scheduleCompletedCleanup(v: GameVoteSession, retainForMs: number): void {
-  clearCompletedCleanup(v.sessionId);
-  const timeout = setTimeout(() => {
-    activeById.delete(v.sessionId);
-    completedCleanupBySession.delete(v.sessionId);
-  }, retainForMs);
-  completedCleanupBySession.set(v.sessionId, timeout);
+  return openInitialVoteMessages(v, guild, payload);
 }
 
 async function finalizeCleanup(v: GameVoteSession, retainCompletedForMs = 0): Promise<void> {
-  if (v.timeout) { clearTimeout(v.timeout); v.timeout = null; }
-  activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
-
-  if (retainCompletedForMs > 0) {
-    scheduleCompletedCleanup(v, retainCompletedForMs);
-    return;
-  }
-
-  clearCompletedCleanup(v.sessionId);
-  activeById.delete(v.sessionId);
+  await finalizeVoteSessionCleanup(v, retainCompletedForMs);
 }
 
 function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
@@ -858,10 +655,7 @@ async function publishDraftResult(request: VoteDraftRequest): Promise<void> {
 async function closeVote(v: GameVoteSession): Promise<void> {
   if (v.isFinalized || v.status === 'closed') return;
 
-  if (v.timeout) {
-    clearTimeout(v.timeout);
-    v.timeout = null;
-  }
+  clearVoteSessionTimeout(v);
 
   v.phase = 'final';
   v.status = 'closed';
@@ -875,10 +669,7 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   if (v.isFinalized) return;
   if (v.status !== 'in_progress') return;
 
-  if (v.timeout) {
-    clearTimeout(v.timeout);
-    v.timeout = null;
-  }
+  clearVoteSessionTimeout(v);
 
   ensureLockedAll(v);
   v.status = 'completed';
@@ -901,12 +692,11 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
 
 
 export async function startGameVote(args: StartGameVoteOptions): Promise<StartGameVoteResult> {
-  const vkey = voiceKey(args.guild.id, args.voiceChannelId);
-  if (activeByVoice.has(vkey) || reservedByVoice.has(vkey)) {
+  if (isVoteVoiceBusy(args.guild.id, args.voiceChannelId)) {
     return { ok: false, message: '⚠️ A vote is already running for that voice channel.' };
   }
 
-  reservedByVoice.add(vkey);
+  reserveVoteVoice(args.guild.id, args.voiceChannelId);
 
   try {
     const sessionId = randomUUID();
@@ -968,7 +758,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       isFinalized: false,
     };
 
-    v.timeout = setTimeout(() => void closeVote(v), getVoteDurationMs(args.edition));
+    scheduleVoteSessionTimeout(v, () => void closeVote(v), getVoteDurationMs(args.edition));
 
     const init = await openInitialMessages(v, args.guild);
     if (!init.ok) {
@@ -976,12 +766,11 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       return { ok: false, message: init.message };
     }
 
-    activeById.set(sessionId, v);
-    activeByVoice.set(vkey, v);
+    registerActiveVoteSession(v);
 
     return { ok: true, sessionId };
   } finally {
-    reservedByVoice.delete(vkey);
+    releaseReservedVoteVoice(args.guild.id, args.voiceChannelId);
   }
 }
 
@@ -1068,10 +857,6 @@ function parseCustomId(id: string): ParsedCustomId | null {
 
 
 
-function getSessionById(sessionId: string): GameVoteSession | null {
-  return activeById.get(sessionId) ?? null;
-}
-
 function isVoter(v: GameVoteSession, userId: string): boolean {
   return v.voterIds.includes(userId);
 }
@@ -1080,7 +865,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const v = getSessionById(parsed.sessionId);
+  const v = getVoteSessionById(parsed.sessionId);
   if (!v) { await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.'); return true; }
 
   const userId = interaction.user.id;
@@ -1182,7 +967,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const v = getSessionById(parsed.sessionId);
+  const v = getVoteSessionById(parsed.sessionId);
   if (!v) { await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.'); return true; }
 
   const userId = interaction.user.id;
