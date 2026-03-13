@@ -3,6 +3,7 @@ import type { VoterUser } from '../utils/types.js';
 
 export type SecretVoteAction = 'CC' | 'Remap' | 'Scrap' | 'Irrel';
 export type SecretVoteChoice = 'YES' | 'NO';
+export type SecretVoteSessionPhase = 'collecting' | 'finalizing' | 'closed';
 
 export type StartSecretVoteOptions = Readonly<{
   guild: Guild;
@@ -49,26 +50,22 @@ export type SecretVoteSession = {
   voteId: string;
   guildId: string;
   voiceChannelId: string;
-
   hostId: string;
   action: SecretVoteAction;
   turn: number;
   details: string;
-
   voters: readonly { id: string; displayName: string }[];
   startedAtMs: number;
   endsAtMs: number;
-
   awaiting: Set<string>;
   votes: Map<string, SecretVoteChoice>;
   dmMessages: Map<string, Message<false>>;
   publicMessage: Message<true>;
-
-  timeout: NodeJS.Timeout;
+  timeout: NodeJS.Timeout | null;
   editInFlight: boolean;
   needsRender: boolean;
   pendingStatus: SecretVoteStatus | null;
-  isFinalized: boolean;
+  phase: SecretVoteSessionPhase;
 };
 
 type StartSecretVoteOk = Readonly<{

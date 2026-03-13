@@ -5,7 +5,7 @@ import {
 } from 'discord.js';
 
 import { EMOJI_CONFIRM, EMOJI_FAIL } from '../config/constants.js';
-import { recordSecretVoteChoice } from '../services/secretvote.service.js';
+import { recordSecretVoteChoice } from '../services/secretvote/secretvote.service.js';
 import type {
   SecretVoteButtonId,
   SecretVoteChoice,

@@ -57,6 +57,7 @@ export type {
   SecretVoteChoice,
   SecretVoteOutcome,
   SecretVoteSession,
+  SecretVoteSessionPhase,
   SecretVoteStatus,
   StartSecretVoteOptions,
   StartSecretVoteResult,
