@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 
-import { CIV6_LEADERS } from '../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../data/civ7.data.js';
+import { CIV6_LEADERS } from '../../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
 import type {
   Civ6LeaderKey,
   Civ7CivKey,
@@ -9,7 +9,7 @@ import type {
   CivMeta,
   LeaderMeta,
   LeaderType,
-} from '../data/types.js';
+} from '../../data/types.js';
 import type {
   Civ6DraftRequest,
   Civ6DraftResult,
@@ -18,7 +18,7 @@ import type {
   DraftGameType,
   DraftGroup,
   DraftGroupKind,
-} from '../types/draft.types.js';
+} from '../../types/drafting.types.js';
 
 export class DraftError extends Error {
   public readonly code: 'VALIDATION' | 'NO_POOL';

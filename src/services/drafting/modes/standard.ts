@@ -3,20 +3,20 @@ import type {
   Civ7DraftResult,
   DraftCommandRequest,
   VoteDraftRequest,
-} from '../../types/draft.types.js';
-import type { DraftModeOutput } from '../../types/drafting.types.js';
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
+} from '../../../types/drafting.types.js';
+import type { DraftModeOutput } from '../../../types/drafting.types.js';
+import { CIV6_LEADERS } from '../../../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
 import {
   buildCiv6DirectDraftSummaryEmbed,
   buildCiv6DraftEmbed,
   buildCiv7DirectDraftSummaryEmbed,
   buildCiv7DraftEmbed,
-} from '../../ui/embeds/draft.js';
+} from '../../../ui/embeds/draft.js';
 import {
   buildCiv6DirectDraftMessages,
   buildCiv7DirectDraftMessages,
-} from '../../ui/layouts/draft.js';
+} from '../../../ui/layouts/draft.js';
 import {
   generateCiv6Draft,
   generateCiv7Draft,

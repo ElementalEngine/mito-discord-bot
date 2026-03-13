@@ -22,7 +22,7 @@ import { buildGameVoteConfig } from '../config/voting.config.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
-import { executeVoteDraft } from './drafting.service.js';
+import { executeVoteDraft } from './drafting/orchestration.service.js';
 import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
 import type {
   GameVoteSession,

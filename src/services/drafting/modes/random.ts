@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 
-import { EMOJI_RANDOM } from '../../config/constants.js';
-import { CIV6_LEADERS, formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
+import { EMOJI_RANDOM } from '../../../config/constants.js';
+import { CIV6_LEADERS, formatCiv6Leader, lookupCiv6Leader } from '../../../data/civ6.data.js';
 import {
   CIV7_CIVS,
   CIV7_LEADERS,
@@ -9,11 +9,11 @@ import {
   formatCiv7Leader,
   lookupCiv7Civ,
   lookupCiv7Leader,
-} from '../../data/civ7.data.js';
-import { humanizeGameId } from '../../utils/humanize-game-id.js';
-import type { VoteDraftRequest } from '../../types/draft.types.js';
+} from '../../../data/civ7.data.js';
+import { humanizeGameId } from '../../../utils/humanize-game-id.js';
+import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import { DraftError } from '../draft.service.js';
-import type { DraftModeOutput } from '../../types/drafting.types.js';
+import type { DraftModeOutput } from '../../../types/drafting.types.js';
 
 function pickRandom<T>(arr: readonly T[]): T {
   return arr[randomInt(0, arr.length)];

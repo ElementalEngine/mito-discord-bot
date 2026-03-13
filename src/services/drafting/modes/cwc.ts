@@ -9,23 +9,23 @@ import type {
   User,
 } from 'discord.js';
 
-import { CWC_PICK_ORDER, DRAFT_TIMERS_MS } from '../../config/draft.config.js';
-import { CIV6_LEADERS, lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
-import type { VoteDraftRequest } from '../../types/draft.types.js';
+import { CWC_PICK_ORDER, DRAFT_TIMERS_MS } from '../../../config/draft.config.js';
+import { CIV6_LEADERS, lookupCiv6LeaderMeta } from '../../../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../../data/civ7.data.js';
+import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import type {
   CwcDraftPageState,
   CwcDraftSession,
   DraftModeOutput,
-} from '../../types/drafting.types.js';
-import { buildCwcCaptainSelectComponents, buildCwcPickComponents } from '../../ui/components/cwc-draft.js';
+} from '../../../types/drafting.types.js';
+import { buildCwcCaptainSelectComponents, buildCwcPickComponents } from '../../../ui/components/cwc-draft.js';
 import {
   buildCwcCaptainSelectEmbed,
   buildCwcCaptainTimeoutEvent,
   buildCwcDraftCompleteEmbed,
   buildCwcDraftStatusEmbed,
   buildCwcTimeoutEvent,
-} from '../../ui/embeds/cwc-draft.js';
+} from '../../../ui/embeds/cwc-draft.js';
 import { DraftError } from '../draft.service.js';
 
 const CWC_MENU_PAGE_SIZE = 25;

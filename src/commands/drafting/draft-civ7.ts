@@ -7,7 +7,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_ERROR } from '../../config/constants.js';
 import type { Civ7StartingAge } from '../../data/types.js';
-import { executeDraftCommand } from '../../services/drafting.service.js';
+import { executeDraftCommand } from '../../services/drafting/orchestration.service.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 function allowedDraftChannels(): readonly string[] {

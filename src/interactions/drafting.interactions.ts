@@ -7,15 +7,15 @@ import type {
 import {
   handleBlindDraftButton,
   handleBlindDraftSelect,
-} from '../services/draftmodes/blind.js';
+} from '../services/drafting/modes/blind.js';
 import {
   handleCwcDraftButton,
   handleCwcDraftSelect,
-} from '../services/draftmodes/cwc.js';
+} from '../services/drafting/modes/cwc.js';
 import {
   handleSnakeDraftButton,
   handleSnakeDraftSelect,
-} from '../services/draftmodes/snake.js';
+} from '../services/drafting/modes/snake.js';
 
 export async function handleDraftingInteraction(
   interaction: Interaction,

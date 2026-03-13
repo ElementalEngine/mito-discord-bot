@@ -8,22 +8,22 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { EMOJI_ERROR } from '../../config/constants.js';
-import type { VoteDraftRequest } from '../../types/draft.types.js';
+import { EMOJI_ERROR } from '../../../config/constants.js';
+import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import type {
   BlindDraftAssignment,
   BlindDraftPageState,
   BlindDraftSession,
   DraftModeOutput,
-} from '../../types/drafting.types.js';
-import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../../ui/components/blind-draft.js';
+} from '../../../types/drafting.types.js';
+import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../../../ui/components/blind-draft.js';
 import {
   buildBlindDraftClosedEmbed,
   buildBlindDraftEmbed,
   buildBlindDraftRevealEmbed,
   buildBlindDraftTimeoutEmbed,
   buildBlindDraftTrackingEmbed,
-} from '../../ui/embeds/blind-draft.js';
+} from '../../../ui/embeds/blind-draft.js';
 import { DraftError } from '../draft.service.js';
 import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
 

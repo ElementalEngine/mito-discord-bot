@@ -1,10 +1,10 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 
-import { EMOJI_ERROR } from '../config/constants.js';
-import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.types.js';
-import type { DraftMessagePayload, DraftModeOutput } from '../types/drafting.types.js';
+import { EMOJI_ERROR } from '../../config/constants.js';
+import type { DraftCommandRequest, VoteDraftRequest } from '../../types/drafting.types.js';
+import type { DraftMessagePayload, DraftModeOutput } from '../../types/drafting.types.js';
 import { DraftError } from './draft.service.js';
-import { executeDraftMode } from './draftmode.service.js';
+import { executeDraftMode } from './mode-registry.service.js';
 
 function normalizeOutput(output: DraftModeOutput): Readonly<{
   initial: DraftMessagePayload;

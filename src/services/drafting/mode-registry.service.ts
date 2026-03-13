@@ -1,10 +1,10 @@
-import type { DraftCommandRequest, VoteDraftRequest } from '../types/draft.types.js';
-import type { DraftModeOutput } from '../types/drafting.types.js';
-import { runBlindDraftMode } from './draftmodes/blind.js';
-import { runCwcDraftMode } from './draftmodes/cwc.js';
-import { runRandomDraftMode } from './draftmodes/random.js';
-import { runSnakeDraftMode } from './draftmodes/snake.js';
-import { runStandardDraftMode } from './draftmodes/standard.js';
+import type { DraftCommandRequest, VoteDraftRequest } from '../../types/drafting.types.js';
+import type { DraftModeOutput } from '../../types/drafting.types.js';
+import { runBlindDraftMode } from './modes/blind.js';
+import { runCwcDraftMode } from './modes/cwc.js';
+import { runRandomDraftMode } from './modes/random.js';
+import { runSnakeDraftMode } from './modes/snake.js';
+import { runStandardDraftMode } from './modes/standard.js';
 
 export async function executeDraftMode(
   request: DraftCommandRequest | VoteDraftRequest,

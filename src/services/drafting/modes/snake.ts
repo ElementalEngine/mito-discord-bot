@@ -8,23 +8,23 @@ import type {
   StringSelectMenuInteraction
 } from 'discord.js';
 
-import { DRAFT_TIMERS_MS } from '../../config/draft.config.js';
-import { EMOJI_ERROR, EMOJI_RANDOM } from '../../config/constants.js';
-import { CIV6_LEADERS } from '../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
-import type { VoteDraftRequest } from '../../types/draft.types.js';
+import { DRAFT_TIMERS_MS } from '../../../config/draft.config.js';
+import { EMOJI_ERROR, EMOJI_RANDOM } from '../../../config/constants.js';
+import { CIV6_LEADERS } from '../../../data/civ6.data.js';
+import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
+import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import type {
   DraftModeOutput,
   SnakeDraftPageState,
   SnakeDraftSession,
-} from '../../types/drafting.types.js';
-import { buildSnakeDraftPickComponents } from '../../ui/components/snake-draft.js';
+} from '../../../types/drafting.types.js';
+import { buildSnakeDraftPickComponents } from '../../../ui/components/snake-draft.js';
 import {
   buildSnakeDraftActiveDmEmbed,
   buildSnakeDraftCompleteEmbed,
   buildSnakeDraftStatusEmbed,
   buildSnakeDraftWaitingDmEmbed,
-} from '../../ui/embeds/snake-draft.js';
+} from '../../../ui/embeds/snake-draft.js';
 import { DraftError } from '../draft.service.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
