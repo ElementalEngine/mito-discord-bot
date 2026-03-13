@@ -450,7 +450,7 @@ function buildBallotEmbed(
     v.status !== 'in_progress'
       ? '**Voting has ended.**'
       : `**Ends:** <t:${ends}:t>
-Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
+Answer all questions, then press **Submit Vote**. You can keep editing until either pressing **Finish Vote** or the vote concludes and a draft is called.`;
 
   const lines = v.questions.map((q, idx) => {
     const pickLabel = pickLabelsForQuestion(q, stagedRecord.get(q.id));
@@ -611,7 +611,7 @@ function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder 
   const civItems = v.edition === 'CIV7' ? bans.civKeys.map((key) => formatCivBan(key)) : [];
 
   const desc: string[] = [
-    'Choose one or more bans with the menus below, then press **Submit Bans**.',
+    'Choose one or more bans with the menus below, then press **Submit Bans**. You can keep editing until either pressing **Finish Vote** or the vote concludes and a draft is called.',
     `**Leader bans (${leaderItems.length}):** ${clampBanList(leaderItems, 900)}`,
     v.edition === 'CIV7' ? `**Civ bans (${civItems.length}):** ${clampBanList(civItems, 900)}` : undefined,
     submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
