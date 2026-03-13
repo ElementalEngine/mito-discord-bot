@@ -10,11 +10,11 @@ import {
   buildCiv6DraftEmbed,
   buildCiv7DirectDraftSummaryEmbed,
   buildCiv7DraftEmbed,
-} from '../../../ui/embeds/draft.js';
+} from '../../../ui/embeds/standard-draft.js';
 import {
   buildCiv6DirectDraftMessages,
   buildCiv7DirectDraftMessages,
-} from '../../../ui/layouts/draft.js';
+} from '../../../ui/layouts/standard-draft.js';
 import {
   buildCommandStandardDraftResult,
   buildVoteStandardDraftResult,

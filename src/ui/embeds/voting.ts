@@ -8,7 +8,7 @@ import {
 
 import type { CivEdition } from '../../config/types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
-import type { DraftGameType } from '../../types/draft.types.js';
+import type { DraftGameType } from '../../types/drafting.types.js';
 import type { GameVotePhase, GameVoteProgress, GameVoteStatus } from '../../types/voting.types.js';
 
 const MAX_FIELD_VALUE = 1024;

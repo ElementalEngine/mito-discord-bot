@@ -1,6 +1,6 @@
 import type { CivEdition } from './types.js';
 import type { Civ7StartingAge } from '../data/types.js';
-import type { DraftGameType } from '../types/draft.types.js';
+import type { DraftGameType } from '../types/drafting.types.js';
 
 export const DRAFT_LIMITS = {
   CIV6: {

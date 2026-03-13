@@ -6,11 +6,8 @@ import {
   lookupCiv7Civ,
   lookupCiv7Leader,
 } from '../../data/civ7.data.js';
-import type { Civ6DraftResult, Civ7DraftResult, DraftGroupKind } from '../../types/draft.types.js';
-
-function labelForGroup(kind: DraftGroupKind, index: number): string {
-  return kind === 'Team' ? `Team n°${index + 1}` : `Player n°${index + 1}`;
-}
+import type { Civ6DraftResult, Civ7DraftResult } from '../../types/drafting.types.js';
+import { labelForDirectGroup } from '../../services/drafting/domain/labels.service.js';
 
 function splitSection(section: string): string[] {
   if (section.length <= MAX_DISCORD_LEN) {
@@ -47,7 +44,7 @@ function splitSection(section: string): string[] {
 }
 
 function buildCiv6Section(draft: Civ6DraftResult, index: number): string {
-  const lines: string[] = [labelForGroup(draft.allocation.groupKind, index)];
+  const lines: string[] = [labelForDirectGroup(draft.allocation.groupKind, index)];
 
   for (const key of draft.groups[index].leaders) {
     lines.push(`${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`);
@@ -59,7 +56,7 @@ function buildCiv6Section(draft: Civ6DraftResult, index: number): string {
 function buildCiv7Section(draft: Civ7DraftResult, index: number): string {
   const group = draft.groups[index];
   const lines: string[] = [
-    labelForGroup(draft.allocation.groupKind, index),
+    labelForDirectGroup(draft.allocation.groupKind, index),
     'Leaders',
   ];
 

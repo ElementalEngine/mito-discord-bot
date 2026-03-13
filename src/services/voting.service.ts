@@ -34,7 +34,7 @@ import type {
   VoteRecord,
   BanSubmission,
 } from '../types/voting.types.js';
-import type { VoteDraftRequest } from '../types/draft.types.js';
+import type { VoteDraftRequest } from '../types/drafting.types.js';
 
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option

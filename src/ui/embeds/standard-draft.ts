@@ -11,40 +11,13 @@ import type {
   DraftAllocation,
   DraftGameType,
   DraftGroup,
-} from '../../types/draft.types.js';
+} from '../../types/drafting.types.js';
+import {
+  labelForVoteGroup,
+  renderEmojiReadableLine,
+} from '../../services/drafting/domain/labels.service.js';
 
-const EMOJI_NAME_SAFE_RE = /[^A-Za-z0-9_]/g;
 const EMBED_FIELD_VALUE_LIMIT = 1024;
-
-function sanitizeEmojiName(name: string): string {
-  const cleaned = name.replace(EMOJI_NAME_SAFE_RE, '_').replace(/_+/g, '_');
-  const trimmed = cleaned.replace(/^_+|_+$/g, '');
-  return trimmed.length >= 2 ? trimmed.slice(0, 32) : 'civ';
-}
-
-function titleCaseWord(w: string): string {
-  if (!w) return w;
-  if (/^[IVX]+$/.test(w)) return w;
-  if (w.length <= 3 && w === w.toUpperCase()) return w;
-  return w[0].toUpperCase() + w.slice(1).toLowerCase();
-}
-
-function humanizeKey(key: string): string {
-  const stripped = key
-    .replace(/^LEADER_/, '')
-    .replace(/^CIVILIZATION_/, '')
-    .trim();
-
-  return stripped
-    .split('_')
-    .filter(Boolean)
-    .map(titleCaseWord)
-    .join(' ');
-}
-
-function labelForGroup(kind: 'Player' | 'Team', idx: number): string {
-  return kind === 'Team' ? `Team ${idx + 1}` : `Player ${idx + 1}`;
-}
 
 function formatHeader(args: Readonly<{
   game: 'civ6' | 'civ7';
@@ -78,7 +51,7 @@ function renderBanList(args: Readonly<{
 
   const shown = keys
     .slice(0, max)
-    .map((key) => renderLine(args.lookup(key), key));
+    .map((key) => renderEmojiReadableLine(args.lookup(key), key));
 
   return {
     text: shown.join(', '),
@@ -149,19 +122,6 @@ function formatIgnoredLine(args: Readonly<{
   return `Ignored: ${parts.join(' • ')}`;
 }
 
-function renderLine(
-  meta: Readonly<{ gameId: string; emojiId?: string }> | undefined,
-  fallbackKey: string,
-): string {
-  if (!meta) return humanizeKey(fallbackKey);
-
-  const name = meta.gameId;
-  const emojiId = meta.emojiId?.trim();
-  if (!emojiId) return name;
-
-  return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${name}`;
-}
-
 function formatCountRange(min: number, max?: number): string {
   if (!max || max <= min) return `${min} each`;
   return `${min}-${max} each`;
@@ -230,7 +190,7 @@ function addGroupFields(args: Readonly<{
   renderGroupLines: (group: DraftGroup) => string[];
 }>): void {
   for (let i = 0; i < args.groups.length; i += 1) {
-    const fieldNameBase = labelForGroup(args.groupKind, i);
+    const fieldNameBase = labelForVoteGroup(args.groupKind, i);
     const chunks = chunkFieldLines(args.renderGroupLines(args.groups[i]));
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
@@ -273,7 +233,7 @@ export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
     groupKind: draft.allocation.groupKind,
     groups: draft.groups,
     renderGroupLines: (group) =>
-      group.leaders.map((key) => renderLine(lookupCiv6LeaderMeta(key), key)),
+      group.leaders.map((key) => renderEmojiReadableLine(lookupCiv6LeaderMeta(key), key)),
   });
 
   return embed;
@@ -316,11 +276,11 @@ export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
     renderGroupLines: (group) => {
       const groupLines = ['**Leaders**'];
       groupLines.push(
-        ...group.leaders.map((key) => renderLine(lookupCiv7LeaderMeta(key), key)),
+        ...group.leaders.map((key) => renderEmojiReadableLine(lookupCiv7LeaderMeta(key), key)),
       );
       groupLines.push('', '**Civs**');
       groupLines.push(
-        ...(group.civs ?? []).map((key) => renderLine(lookupCiv7CivMeta(key), key)),
+        ...(group.civs ?? []).map((key) => renderEmojiReadableLine(lookupCiv7CivMeta(key), key)),
       );
       return groupLines;
     },
