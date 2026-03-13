@@ -2,9 +2,6 @@ import { randomInt, randomUUID } from 'node:crypto';
 
 import type {
   ButtonInteraction,
-  Message,
-  MessageCreateOptions,
-  MessageEditOptions,
   StringSelectMenuInteraction,
   User,
 } from 'discord.js';
@@ -27,11 +24,15 @@ import {
   buildCwcTimeoutEvent,
 } from '../../../ui/embeds/cwc-draft.js';
 import { DraftError } from '../draft.service.js';
+import {
+  type DraftRenderPayload,
+  replyDraftNotice,
+  safeEditDraftMessage,
+} from '../runtime/message-ops.service.js';
+import { clampPageIndex } from '../runtime/pagination.service.js';
 
 const CWC_MENU_PAGE_SIZE = 25;
 const activeCwcDrafts = new Map<string, CwcDraftSession>();
-
-type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptions, 'flags'>;
 
 type CwcCustomId =
   | Readonly<{ action: 'captain'; teamIndex: 0 | 1; sessionId: string }>
@@ -83,32 +84,6 @@ function shuffle<T>(items: readonly T[]): T[] {
 
 function pickRandom<T>(items: readonly T[]): T {
   return items[randomInt(0, items.length)];
-}
-
-async function safeEditMessage(msg: Message, payload: RenderPayload): Promise<void> {
-  try {
-    if (!msg.editable) return;
-    await msg.edit(payload);
-  } catch {
-    // best effort
-  }
-}
-
-async function replyNotice(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  content: string,
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-  try {
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-      return;
-    }
-
-    await interaction.reply(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-  } catch {
-    // best effort
-  }
 }
 
 function getSession(sessionId: string): CwcDraftSession | null {
@@ -173,12 +148,7 @@ function getUserPages(session: CwcDraftSession, userId: string): CwcDraftPageSta
   return session.pages.get(userId) ?? { leaderPage: 0, civPage: 0 };
 }
 
-function clampPage(current: number, totalItems: number): number {
-  const maxPage = Math.max(0, Math.ceil(totalItems / CWC_MENU_PAGE_SIZE) - 1);
-  return Math.max(0, Math.min(maxPage, current));
-}
-
-function buildCaptainPayload(session: CwcDraftSession): RenderPayload {
+function buildCaptainPayload(session: CwcDraftSession): DraftRenderPayload {
   return {
     embeds: [buildCwcCaptainSelectEmbed({
       edition: session.edition,
@@ -199,7 +169,7 @@ function buildCaptainPayload(session: CwcDraftSession): RenderPayload {
   };
 }
 
-function buildDraftPayload(session: CwcDraftSession): RenderPayload {
+function buildDraftPayload(session: CwcDraftSession): DraftRenderPayload {
   const currentCaptainId = getCurrentCaptainId(session);
   if (!currentCaptainId) {
     return {
@@ -211,8 +181,8 @@ function buildDraftPayload(session: CwcDraftSession): RenderPayload {
 
   const state = getUserPages(session, currentCaptainId);
   const nextState: CwcDraftPageState = session.round === 'leader'
-    ? { ...state, leaderPage: clampPage(state.leaderPage, getAvailableLeaders(session).length) }
-    : { ...state, civPage: clampPage(state.civPage, getAvailableCivs(session).length) };
+    ? { ...state, leaderPage: clampPageIndex(state.leaderPage, getAvailableLeaders(session).length, CWC_MENU_PAGE_SIZE) }
+    : { ...state, civPage: clampPageIndex(state.civPage, getAvailableCivs(session).length, CWC_MENU_PAGE_SIZE) };
   if (nextState.civPage !== state.civPage || nextState.leaderPage !== state.leaderPage) {
     session.pages.set(currentCaptainId, nextState);
   }
@@ -240,7 +210,7 @@ async function updateTrackingMessage(session: CwcDraftSession): Promise<void> {
       : buildDraftPayload(session);
 
   if (session.trackingMessage) {
-    await safeEditMessage(session.trackingMessage, payload);
+    await safeEditDraftMessage(session.trackingMessage, payload);
   } else {
     session.trackingMessage = await session.commandChannel.send(payload);
   }
@@ -417,20 +387,20 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
 
   const session = getSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ CWC draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ CWC draft is not active.');
     return true;
   }
 
   if (parsed.action === 'captain') {
     if (interaction.user.id !== session.hostId) {
-      await replyNotice(interaction, '⚠️ Only the vote host can select captains.');
+      await replyDraftNotice(interaction, '⚠️ Only the vote host can select captains.');
       return true;
     }
 
     const pickedId = interaction.values[0];
     const otherIndex: 0 | 1 = parsed.teamIndex === 0 ? 1 : 0;
     if (session.captainIds[otherIndex] === pickedId) {
-      await replyNotice(interaction, '⚠️ Team captains must be different users.');
+      await replyDraftNotice(interaction, '⚠️ Team captains must be different users.');
       return true;
     }
 
@@ -450,18 +420,18 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
   if (parsed.action !== 'pick') return false;
 
   if (session.round === 'captains' || session.round === 'complete') {
-    await replyNotice(interaction, '⚠️ CWC draft is not currently accepting picks.');
+    await replyDraftNotice(interaction, '⚠️ CWC draft is not currently accepting picks.');
     return true;
   }
 
   if (parsed.turnToken !== session.turnToken) {
-    await replyNotice(interaction, '⚠️ That pick menu is stale.');
+    await replyDraftNotice(interaction, '⚠️ That pick menu is stale.');
     return true;
   }
 
   const currentCaptainId = getCurrentCaptainId(session);
   if (!currentCaptainId || interaction.user.id !== currentCaptainId) {
-    await replyNotice(interaction, '⚠️ It is not your turn to pick.');
+    await replyDraftNotice(interaction, '⚠️ It is not your turn to pick.');
     return true;
   }
 
@@ -471,7 +441,7 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
   if (session.round === 'leader') {
     const available = getAvailableLeaders(session);
     if (!available.includes(pickedKey)) {
-      await replyNotice(interaction, '⚠️ That leader is no longer available.');
+      await replyDraftNotice(interaction, '⚠️ That leader is no longer available.');
       return true;
     }
     session.picks[teamIndex].leaders.push(pickedKey);
@@ -482,7 +452,7 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
   } else {
     const available = getAvailableCivs(session);
     if (!available.includes(pickedKey)) {
-      await replyNotice(interaction, '⚠️ That civ is no longer available.');
+      await replyDraftNotice(interaction, '⚠️ That civ is no longer available.');
       return true;
     }
     session.picks[teamIndex].civs.push(pickedKey);
@@ -502,23 +472,23 @@ export async function handleCwcDraftButton(interaction: ButtonInteraction): Prom
 
   const session = getSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ CWC draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ CWC draft is not active.');
     return true;
   }
 
   if (session.round === 'captains' || session.round === 'complete') {
-    await replyNotice(interaction, '⚠️ CWC draft is not currently accepting picks.');
+    await replyDraftNotice(interaction, '⚠️ CWC draft is not currently accepting picks.');
     return true;
   }
 
   if (parsed.turnToken !== session.turnToken) {
-    await replyNotice(interaction, '⚠️ That picker is stale.');
+    await replyDraftNotice(interaction, '⚠️ That picker is stale.');
     return true;
   }
 
   const currentCaptainId = getCurrentCaptainId(session);
   if (!currentCaptainId || interaction.user.id !== currentCaptainId) {
-    await replyNotice(interaction, '⚠️ It is not your turn to pick.');
+    await replyDraftNotice(interaction, '⚠️ It is not your turn to pick.');
     return true;
   }
 
@@ -526,16 +496,18 @@ export async function handleCwcDraftButton(interaction: ButtonInteraction): Prom
   const nextState: CwcDraftPageState = parsed.pickType === 'leader'
     ? {
         ...state,
-        leaderPage: clampPage(
+        leaderPage: clampPageIndex(
           state.leaderPage + (parsed.navDir === 'next' ? 1 : -1),
           getAvailableLeaders(session).length,
+          CWC_MENU_PAGE_SIZE,
         ),
       }
     : {
         ...state,
-        civPage: clampPage(
+        civPage: clampPageIndex(
           state.civPage + (parsed.navDir === 'next' ? 1 : -1),
           getAvailableCivs(session).length,
+          CWC_MENU_PAGE_SIZE,
         ),
       };
 

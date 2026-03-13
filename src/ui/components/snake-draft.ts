@@ -10,6 +10,7 @@ import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from
 import type { CivEdition } from '../../config/types.js';
 import type { SnakeDraftPageState, SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
+import { clampPageIndex, getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
 
@@ -43,8 +44,8 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
 
   if (args.round === 'leader') {
     const keys = args.leaders ?? [];
-    const totalPages = Math.max(1, Math.ceil(keys.length / SNAKE_MENU_PAGE_SIZE));
-    const pageKeys = keys.slice(args.state.leaderPage * SNAKE_MENU_PAGE_SIZE, (args.state.leaderPage + 1) * SNAKE_MENU_PAGE_SIZE);
+    const totalPages = getPageCount(keys.length, SNAKE_MENU_PAGE_SIZE);
+    const pageKeys = slicePageItems(keys, args.state.leaderPage, SNAKE_MENU_PAGE_SIZE);
     const stagedLeader = args.stagedPick?.leaderKey ?? args.pick?.leaderKey;
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`sd:pick:leader:${args.sessionId}:${args.turnToken}`)
@@ -91,8 +92,8 @@ export function buildSnakeDraftPickComponents(args: Readonly<{
   }
 
   const civKeys = args.civs ?? [];
-  const totalPages = Math.max(1, Math.ceil(civKeys.length / SNAKE_MENU_PAGE_SIZE));
-  const pageKeys = civKeys.slice(args.state.civPage * SNAKE_MENU_PAGE_SIZE, (args.state.civPage + 1) * SNAKE_MENU_PAGE_SIZE);
+  const totalPages = getPageCount(civKeys.length, SNAKE_MENU_PAGE_SIZE);
+  const pageKeys = slicePageItems(civKeys, args.state.civPage, SNAKE_MENU_PAGE_SIZE);
   const stagedCiv = args.stagedPick?.civKey ?? args.pick?.civKey;
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`sd:pick:civ:${args.sessionId}:${args.turnToken}`)

@@ -6,14 +6,7 @@ import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
-
-function ts(ms: number, style: 't' | 'R'): string {
-  return `<t:${Math.floor(ms / 1000)}:${style}>`;
-}
-
-function deadlineLine(ms: number): string {
-  return `Deadline: ${ts(ms, 't')} (${ts(ms, 'R')})`;
-}
+import { formatDeadlineLine } from '../../services/drafting/runtime/deadline.service.js';
 
 function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return '—';
@@ -73,7 +66,7 @@ export function buildSnakeDraftActiveDmEmbed(args: Readonly<{
       ? 'Choose your leader below, then press **Submit** to lock it in.'
       : 'Choose your civ below, then press **Submit** to lock it in.',
     voteUuidLine(args.voteUuid),
-    deadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs),
     '',
   ].filter((line): line is string => Boolean(line));
   if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(current?.civKey)}`);
@@ -99,7 +92,7 @@ export function buildSnakeDraftStatusEmbed(args: Readonly<{
     voteUuidLine(args.voteUuid),
     `Round: **${roundLabel(args.edition, args.round)}**`,
     `Current picker: ${userMention(args.currentPickerId)}`,
-    deadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs),
   ].filter((line): line is string => Boolean(line));
   if (args.lastEvent) {
     lines.push('', args.lastEvent);

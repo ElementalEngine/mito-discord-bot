@@ -3,8 +3,6 @@ import { randomInt, randomUUID } from 'node:crypto';
 import type {
   ButtonInteraction,
   Message,
-  MessageCreateOptions,
-  MessageEditOptions,
   StringSelectMenuInteraction
 } from 'discord.js';
 
@@ -20,6 +18,13 @@ import type {
 } from '../../../types/drafting.types.js';
 import { buildSnakeDraftPickComponents } from '../../../ui/components/snake-draft.js';
 import {
+  type DraftRenderPayload,
+  replyDraftNotice,
+  safeEditDraftMessage,
+} from '../runtime/message-ops.service.js';
+import { clampPageIndex } from '../runtime/pagination.service.js';
+import { applyStagedPickSelection, isSnakeDraftSubmissionReady } from '../runtime/staged-pick.service.js';
+import {
   buildSnakeDraftActiveDmEmbed,
   buildSnakeDraftCompleteEmbed,
   buildSnakeDraftStatusEmbed,
@@ -29,8 +34,6 @@ import { DraftError } from '../draft.service.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
 const activeSnakeDrafts = new Map<string, SnakeDraftSession>();
-
-type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptions, 'flags'>;
 
 type SnakeCustomId =
   | Readonly<{ action: 'pick'; pickType: 'leader' | 'civ'; sessionId: string; turnToken: number }>
@@ -84,32 +87,6 @@ function pickRandom<T>(items: readonly T[]): T {
   return items[randomInt(0, items.length)];
 }
 
-async function safeEditMessage(msg: Message, payload: RenderPayload): Promise<void> {
-  try {
-    if (!msg.editable) return;
-    await msg.edit(payload);
-  } catch {
-    // best effort
-  }
-}
-
-async function replyNotice(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  content: string,
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-  try {
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-      return;
-    }
-
-    await interaction.reply(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-  } catch {
-    // best effort
-  }
-}
-
 function getLeaderPool(request: VoteDraftRequest): string[] {
   const banned = new Set(request.bannedLeaderKeys);
   return request.edition === 'CIV6'
@@ -157,7 +134,7 @@ function getUserPages(session: SnakeDraftSession, userId: string): SnakeDraftPag
   return session.pages.get(userId) ?? { leaderPage: 0, civPage: 0 };
 }
 
-function buildWaitingPayload(session: SnakeDraftSession, userId: string): RenderPayload {
+function buildWaitingPayload(session: SnakeDraftSession, userId: string): DraftRenderPayload {
   return {
     embeds: [buildSnakeDraftWaitingDmEmbed({
       edition: session.edition,
@@ -170,7 +147,7 @@ function buildWaitingPayload(session: SnakeDraftSession, userId: string): Render
   };
 }
 
-function buildActivePayload(session: SnakeDraftSession, userId: string): RenderPayload {
+function buildActivePayload(session: SnakeDraftSession, userId: string): DraftRenderPayload {
   const state = getUserPages(session, userId);
   const round = session.round === 'complete' ? 'leader' : session.round;
   return {
@@ -199,7 +176,7 @@ function buildActivePayload(session: SnakeDraftSession, userId: string): RenderP
 async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> {
   const currentPickerId = getCurrentPickerId(session);
   const order = getCurrentOrder(session);
-  const payload: RenderPayload = session.round === 'complete'
+  const payload: DraftRenderPayload = session.round === 'complete'
     ? {
         embeds: [buildSnakeDraftCompleteEmbed({
           edition: session.edition,
@@ -225,7 +202,7 @@ async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> 
       };
 
   if (session.trackingMessage) {
-    await safeEditMessage(session.trackingMessage, payload);
+    await safeEditDraftMessage(session.trackingMessage, payload);
   } else {
     session.trackingMessage = await session.commandChannel.send(payload);
   }
@@ -234,13 +211,13 @@ async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> 
 async function updateTurnDmMessages(session: SnakeDraftSession, previousPickerId?: string | null): Promise<void> {
   if (previousPickerId) {
     const prev = session.dmMessages.get(previousPickerId);
-    if (prev) await safeEditMessage(prev, buildWaitingPayload(session, previousPickerId));
+    if (prev) await safeEditDraftMessage(prev, buildWaitingPayload(session, previousPickerId));
   }
 
   const currentPickerId = getCurrentPickerId(session);
   if (!currentPickerId) return;
   const current = session.dmMessages.get(currentPickerId);
-  if (current) await safeEditMessage(current, buildActivePayload(session, currentPickerId));
+  if (current) await safeEditDraftMessage(current, buildActivePayload(session, currentPickerId));
 }
 
 async function finalizeSnakeDraftSession(session: SnakeDraftSession): Promise<void> {
@@ -251,7 +228,7 @@ async function finalizeSnakeDraftSession(session: SnakeDraftSession): Promise<vo
   session.round = 'complete';
   await updateTrackingMessage(session);
   for (const [userId, message] of session.dmMessages.entries()) {
-    await safeEditMessage(message, buildWaitingPayload(session, userId));
+    await safeEditDraftMessage(message, buildWaitingPayload(session, userId));
   }
   activeSnakeDrafts.delete(session.sessionId);
 }
@@ -330,7 +307,7 @@ async function handleSnakeTimeout(session: SnakeDraftSession): Promise<void> {
 
 async function failSentDmMessages(messages: readonly Message<false>[]): Promise<void> {
   for (const message of messages) {
-    await safeEditMessage(message, {
+    await safeEditDraftMessage(message, {
       content: `${EMOJI_ERROR} Snake draft could not start because I could not DM every voter. Please enable DMs and try again.`,
       embeds: [],
       components: [],
@@ -427,33 +404,31 @@ export async function handleSnakeDraftSelect(interaction: StringSelectMenuIntera
 
   const session = getSnakeSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ Snake draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ Snake draft is not active.');
     return true;
   }
   if (parsed.turnToken !== session.turnToken) {
-    await replyNotice(interaction, '⚠️ This pick prompt has expired.');
+    await replyDraftNotice(interaction, '⚠️ This pick prompt has expired.');
     return true;
   }
   const userId = interaction.user.id;
   if (!isUserCurrentPicker(session, userId)) {
-    await replyNotice(interaction, '⚠️ It is not your turn to pick.');
+    await replyDraftNotice(interaction, '⚠️ It is not your turn to pick.');
     return true;
   }
   if (parsed.pickType !== session.round) {
-    await replyNotice(interaction, '⚠️ That pick prompt is no longer active.');
+    await replyDraftNotice(interaction, '⚠️ That pick prompt is no longer active.');
     return true;
   }
 
   const choice = interaction.values[0];
   const available = parsed.pickType === 'leader' ? getAvailableLeaders(session) : getAvailableCivs(session);
   if (!available.includes(choice)) {
-    await replyNotice(interaction, '⚠️ That choice is no longer available.');
+    await replyDraftNotice(interaction, '⚠️ That choice is no longer available.');
     return true;
   }
 
-  const staged = { ...(session.stagedPicks.get(userId) ?? session.picks.get(userId) ?? {}) };
-  if (parsed.pickType === 'leader') staged.leaderKey = choice;
-  if (parsed.pickType === 'civ') staged.civKey = choice;
+  const staged = applyStagedPickSelection(session.stagedPicks.get(userId) ?? session.picks.get(userId), parsed.pickType, choice);
   session.stagedPicks.set(userId, staged);
 
   await interaction.update(buildActivePayload(session, userId));
@@ -466,30 +441,35 @@ export async function handleSnakeDraftButton(interaction: ButtonInteraction): Pr
 
   const session = getSnakeSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ Snake draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ Snake draft is not active.');
     return true;
   }
   if (parsed.turnToken !== session.turnToken) {
-    await replyNotice(interaction, '⚠️ This pick prompt has expired.');
+    await replyDraftNotice(interaction, '⚠️ This pick prompt has expired.');
     return true;
   }
   const userId = interaction.user.id;
   if (!isUserCurrentPicker(session, userId)) {
-    await replyNotice(interaction, '⚠️ It is not your turn to pick.');
+    await replyDraftNotice(interaction, '⚠️ It is not your turn to pick.');
     return true;
   }
 
   if (parsed.action === 'submit') {
     const staged = session.stagedPicks.get(userId) ?? session.picks.get(userId);
+    if (session.round !== 'leader' && session.round !== 'civ') {
+      await replyDraftNotice(interaction, '⚠️ That pick prompt is no longer active.');
+      return true;
+    }
+
     const key = session.round === 'leader' ? staged?.leaderKey : staged?.civKey;
-    if (!key) {
-      await replyNotice(interaction, '⚠️ Choose a pick before submitting.');
+    if (!isSnakeDraftSubmissionReady(session.round, staged) || !key) {
+      await replyDraftNotice(interaction, '⚠️ Choose a pick before submitting.');
       return true;
     }
 
     const available = session.round === 'leader' ? getAvailableLeaders(session) : getAvailableCivs(session);
     if (!available.includes(key)) {
-      await replyNotice(interaction, '⚠️ That choice is no longer available.');
+      await replyDraftNotice(interaction, '⚠️ That choice is no longer available.');
       return true;
     }
 
@@ -500,16 +480,16 @@ export async function handleSnakeDraftButton(interaction: ButtonInteraction): Pr
 
   if (parsed.action !== 'nav') return false;
   if (parsed.pickType !== session.round) {
-    await replyNotice(interaction, '⚠️ That picker is no longer active.');
+    await replyDraftNotice(interaction, '⚠️ That picker is no longer active.');
     return true;
   }
 
   const pages = getUserPages(session, userId);
   const pageKey = parsed.pickType === 'leader' ? 'leaderPage' : 'civPage';
-  const totalPages = Math.max(1, Math.ceil((parsed.pickType === 'leader' ? getAvailableLeaders(session).length : getAvailableCivs(session).length) / SNAKE_MENU_PAGE_SIZE));
+  const totalItems = parsed.pickType === 'leader' ? getAvailableLeaders(session).length : getAvailableCivs(session).length;
   const current = pages[pageKey];
   const next = parsed.navDir === 'next' ? current + 1 : current - 1;
-  const page = Math.max(0, Math.min(totalPages - 1, next));
+  const page = clampPageIndex(next, totalItems, SNAKE_MENU_PAGE_SIZE);
   const nextPages: SnakeDraftPageState = pageKey === 'leaderPage'
     ? { ...pages, leaderPage: page }
     : { ...pages, civPage: page };

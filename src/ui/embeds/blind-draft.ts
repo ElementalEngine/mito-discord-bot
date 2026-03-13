@@ -6,14 +6,7 @@ import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { BlindDraftPick } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
-
-function ts(ms: number, style: 't' | 'R'): string {
-  return `<t:${Math.floor(ms / 1000)}:${style}>`;
-}
-
-function deadlineLine(ms: number): string {
-  return `Deadline: ${ts(ms, 't')} (${ts(ms, 'R')})`;
-}
+import { formatDeadlineLine } from '../../services/drafting/runtime/deadline.service.js';
 
 function leaderLine(edition: CivEdition, key?: string): string {
   if (!key) return 'Not selected';
@@ -70,7 +63,7 @@ export function buildBlindDraftEmbed(args: Readonly<{
   const lines: string[] = [
     'Choose your blind draft picks below, then press **Submit** to lock them in.',
     voteUuidLine(args.voteUuid),
-    deadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs),
     '',
   ].filter((line): line is string => Boolean(line));
 
@@ -123,7 +116,7 @@ export function buildBlindDraftTrackingEmbed(args: Readonly<{
     .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
     .setDescription([
       voteUuidLine(args.voteUuid),
-      deadlineLine(args.endsAtMs),
+      formatDeadlineLine(args.endsAtMs),
       '',
       ...lines,
     ].filter((line): line is string => Boolean(line)).join('\n'));

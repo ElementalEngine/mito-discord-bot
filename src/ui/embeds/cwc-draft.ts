@@ -5,10 +5,7 @@ import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { CwcDraftSession } from '../../types/drafting.types.js';
-
-function ts(ms: number, style: 'f' | 'R'): string {
-  return `<t:${Math.floor(ms / 1000)}:${style}>`;
-}
+import { formatDeadlineLine } from '../../services/drafting/runtime/deadline.service.js';
 
 function leaderLine(edition: CivEdition, key: string): string {
   return edition === 'CIV6'
@@ -62,7 +59,7 @@ export function buildCwcCaptainSelectEmbed(args: Readonly<{
   const lines: string[] = [
     `Host: ${userMention(args.hostId)}`,
     `Teams: **2v${args.teamSize}**`,
-    `Captain selection deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+    formatDeadlineLine(args.endsAtMs, { label: 'Captain selection deadline', fixedStyle: 'f' }),
   ];
   if (args.edition === 'CIV7') lines.push(`Starting Age: **${args.startingAge ?? '—'}**`);
   if (args.lastEvent) lines.push('', args.lastEvent);
@@ -87,7 +84,7 @@ export function buildCwcDraftStatusEmbed(session: CwcDraftSession): EmbedBuilder
     `Current turn: **${session.turnIndex + 1}/${session.pickOrder.length}**`,
     `Current team: **Team ${currentTeam ?? 1}**`,
     `Current captain: ${currentCaptain ? userMention(currentCaptain) : '—'}`,
-    `Deadline: ${ts(session.turnEndsAtMs, 'f')} (${ts(session.turnEndsAtMs, 'R')})`,
+    formatDeadlineLine(session.turnEndsAtMs, { fixedStyle: 'f' }),
   ];
   if (session.edition === 'CIV7') {
     lines.push(`Starting Age: **${session.startingAge ?? '—'}**`);

@@ -10,6 +10,7 @@ import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from
 import type { CivEdition } from '../../config/types.js';
 import type { BlindDraftPageState, BlindDraftPick, BlindDraftPools } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
+import { clampPageIndex, getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
 
 const BLIND_MENU_PAGE_SIZE = 25;
 
@@ -34,14 +35,11 @@ export function clampBlindDraftPageState(args: Readonly<{
   pools: BlindDraftPools;
   state: BlindDraftPageState;
 }>): BlindDraftPageState {
-  const civTotalPages = args.edition === 'CIV7' && args.pools.civs
-    ? Math.max(1, Math.ceil(args.pools.civs.length / BLIND_MENU_PAGE_SIZE))
-    : 1;
-  const leaderTotalPages = Math.max(1, Math.ceil(args.pools.leaders.length / BLIND_MENU_PAGE_SIZE));
+  const civTotalItems = args.edition === 'CIV7' && args.pools.civs ? args.pools.civs.length : 0;
 
   return {
-    civPage: Math.max(0, Math.min(args.state.civPage, civTotalPages - 1)),
-    leaderPage: Math.max(0, Math.min(args.state.leaderPage, leaderTotalPages - 1)),
+    civPage: clampPageIndex(args.state.civPage, civTotalItems, BLIND_MENU_PAGE_SIZE),
+    leaderPage: clampPageIndex(args.state.leaderPage, args.pools.leaders.length, BLIND_MENU_PAGE_SIZE),
   };
 }
 
@@ -57,11 +55,8 @@ export function buildBlindDraftPickComponents(args: Readonly<{
   const navButtons: ButtonBuilder[] = [];
 
   if (args.edition === 'CIV7' && args.pools.civs) {
-    const totalPages = Math.max(1, Math.ceil(args.pools.civs.length / BLIND_MENU_PAGE_SIZE));
-    const pageKeys = args.pools.civs.slice(
-      args.state.civPage * BLIND_MENU_PAGE_SIZE,
-      (args.state.civPage + 1) * BLIND_MENU_PAGE_SIZE
-    );
+    const totalPages = getPageCount(args.pools.civs.length, BLIND_MENU_PAGE_SIZE);
+    const pageKeys = slicePageItems(args.pools.civs, args.state.civPage, BLIND_MENU_PAGE_SIZE);
 
     const civMenu = new StringSelectMenuBuilder()
       .setCustomId(`gv:pick:civ:${args.sessionId}`)
@@ -103,11 +98,8 @@ export function buildBlindDraftPickComponents(args: Readonly<{
     }
   }
 
-  const leaderTotalPages = Math.max(1, Math.ceil(args.pools.leaders.length / BLIND_MENU_PAGE_SIZE));
-  const leaderPageKeys = args.pools.leaders.slice(
-    args.state.leaderPage * BLIND_MENU_PAGE_SIZE,
-    (args.state.leaderPage + 1) * BLIND_MENU_PAGE_SIZE
-  );
+  const leaderTotalPages = getPageCount(args.pools.leaders.length, BLIND_MENU_PAGE_SIZE);
+  const leaderPageKeys = slicePageItems(args.pools.leaders, args.state.leaderPage, BLIND_MENU_PAGE_SIZE);
 
   const leaderMenu = new StringSelectMenuBuilder()
     .setCustomId(`gv:pick:leader:${args.sessionId}`)

@@ -2,9 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   ButtonInteraction,
-  Message,
-  MessageCreateOptions,
-  MessageEditOptions,
   StringSelectMenuInteraction,
 } from 'discord.js';
 
@@ -17,6 +14,13 @@ import type {
   DraftModeOutput,
 } from '../../../types/drafting.types.js';
 import { buildBlindDraftPickComponents, clampBlindDraftPageState } from '../../../ui/components/blind-draft.js';
+import {
+  type DraftRenderPayload,
+  replyDraftNotice,
+  safeEditDraftMessage,
+} from '../runtime/message-ops.service.js';
+import { clampPageIndex } from '../runtime/pagination.service.js';
+import { applyStagedPickSelection, isBlindDraftSubmissionReady } from '../runtime/staged-pick.service.js';
 import {
   buildBlindDraftClosedEmbed,
   buildBlindDraftEmbed,
@@ -32,8 +36,6 @@ const BLIND_MENU_PAGE_SIZE = 25;
 const DM_CONCURRENCY = 8;
 
 const activeBlindDrafts = new Map<string, BlindDraftSession>();
-
-type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptions, 'flags'>;
 
 type BlindCustomId =
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
@@ -84,33 +86,6 @@ async function forEachLimit<T>(items: readonly T[], limit: number, fn: (item: T)
   await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
 }
 
-async function safeEditMessage(msg: Message, payload: RenderPayload): Promise<void> {
-  try {
-    if (!msg.editable) return;
-    await msg.edit(payload);
-  } catch {
-    // best effort
-  }
-}
-
-async function replyNotice(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  content: string,
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred || interaction.replied) {
-      await interaction.followUp(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-      return;
-    }
-
-    await interaction.reply(interaction.inGuild() ? { ...base, ephemeral: true } : base);
-  } catch {
-    // best effort
-  }
-}
-
 function createBlindDraftLaunch(request: VoteDraftRequest) {
   try {
     const draft = buildStandardDraftResult({ ...request, draftMode: 'standard' });
@@ -136,7 +111,7 @@ function getSession(sessionId: string): BlindDraftSession | null {
   return activeBlindDrafts.get(sessionId) ?? null;
 }
 
-function buildBlindDmPayload(session: BlindDraftSession, voterId: string): RenderPayload {
+function buildBlindDmPayload(session: BlindDraftSession, voterId: string): DraftRenderPayload {
   const pools = session.pools.get(voterId);
   const currentState = session.pages.get(voterId) ?? { civPage: 0, leaderPage: 0 };
 
@@ -179,7 +154,7 @@ function buildClosedDmPayload(
   session: BlindDraftSession,
   voterId: string,
   reason: 'timeout' | 'complete',
-): RenderPayload {
+): DraftRenderPayload {
   return {
     embeds: [
       buildBlindDraftClosedEmbed({
@@ -204,7 +179,7 @@ function isBlindComplete(session: BlindDraftSession): boolean {
 }
 
 async function updateTrackingMessage(session: BlindDraftSession): Promise<void> {
-  const payload: RenderPayload = {
+  const payload: DraftRenderPayload = {
     embeds: [
       buildBlindDraftTrackingEmbed({
         edition: session.edition,
@@ -227,7 +202,7 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
     return;
   }
 
-  await safeEditMessage(session.trackingMessage, payload);
+  await safeEditDraftMessage(session.trackingMessage, payload);
 }
 
 async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'timeout' | 'complete'): Promise<void> {
@@ -239,7 +214,7 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
     session.timeout = null;
   }
 
-  const trackingPayload: RenderPayload = {
+  const trackingPayload: DraftRenderPayload = {
     embeds: [
       reason === 'complete'
         ? buildBlindDraftRevealEmbed({
@@ -259,7 +234,7 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
   };
 
   if (session.trackingMessage) {
-    await safeEditMessage(session.trackingMessage, trackingPayload);
+    await safeEditDraftMessage(session.trackingMessage, trackingPayload);
   } else {
     try {
       session.trackingMessage = await session.commandChannel.send(trackingPayload);
@@ -269,7 +244,7 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
   }
 
   await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([voterId, message]) => {
-    await safeEditMessage(message, buildClosedDmPayload(session, voterId, reason));
+    await safeEditDraftMessage(message, buildClosedDmPayload(session, voterId, reason));
   });
 
   activeBlindDrafts.delete(session.sessionId);
@@ -358,19 +333,19 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
 
   const session = getSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ Blind draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ Blind draft is not active.');
     return true;
   }
 
   const userId = interaction.user.id;
   if (!session.voterIds.includes(userId)) {
-    await replyNotice(interaction, '⚠️ You are not part of this blind draft.');
+    await replyDraftNotice(interaction, '⚠️ You are not part of this blind draft.');
     return true;
   }
 
   const pools = session.pools.get(userId);
   if (!pools) {
-    await replyNotice(interaction, '⚠️ Blind draft options are unavailable.');
+    await replyDraftNotice(interaction, '⚠️ Blind draft options are unavailable.');
     return true;
   }
 
@@ -380,13 +355,11 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
     : pools.leaders.includes(pickId);
 
   if (!allowed) {
-    await replyNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
+    await replyDraftNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
     return true;
   }
 
-  const pick = { ...(session.stagedPicks.get(userId) ?? session.picks.get(userId) ?? {}) };
-  if (parsed.pickType === 'civ') pick.civKey = pickId;
-  if (parsed.pickType === 'leader') pick.leaderKey = pickId;
+  const pick = applyStagedPickSelection(session.stagedPicks.get(userId) ?? session.picks.get(userId), parsed.pickType, pickId);
   session.stagedPicks.set(userId, pick);
 
   await interaction.update(buildBlindDmPayload(session, userId));
@@ -400,32 +373,32 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
 
   const session = getSession(parsed.sessionId);
   if (!session) {
-    await replyNotice(interaction, '⚠️ Blind draft is not active.');
+    await replyDraftNotice(interaction, '⚠️ Blind draft is not active.');
     return true;
   }
 
   const userId = interaction.user.id;
   if (!session.voterIds.includes(userId)) {
-    await replyNotice(interaction, '⚠️ You are not part of this blind draft.');
+    await replyDraftNotice(interaction, '⚠️ You are not part of this blind draft.');
     return true;
   }
 
   const pages: BlindDraftPageState = session.pages.get(userId) ?? { civPage: 0, leaderPage: 0 };
   const pools = session.pools.get(userId);
   if (!pools) {
-    await replyNotice(interaction, '⚠️ Blind draft options are unavailable.');
+    await replyDraftNotice(interaction, '⚠️ Blind draft options are unavailable.');
     return true;
   }
 
   if (parsed.action === 'submit') {
     const staged = session.stagedPicks.get(userId) ?? session.picks.get(userId);
-    if (!staged?.leaderKey || (session.edition === 'CIV7' && !staged.civKey)) {
-      await replyNotice(interaction, '⚠️ Pick all required options before submitting.');
+    if (!isBlindDraftSubmissionReady(session.edition, staged) || !staged?.leaderKey) {
+      await replyDraftNotice(interaction, '⚠️ Pick all required options before submitting.');
       return true;
     }
 
-    if (!pools.leaders.includes(staged.leaderKey) || (session.edition === 'CIV7' && !(pools.civs ?? []).includes(staged.civKey!))) {
-      await replyNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
+    if (!pools.leaders.includes(staged.leaderKey) || (session.edition === 'CIV7' && (!staged.civKey || !(pools.civs ?? []).includes(staged.civKey)))) {
+      await replyDraftNotice(interaction, '⚠️ That choice is not available in your blind draft pool.');
       return true;
     }
 
@@ -442,13 +415,10 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
   if (parsed.action !== 'nav') return false;
 
   const pageKey = parsed.pickType === 'civ' ? 'civPage' : 'leaderPage';
-  const maxPage = parsed.pickType === 'civ'
-    ? Math.max(0, Math.ceil((pools.civs?.length ?? 0) / BLIND_MENU_PAGE_SIZE) - 1)
-    : Math.max(0, Math.ceil(pools.leaders.length / BLIND_MENU_PAGE_SIZE) - 1);
-
+  const totalItems = parsed.pickType === 'civ' ? (pools.civs?.length ?? 0) : pools.leaders.length;
   const currentPage = pageKey === 'civPage' ? pages.civPage : pages.leaderPage;
   const nextPage = parsed.navDir === 'next' ? currentPage + 1 : currentPage - 1;
-  const page = Math.max(0, Math.min(maxPage, nextPage));
+  const page = clampPageIndex(nextPage, totalItems, BLIND_MENU_PAGE_SIZE);
   const nextState = pageKey === 'civPage' ? { ...pages, civPage: page } : { ...pages, leaderPage: page };
   session.pages.set(userId, nextState);
 

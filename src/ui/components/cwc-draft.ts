@@ -10,6 +10,7 @@ import { lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import { CIV7_CIVS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
 import type { CwcDraftPageState } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
+import { clampPageIndex, getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
 
 const CWC_MENU_PAGE_SIZE = 25;
 
@@ -79,8 +80,8 @@ export function buildCwcPickComponents(args: Readonly<{
 
   if (args.round === 'leader') {
     const keys = args.leaders ?? [];
-    const totalPages = Math.max(1, Math.ceil(keys.length / CWC_MENU_PAGE_SIZE));
-    const pageKeys = keys.slice(args.state.leaderPage * CWC_MENU_PAGE_SIZE, (args.state.leaderPage + 1) * CWC_MENU_PAGE_SIZE);
+    const totalPages = getPageCount(keys.length, CWC_MENU_PAGE_SIZE);
+    const pageKeys = slicePageItems(keys, args.state.leaderPage, CWC_MENU_PAGE_SIZE);
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`cw:pick:leader:${args.sessionId}:${args.turnToken}`)
       .setPlaceholder(totalPages > 1 ? `Pick leader (Page ${args.state.leaderPage + 1}/${totalPages})` : 'Pick leader')
@@ -118,8 +119,8 @@ export function buildCwcPickComponents(args: Readonly<{
   }
 
   const civKeys = args.civs ?? [];
-  const totalPages = Math.max(1, Math.ceil(civKeys.length / CWC_MENU_PAGE_SIZE));
-  const pageKeys = civKeys.slice(args.state.civPage * CWC_MENU_PAGE_SIZE, (args.state.civPage + 1) * CWC_MENU_PAGE_SIZE);
+  const totalPages = getPageCount(civKeys.length, CWC_MENU_PAGE_SIZE);
+  const pageKeys = slicePageItems(civKeys, args.state.civPage, CWC_MENU_PAGE_SIZE);
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`cw:pick:civ:${args.sessionId}:${args.turnToken}`)
     .setPlaceholder(totalPages > 1 ? `Pick civ (Page ${args.state.civPage + 1}/${totalPages})` : 'Pick civ')
