@@ -1,4 +1,5 @@
 import type { DraftGroupKind } from '../../../types/drafting.types.js';
+import { humanizeGameId } from '../../../utils/humanize-game-id.js';
 
 const EMOJI_NAME_SAFE_RE = /[^A-Za-z0-9_]/g;
 
@@ -47,4 +48,36 @@ export function renderEmojiReadableLine(
   if (!emojiId) return name;
 
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${name}`;
+}
+
+
+export function renderEmojiHumanizedLine(
+  meta: Readonly<{ gameId: string; emojiId?: string }> | undefined,
+  fallbackKey: string,
+): string {
+  if (!meta) return humanizeDraftKey(fallbackKey);
+
+  const label = humanizeGameId(meta.gameId);
+  const emojiId = meta.emojiId?.trim();
+  if (!emojiId) return label;
+
+  return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${label}`;
+}
+
+export function renderMentionHumanizedSingleLine(
+  userId: string,
+  meta: Readonly<{ gameId: string; emojiId?: string }> | undefined,
+  fallbackKey: string,
+): string {
+  return `• <@${userId}> — ${renderEmojiHumanizedLine(meta, fallbackKey)}`;
+}
+
+export function renderMentionHumanizedPairLine(
+  userId: string,
+  first: Readonly<{ gameId: string; emojiId?: string }> | undefined,
+  firstKey: string,
+  second: Readonly<{ gameId: string; emojiId?: string }> | undefined,
+  secondKey: string,
+): string {
+  return `• <@${userId}> — ${renderEmojiHumanizedLine(first, firstKey)} + ${renderEmojiHumanizedLine(second, secondKey)}`;
 }

@@ -18,6 +18,7 @@ import {
   type DraftRenderPayload,
   replyDraftNotice,
   safeEditDraftMessage,
+  upsertDraftTrackingMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
 import {
@@ -33,8 +34,8 @@ import {
   buildBlindDraftTimeoutEmbed,
   buildBlindDraftTrackingEmbed,
 } from '../../../ui/embeds/blind-draft.js';
-import { DraftError } from '../draft.service.js';
-import { buildStandardDraftResult, runStandardDraftMode } from './standard.js';
+import { buildVoteStandardDraftResult, DraftError } from '../draft.service.js';
+import { runStandardDraftMode } from './standard.js';
 
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const BLIND_MENU_PAGE_SIZE = 25;
@@ -93,7 +94,7 @@ async function forEachLimit<T>(items: readonly T[], limit: number, fn: (item: T)
 
 function createBlindDraftLaunch(request: VoteDraftRequest) {
   try {
-    const draft = buildStandardDraftResult({ ...request, draftMode: 'standard' });
+    const draft = buildVoteStandardDraftResult({ ...request, draftMode: 'standard' });
 
     return {
       ok: true as const,
@@ -194,16 +195,15 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
     allowedMentions: { parse: [] as const },
   };
 
-  if (!session.trackingMessage) {
-    try {
-      session.trackingMessage = await session.commandChannel.send(payload);
-    } catch {
-      session.trackingMessage = null;
-    }
-    return;
+  try {
+    session.trackingMessage = await upsertDraftTrackingMessage(
+      session.trackingMessage,
+      payload,
+      () => session.commandChannel.send(payload),
+    );
+  } catch {
+    session.trackingMessage = null;
   }
-
-  await safeEditDraftMessage(session.trackingMessage, payload);
 }
 
 async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'timeout' | 'complete'): Promise<void> {

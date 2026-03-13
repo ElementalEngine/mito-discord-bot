@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import { CIV6_LEADERS } from '../../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
 import type { Civ6LeaderKey, Civ7CivKey, Civ7LeaderKey, CivMeta, LeaderMeta } from '../../../data/types.js';
+import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 
 const EMOJI_MENTION_RE = /^<a?:([A-Za-z0-9_]{2,32}):(\d{15,22})>$/;
 const EMOJI_COLON_RE = /^:([A-Za-z0-9_]{2,32}):$/;
@@ -116,4 +117,33 @@ export function getAvailableCiv7CivKeys(args: Readonly<{
   return (Object.entries(CIV7_CIVS) as [Civ7CivKey, CivMeta][])
     .filter(([key, meta]) => (allowAllAges || meta.agePool === args.startingAge) && !args.banned.has(key))
     .map(([key]) => key);
+}
+
+
+export function shuffledPoolCopy<T>(items: readonly T[]): T[] {
+  const copy = items.slice();
+  shufflePool(copy);
+  return copy;
+}
+
+export function pickRandomPoolItem<T>(items: readonly T[]): T {
+  return items[randomInt(0, items.length)];
+}
+
+export function buildVoteLeaderPool(request: Pick<VoteDraftRequest, 'edition' | 'bannedLeaderKeys'>): string[] {
+  const banned = new Set(request.bannedLeaderKeys);
+  return request.edition === 'CIV6'
+    ? getAvailableCiv6LeaderKeys(banned as ReadonlySet<Civ6LeaderKey>)
+    : getAvailableCiv7LeaderKeys(banned as ReadonlySet<Civ7LeaderKey>);
+}
+
+export function buildVoteCivPool(
+  request: Pick<VoteDraftRequest, 'edition' | 'startingAge' | 'bannedCivKeys'>,
+): string[] {
+  if (request.edition !== 'CIV7') return [];
+  const banned = new Set(request.bannedCivKeys);
+  return getAvailableCiv7CivKeys({
+    startingAge: request.startingAge ?? 'Antiquity_Age',
+    banned: banned as ReadonlySet<Civ7CivKey>,
+  });
 }

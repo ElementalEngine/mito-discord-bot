@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type {
   ButtonInteraction,
@@ -8,8 +8,6 @@ import type {
 
 import { DRAFT_TIMERS_MS } from '../../../config/draft.config.js';
 import { EMOJI_ERROR, EMOJI_RANDOM } from '../../../config/constants.js';
-import { CIV6_LEADERS } from '../../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
 import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import type {
   DraftModeOutput,
@@ -21,6 +19,7 @@ import {
   type DraftRenderPayload,
   replyDraftNotice,
   safeEditDraftMessage,
+  upsertDraftTrackingMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
 import {
@@ -36,6 +35,12 @@ import {
   buildSnakeDraftStatusEmbed,
   buildSnakeDraftWaitingDmEmbed,
 } from '../../../ui/embeds/snake-draft.js';
+import {
+  buildVoteCivPool,
+  buildVoteLeaderPool,
+  pickRandomPoolItem,
+  shuffledPoolCopy,
+} from '../domain/pool.service.js';
 import { DraftError } from '../draft.service.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
@@ -80,34 +85,7 @@ function parseSnakeCustomId(customId: string): SnakeCustomId | null {
   return null;
 }
 
-function shuffle<T>(items: readonly T[]): T[] {
-  const copy = items.slice();
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = randomInt(0, i + 1);
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
 
-function pickRandom<T>(items: readonly T[]): T {
-  return items[randomInt(0, items.length)];
-}
-
-function getLeaderPool(request: VoteDraftRequest): string[] {
-  const banned = new Set(request.bannedLeaderKeys);
-  return request.edition === 'CIV6'
-    ? Object.keys(CIV6_LEADERS).filter((key) => !banned.has(key))
-    : Object.keys(CIV7_LEADERS).filter((key) => !banned.has(key));
-}
-
-function getCivPool(request: VoteDraftRequest): string[] {
-  if (request.edition !== 'CIV7') return [];
-  const banned = new Set(request.bannedCivKeys);
-  const allowAllAges = request.startingAge === 'None';
-  return Object.entries(CIV7_CIVS)
-    .filter(([key, meta]) => !banned.has(key) && (allowAllAges || meta.agePool === request.startingAge))
-    .map(([key]) => key);
-}
 
 function getCurrentOrder(session: SnakeDraftSession): readonly string[] {
   if (session.round === 'leader') return session.order;
@@ -207,11 +185,11 @@ async function updateTrackingMessage(session: SnakeDraftSession): Promise<void> 
         allowedMentions: { parse: [] as const },
       };
 
-  if (session.trackingMessage) {
-    await safeEditDraftMessage(session.trackingMessage, payload);
-  } else {
-    session.trackingMessage = await session.commandChannel.send(payload);
-  }
+  session.trackingMessage = await upsertDraftTrackingMessage(
+    session.trackingMessage,
+    payload,
+    () => session.commandChannel.send(payload),
+  );
 }
 
 async function updateTurnDmMessages(session: SnakeDraftSession, previousPickerId?: string | null): Promise<void> {
@@ -300,7 +278,7 @@ async function handleSnakeTimeout(session: SnakeDraftSession): Promise<void> {
     return;
   }
 
-  await applyPick(session, userId, pickRandom(available), true);
+  await applyPick(session, userId, pickRandomPoolItem(available), true);
 }
 
 async function failSentDmMessages(messages: readonly Message<false>[]): Promise<void> {
@@ -324,12 +302,12 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
     throw new DraftError('VALIDATION', 'Snake draft requires DM access for every voter.');
   }
 
-  const leaderPool = getLeaderPool(request);
+  const leaderPool = buildVoteLeaderPool(request);
   if (leaderPool.length < request.voterIds.length) {
     throw new DraftError('NO_POOL', 'Not enough leaders remain after bans for snake draft.');
   }
 
-  const civPool = getCivPool(request);
+  const civPool = buildVoteCivPool(request);
   if (request.edition === 'CIV7') {
     if (request.startingAge === 'None' && civPool.length < request.voterIds.length) {
       throw new DraftError('NO_POOL', 'Not enough civs remain after bans for snake draft.');
@@ -339,7 +317,7 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
     }
   }
 
-  const order = shuffle(request.voterIds);
+  const order = shuffledPoolCopy(request.voterIds);
   const sessionId = randomUUID();
   const session: SnakeDraftSession = {
     sessionId,

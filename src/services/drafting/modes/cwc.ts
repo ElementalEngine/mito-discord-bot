@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type {
   ButtonInteraction,
@@ -7,8 +7,8 @@ import type {
 } from 'discord.js';
 
 import { CWC_PICK_ORDER, DRAFT_TIMERS_MS } from '../../../config/draft.config.js';
-import { CIV6_LEADERS, lookupCiv6LeaderMeta } from '../../../data/civ6.data.js';
-import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../../data/civ7.data.js';
+import { lookupCiv6LeaderMeta } from '../../../data/civ6.data.js';
+import { lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../../data/civ7.data.js';
 import type { VoteDraftRequest } from '../../../types/drafting.types.js';
 import type {
   CwcDraftPageState,
@@ -23,11 +23,18 @@ import {
   buildCwcDraftStatusEmbed,
   buildCwcTimeoutEvent,
 } from '../../../ui/embeds/cwc-draft.js';
+import {
+  buildVoteCivPool,
+  buildVoteLeaderPool,
+  pickRandomPoolItem,
+  shuffledPoolCopy,
+} from '../domain/pool.service.js';
 import { DraftError } from '../draft.service.js';
 import {
   type DraftRenderPayload,
   replyDraftNotice,
   safeEditDraftMessage,
+  upsertDraftTrackingMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
 import {
@@ -79,18 +86,6 @@ function parseCwcCustomId(customId: string): CwcCustomId | null {
   return null;
 }
 
-function shuffle<T>(items: readonly T[]): T[] {
-  const copy = items.slice();
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = randomInt(0, i + 1);
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function pickRandom<T>(items: readonly T[]): T {
-  return items[randomInt(0, items.length)];
-}
 
 function getTeamSize(request: VoteDraftRequest): number {
   return Math.floor(request.voterIds.length / 2);
@@ -100,21 +95,6 @@ function getOrderForTeamSize(teamSize: number): number[] {
   return [...CWC_PICK_ORDER.slice(0, teamSize * 2)];
 }
 
-function getLeaderPool(request: VoteDraftRequest): string[] {
-  const banned = new Set(request.bannedLeaderKeys);
-  return request.edition === 'CIV6'
-    ? Object.keys(CIV6_LEADERS).filter((key) => !banned.has(key))
-    : Object.keys(CIV7_LEADERS).filter((key) => !banned.has(key));
-}
-
-function getCivPool(request: VoteDraftRequest): string[] {
-  if (request.edition !== 'CIV7') return [];
-  const banned = new Set(request.bannedCivKeys);
-  const allowAllAges = request.startingAge === 'None';
-  return Object.entries(CIV7_CIVS)
-    .filter(([key, meta]) => !banned.has(key) && (allowAllAges || meta.agePool === request.startingAge))
-    .map(([key]) => key);
-}
 
 function buildLabelsById(voterIds: readonly string[], voterUsersById: ReadonlyMap<string, User>): ReadonlyMap<string, string> {
   const labels = new Map<string, string>();
@@ -211,11 +191,11 @@ async function updateTrackingMessage(session: CwcDraftSession): Promise<void> {
       ? { embeds: [buildCwcDraftCompleteEmbed(session)], components: [], allowedMentions: { parse: [] as const } }
       : buildDraftPayload(session);
 
-  if (session.trackingMessage) {
-    await safeEditDraftMessage(session.trackingMessage, payload);
-  } else {
-    session.trackingMessage = await session.commandChannel.send(payload);
-  }
+  session.trackingMessage = await upsertDraftTrackingMessage(
+    session.trackingMessage,
+    payload,
+    () => session.commandChannel.send(payload),
+  );
 }
 
 function advanceTurn(session: CwcDraftSession): void {
@@ -264,11 +244,11 @@ async function startLeaderRound(session: CwcDraftSession): Promise<void> {
 async function handleCaptainTimeout(session: CwcDraftSession): Promise<void> {
   const remaining = session.voterIds.filter((id) => !session.captainIds.includes(id));
   if (!session.captainIds[0]) {
-    session.captainIds[0] = pickRandom(remaining);
+    session.captainIds[0] = pickRandomPoolItem(remaining);
   }
   const remainingAfterTeam1 = session.voterIds.filter((id) => id !== session.captainIds[0] && id !== session.captainIds[1]);
   if (!session.captainIds[1]) {
-    session.captainIds[1] = pickRandom(remainingAfterTeam1);
+    session.captainIds[1] = pickRandomPoolItem(remainingAfterTeam1);
   }
   session.lastEvent = buildCwcCaptainTimeoutEvent({ captainIds: session.captainIds });
   await startLeaderRound(session);
@@ -282,7 +262,7 @@ async function handlePickTimeout(session: CwcDraftSession): Promise<void> {
       await finalizeSession(session);
       return;
     }
-    const key = pickRandom(available);
+    const key = pickRandomPoolItem(available);
     session.picks[teamIndex].leaders.push(key);
     session.lastEvent = buildCwcTimeoutEvent(teamIndex, session.edition, 'leader', key);
   } else if (session.round === 'civ') {
@@ -291,7 +271,7 @@ async function handlePickTimeout(session: CwcDraftSession): Promise<void> {
       await finalizeSession(session);
       return;
     }
-    const key = pickRandom(available);
+    const key = pickRandomPoolItem(available);
     session.picks[teamIndex].civs.push(key);
     session.lastEvent = buildCwcTimeoutEvent(teamIndex, session.edition, 'civ', key);
   }
@@ -322,13 +302,13 @@ function validateRequest(request: VoteDraftRequest): void {
     throw new DraftError('VALIDATION', 'CWC requires an even player count from 4 to 16.');
   }
 
-  const leaderPool = getLeaderPool(request);
+  const leaderPool = buildVoteLeaderPool(request);
   if (leaderPool.length < request.voterIds.length) {
     throw new DraftError('NO_POOL', 'Not enough leaders remain after bans for CWC.');
   }
 
   if (request.edition === 'CIV7') {
-    const civPool = getCivPool(request);
+    const civPool = buildVoteCivPool(request);
     if (request.startingAge === 'None' && civPool.length < request.voterIds.length) {
       throw new DraftError('NO_POOL', 'Not enough civs remain after bans for CWC.');
     }
@@ -351,8 +331,8 @@ function createSession(request: VoteDraftRequest): CwcDraftSession {
     trackingMessage: null,
     captainIds: [null, null],
     pages: new Map(),
-    leaderPool: shuffle(getLeaderPool(request)),
-    civPool: shuffle(getCivPool(request)),
+    leaderPool: shuffledPoolCopy(buildVoteLeaderPool(request)),
+    civPool: shuffledPoolCopy(buildVoteCivPool(request)),
     picks: [{ leaders: [], civs: [] }, { leaders: [], civs: [] }],
     pickOrder: getOrderForTeamSize(teamSize),
     round: 'captains',

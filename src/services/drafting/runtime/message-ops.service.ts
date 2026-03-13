@@ -33,3 +33,17 @@ export async function replyDraftNotice(interaction: NoticeInteraction, content: 
     // best effort
   }
 }
+
+
+export async function upsertDraftTrackingMessage(
+  current: Message | null,
+  payload: DraftRenderPayload,
+  send: () => Promise<Message>,
+): Promise<Message> {
+  if (current) {
+    await safeEditDraftMessage(current, payload);
+    return current;
+  }
+
+  return send();
+}
