@@ -14,6 +14,7 @@ import {
   type Message,
   type StringSelectMenuInteraction,
   type User,
+  userMention,
 } from 'discord.js';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -703,16 +704,18 @@ function buildBansPanelComponents(
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
   }
 
+  const canSubmit = !finished && hasStagedBanChanges(v, voterId);
+
   const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:prev:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('◀ Back')
+      .setLabel('Leaders ◀')
       .setDisabled(finished || leaderPages <= 1),
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:next:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('Next ▶')
+      .setLabel('Leaders ▶')
       .setDisabled(finished || leaderPages <= 1)
   );
 
@@ -721,12 +724,12 @@ function buildBansPanelComponents(
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:prev:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Back')
+        .setLabel('Civs ◀')
         .setDisabled(finished || civPages <= 1),
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:next:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Next ▶')
+        .setLabel('Civs ▶')
         .setDisabled(finished || civPages <= 1)
     );
   }
@@ -736,7 +739,7 @@ function buildBansPanelComponents(
       .setCustomId(`gv:bansubmit:${v.sessionId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel('Submit Bans')
-      .setDisabled(finished)
+      .setDisabled(!canSubmit)
   );
 
   rows.push(navRow);
@@ -778,6 +781,14 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     embeds: [embed],
     components: [...components],
     allowedMentions: { parse: [] as const },
+  };
+}
+
+
+function buildVoteStartPingPayload(v: GameVoteSession): Pick<RenderPayload, 'content' | 'allowedMentions'> {
+  return {
+    content: v.voterIds.map((id) => userMention(id)).join(' '),
+    allowedMentions: { parse: [] as const, users: v.voterIds },
   };
 }
 
@@ -946,7 +957,10 @@ async function openInitialMessages(
   }
 
   try {
-    const msg = await v.commandChannel.send(payload);
+    const msg = await v.commandChannel.send({
+      ...payload,
+      ...buildVoteStartPingPayload(v),
+    });
     if (!msg.inGuild()) return { ok: false, message: '⚠️ This command must be used in a server channel.' };
     if (msg.guildId !== guild.id) return { ok: false, message: '⚠️ Internal error: guild mismatch.' };
     v.publicMessage = msg;

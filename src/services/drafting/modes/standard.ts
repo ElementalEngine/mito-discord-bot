@@ -1,3 +1,5 @@
+import { userMention } from 'discord.js';
+
 import type {
   Civ6DraftResult,
   Civ7DraftResult,
@@ -24,7 +26,11 @@ import {
 
 
 function draftGroupTeamLabels(draft: Civ6DraftResult | Civ7DraftResult): string[] {
-  return draft.groups.map((_, index) => `Team ${index + 1}`);
+  return draft.groups.map((_, index) => `Team ${index + 1} Draft`);
+}
+
+function voteDraftAllowedMentions(request: VoteDraftRequest): Readonly<{ parse: readonly []; users: readonly string[] }> {
+  return { parse: [] as const, users: request.voterIds };
 }
 
 function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftModeOutput {
@@ -62,13 +68,14 @@ export async function runStandardDraftMode(
   const draft = buildVoteStandardDraftResult(request);
   const groupLabels = request.gameType === 'Teamer'
     ? draftGroupTeamLabels(draft)
-    : request.voterIds.map((voterId) => `<@${voterId}>`);
+    : request.voterIds.map((voterId) => userMention(voterId));
+  const allowedMentions = voteDraftAllowedMentions(request);
 
   if (draft.gameVersion === 'civ6') {
-    const followUps = buildCiv6VoteDraftMessages(draft, groupLabels).map((content) => ({ content }));
+    const followUps = buildCiv6VoteDraftMessages(draft, groupLabels).map((content) => ({ content, allowedMentions }));
     return { embeds: [buildCiv6VoteDraftSummaryEmbed(draft)], followUps };
   }
 
-  const followUps = buildCiv7VoteDraftMessages(draft, groupLabels).map((content) => ({ content }));
+  const followUps = buildCiv7VoteDraftMessages(draft, groupLabels).map((content) => ({ content, allowedMentions }));
   return { embeds: [buildCiv7VoteDraftSummaryEmbed(draft)], followUps };
 }
