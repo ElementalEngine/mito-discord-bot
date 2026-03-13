@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import type { TeamGenResponse } from "../types/teamgen.types.js";
 import { ApiError } from "./errors.js";
 import type {
   UploadSaveResponse,
@@ -264,6 +265,26 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as BatchStatsResponse;
+  }
+
+  async getTeamGen(
+    civVersion: CivVersion,
+    gameType: StatsGameType,
+    discordIds: string[]
+  ): Promise<TeamGenResponse> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/team-gen`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        civ_version: civVersion,
+        game_type: gameType,
+        discord_ids: discordIds,
+      }),
+    });
+
+    return (await this.parseJson(res)) as TeamGenResponse;
   }
 
   private async fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, attempts = 1): Promise<Response> {
