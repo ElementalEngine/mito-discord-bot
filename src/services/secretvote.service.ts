@@ -1,13 +1,8 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  Message,
-  type SendableChannels,
-} from 'discord.js';
+import { Message, type SendableChannels } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
+import { buildSecretVoteButtons } from '../ui/components/secretvote.js';
 import { buildSecretVoteEmbed } from '../ui/embeds/secretvote.js';
 import type {
   SecretVoteAction,
@@ -20,9 +15,6 @@ import type {
 } from '../types/secretvote.types.js';
 
 const VOTE_DURATION_MS = 2 * 60_000;
-const FAST_TICK_WINDOW_MS = 10_000;
-const FAST_TICK_MS = 1_000;
-const STEADY_TICK_MS = 2_000;
 const DISCORD_MESSAGE_MAX = 2_000;
 
 const DM_CONCURRENCY = 10;
@@ -33,23 +25,6 @@ const reservedByVoice = new Set<string>();
 
 function voiceKey(guildId: string, voiceChannelId: string): string {
   return `${guildId}:${voiceChannelId}`;
-}
-
-function buildVoteButtons(
-  voteId: string,
-  voterId: string
-): ActionRowBuilder<ButtonBuilder> {
-  const yes = new ButtonBuilder()
-    .setCustomId(`sv:${voteId}:${voterId}:YES`)
-    .setLabel('YES')
-    .setStyle(ButtonStyle.Success);
-
-  const no = new ButtonBuilder()
-    .setCustomId(`sv:${voteId}:${voterId}:NO`)
-    .setLabel('NO')
-    .setStyle(ButtonStyle.Danger);
-
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(yes, no);
 }
 
 function clampText(text: string, max: number): string {
@@ -64,7 +39,7 @@ function buildVoteDmContent(
   details: string
 ): string {
   const prefix = [
-    `🔒 Secret vote started by **${hostUsername}**.`,
+    `🔎 Secret vote started by **${hostUsername}**.`,
     `Action: **${action}** • Turn: **${turn}**`,
     'Details: ',
   ].join('\n');
@@ -189,8 +164,7 @@ export function evaluateSecretVoteOutcome(
 function buildStatus(
   v: SecretVoteSession,
   isFinal: boolean,
-  result?: SecretVoteOutcome,
-  nowMs?: number
+  result?: SecretVoteOutcome
 ): SecretVoteStatus {
   return {
     voteId: v.voteId,
@@ -200,7 +174,6 @@ function buildStatus(
     hostId: v.hostId,
     startedAtMs: v.startedAtMs,
     endsAtMs: v.endsAtMs,
-    nowMs,
     voters: v.voters,
     votedIds: new Set(v.votes.keys()),
     awaitingIds: new Set(v.awaiting),
@@ -214,19 +187,6 @@ async function safeEditPublic(v: SecretVoteSession, status: SecretVoteStatus): P
     embeds: [buildSecretVoteEmbed(status)],
     allowedMentions: { parse: [] as const },
   });
-}
-
-function tickStepMs(v: SecretVoteSession, dueMs: number): number {
-  const elapsed = dueMs - v.startedAtMs;
-  return elapsed < FAST_TICK_WINDOW_MS ? FAST_TICK_MS : STEADY_TICK_MS;
-}
-
-function bumpTickDueToFuture(v: SecretVoteSession, dueMs: number, nowMs: number): number {
-  let due = dueMs;
-  while (due <= nowMs) {
-    due += tickStepMs(v, due);
-  }
-  return due;
 }
 
 function requestPublicRender(v: SecretVoteSession, status: SecretVoteStatus): void {
@@ -252,30 +212,6 @@ function requestPublicRender(v: SecretVoteSession, status: SecretVoteStatus): vo
     }
     v.editInFlight = false;
   })();
-}
-
-function scheduleNextPublicTick(voteId: string): void {
-  const v = activeById.get(voteId);
-  if (!v || v.isFinalized) return;
-
-  const nowMs = Date.now();
-  const dueMs = bumpTickDueToFuture(v, v.nextPublicTickAtMs, nowMs);
-  v.nextPublicTickAtMs = dueMs;
-
-  const delayMs = Math.max(dueMs - nowMs, 0);
-  v.publicTickTimeout = setTimeout(() => {
-    const current = activeById.get(voteId);
-    if (!current || current.isFinalized) return;
-
-    const now = Date.now();
-    requestPublicRender(current, buildStatus(current, false, undefined, now));
-
-    // Advance from the *scheduled* tick time, then bump to future.
-    const step = tickStepMs(current, current.nextPublicTickAtMs);
-    const nextBase = current.nextPublicTickAtMs + step;
-    current.nextPublicTickAtMs = bumpTickDueToFuture(current, nextBase, now);
-    scheduleNextPublicTick(voteId);
-  }, delayMs);
 }
 
 async function forEachLimit<T>(
@@ -319,19 +255,11 @@ async function finalizeVote(
   activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
 
   clearTimeout(v.timeout);
-  if (v.publicTickTimeout) {
-    clearTimeout(v.publicTickTimeout);
-    v.publicTickTimeout = null;
-  }
-
-  // Record the actual end time so the final embed doesn't show a lingering timer.
-  v.endsAtMs = Date.now();
-
   const voterIds = v.voters.map((x) => x.id);
   const result = evaluateSecretVoteOutcome(v.action, v.turn, voterIds, v.votes);
 
   try {
-    requestPublicRender(v, buildStatus(v, true, result, v.endsAtMs));
+    requestPublicRender(v, buildStatus(v, true, result));
   } catch (err) {
     console.error('Failed to publish secret vote final embed', {
       err,
@@ -415,7 +343,7 @@ export async function startSecretVote(
               opts.turn,
               opts.details
             ),
-            components: [buildVoteButtons(voteId, voter.id)],
+            components: [buildSecretVoteButtons(voteId, voter.id)],
             allowedMentions: { parse: [] as const },
           });
           dmMessages.set(voter.id, msg);
@@ -440,7 +368,7 @@ export async function startSecretVote(
       };
     }
 
-  // Send the public status embed
+    // Send the public status embed
     let publicMessage: Message<true>;
     try {
       publicMessage = (await (opts.commandChannel as SendableChannels).send({
@@ -453,7 +381,6 @@ export async function startSecretVote(
             hostId: opts.host.id,
             startedAtMs,
             endsAtMs,
-            nowMs: startedAtMs,
             voters: opts.voters.map((v) => ({ id: v.id, displayName: v.displayName })),
             votedIds: new Set(),
             awaitingIds: new Set(opts.voters.map((v) => v.id)),
@@ -491,8 +418,6 @@ export async function startSecretVote(
         const current = activeById.get(voteId);
         if (current) void finalizeVote(current, 'timeout');
       }, VOTE_DURATION_MS),
-      publicTickTimeout: null,
-      nextPublicTickAtMs: startedAtMs + FAST_TICK_MS,
       editInFlight: false,
       needsRender: false,
       pendingStatus: null,
@@ -502,8 +427,6 @@ export async function startSecretVote(
     reserved = false;
     activeByVoice.set(key, vote);
     activeById.set(voteId, vote);
-    scheduleNextPublicTick(voteId);
-
     return { ok: true, voteId, publicMessageUrl: publicMessage.url };
   } finally {
     if (reserved) reservedByVoice.delete(key);
@@ -550,7 +473,6 @@ export async function recordSecretVoteChoice(
   vote.votes.set(voterId, choice);
   vote.awaiting.delete(voterId);
 
-  const nowMs = Date.now();
   const isComplete = vote.awaiting.size === 0;
   if (isComplete) {
     // Avoid an extra non-final public edit right before finalizing.
@@ -558,7 +480,7 @@ export async function recordSecretVoteChoice(
     return { ok: true, kind: 'RECORDED', isComplete, choice };
   }
 
-  requestPublicRender(vote, buildStatus(vote, false, undefined, nowMs));
+  requestPublicRender(vote, buildStatus(vote, false));
 
   return { ok: true, kind: 'RECORDED', isComplete, choice };
 }

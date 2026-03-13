@@ -20,6 +20,7 @@ export const EMOJI_FULL_G_REPORT = '📜' as const;
 export const EMOJI_QUITTER = '🏳️' as const;
 export const EMOJI_REPORT = '🧾' as const;
 export const EMOJI_LOCK = '🔒' as const;
+export const EMOJI_SECRET_VOTE = '🔎' as const;
 export const EMOJI_VOTE_PANEL = '🗳️' as const;
 export const EMOJI_RANDOM = '🎲' as const;
 export const EMOJI_SNAKE = '🐍' as const;

@@ -32,7 +32,6 @@ export type SecretVoteStatus = Readonly<{
   hostId: string;
   startedAtMs: number;
   endsAtMs: number;
-  nowMs?: number;
   voters: readonly { id: string; displayName: string }[];
   votedIds: ReadonlySet<string>;
   awaitingIds: ReadonlySet<string>;
@@ -66,9 +65,6 @@ export type SecretVoteSession = {
   publicMessage: Message<true>;
 
   timeout: NodeJS.Timeout;
-  publicTickTimeout: NodeJS.Timeout | null;
-  nextPublicTickAtMs: number;
-
   editInFlight: boolean;
   needsRender: boolean;
   pendingStatus: SecretVoteStatus | null;

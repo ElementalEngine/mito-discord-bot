@@ -1,26 +1,18 @@
 import { EmbedBuilder } from 'discord.js';
 
-import { EMOJI_LOCK } from '../../config/constants.js';
+import { EMOJI_SECRET_VOTE } from '../../config/constants.js';
+import {
+  formatDeadlineLine,
+  formatDiscordTimestamp,
+} from '../../services/drafting/runtime/deadline.service.js';
 
 import type { SecretVoteStatus } from '../../types/secretvote.types.js';
 
 const MAX_FIELD = 1024;
-const VOTE_DURATION_MS = 2 * 60_000;
 
 function clamp(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
-}
-
-function fmt2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
-
-function formatElapsedMs(elapsedMs: number): string {
-  const totalSeconds = Math.floor(elapsedMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${fmt2(minutes)}:${fmt2(seconds)}`;
 }
 
 function formatVoterLines(status: SecretVoteStatus): string {
@@ -56,13 +48,6 @@ function formatRuleBlock(rule: string): string {
 }
 
 export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
-  const nowMs = status.nowMs ?? Date.now();
-  const elapsedMs = Math.min(
-    Math.max(nowMs - status.startedAtMs, 0),
-    VOTE_DURATION_MS
-  );
-  const elapsed = formatElapsedMs(elapsedMs);
-
   const lines: string[] = [
     `**Action:** ${status.action}`,
     `**Turn:** ${status.turn}`,
@@ -75,11 +60,19 @@ export function buildSecretVoteEmbed(status: SecretVoteStatus): EmbedBuilder {
     lines.push('Vote ended');
   } else {
     lines.push('You have 2 minutes to vote.');
-    lines.push(`Elapsed: \`${elapsed} / 02:00\``);
   }
 
+  lines.push(`Start: ${formatDiscordTimestamp(status.startedAtMs, 't')}`);
+  lines.push(
+    formatDeadlineLine(status.endsAtMs, {
+      label: 'Deadline',
+      fixedStyle: 't',
+      includeRelative: false,
+    })
+  );
+
   const e = new EmbedBuilder()
-    .setTitle(`${EMOJI_LOCK} Secret Vote`)
+    .setTitle(`${EMOJI_SECRET_VOTE} Secret Vote`)
     .setDescription(lines.join('\n'))
     .addFields({ name: 'Voters', value: formatVoterLines(status) });
 
