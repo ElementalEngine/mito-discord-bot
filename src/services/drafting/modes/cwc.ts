@@ -30,6 +30,12 @@ import {
   safeEditDraftMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
+import {
+  closeInteractiveDraftSession,
+  requireActiveInteractiveDraftSession,
+  isStaleDraftTurnToken,
+  scheduleInteractiveSessionTimeout,
+} from '../runtime/session-runtime.service.js';
 
 const CWC_MENU_PAGE_SIZE = 25;
 const activeCwcDrafts = new Map<string, CwcDraftSession>();
@@ -84,10 +90,6 @@ function shuffle<T>(items: readonly T[]): T[] {
 
 function pickRandom<T>(items: readonly T[]): T {
   return items[randomInt(0, items.length)];
-}
-
-function getSession(sessionId: string): CwcDraftSession | null {
-  return activeCwcDrafts.get(sessionId) ?? null;
 }
 
 function getTeamSize(request: VoteDraftRequest): number {
@@ -232,21 +234,13 @@ function advanceTurn(session: CwcDraftSession): void {
 }
 
 async function finalizeSession(session: CwcDraftSession): Promise<void> {
-  if (session.timeout) {
-    clearTimeout(session.timeout);
-    session.timeout = null;
-  }
-  session.round = 'complete';
-  await updateTrackingMessage(session);
-  activeCwcDrafts.delete(session.sessionId);
+  await closeInteractiveDraftSession(activeCwcDrafts, session, async () => {
+    session.round = 'complete';
+    await updateTrackingMessage(session);
+  });
 }
 
 async function scheduleNextStep(session: CwcDraftSession): Promise<void> {
-  if (session.timeout) {
-    clearTimeout(session.timeout);
-    session.timeout = null;
-  }
-
   if (session.round === 'complete') {
     await finalizeSession(session);
     return;
@@ -256,9 +250,9 @@ async function scheduleNextStep(session: CwcDraftSession): Promise<void> {
   session.turnEndsAtMs = Date.now() + (session.round === 'captains' ? DRAFT_TIMERS_MS.cwcCaptainSelect : DRAFT_TIMERS_MS.cwcPick);
   await updateTrackingMessage(session);
 
-  session.timeout = setTimeout(() => {
+  scheduleInteractiveSessionTimeout(session, session.round === 'captains' ? DRAFT_TIMERS_MS.cwcCaptainSelect : DRAFT_TIMERS_MS.cwcPick, () => {
     void handleCwcTimeout(session);
-  }, session.round === 'captains' ? DRAFT_TIMERS_MS.cwcCaptainSelect : DRAFT_TIMERS_MS.cwcPick);
+  });
 }
 
 async function startLeaderRound(session: CwcDraftSession): Promise<void> {
@@ -375,9 +369,9 @@ export async function runCwcDraftMode(request: VoteDraftRequest): Promise<DraftM
   const session = createSession(request);
   activeCwcDrafts.set(session.sessionId, session);
   await updateTrackingMessage(session);
-  session.timeout = setTimeout(() => {
+  scheduleInteractiveSessionTimeout(session, DRAFT_TIMERS_MS.cwcCaptainSelect, () => {
     void handleCwcTimeout(session);
-  }, DRAFT_TIMERS_MS.cwcCaptainSelect);
+  });
   return null;
 }
 
@@ -385,11 +379,13 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
   const parsed = parseCwcCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const session = getSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ CWC draft is not active.');
-    return true;
-  }
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeCwcDrafts,
+    parsed.sessionId,
+    '⚠️ CWC draft is not active.',
+  );
+  if (!session) return true;
 
   if (parsed.action === 'captain') {
     if (interaction.user.id !== session.hostId) {
@@ -424,7 +420,7 @@ export async function handleCwcDraftSelect(interaction: StringSelectMenuInteract
     return true;
   }
 
-  if (parsed.turnToken !== session.turnToken) {
+  if (isStaleDraftTurnToken(session.turnToken, parsed.turnToken)) {
     await replyDraftNotice(interaction, '⚠️ That pick menu is stale.');
     return true;
   }
@@ -470,18 +466,20 @@ export async function handleCwcDraftButton(interaction: ButtonInteraction): Prom
   const parsed = parseCwcCustomId(interaction.customId);
   if (!parsed || parsed.action !== 'nav') return false;
 
-  const session = getSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ CWC draft is not active.');
-    return true;
-  }
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeCwcDrafts,
+    parsed.sessionId,
+    '⚠️ CWC draft is not active.',
+  );
+  if (!session) return true;
 
   if (session.round === 'captains' || session.round === 'complete') {
     await replyDraftNotice(interaction, '⚠️ CWC draft is not currently accepting picks.');
     return true;
   }
 
-  if (parsed.turnToken !== session.turnToken) {
+  if (isStaleDraftTurnToken(session.turnToken, parsed.turnToken)) {
     await replyDraftNotice(interaction, '⚠️ That picker is stale.');
     return true;
   }

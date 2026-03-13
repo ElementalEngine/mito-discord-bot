@@ -20,6 +20,11 @@ import {
   safeEditDraftMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
+import {
+  closeInteractiveDraftSession,
+  requireActiveInteractiveDraftSession,
+  scheduleInteractiveSessionTimeout,
+} from '../runtime/session-runtime.service.js';
 import { applyStagedPickSelection, isBlindDraftSubmissionReady } from '../runtime/staged-pick.service.js';
 import {
   buildBlindDraftClosedEmbed,
@@ -105,10 +110,6 @@ function createBlindDraftLaunch(request: VoteDraftRequest) {
       message: err instanceof Error ? err.message : 'Blind draft setup failed.',
     };
   }
-}
-
-function getSession(sessionId: string): BlindDraftSession | null {
-  return activeBlindDrafts.get(sessionId) ?? null;
 }
 
 function buildBlindDmPayload(session: BlindDraftSession, voterId: string): DraftRenderPayload {
@@ -206,14 +207,6 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
 }
 
 async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'timeout' | 'complete'): Promise<void> {
-  const active = activeBlindDrafts.get(session.sessionId);
-  if (!active) return;
-
-  if (session.timeout) {
-    clearTimeout(session.timeout);
-    session.timeout = null;
-  }
-
   const trackingPayload: DraftRenderPayload = {
     embeds: [
       reason === 'complete'
@@ -243,11 +236,11 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
     }
   }
 
-  await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([voterId, message]) => {
-    await safeEditDraftMessage(message, buildClosedDmPayload(session, voterId, reason));
+  await closeInteractiveDraftSession(activeBlindDrafts, session, async () => {
+    await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([voterId, message]) => {
+      await safeEditDraftMessage(message, buildClosedDmPayload(session, voterId, reason));
+    });
   });
-
-  activeBlindDrafts.delete(session.sessionId);
 }
 
 async function startBlindDraftSession(
@@ -297,9 +290,9 @@ async function startBlindDraftSession(
     }
   });
 
-  session.timeout = setTimeout(() => {
+  scheduleInteractiveSessionTimeout(session, BLIND_DRAFT_DURATION_MS, () => {
     void finalizeBlindDraftSession(session, 'timeout');
-  }, BLIND_DRAFT_DURATION_MS);
+  });
 }
 
 function fallbackToStandardPayload(request: VoteDraftRequest, message: string): Promise<DraftModeOutput> {
@@ -331,11 +324,13 @@ export async function handleBlindDraftSelect(interaction: StringSelectMenuIntera
   const parsed = parseBlindCustomId(interaction.customId);
   if (!parsed || parsed.action !== 'pick') return false;
 
-  const session = getSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ Blind draft is not active.');
-    return true;
-  }
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeBlindDrafts,
+    parsed.sessionId,
+    '⚠️ Blind draft is not active.',
+  );
+  if (!session) return true;
 
   const userId = interaction.user.id;
   if (!session.voterIds.includes(userId)) {
@@ -371,11 +366,13 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
   const parsed = parseBlindCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const session = getSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ Blind draft is not active.');
-    return true;
-  }
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeBlindDrafts,
+    parsed.sessionId,
+    '⚠️ Blind draft is not active.',
+  );
+  if (!session) return true;
 
   const userId = interaction.user.id;
   if (!session.voterIds.includes(userId)) {

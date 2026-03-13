@@ -23,6 +23,12 @@ import {
   safeEditDraftMessage,
 } from '../runtime/message-ops.service.js';
 import { clampPageIndex } from '../runtime/pagination.service.js';
+import {
+  closeInteractiveDraftSession,
+  isStaleDraftTurnToken,
+  requireActiveInteractiveDraftSession,
+  scheduleInteractiveSessionTimeout,
+} from '../runtime/session-runtime.service.js';
 import { applyStagedPickSelection, isSnakeDraftSubmissionReady } from '../runtime/staged-pick.service.js';
 import {
   buildSnakeDraftActiveDmEmbed,
@@ -221,24 +227,16 @@ async function updateTurnDmMessages(session: SnakeDraftSession, previousPickerId
 }
 
 async function finalizeSnakeDraftSession(session: SnakeDraftSession): Promise<void> {
-  if (session.timeout) {
-    clearTimeout(session.timeout);
-    session.timeout = null;
-  }
-  session.round = 'complete';
-  await updateTrackingMessage(session);
-  for (const [userId, message] of session.dmMessages.entries()) {
-    await safeEditDraftMessage(message, buildWaitingPayload(session, userId));
-  }
-  activeSnakeDrafts.delete(session.sessionId);
+  await closeInteractiveDraftSession(activeSnakeDrafts, session, async () => {
+    session.round = 'complete';
+    await updateTrackingMessage(session);
+    for (const [userId, message] of session.dmMessages.entries()) {
+      await safeEditDraftMessage(message, buildWaitingPayload(session, userId));
+    }
+  });
 }
 
 async function scheduleNextTurn(session: SnakeDraftSession, previousPickerId?: string | null): Promise<void> {
-  if (session.timeout) {
-    clearTimeout(session.timeout);
-    session.timeout = null;
-  }
-
   if (session.round === 'complete') {
     await finalizeSnakeDraftSession(session);
     return;
@@ -249,9 +247,9 @@ async function scheduleNextTurn(session: SnakeDraftSession, previousPickerId?: s
   await updateTrackingMessage(session);
   await updateTurnDmMessages(session, previousPickerId);
 
-  session.timeout = setTimeout(() => {
+  scheduleInteractiveSessionTimeout(session, DRAFT_TIMERS_MS.snakePick, () => {
     void handleSnakeTimeout(session);
-  }, DRAFT_TIMERS_MS.snakePick);
+  });
 }
 
 function advanceTurn(session: SnakeDraftSession): void {
@@ -394,20 +392,18 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
   return null;
 }
 
-function getSnakeSession(sessionId: string): SnakeDraftSession | null {
-  return activeSnakeDrafts.get(sessionId) ?? null;
-}
-
 export async function handleSnakeDraftSelect(interaction: StringSelectMenuInteraction): Promise<boolean> {
   const parsed = parseSnakeCustomId(interaction.customId);
   if (!parsed || parsed.action !== 'pick') return false;
 
-  const session = getSnakeSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ Snake draft is not active.');
-    return true;
-  }
-  if (parsed.turnToken !== session.turnToken) {
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeSnakeDrafts,
+    parsed.sessionId,
+    '⚠️ Snake draft is not active.',
+  );
+  if (!session) return true;
+  if (isStaleDraftTurnToken(session.turnToken, parsed.turnToken)) {
     await replyDraftNotice(interaction, '⚠️ This pick prompt has expired.');
     return true;
   }
@@ -439,12 +435,14 @@ export async function handleSnakeDraftButton(interaction: ButtonInteraction): Pr
   const parsed = parseSnakeCustomId(interaction.customId);
   if (!parsed) return false;
 
-  const session = getSnakeSession(parsed.sessionId);
-  if (!session) {
-    await replyDraftNotice(interaction, '⚠️ Snake draft is not active.');
-    return true;
-  }
-  if (parsed.turnToken !== session.turnToken) {
+  const session = await requireActiveInteractiveDraftSession(
+    interaction,
+    activeSnakeDrafts,
+    parsed.sessionId,
+    '⚠️ Snake draft is not active.',
+  );
+  if (!session) return true;
+  if (isStaleDraftTurnToken(session.turnToken, parsed.turnToken)) {
     await replyDraftNotice(interaction, '⚠️ This pick prompt has expired.');
     return true;
   }
