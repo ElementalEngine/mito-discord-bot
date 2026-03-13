@@ -14,7 +14,6 @@ import {
   type Message,
   type StringSelectMenuInteraction,
   type User,
-  userMention,
 } from 'discord.js';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -450,7 +449,7 @@ function buildBallotEmbed(
     v.status !== 'in_progress'
       ? '**Voting has ended.**'
       : `**Ends:** <t:${ends}:t>
-Answer all questions, then press **Submit Vote**. You can keep editing until either pressing **Finish Vote** or the vote concludes and a draft is called.`;
+Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
 
   const lines = v.questions.map((q, idx) => {
     const pickLabel = pickLabelsForQuestion(q, stagedRecord.get(q.id));
@@ -611,7 +610,7 @@ function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder 
   const civItems = v.edition === 'CIV7' ? bans.civKeys.map((key) => formatCivBan(key)) : [];
 
   const desc: string[] = [
-    'Choose one or more bans with the menus below, then press **Submit Bans**. You can keep editing until either pressing **Finish Vote** or the vote concludes and a draft is called.',
+    'Choose one or more bans with the menus below, then press **Submit Bans**.',
     `**Leader bans (${leaderItems.length}):** ${clampBanList(leaderItems, 900)}`,
     v.edition === 'CIV7' ? `**Civ bans (${civItems.length}):** ${clampBanList(civItems, 900)}` : undefined,
     submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
@@ -704,18 +703,16 @@ function buildBansPanelComponents(
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
   }
 
-  const canSubmit = !finished && hasStagedBanChanges(v, voterId);
-
   const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:prev:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('Leaders ◀')
+      .setLabel('◀ Back')
       .setDisabled(finished || leaderPages <= 1),
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:next:${v.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('Leaders ▶')
+      .setLabel('Next ▶')
       .setDisabled(finished || leaderPages <= 1)
   );
 
@@ -724,12 +721,12 @@ function buildBansPanelComponents(
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:prev:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Civs ◀')
+        .setLabel('◀ Back')
         .setDisabled(finished || civPages <= 1),
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:next:${v.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Civs ▶')
+        .setLabel('Next ▶')
         .setDisabled(finished || civPages <= 1)
     );
   }
@@ -739,7 +736,7 @@ function buildBansPanelComponents(
       .setCustomId(`gv:bansubmit:${v.sessionId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel('Submit Bans')
-      .setDisabled(!canSubmit)
+      .setDisabled(finished)
   );
 
   rows.push(navRow);
@@ -781,14 +778,6 @@ function buildRenderPayload(v: GameVoteSession): RenderPayload {
     embeds: [embed],
     components: [...components],
     allowedMentions: { parse: [] as const },
-  };
-}
-
-
-function buildVoteStartPingPayload(v: GameVoteSession): Pick<RenderPayload, 'content' | 'allowedMentions'> {
-  return {
-    content: v.voterIds.map((id) => userMention(id)).join(' '),
-    allowedMentions: { parse: [] as const, users: v.voterIds },
   };
 }
 
@@ -957,10 +946,7 @@ async function openInitialMessages(
   }
 
   try {
-    const msg = await v.commandChannel.send({
-      ...payload,
-      ...buildVoteStartPingPayload(v),
-    });
+    const msg = await v.commandChannel.send(payload);
     if (!msg.inGuild()) return { ok: false, message: '⚠️ This command must be used in a server channel.' };
     if (msg.guildId !== guild.id) return { ok: false, message: '⚠️ Internal error: guild mismatch.' };
     v.publicMessage = msg;
@@ -1113,7 +1099,7 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
     const voterUsersById = new Map<string, User>();
     for (const v of args.voters) voterUsersById.set(v.user.id, v.user);
 
-    const { questions } = buildGameVoteConfig({ gameType: args.gameType });
+    const { questions } = buildGameVoteConfig({ edition: args.edition, gameType: args.gameType });
 
     const now = Date.now();
 
