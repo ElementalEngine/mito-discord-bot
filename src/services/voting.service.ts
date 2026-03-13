@@ -1,15 +1,9 @@
 import {
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   MessageFlags,
-  StringSelectMenuBuilder,
   type ButtonInteraction,
   type Guild,
   type InteractionReplyOptions,
-  type MessageEditOptions,
-  type MessageCreateOptions,
   type ModalSubmitInteraction,
   type Message,
   type StringSelectMenuInteraction,
@@ -23,7 +17,9 @@ import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
 import { executeVoteDraft } from './drafting/orchestration.service.js';
-import { buildGameVoteEmbed } from '../ui/embeds/voting.js';
+import { buildPublicVotePayload, type PublicVotePayload } from './voting/panels/public-message.service.js';
+import { buildVotePanelPayload as buildVotePanelPayloadView } from './voting/panels/vote-panel.service.js';
+import { buildBansPanelPayload as buildBansPanelPayloadView } from './voting/panels/bans-panel.service.js';
 import type {
   GameVoteSession,
   GameVoteDraftMode,
@@ -151,7 +147,7 @@ function buildProgress(v: GameVoteSession): GameVoteProgress {
 }
 
 
-type RenderPayload = Omit<MessageCreateOptions, 'flags'> & Omit<MessageEditOptions, 'flags'>;
+type RenderPayload = PublicVotePayload;
 
 function getEmptyBans(): BanSubmission {
   return { leaderKeys: [], civKeys: [] };
@@ -399,29 +395,140 @@ function buildQuestionFields(v: GameVoteSession): readonly { name: string; value
 }
 
 
-function buildVotingButtons(v: GameVoteSession): readonly ActionRowBuilder<ButtonBuilder>[] {
-  const voteBtn = new ButtonBuilder()
-    .setCustomId(`gv:ballot:${v.sessionId}`)
-    .setStyle(ButtonStyle.Primary)
-    .setLabel('🗳️ Vote Panel');
-
-  const bansBtn = new ButtonBuilder()
-    .setCustomId(`gv:ban:${v.sessionId}`)
-    .setStyle(ButtonStyle.Primary)
-    .setLabel('🔨 Ban Panel');
-
-  const finishBtn = new ButtonBuilder()
-    .setCustomId(`gv:finishvote:${v.sessionId}`)
-    .setStyle(ButtonStyle.Success)
-    .setLabel('➕ Finish Vote');
-
-  const randomizeBtn = new ButtonBuilder()
-    .setCustomId(`gv:randomvote:${v.sessionId}`)
-    .setStyle(ButtonStyle.Danger)
-    .setLabel('🎲 Randomize My Vote');
-
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(voteBtn, bansBtn, finishBtn, randomizeBtn)];
+function buildRenderPayload(v: GameVoteSession): RenderPayload {
+  const progress = buildProgress(v);
+  const questionFields = buildQuestionFields(v);
+  return buildPublicVotePayload({ session: v, progress, questionFields });
 }
+
+function buildBallotPayload(
+  v: GameVoteSession,
+  voterId: string,
+  activeQuestionId: string,
+  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
+): RenderPayload {
+  const hasDirtyChanges = !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
+  const submitted = v.voteSubmitted.has(voterId) && !hasDirtyChanges;
+  const lines = v.questions.map((q, idx) => {
+    const pickLabel = pickLabelsForQuestion(q, stagedRecord.get(q.id));
+    const mark = stagedRecord.has(q.id) ? '✅' : '⬜';
+    const cursor = q.id === activeQuestionId ? '➡️ ' : '';
+    return `${cursor}${mark} ${idx + 1}. ${q.title} — ${pickLabel}`;
+  });
+
+  const total = v.questions.length;
+  const answered = answeredCountInRecord(v, stagedRecord);
+  const canSubmit = !v.finished.has(voterId) && answered >= total && !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
+  const activeIndex = Math.max(0, v.questions.findIndex((q) => q.id === activeQuestionId));
+  const question = v.questions[activeIndex] ?? v.questions[0];
+  const currentSelections = decodeVoteSelections(question, stagedRecord.get(question.id));
+  const maxSelections = getQuestionMaxSelections(question);
+
+  return buildVotePanelPayloadView({
+    session: v,
+    voterId,
+    activeQuestionId,
+    stagedRecord,
+    lines,
+    submitted,
+    question,
+    currentSelections,
+    finished: v.finished.has(voterId),
+    canSubmit,
+    activeIndex,
+    total,
+    maxSelections,
+  });
+}
+
+function buildBansPanelPayload(v: GameVoteSession, voterId: string): RenderPayload {
+  const finished = v.finished.has(voterId);
+  const leaders = getLeaderBanSource(v);
+  const civs = getCivBanSource(v);
+
+  const leaderKeys = sortKeysByGameId(leaders);
+  const civKeys = civs ? sortKeysByGameId(civs) : [];
+
+  const page = getBanPageState(v, voterId);
+  const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
+  const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
+
+  const leaderPage = Math.min(Math.max(page.leaderPage, 0), leaderPages - 1);
+  const civPage = Math.min(Math.max(page.civPage, 0), civPages - 1);
+
+  if (leaderPage !== page.leaderPage || civPage !== page.civPage) {
+    setBanPageState(v, voterId, { leaderPage, civPage });
+  }
+
+  const bans = ensureStagedBans(v, voterId);
+  const limits = getBanLimits(v);
+  const selectedLeaders = new Set(bans.leaderKeys);
+  const selectedCivs = new Set(bans.civKeys);
+
+  const leaderSlice = leaderKeys.slice(
+    leaderPage * BAN_LEADER_PAGE_SIZE,
+    leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE,
+  );
+
+  const leaderOptions = leaderSlice.map((key) => {
+    const meta = leaders[key];
+    return {
+      label: meta?.gameId ?? key,
+      value: key,
+      emoji: toSelectEmoji(meta?.emojiId),
+      default: selectedLeaders.has(key),
+    };
+  });
+  const selectedLeaderOnPage = leaderSlice.filter((key) => selectedLeaders.has(key)).length;
+  const selectedLeaderOffPage = bans.leaderKeys.length - selectedLeaderOnPage;
+  const leaderMaxOnPage = Math.min(leaderOptions.length, Math.max(0, limits.leader - selectedLeaderOffPage));
+
+  let civOptions: { label: string; value: string; emoji?: { id: string }; default: boolean }[] | undefined;
+  let selectedCivOnPage = 0;
+  let civMaxOnPage = 0;
+  if (civs) {
+    const civSlice = civKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
+    civOptions = civSlice.map((key) => {
+      const meta = civs[key];
+      return {
+        label: meta?.gameId ?? key,
+        value: key,
+        emoji: toSelectEmoji(meta?.emojiId),
+        default: selectedCivs.has(key),
+      };
+    });
+    selectedCivOnPage = civSlice.filter((key) => selectedCivs.has(key)).length;
+    const selectedCivOffPage = bans.civKeys.length - selectedCivOnPage;
+    civMaxOnPage = Math.min(civOptions.length, Math.max(0, limits.civ - selectedCivOffPage));
+  }
+
+  const leaderSummary = clampBanList(bans.leaderKeys.map((key) => formatLeaderBan(v, key)), 900);
+  const civSummary = v.edition === 'CIV7' ? clampBanList(bans.civKeys.map((key) => formatCivBan(key)), 900) : undefined;
+  const submitted = v.bansSubmitted.has(voterId) && !hasStagedBanChanges(v, voterId);
+
+  return buildBansPanelPayloadView({
+    edition: v.edition,
+    sessionId: v.sessionId,
+    finished,
+    submitted,
+    leaderSummary,
+    civSummary,
+    leaderOptions,
+    leaderPage,
+    leaderPages,
+    leaderMenuDisabled: finished || leaderOptions.length === 0 || (leaderMaxOnPage === 0 && selectedLeaderOnPage === 0),
+    leaderMenuMaxValues: Math.max(1, leaderMaxOnPage || selectedLeaderOnPage || 1),
+    civOptions,
+    civPage,
+    civPages,
+    civMenuDisabled: finished || !civOptions || civOptions.length === 0 || (civMaxOnPage === 0 && selectedCivOnPage === 0),
+    civMenuMaxValues: Math.max(1, civMaxOnPage || selectedCivOnPage || 1),
+    submitDisabled: finished || !hasStagedBanChanges(v, voterId),
+  });
+}
+
+
+
 
 function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuestionId: string): string {
   const currentIndex = v.questions.findIndex((q) => q.id === currentQuestionId);
@@ -434,110 +541,6 @@ function nextBallotQuestionId(v: GameVoteSession, voterId: string, currentQuesti
   }
 
   return v.questions[currentIndex + 1]?.id ?? currentQuestionId;
-}
-
-function buildBallotEmbed(
-  v: GameVoteSession,
-  voterId: string,
-  activeQuestionId: string,
-  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
-): EmbedBuilder {
-  const ends = Math.floor(v.endsAtMs / 1000);
-  const hasDirtyChanges = !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
-  const submitted = v.voteSubmitted.has(voterId) && !hasDirtyChanges;
-  const header =
-    v.status !== 'in_progress'
-      ? '**Voting has ended.**'
-      : `**Ends:** <t:${ends}:t>
-Answer all questions, then press **Submit Vote**. You can keep editing until **Finish Vote**.`;
-
-  const lines = v.questions.map((q, idx) => {
-    const pickLabel = pickLabelsForQuestion(q, stagedRecord.get(q.id));
-    const mark = stagedRecord.has(q.id) ? '✅' : '⬜';
-    const cursor = q.id === activeQuestionId ? '➡️ ' : '';
-    return `${cursor}${mark} ${idx + 1}. ${q.title} — ${pickLabel}`;
-  });
-
-  const footer = submitted
-    ? `
-
-✅ **Vote saved** — you can reopen this panel and keep editing until **Finish Vote**.`
-    : '';
-
-  return new EmbedBuilder()
-    .setTitle('🗳️ Vote Panel')
-    .setDescription([header, '', lines.join('\n') || '—'].join('\n') + footer);
-}
-
-function buildBallotComponents(
-  v: GameVoteSession,
-  voterId: string,
-  activeQuestionId: string,
-  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
-): readonly ActionRowBuilder<any>[] {
-  const finished = v.finished.has(voterId);
-  const total = v.questions.length;
-  const answered = answeredCountInRecord(v, stagedRecord);
-  const canSubmit = !finished && answered >= total && !voteRecordEquals(stagedRecord, getCommittedVoteRecordForVoter(v, voterId));
-  const activeIndex = Math.max(0, v.questions.findIndex((q) => q.id === activeQuestionId));
-
-  const q = v.questions[activeIndex] ?? v.questions[0];
-  const currentSelections = decodeVoteSelections(q, stagedRecord.get(q.id));
-  const maxSelections = getQuestionMaxSelections(q);
-
-  const optionSelect = new StringSelectMenuBuilder()
-    .setCustomId(`gv:ballotv:${v.sessionId}`)
-    .setPlaceholder(
-      (isMultiSelectQuestion(q)
-        ? `Select up to ${maxSelections} options for ${q.title}`
-        : `Select an option for ${q.title}`).slice(0, 150)
-    )
-    .setMinValues(1)
-    .setMaxValues(maxSelections)
-    .setDisabled(finished)
-    .addOptions(
-      q.options.slice(0, 25).map((o) => ({
-        label: `${o.emoji ? `${o.emoji} ` : ''}${o.label}`.slice(0, 100),
-        value: o.id,
-        default: currentSelections.includes(o.id),
-      }))
-    );
-
-  const prevBtn = new ButtonBuilder()
-    .setCustomId(`gv:ballotnav:prev:${v.sessionId}`)
-    .setStyle(ButtonStyle.Secondary)
-    .setLabel('◀ Back')
-    .setDisabled(finished || activeIndex <= 0);
-
-  const nextBtn = new ButtonBuilder()
-    .setCustomId(`gv:ballotnav:next:${v.sessionId}`)
-    .setStyle(ButtonStyle.Secondary)
-    .setLabel('Next ▶')
-    .setDisabled(finished || activeIndex >= total - 1);
-
-  const submitBtn = new ButtonBuilder()
-    .setCustomId(`gv:submitvote:${v.sessionId}`)
-    .setStyle(ButtonStyle.Success)
-    .setLabel('Submit Vote')
-    .setDisabled(!canSubmit);
-
-  return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(optionSelect),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn, submitBtn),
-  ];
-}
-
-function buildBallotPayload(
-  v: GameVoteSession,
-  voterId: string,
-  activeQuestionId: string,
-  stagedRecord: ReadonlyMap<string, string> = ensureStagedVoteRecord(v, voterId)
-): RenderPayload {
-  return {
-    embeds: [buildBallotEmbed(v, voterId, activeQuestionId, stagedRecord)],
-    components: [...buildBallotComponents(v, voterId, activeQuestionId, stagedRecord)],
-    allowedMentions: { parse: [] as const },
-  };
 }
 
 function sortKeysByGameId(source: Record<string, { gameId: string }>): string[] {
@@ -553,7 +556,7 @@ function getBanPageState(v: GameVoteSession, voterId: string): { leaderPage: num
 function setBanPageState(
   v: GameVoteSession,
   voterId: string,
-  next: Readonly<{ leaderPage: number; civPage: number }>
+  next: Readonly<{ leaderPage: number; civPage: number }>,
 ): void {
   v.banPages.set(voterId, { leaderPage: next.leaderPage, civPage: next.civPage });
 }
@@ -561,7 +564,7 @@ function setBanPageState(
 function mergePagedBanSelection(
   currentKeys: readonly string[],
   pageKeys: readonly string[],
-  selectedKeys: readonly string[]
+  selectedKeys: readonly string[],
 ): string[] {
   const pageSet = new Set(pageKeys);
   const out = currentKeys.filter((key) => !pageSet.has(key));
@@ -601,187 +604,6 @@ function clampBanList(items: readonly string[], maxLength: number): string {
   }
   return out.join('');
 }
-
-function buildBansPanelEmbed(v: GameVoteSession, voterId: string): EmbedBuilder {
-  const bans = ensureStagedBans(v, voterId);
-  const submitted = v.bansSubmitted.has(voterId) && !hasStagedBanChanges(v, voterId);
-
-  const leaderItems = bans.leaderKeys.map((key) => formatLeaderBan(v, key));
-  const civItems = v.edition === 'CIV7' ? bans.civKeys.map((key) => formatCivBan(key)) : [];
-
-  const desc: string[] = [
-    'Choose one or more bans with the menus below, then press **Submit Bans**.',
-    `**Leader bans (${leaderItems.length}):** ${clampBanList(leaderItems, 900)}`,
-    v.edition === 'CIV7' ? `**Civ bans (${civItems.length}):** ${clampBanList(civItems, 900)}` : undefined,
-    submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
-  ].filter(Boolean) as string[];
-
-  return new EmbedBuilder().setTitle('🛑 Bans').setDescription(desc.join('\n'));
-}
-
-function buildBansPanelComponents(
-  v: GameVoteSession,
-  voterId: string
-): readonly ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
-  const finished = v.finished.has(voterId);
-  const leaders = getLeaderBanSource(v);
-  const civs = getCivBanSource(v);
-
-  const leaderKeys = sortKeysByGameId(leaders);
-  const civKeys = civs ? sortKeysByGameId(civs) : [];
-
-  const page = getBanPageState(v, voterId);
-  const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
-  const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
-
-  const leaderPage = Math.min(Math.max(page.leaderPage, 0), leaderPages - 1);
-  const civPage = Math.min(Math.max(page.civPage, 0), civPages - 1);
-
-  if (leaderPage !== page.leaderPage || civPage !== page.civPage) {
-    setBanPageState(v, voterId, { leaderPage, civPage });
-  }
-
-  const bans = ensureStagedBans(v, voterId);
-  const limits = getBanLimits(v);
-  const selectedLeaders = new Set(bans.leaderKeys);
-  const selectedCivs = new Set(bans.civKeys);
-
-  const leaderSlice = leaderKeys.slice(
-    leaderPage * BAN_LEADER_PAGE_SIZE,
-    leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE
-  );
-
-  const leaderOptions = leaderSlice.map((key) => {
-    const meta = leaders[key];
-    return {
-      label: meta?.gameId ?? key,
-      value: key,
-      emoji: toSelectEmoji(meta?.emojiId),
-      default: selectedLeaders.has(key),
-    };
-  });
-  const selectedLeaderOnPage = leaderSlice.filter((key) => selectedLeaders.has(key)).length;
-  const selectedLeaderOffPage = bans.leaderKeys.length - selectedLeaderOnPage;
-  const leaderMaxOnPage = Math.min(leaderOptions.length, Math.max(0, limits.leader - selectedLeaderOffPage));
-
-  const leaderMenu = new StringSelectMenuBuilder()
-    .setCustomId(`gv:banpick:leader:${v.sessionId}`)
-    .setPlaceholder(`Leader bans (page ${leaderPage + 1}/${leaderPages})`)
-    .setMinValues(0)
-    .setMaxValues(Math.max(1, leaderMaxOnPage || selectedLeaderOnPage || 1))
-    .setDisabled(finished || leaderOptions.length === 0 || (leaderMaxOnPage === 0 && selectedLeaderOnPage === 0))
-    .addOptions(leaderOptions);
-
-  const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(leaderMenu),
-  ];
-
-  if (civs) {
-    const civSlice = civKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
-
-    const civOptions = civSlice.map((key) => {
-      const meta = civs[key];
-      return {
-        label: meta?.gameId ?? key,
-        value: key,
-        emoji: toSelectEmoji(meta?.emojiId),
-        default: selectedCivs.has(key),
-      };
-    });
-    const selectedCivOnPage = civSlice.filter((key) => selectedCivs.has(key)).length;
-    const selectedCivOffPage = bans.civKeys.length - selectedCivOnPage;
-    const civMaxOnPage = Math.min(civOptions.length, Math.max(0, limits.civ - selectedCivOffPage));
-
-    const civMenu = new StringSelectMenuBuilder()
-      .setCustomId(`gv:banpick:civ:${v.sessionId}`)
-      .setPlaceholder(`Civ bans (optional) (page ${civPage + 1}/${civPages})`)
-      .setMinValues(0)
-      .setMaxValues(Math.max(1, civMaxOnPage || selectedCivOnPage || 1))
-      .setDisabled(finished || civOptions.length === 0 || (civMaxOnPage === 0 && selectedCivOnPage === 0))
-      .addOptions(civOptions);
-
-    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
-  }
-
-  const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`gv:bannav:leader:prev:${v.sessionId}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel('◀ Back')
-      .setDisabled(finished || leaderPages <= 1),
-    new ButtonBuilder()
-      .setCustomId(`gv:bannav:leader:next:${v.sessionId}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setLabel('Next ▶')
-      .setDisabled(finished || leaderPages <= 1)
-  );
-
-  if (civs) {
-    navRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`gv:bannav:civ:prev:${v.sessionId}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Back')
-        .setDisabled(finished || civPages <= 1),
-      new ButtonBuilder()
-        .setCustomId(`gv:bannav:civ:next:${v.sessionId}`)
-        .setStyle(ButtonStyle.Secondary)
-        .setLabel('Next ▶')
-        .setDisabled(finished || civPages <= 1)
-    );
-  }
-
-  navRow.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`gv:bansubmit:${v.sessionId}`)
-      .setStyle(ButtonStyle.Success)
-      .setLabel('Submit Bans')
-      .setDisabled(finished)
-  );
-
-  rows.push(navRow);
-
-  return rows;
-}
-
-function buildBansPanelPayload(v: GameVoteSession, voterId: string): InteractionReplyOptions {
-  return {
-    embeds: [buildBansPanelEmbed(v, voterId)],
-    components: buildBansPanelComponents(v, voterId),
-    flags: MessageFlags.Ephemeral,
-  };
-}
- 
-function buildRenderPayload(v: GameVoteSession): RenderPayload {
-  const progress = buildProgress(v);
-  const questionFields = buildQuestionFields(v);
-
-  const embed = buildGameVoteEmbed({
-    edition: v.edition,
-    gameType: v.gameType,
-    startingAge: v.startingAge,
-    status: v.status,
-    phase: v.phase,
-    startedAtMs: v.startedAtMs,
-    endsAtMs: v.endsAtMs,
-    completedAtMs: v.completedAtMs,
-    progress,
-    questionFields,
-    voteUuid: v.sessionId,
-  });
-
-  const components = v.status === 'in_progress' && v.phase === 'voting'
-    ? buildVotingButtons(v)
-    : [];
-
-  return {
-    embeds: [embed],
-    components: [...components],
-    allowedMentions: { parse: [] as const },
-  };
-}
-
-
 
 async function safeEditMessage(
   msg: Message,
@@ -1488,7 +1310,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     if (!isVoter(v, userId)) { await replyNotice(interaction, '⚠️ You are not part of this vote session.'); return true; }
     if (v.finished.has(userId)) { await replyNotice(interaction, '⚠️ You already finished your vote.'); return true; }
 
-    await replySafe(interaction, buildBansPanelPayload(v, userId));
+    await replySafe(interaction, { ...buildBansPanelPayload(v, userId), flags: MessageFlags.Ephemeral });
     return true;
   }
 
