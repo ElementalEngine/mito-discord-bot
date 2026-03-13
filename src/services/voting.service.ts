@@ -8,10 +8,14 @@ import {
   type StringSelectMenuInteraction,
   type User,
 } from 'discord.js';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import { getGameVoteBanLimits, getVoteDurationMs } from '../config/draft.config.js';
 import { buildGameVoteConfig } from './voting/domain/questions.service.js';
+import { getQuestionMaxSelections, decodeVoteSelections, encodeVoteSelections, pickRandomVoteValue, voteCountByOption } from './voting/domain/tally.service.js';
+import { getDraftMode, ensureLockedAll } from './voting/domain/tiebreak.service.js';
+import { getSubmittedBanSummary, majorityBans } from './voting/domain/bans.service.js';
+import { buildProgress, areAllVotersFinished } from './voting/domain/progress.service.js';
 import type { VoteQuestion } from '../config/types.js';
 import { CIV6_LEADERS, formatCiv6Leader } from '../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS, formatCiv7Civ, formatCiv7Leader } from '../data/civ7.data.js';
@@ -25,12 +29,9 @@ import { ensureStagedBans, hasStagedBanChanges, getBanPageState, setBanPageState
 import { replySafe, replyNotice, safeEditMessage, openInitialVoteMessages } from './voting/runtime/message-ops.service.js';
 import type {
   GameVoteSession,
-  GameVoteDraftMode,
-  GameVoteProgress,
   GameVoteVoter,
   StartGameVoteOptions,
   StartGameVoteResult,
-  VoteRecord,
   BanSubmission,
 } from '../types/voting.types.js';
 import type { VoteDraftRequest } from '../types/drafting.types.js';
@@ -38,81 +39,6 @@ import type { VoteDraftRequest } from '../types/drafting.types.js';
 const BAN_LEADER_PAGE_SIZE = 25;
 const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
 const COMPLETED_SESSION_RETENTION_MS = 15 * 60_000;
-
-function majorityThreshold(n: number): number {
-  return Math.floor(n / 2) + 1;
-}
-
-const MULTI_VALUE_DELIMITER = '|';
-
-function getQuestionMaxSelections(question: VoteQuestion): number {
-  return Math.max(1, Math.min(question.options.length, question.maxSelections ?? 1));
-}
-
-function isMultiSelectQuestion(question: VoteQuestion): boolean {
-  return getQuestionMaxSelections(question) > 1;
-}
-
-function decodeVoteSelections(question: VoteQuestion, stored?: string): string[] {
-  if (!stored) return [];
-  if (!isMultiSelectQuestion(question)) return [stored].filter(Boolean);
-
-  const allowed = new Set(question.options.map((option) => option.id));
-  return dedupeStable(stored.split(MULTI_VALUE_DELIMITER).map((value) => value.trim()).filter((value) => allowed.has(value)))
-    .slice(0, getQuestionMaxSelections(question));
-}
-
-function encodeVoteSelections(question: VoteQuestion, selectedIds: readonly string[]): string | null {
-  const allowed = new Set(question.options.map((option) => option.id));
-  const orderById = new Map(question.options.map((option, index) => [option.id, index] as const));
-  const normalized = dedupeStable(selectedIds)
-    .filter((value) => allowed.has(value))
-    .sort((a, b) => (orderById.get(a) ?? 0) - (orderById.get(b) ?? 0))
-    .slice(0, getQuestionMaxSelections(question));
-
-  if (normalized.length === 0) return null;
-  return isMultiSelectQuestion(question) ? normalized.join(MULTI_VALUE_DELIMITER) : normalized[0] ?? null;
-}
-
-function pickRandomVoteValue(question: VoteQuestion): string {
-  if (!isMultiSelectQuestion(question)) return pickRandom(question.options).id;
-
-  const count = Math.max(1, Math.min(getQuestionMaxSelections(question), 1 + Math.floor(Math.random() * getQuestionMaxSelections(question))));
-  const pool = question.options.map((option) => option.id);
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-
-  return encodeVoteSelections(question, pool.slice(0, count)) ?? question.defaultOptionId;
-}
-
-function pickLabelsForQuestion(question: VoteQuestion, stored?: string): string {
-  const selections = decodeVoteSelections(question, stored);
-  if (selections.length === 0) return '—';
-
-  return selections
-    .map((selectedId) => {
-      const option = question.options.find((candidate) => candidate.id === selectedId);
-      return option ? `${option.emoji ? `${option.emoji} ` : ''}${option.label}` : selectedId;
-    })
-    .join(', ');
-}
-
-
-function pickRandom<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function buildProgress(v: GameVoteSession): GameVoteProgress {
-  return {
-    edition: v.edition,
-    status: v.status,
-    voters: v.voters,
-    finishedIds: new Set(v.finished),
-  };
-}
-
 
 type RenderPayload = PublicVotePayload;
 
@@ -156,21 +82,19 @@ function formatCivBan(key: string): string {
   return formatCiv7Civ(key);
 }
 
+function pickLabelsForQuestion(question: VoteQuestion, stored?: string): string {
+  const selections = decodeVoteSelections(question, stored);
+  if (selections.length === 0) return '—';
 
-function getSubmittedBanSummary(v: GameVoteSession): Readonly<{ leader: ReadonlyMap<string, number>; civ: ReadonlyMap<string, number> }> {
-  const leader = new Map<string, number>();
-  const civ = new Map<string, number>();
-
-  for (const voterId of v.voterIds) {
-    if (!v.bansSubmitted.has(voterId)) continue;
-    const bans = v.bansByVoter.get(voterId);
-    if (!bans) continue;
-    for (const key of bans.leaderKeys) leader.set(key, (leader.get(key) ?? 0) + 1);
-    if (v.edition === 'CIV7') for (const key of bans.civKeys) civ.set(key, (civ.get(key) ?? 0) + 1);
-  }
-
-  return { leader, civ };
+  return selections
+    .map((selectedId) => {
+      const option = question.options.find((candidate) => candidate.id === selectedId);
+      return option ? `${option.emoji ? `${option.emoji} ` : ''}${option.label}` : selectedId;
+    })
+    .join(', ');
 }
+
+
 
 function buildVerticalBanSection(label: string, items: readonly string[], maxLength: number): string {
   const header = `• ${label} (${items.length})`;
@@ -429,6 +353,18 @@ function buildBansPanelPayload(v: GameVoteSession, voterId: string): RenderPaylo
 
 
 
+function getCiv6LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV6_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
+}
+
+function getCiv7LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV7_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
+}
+
+function getCiv7CivMeta(): Record<string, { gameId: string; emojiId?: string }> {
+  return CIV7_CIVS as unknown as Record<string, { gameId: string; emojiId?: string }>;
+}
+
 function sortKeysByGameId(source: Record<string, { gameId: string }>): string[] {
   return Object.entries(source)
     .sort((a, b) => a[1].gameId.localeCompare(b[1].gameId))
@@ -466,117 +402,6 @@ function clampBanList(items: readonly string[], maxLength: number): string {
     used += piece.length;
   }
   return out.join('');
-}
-
-function voteCountByOption(question: VoteQuestion, record: VoteRecord): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const stored of record.values()) {
-    for (const optId of decodeVoteSelections(question, stored)) {
-      counts.set(optId, (counts.get(optId) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
-
-function pickDeterministic(sessionId: string, questionId: string, optionIds: readonly string[]): { winnerId: string; seed: string } {
-  const seedFull = createHash('sha256').update(`${sessionId}:${questionId}`).digest('hex');
-  const seed = seedFull.slice(0, 8);
-  const n = Number.parseInt(seed, 16);
-  const idx = optionIds.length > 0 ? n % optionIds.length : 0;
-  return { winnerId: optionIds[Math.max(0, idx)], seed };
-}
-
-function selectWinner(
-  sessionId: string,
-  question: VoteQuestion,
-  record: VoteRecord,
-  voterIds: readonly string[],
-  tiebrokenQuestions: Set<string>
-): string {
-  if (record.size < voterIds.length) return question.defaultOptionId;
-
-  const counts = voteCountByOption(question, record);
-  const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-
-  if (entries.length === 0) return question.defaultOptionId;
-
-  const max = entries[0][1];
-  const tied = entries.filter(([, c]) => c === max).map(([id]) => id);
-
-  if (tied.length === 1) return tied[0];
-
-  const { winnerId, seed } = pickDeterministic(sessionId, question.id, tied);
-  tiebrokenQuestions.add(question.id);
-
-  console.info('[gamevote] tiebreak', {
-    sessionId,
-    questionId: question.id,
-    tied,
-    winnerId,
-    seed,
-  });
-
-  return winnerId;
-}
-
-function ensureLockedAll(v: GameVoteSession) {
-  for (const q of v.questions) {
-    if (v.lockedSettings.has(q.id)) continue;
-
-    const record = v.votesByQuestion.get(q.id);
-    if (!record) {
-      v.lockedSettings.set(q.id, q.defaultOptionId);
-      continue;
-    }
-
-    const winner = selectWinner(v.sessionId, q, record, v.voterIds, v.tiebrokenQuestions);
-    v.lockedSettings.set(q.id, winner);
-  }
-}
-
-function getDraftMode(v: GameVoteSession): GameVoteDraftMode {
-  ensureLockedAll(v);
-
-  const q = v.questions.find((x) => x.id === 'draft_mode');
-  if (!q) return 'standard';
-
-  const optId = v.lockedSettings.get(q.id) ?? q.defaultOptionId;
-  const opt = q.options.find((o) => o.id === optId);
-  return (opt?.id as GameVoteDraftMode) ?? 'standard';
-}
-
-function getCiv6LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
-  return CIV6_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
-}
-
-function getCiv7LeaderMeta(): Record<string, { gameId: string; emojiId?: string }> {
-  return CIV7_LEADERS as unknown as Record<string, { gameId: string; emojiId?: string }>;
-}
-
-function getCiv7CivMeta(): Record<string, { gameId: string; emojiId?: string }> {
-  return CIV7_CIVS as unknown as Record<string, { gameId: string; emojiId?: string }>;
-}
-
-function majorityBans<K extends string>(
-  voterIds: readonly string[],
-  perVoter: ReadonlyMap<string, ReadonlySet<K>>
-): readonly K[] {
-  const need = majorityThreshold(voterIds.length);
-  const counts = new Map<K, number>();
-
-  for (const id of voterIds) {
-    const set = perVoter.get(id);
-    if (!set) continue;
-    for (const key of set) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-
-  const out: K[] = [];
-  for (const [key, count] of counts) {
-    if (count >= need) out.push(key);
-  }
-  return out;
 }
 
 function formatUnknownError(err: unknown): string {
@@ -1050,7 +875,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     await interaction.deferUpdate();
 
     v.finished.add(userId);
-    if (v.voterIds.every((id) => v.finished.has(id))) {
+    if (areAllVotersFinished(v)) {
       await finalizeCompletedVote(v);
       return true;
     }
@@ -1081,7 +906,7 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     await interaction.deferUpdate();
 
     v.finished.add(userId);
-    if (v.voterIds.every((id) => v.finished.has(id))) {
+    if (areAllVotersFinished(v)) {
       await finalizeCompletedVote(v);
       return true;
     }
