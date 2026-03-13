@@ -6,24 +6,24 @@ import type {
 } from 'discord.js';
 
 import {
-  handleGameVoteButton,
-  handleGameVoteModal,
-  handleGameVoteSelect,
-} from '../services/voting.service.js';
+  handleGameVoteButtonInteraction,
+  handleGameVoteModalInteraction,
+  handleGameVoteSelectInteraction,
+} from './voting.handlers.js';
 
 export async function handleGameVoteInteraction(
   interaction: Interaction
 ): Promise<boolean> {
   if (interaction.isButton()) {
-    return handleGameVoteButton(interaction as ButtonInteraction);
+    return handleGameVoteButtonInteraction(interaction as ButtonInteraction);
   }
 
   if (interaction.isStringSelectMenu()) {
-    return handleGameVoteSelect(interaction as StringSelectMenuInteraction);
+    return handleGameVoteSelectInteraction(interaction as StringSelectMenuInteraction);
   }
 
   if (interaction.isModalSubmit()) {
-    return handleGameVoteModal(interaction as ModalSubmitInteraction);
+    return handleGameVoteModalInteraction(interaction as ModalSubmitInteraction);
   }
 
   return false;
