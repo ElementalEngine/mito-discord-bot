@@ -10,6 +10,7 @@ import { EMOJI_ROOM_RANKINGS } from '../../config/constants.js';
 import { ApiError } from '../../api/errors.js';
 import { TeamGenService } from '../../services/teamgen.service.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { normalizePlayerList } from "../../utils/convert-match-to-str.js";
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -66,6 +67,12 @@ export const data = new SlashCommandBuilder()
         { name: 'civ6', value: 'civ6' },
         { name: 'civ7', value: 'civ7' }
       )
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName('discord-ids')
+      .setDescription('list of player discord ids (only needed if running in cloud-commands channel)')
+      .setRequired(false)
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -87,26 +94,36 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const voiceChannel = interaction.member.voice.channel;
-  if (!voiceChannel || !('members' in voiceChannel)) {
-    await replyError(interaction, 'Join a voice channel first, then run /teamgen.');
-    return;
-  }
-
-  const members = [...voiceChannel.members.values()].filter((m) => !m.user.bot);
-  if (members.length === 0) {
-    await replyError(interaction, 'No non-bot users found in your voice channel.');
-    return;
-  }
-
   const channelId = interaction.channelId;
   const isCloudChannel = channelId === config.discord.channels.cloudCommands;
   const gameType = isCloudChannel ? 'cloud' : 'realtime';
 
+  var members: GuildMember[] | string[];
+  if (!isCloudChannel) {
+    const voiceChannel = interaction.member.voice.channel;
+    if (!voiceChannel || !('members' in voiceChannel)) {
+      await replyError(interaction, 'Join a voice channel first, then run /teamgen.');
+      return;
+    }
+
+    members = [...voiceChannel.members.values()].filter((m) => !m.user.bot);
+    if (members.length === 0) {
+      await replyError(interaction, 'No non-bot users found in your voice channel.');
+      return;
+    }
+  } else {
+    const discord_ids = interaction.options.getString('discord-ids', true);
+    members = normalizePlayerList(discord_ids).split(/\s+/);
+    if (members.length === 0) {
+      await replyError(interaction, 'Please provide at least one Discord ID.');
+      return;
+    }
+  }
+
   await interaction.deferReply();
 
   try {
-    const discordIds = members.map((m) => m.user.id);
+    const discordIds = members.map((m) => m instanceof GuildMember ? m.user.id : m);
     const teamGenResult = await teamgenService.getTeamGen({
         civVersion: versionRaw as CivVersion,
         gameType: gameType,
