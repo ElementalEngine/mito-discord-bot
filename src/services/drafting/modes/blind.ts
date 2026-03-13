@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   ButtonInteraction,
+  Message,
   StringSelectMenuInteraction,
 } from 'discord.js';
 
@@ -35,7 +36,6 @@ import {
   buildBlindDraftTrackingEmbed,
 } from '../../../ui/embeds/blind-draft.js';
 import { buildVoteStandardDraftResult, DraftError } from '../draft.service.js';
-import { runStandardDraftMode } from './standard.js';
 
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const BLIND_MENU_PAGE_SIZE = 25;
@@ -243,16 +243,32 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
   });
 }
 
+async function failSentBlindDmMessages(messages: readonly Message<false>[]): Promise<void> {
+  for (const message of messages) {
+    await safeEditDraftMessage(message, {
+      content: `${EMOJI_ERROR} Blind draft could not start because I could not DM every voter. Please enable DMs and try again.`,
+      embeds: [],
+      components: [],
+      allowedMentions: { parse: [] as const },
+    });
+  }
+}
+
 async function startBlindDraftSession(
   request: VoteDraftRequest,
   assignments: readonly BlindDraftAssignment[],
 ): Promise<void> {
+  const voterUsersById = request.voterUsersById;
+  if (!voterUsersById) {
+    throw new DraftError('VALIDATION', 'Blind draft requires DM access for every voter.');
+  }
+
   const session: BlindDraftSession = {
     sessionId: randomUUID(),
     edition: request.edition,
     voterIds: request.voterIds,
     commandChannel: request.commandChannel,
-    voterUsersById: request.voterUsersById ?? new Map(),
+    voterUsersById,
     voteMessage: request.publicMessage,
     trackingMessage: null,
     dmMessages: new Map(),
@@ -275,31 +291,30 @@ async function startBlindDraftSession(
     session.pages.set(assignment.voterId, { civPage: 0, leaderPage: 0 });
   }
 
-  activeBlindDrafts.set(session.sessionId, session);
-  await updateTrackingMessage(session);
-
-  await forEachLimit(request.voterIds, DM_CONCURRENCY, async (voterId) => {
+  const dmMessages: Message<false>[] = [];
+  for (const voterId of request.voterIds) {
     const user = session.voterUsersById.get(voterId);
-    if (!user) return;
+    if (!user) {
+      throw new DraftError('VALIDATION', 'Blind draft requires DM access for every voter.');
+    }
 
     try {
       const message = await user.send(buildBlindDmPayload(session, voterId));
       session.dmMessages.set(voterId, message);
+      dmMessages.push(message);
     } catch (err) {
       console.info('[blind-draft] dm send failed', { voterId, err });
+      await failSentBlindDmMessages(dmMessages);
+      throw new DraftError('VALIDATION', 'Blind draft could not start because I could not DM every voter. Please enable DMs and try again.');
     }
-  });
+  }
+
+  activeBlindDrafts.set(session.sessionId, session);
+  await updateTrackingMessage(session);
 
   scheduleInteractiveSessionTimeout(session, BLIND_DRAFT_DURATION_MS, () => {
     void finalizeBlindDraftSession(session, 'timeout');
   });
-}
-
-function fallbackToStandardPayload(request: VoteDraftRequest, message: string): Promise<DraftModeOutput> {
-  return runStandardDraftMode({ ...request, draftMode: 'standard' }).then((payload) => ({
-    ...payload,
-    content: `${EMOJI_ERROR} ${message}\nFalling back to standard draft.`,
-  }));
 }
 
 export async function runBlindDraftMode(request: VoteDraftRequest): Promise<DraftModeOutput | null> {
@@ -307,13 +322,13 @@ export async function runBlindDraftMode(request: VoteDraftRequest): Promise<Draf
     throw new DraftError('VALIDATION', 'Blind draft is only available from the vote flow.');
   }
 
-  if (!request.voterUsersById || request.voterUsersById.size === 0) {
-    return fallbackToStandardPayload(request, 'Blind draft requires voter DM context.');
+  if (!request.voterUsersById || request.voterUsersById.size !== request.voterIds.length) {
+    throw new DraftError('VALIDATION', 'Blind draft requires DM access for every voter.');
   }
 
   const launch = createBlindDraftLaunch(request);
   if (!launch.ok) {
-    return fallbackToStandardPayload(request, launch.message);
+    throw new DraftError('VALIDATION', launch.message);
   }
 
   await startBlindDraftSession(request, launch.assignments);

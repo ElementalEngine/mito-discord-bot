@@ -5,24 +5,27 @@ import {
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 
-import { getVoteDurationMs } from '../config/draft.config.js';
-import { buildGameVoteConfig } from './voting/domain/questions.service.js';
-import { buildRenderPayload, type PublicVotePayload } from './voting/panels/public-message.service.js';
+import { getVoteDurationMs } from '../../config/draft.config.js';
+import { closeVote } from './completion.service.js';
+import { buildGameVoteConfig } from './domain/questions.service.js';
+import {
+  buildRenderPayload,
+  type PublicVotePayload,
+} from './panels/public-message.service.js';
+import { openInitialVoteMessages } from './runtime/message-ops.service.js';
 import {
   isVoteVoiceBusy,
-  reserveVoteVoice,
-  releaseReservedVoteVoice,
   registerActiveVoteSession,
+  releaseReservedVoteVoice,
+  reserveVoteVoice,
   scheduleVoteSessionTimeout,
-} from './voting/runtime/session-runtime.service.js';
-import { openInitialVoteMessages } from './voting/runtime/message-ops.service.js';
-import { closeVote } from './voting/completion.service.js';
+} from './runtime/session-runtime.service.js';
 import type {
   GameVoteSession,
   GameVoteVoter,
   StartGameVoteOptions,
   StartGameVoteResult,
-} from '../types/voting.types.js';
+} from '../../types/voting.types.js';
 
 type RenderPayload = PublicVotePayload;
 
@@ -133,7 +136,10 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
 
     const init = await openInitialMessages(v, args.guild);
     if (!init.ok) {
-      if (v.timeout) { clearTimeout(v.timeout); v.timeout = null; }
+      if (v.timeout) {
+        clearTimeout(v.timeout);
+        v.timeout = null;
+      }
       return { ok: false, message: init.message };
     }
 
