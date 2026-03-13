@@ -1,14 +1,18 @@
 import { EmbedBuilder, userMention } from 'discord.js';
 
-import { EMOJI_LOCK, EMOJI_RANDOM } from '../../config/constants.js';
+import { EMOJI_LOCK, EMOJI_SNAKE } from '../../config/constants.js';
 import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
 import type { SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
-function ts(ms: number, style: 't' | 'R' | 'f'): string {
+function ts(ms: number, style: 't' | 'R'): string {
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
+}
+
+function deadlineLine(ms: number): string {
+  return `Deadline: ${ts(ms, 't')} (${ts(ms, 'R')})`;
 }
 
 function leaderLine(edition: CivEdition, key?: string): string {
@@ -69,7 +73,7 @@ export function buildSnakeDraftActiveDmEmbed(args: Readonly<{
       ? 'Choose your leader below, then press **Submit** to lock it in.'
       : 'Choose your civ below, then press **Submit** to lock it in.',
     voteUuidLine(args.voteUuid),
-    `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+    deadlineLine(args.endsAtMs),
     '',
   ].filter((line): line is string => Boolean(line));
   if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(current?.civKey)}`);
@@ -95,7 +99,7 @@ export function buildSnakeDraftStatusEmbed(args: Readonly<{
     voteUuidLine(args.voteUuid),
     `Round: **${roundLabel(args.edition, args.round)}**`,
     `Current picker: ${userMention(args.currentPickerId)}`,
-    `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+    deadlineLine(args.endsAtMs),
   ].filter((line): line is string => Boolean(line));
   if (args.lastEvent) {
     lines.push('', args.lastEvent);
@@ -147,6 +151,6 @@ export function buildSnakeDraftCompleteEmbed(args: Readonly<{
     lines.push(`• ${userMention(userId)} — ${leaderLine(args.edition, pick?.leaderKey)} | ${civLine(pick?.civKey)}`);
   }
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_RANDOM} Snake Draft Complete`)
+    .setTitle(`${EMOJI_SNAKE} Snake Draft Complete`)
     .setDescription(lines.join('\n'));
 }

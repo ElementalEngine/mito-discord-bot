@@ -7,8 +7,12 @@ import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from
 import type { BlindDraftPick } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
 
-function ts(ms: number, style: 't' | 'f' | 'R'): string {
+function ts(ms: number, style: 't' | 'R'): string {
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
+}
+
+function deadlineLine(ms: number): string {
+  return `Deadline: ${ts(ms, 't')} (${ts(ms, 'R')})`;
 }
 
 function leaderLine(edition: CivEdition, key?: string): string {
@@ -66,7 +70,7 @@ export function buildBlindDraftEmbed(args: Readonly<{
   const lines: string[] = [
     'Choose your blind draft picks below, then press **Submit** to lock them in.',
     voteUuidLine(args.voteUuid),
-    `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+    deadlineLine(args.endsAtMs),
     '',
   ].filter((line): line is string => Boolean(line));
 
@@ -119,7 +123,7 @@ export function buildBlindDraftTrackingEmbed(args: Readonly<{
     .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
     .setDescription([
       voteUuidLine(args.voteUuid),
-      `Deadline: ${ts(args.endsAtMs, 'f')} (${ts(args.endsAtMs, 'R')})`,
+      deadlineLine(args.endsAtMs),
       '',
       ...lines,
     ].filter((line): line is string => Boolean(line)).join('\n'));
@@ -162,6 +166,6 @@ export function buildBlindDraftTimeoutEmbed(args: Readonly<{
   lines.push(...args.voterIds.map((id) => `• ${userMention(id)} — ${timeoutStatusLine(args.edition, args.picks.get(id))}`));
 
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_LOCK} Blind Draft Closed (Timeout)`)
+    .setTitle(`${EMOJI_LOCK} Blind Draft Closed`)
     .setDescription(lines.join('\n'));
 }

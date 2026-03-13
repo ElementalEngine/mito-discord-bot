@@ -43,6 +43,8 @@ const BAN_CIV_PAGE_SIZE = 24; // includes a 'None' option
 const activeById = new Map<string, GameVoteSession>();
 const activeByVoice = new Map<string, GameVoteSession>();
 const reservedByVoice = new Set<string>();
+const completedCleanupBySession = new Map<string, NodeJS.Timeout>();
+const COMPLETED_SESSION_RETENTION_MS = 15 * 60_000;
 
 function voiceKey(guildId: string, voiceChannelId: string): string {
   return `${guildId}:${voiceChannelId}`;
@@ -734,7 +736,7 @@ function buildBansPanelComponents(
       .setCustomId(`gv:bansubmit:${v.sessionId}`)
       .setStyle(ButtonStyle.Success)
       .setLabel('Submit Bans')
-      .setDisabled(finished || !hasStagedBanChanges(v, voterId))
+      .setDisabled(finished)
   );
 
   rows.push(navRow);
@@ -969,10 +971,33 @@ async function openInitialMessages(
   }
 }
 
-async function finalizeCleanup(v: GameVoteSession): Promise<void> {
+function clearCompletedCleanup(sessionId: string): void {
+  const timeout = completedCleanupBySession.get(sessionId);
+  if (!timeout) return;
+  clearTimeout(timeout);
+  completedCleanupBySession.delete(sessionId);
+}
+
+function scheduleCompletedCleanup(v: GameVoteSession, retainForMs: number): void {
+  clearCompletedCleanup(v.sessionId);
+  const timeout = setTimeout(() => {
+    activeById.delete(v.sessionId);
+    completedCleanupBySession.delete(v.sessionId);
+  }, retainForMs);
+  completedCleanupBySession.set(v.sessionId, timeout);
+}
+
+async function finalizeCleanup(v: GameVoteSession, retainCompletedForMs = 0): Promise<void> {
   if (v.timeout) { clearTimeout(v.timeout); v.timeout = null; }
-  activeById.delete(v.sessionId);
   activeByVoice.delete(voiceKey(v.guildId, v.voiceChannelId));
+
+  if (retainCompletedForMs > 0) {
+    scheduleCompletedCleanup(v, retainCompletedForMs);
+    return;
+  }
+
+  clearCompletedCleanup(v.sessionId);
+  activeById.delete(v.sessionId);
 }
 
 function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
@@ -1040,10 +1065,15 @@ async function finalizeCompletedVote(v: GameVoteSession): Promise<void> {
   v.isFinalized = true;
 
   const request = buildVoteDraftRequest(v);
+  const completedPayload = buildRenderPayload(v);
 
-  await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-  await publishDraftResult(request);
-  await finalizeCleanup(v);
+  await safeEditMessage(v.publicMessage, completedPayload);
+  try {
+    await publishDraftResult(request);
+  } finally {
+    await safeEditMessage(v.publicMessage, completedPayload);
+    await finalizeCleanup(v, COMPLETED_SESSION_RETENTION_MS);
+  }
 }
 
 
@@ -1270,8 +1300,7 @@ export async function handleGameVoteSelect(interaction: StringSelectMenuInteract
       }));
     }
 
-    const payload = buildBansPanelPayload(v, userId);
-    await interaction.update({ embeds: payload.embeds, components: payload.components });
+    await interaction.deferUpdate();
     return true;
   }
 
@@ -1414,11 +1443,12 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     await interaction.deferUpdate();
 
     v.finished.add(userId);
-    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-
     if (v.voterIds.every((id) => v.finished.has(id))) {
       await finalizeCompletedVote(v);
+      return true;
     }
+
+    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     return true;
   }
 
@@ -1444,11 +1474,12 @@ export async function handleGameVoteButton(interaction: ButtonInteraction): Prom
     await interaction.deferUpdate();
 
     v.finished.add(userId);
-    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
-
     if (v.voterIds.every((id) => v.finished.has(id))) {
       await finalizeCompletedVote(v);
+      return true;
     }
+
+    await safeEditMessage(v.publicMessage, buildRenderPayload(v));
     return true;
   }
 
