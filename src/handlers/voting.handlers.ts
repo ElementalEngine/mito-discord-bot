@@ -6,7 +6,6 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 
-import { getGameVoteBanLimits } from '../config/draft.config.js';
 import { finalizeCompletedVote } from '../services/voting/completion.service.js';
 import {
   getQuestionMaxSelections,
@@ -33,6 +32,9 @@ import {
   ensureStagedBans,
   mergePagedBanSelection,
   hasStagedBanChanges,
+  getEmptyBans,
+  cloneBanSubmission,
+  normalizeBanSubmission,
 } from '../services/voting/runtime/bans-state.service.js';
 import {
   replySafe,
@@ -46,10 +48,7 @@ import {
   hasStagedVoteChanges,
   commitVoteRecord,
 } from '../services/voting/runtime/vote-state.service.js';
-import type {
-  BanSubmission,
-  GameVoteSession,
-} from '../types/voting.types.js';
+import type { GameVoteSession } from '../types/voting.types.js';
 
 type ParsedCustomId =
   | Readonly<{
@@ -62,36 +61,6 @@ type ParsedCustomId =
   | Readonly<{ action: 'banpick'; banType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'bannav'; banType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
-function getEmptyBans(): BanSubmission {
-  return { leaderKeys: [], civKeys: [] };
-}
-
-function cloneBanSubmission(bans: BanSubmission): BanSubmission {
-  return { leaderKeys: [...bans.leaderKeys], civKeys: [...bans.civKeys] };
-}
-
-function getBanLimits(v: GameVoteSession): Readonly<{ leader: number; civ: number }> {
-  return getGameVoteBanLimits(v.edition, v.startingAge);
-}
-
-function dedupeStable(keys: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const key of keys) {
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(key);
-  }
-  return out;
-}
-
-function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSubmission {
-  const limits = getBanLimits(v);
-  return {
-    leaderKeys: dedupeStable(bans.leaderKeys).slice(0, limits.leader),
-    civKeys: dedupeStable(bans.civKeys).slice(0, limits.civ),
-  };
-}
 
 function parseCustomId(id: string): ParsedCustomId | null {
   const parts = id.split(':');

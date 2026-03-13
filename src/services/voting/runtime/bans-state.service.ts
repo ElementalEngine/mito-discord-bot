@@ -1,11 +1,11 @@
 import { getGameVoteBanLimits } from '../../../config/draft.config.js';
 import type { BanSubmission, GameVoteSession } from '../../../types/voting.types.js';
 
-function getEmptyBans(): BanSubmission {
+export function getEmptyBans(): BanSubmission {
   return { leaderKeys: [], civKeys: [] };
 }
 
-function cloneBanSubmission(bans: BanSubmission): BanSubmission {
+export function cloneBanSubmission(bans: BanSubmission): BanSubmission {
   return { leaderKeys: [...bans.leaderKeys], civKeys: [...bans.civKeys] };
 }
 
@@ -24,7 +24,7 @@ function getBanLimits(v: GameVoteSession): Readonly<{ leader: number; civ: numbe
   return getGameVoteBanLimits(v.edition, v.startingAge);
 }
 
-function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSubmission {
+export function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSubmission {
   const limits = getBanLimits(v);
   return {
     leaderKeys: dedupeStable(bans.leaderKeys).slice(0, limits.leader),
