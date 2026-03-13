@@ -10,7 +10,7 @@ import { CIV7_CIVS, CIV7_LEADERS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from
 import type { CivEdition } from '../../config/types.js';
 import type { SnakeDraftPageState, SnakeDraftPick, SnakeRoundKind } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
-import { clampPageIndex, getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
+import { getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
 
 const SNAKE_MENU_PAGE_SIZE = 25;
 

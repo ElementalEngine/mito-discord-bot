@@ -10,7 +10,7 @@ import { lookupCiv6LeaderMeta } from '../../data/civ6.data.js';
 import { CIV7_CIVS, lookupCiv7CivMeta, lookupCiv7LeaderMeta } from '../../data/civ7.data.js';
 import type { CwcDraftPageState } from '../../types/drafting.types.js';
 import { humanizeGameId } from '../../utils/humanize-game-id.js';
-import { clampPageIndex, getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
+import { getPageCount, slicePageItems } from '../../services/drafting/runtime/pagination.service.js';
 
 const CWC_MENU_PAGE_SIZE = 25;
 

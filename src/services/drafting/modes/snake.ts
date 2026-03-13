@@ -308,13 +308,8 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
   }
 
   const civPool = buildVoteCivPool(request);
-  if (request.edition === 'CIV7') {
-    if (request.startingAge === 'None' && civPool.length < request.voterIds.length) {
-      throw new DraftError('NO_POOL', 'Not enough civs remain after bans for snake draft.');
-    }
-    if (civPool.length === 0) {
-      throw new DraftError('NO_POOL', 'No civs remain after bans for snake draft.');
-    }
+  if (request.edition === 'CIV7' && civPool.length === 0) {
+    throw new DraftError('NO_POOL', 'No civs remain after bans for snake draft.');
   }
 
   const order = shuffledPoolCopy(request.voterIds);
