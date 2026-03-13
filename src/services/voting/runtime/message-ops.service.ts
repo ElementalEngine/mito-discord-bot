@@ -57,13 +57,25 @@ export async function safeEditMessage(
   }
 }
 
+function buildInitialVotePingContent(session: GameVoteSession): string | undefined {
+  if (session.voterIds.length === 0) return undefined;
+  return `🔔 Vote started for ${session.voterIds.map((id) => `<@${id}>`).join(' ')}`;
+}
+
 export async function openInitialVoteMessages(
   session: GameVoteSession,
   guild: Guild,
   payload: PublicVotePayload,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
-    const msg = await session.commandChannel.send(payload);
+    const msg = await session.commandChannel.send({
+      ...payload,
+      content: buildInitialVotePingContent(session),
+      allowedMentions: {
+        parse: [] as const,
+        users: [...session.voterIds],
+      },
+    });
     if (!msg.inGuild()) return { ok: false, message: '⚠️ This command must be used in a server channel.' };
     if (msg.guildId !== guild.id) return { ok: false, message: '⚠️ Internal error: guild mismatch.' };
     session.publicMessage = msg;

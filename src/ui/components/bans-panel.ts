@@ -56,12 +56,12 @@ export function buildBansPanelComponents(args: Readonly<{
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:prev:${args.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('◀ Back')
+      .setLabel('◀ Leaders')
       .setDisabled(args.finished || args.leaderPages <= 1),
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:next:${args.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
-      .setLabel('Next ▶')
+      .setLabel('Leaders ▶')
       .setDisabled(args.finished || args.leaderPages <= 1),
   );
 
@@ -70,12 +70,12 @@ export function buildBansPanelComponents(args: Readonly<{
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:prev:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('◀ Back')
+        .setLabel('◀ Civs')
         .setDisabled(args.finished || args.civPages <= 1),
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:next:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
-        .setLabel('Next ▶')
+        .setLabel('Civs ▶')
         .setDisabled(args.finished || args.civPages <= 1),
     );
   }
