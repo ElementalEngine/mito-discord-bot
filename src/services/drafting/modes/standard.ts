@@ -19,6 +19,7 @@ import {
   buildCommandStandardDraftResult,
   buildVoteStandardDraftResult,
 } from '../draft.service.js';
+import { labelForVoteGroup } from '../domain/labels.service.js';
 
 function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftModeOutput {
   const messages = draft.gameVersion === 'civ6'
@@ -52,11 +53,17 @@ export async function runStandardDraftMode(
     return buildCommandOutput(buildCommandStandardDraftResult(request));
   }
 
+  const groupLabels = request.gameType === 'Teamer'
+    ? undefined
+    : request.voterIds.map((voterId, index) => request.voterUsersById?.has(voterId)
+      ? `<@${voterId}>`
+      : labelForVoteGroup('Player', index));
+
   if (request.edition === 'CIV6') {
     const draft = buildVoteStandardDraftResult(request) as Civ6DraftResult;
-    return { embeds: [buildCiv6DraftEmbed(draft)] };
+    return { embeds: [buildCiv6DraftEmbed(draft, groupLabels)] };
   }
 
   const draft = buildVoteStandardDraftResult(request) as Civ7DraftResult;
-  return { embeds: [buildCiv7DraftEmbed(draft)] };
+  return { embeds: [buildCiv7DraftEmbed(draft, groupLabels)] };
 }

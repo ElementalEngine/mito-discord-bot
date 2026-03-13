@@ -120,9 +120,7 @@ function getAvailableLeaders(session: CwcDraftSession): string[] {
 
 function getAvailableCivs(session: CwcDraftSession): string[] {
   if (session.edition !== 'CIV7') return [];
-  if (session.startingAge !== 'None') return [...session.civPool];
-  const used = new Set([...session.picks[0].civs, ...session.picks[1].civs]);
-  return session.civPool.filter((key) => !used.has(key));
+  return [...session.civPool];
 }
 
 function getUserPages(session: CwcDraftSession, userId: string): CwcDraftPageState {

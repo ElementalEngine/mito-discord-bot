@@ -187,10 +187,11 @@ function addGroupFields(args: Readonly<{
   embed: EmbedBuilder;
   groupKind: 'Player' | 'Team';
   groups: readonly DraftGroup[];
+  groupLabels?: readonly string[];
   renderGroupLines: (group: DraftGroup) => string[];
 }>): void {
   for (let i = 0; i < args.groups.length; i += 1) {
-    const fieldNameBase = labelForVoteGroup(args.groupKind, i);
+    const fieldNameBase = args.groupLabels?.[i] ?? labelForVoteGroup(args.groupKind, i);
     const chunks = chunkFieldLines(args.renderGroupLines(args.groups[i]));
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
@@ -203,7 +204,7 @@ function addGroupFields(args: Readonly<{
   }
 }
 
-export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
+export function buildCiv6DraftEmbed(draft: Civ6DraftResult, groupLabels?: readonly string[]): EmbedBuilder {
   const header = formatHeader({
     game: 'civ6',
     gameType: draft.gameType,
@@ -232,6 +233,7 @@ export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
     embed,
     groupKind: draft.allocation.groupKind,
     groups: draft.groups,
+    groupLabels,
     renderGroupLines: (group) =>
       group.leaders.map((key) => renderEmojiReadableLine(lookupCiv6LeaderMeta(key), key)),
   });
@@ -239,7 +241,7 @@ export function buildCiv6DraftEmbed(draft: Civ6DraftResult): EmbedBuilder {
   return embed;
 }
 
-export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
+export function buildCiv7DraftEmbed(draft: Civ7DraftResult, groupLabels?: readonly string[]): EmbedBuilder {
   const header = formatHeader({
     game: 'civ7',
     gameType: draft.gameType,
@@ -273,6 +275,7 @@ export function buildCiv7DraftEmbed(draft: Civ7DraftResult): EmbedBuilder {
     embed,
     groupKind: draft.allocation.groupKind,
     groups: draft.groups,
+    groupLabels,
     renderGroupLines: (group) => {
       const groupLines = ['**Leaders**'];
       groupLines.push(

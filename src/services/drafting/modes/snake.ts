@@ -105,9 +105,7 @@ function getAvailableLeaders(session: SnakeDraftSession): string[] {
 
 function getAvailableCivs(session: SnakeDraftSession): string[] {
   if (session.edition !== 'CIV7') return [];
-  if (session.startingAge !== 'None') return [...session.civPool];
-  const used = new Set([...session.picks.values()].map((pick) => pick.civKey).filter(Boolean));
-  return session.civPool.filter((key) => !used.has(key));
+  return [...session.civPool];
 }
 
 function isUserCurrentPicker(session: SnakeDraftSession, userId: string): boolean {

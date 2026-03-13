@@ -23,6 +23,7 @@ const VOTE_DURATION_MS = 2 * 60_000;
 const FAST_TICK_WINDOW_MS = 10_000;
 const FAST_TICK_MS = 1_000;
 const STEADY_TICK_MS = 2_000;
+const DISCORD_MESSAGE_MAX = 2_000;
 
 const DM_CONCURRENCY = 10;
 
@@ -49,6 +50,36 @@ function buildVoteButtons(
     .setStyle(ButtonStyle.Danger);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(yes, no);
+}
+
+function clampText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
+function buildVoteDmContent(
+  hostUsername: string,
+  action: SecretVoteAction,
+  turn: number,
+  details: string
+): string {
+  const prefix = [
+    `🔒 Secret vote started by **${hostUsername}**.`,
+    `Action: **${action}** • Turn: **${turn}**`,
+    'Details: ',
+  ].join('\n');
+  const suffix = [
+    '',
+    'You have 2 minutes to vote.',
+    'If you don’t vote before the timer ends, you’ll be counted as YES.',
+  ].join('\n');
+
+  const safeMaxDetails = Math.max(
+    1,
+    DISCORD_MESSAGE_MAX - prefix.length - suffix.length - 1
+  );
+
+  return `${prefix}${clampText(details, safeMaxDetails)}${suffix}`;
 }
 
 type VoteTally = Readonly<{
@@ -378,14 +409,12 @@ export async function startSecretVote(
         try {
           const dm = await voter.user.createDM();
           const msg = await dm.send({
-            content: [
-              `🔒 Secret vote started by **${opts.host.username}**.`,
-              `Action: **${opts.action}** • Turn: **${opts.turn}**`,
-              `Details: ${opts.details}`,
-              '',
-              'You have 2 minutes to vote.',
-              'If you don’t vote before the timer ends, you’ll be counted as YES.',
-            ].join('\n'),
+            content: buildVoteDmContent(
+              opts.host.username,
+              opts.action,
+              opts.turn,
+              opts.details
+            ),
             components: [buildVoteButtons(voteId, voter.id)],
             allowedMentions: { parse: [] as const },
           });

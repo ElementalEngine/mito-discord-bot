@@ -62,6 +62,10 @@ function clampLine(text: string, max: number): string {
   return `${oneLine.slice(0, max - 1)}…`;
 }
 
+function normalizeDetails(raw: string): string {
+  return raw.trim();
+}
+
 export const data = new SlashCommandBuilder()
   .setName('secretvote')
   .setDescription('Start a private YES/NO vote for your voice channel.')
@@ -121,8 +125,16 @@ export async function execute(
 
     const action = interaction.options.getString('action', true) as SecretVoteAction;
     const turn = interaction.options.getInteger('turn', true);
-    const details = interaction.options.getString('details', true);
+    const details = normalizeDetails(interaction.options.getString('details', true));
     const mentions = interaction.options.getString('mentions', false);
+
+    if (!details) {
+      await replyEphemeral(
+        interaction,
+        `${EMOJI_FAIL} Provide vote details so voters know exactly what they are deciding.`
+      );
+      return;
+    }
 
     if (action === 'Remap' && turn > 10) {
       await replyEphemeral(
@@ -173,8 +185,10 @@ export async function execute(
     const summary = [
       `${EMOJI_CONFIRM} Secret vote started (2 minutes)`,
       `Action: ${action} • Turn: ${turn}`,
+      `Voters: ${voters.length}`,
       `Details: ${clampLine(details, 800)}`,
       `Started by: <@${interaction.user.id}>`,
+      `Status: ${res.publicMessageUrl}`,
     ].join('\n');
 
     await replyEphemeral(interaction, summary);

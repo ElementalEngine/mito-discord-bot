@@ -1,4 +1,4 @@
-import type { Guild, GuildMember, User, VoiceBasedChannel } from 'discord.js';
+import type { Guild, GuildMember, VoiceBasedChannel } from 'discord.js';
 import type { BuildVoiceChannelVotersResult, VoterUser } from './types.js';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -22,17 +22,13 @@ function uniqMentionIdsInOrder(raw: string | null | undefined): string[] {
 async function resolveUser(
   guild: Guild,
   userId: string
-): Promise<{ user: User; displayName: string } | null> {
+): Promise<{ user: GuildMember['user']; displayName: string } | null> {
   try {
     const member = await guild.members.fetch(userId);
+    if (member.user.bot) return null;
     return { user: member.user, displayName: member.displayName };
   } catch {
-    try {
-      const user = await guild.client.users.fetch(userId);
-      return { user, displayName: user.username };
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
