@@ -112,9 +112,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         gameType: gameType,
         discordIds,
     });
-    console.log('TeamGen result', teamGenResult);
     interaction.editReply({
-      content: `${EMOJI_ROOM_RANKINGS} **Team Generator Result**\n\n` +
+      content: `${EMOJI_ROOM_RANKINGS} **Team Generator Result** (Match Quality: ${teamGenResult.game_quality.toFixed(2)})\n\n` +
         teamGenResult.teams.map((team, i) => `**Team ${i + 1}:**\n${team.map(id => `<@${id}>`).join('\n')}`).join('\n\n`'),
     });
   } catch (err: unknown) {
