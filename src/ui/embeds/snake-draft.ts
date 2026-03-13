@@ -1,6 +1,6 @@
 import { EmbedBuilder, userMention } from 'discord.js';
 
-import { EMOJI_LOCK, EMOJI_SNAKE } from '../../config/constants.js';
+import { EMOJI_SNAKE } from '../../config/constants.js';
 import type { CivEdition } from '../../config/types.js';
 import { formatCiv6Leader, lookupCiv6Leader } from '../../data/civ6.data.js';
 import { formatCiv7Civ, formatCiv7Leader, lookupCiv7Civ, lookupCiv7Leader } from '../../data/civ7.data.js';
@@ -48,7 +48,7 @@ export function buildSnakeDraftWaitingDmEmbed(args: Readonly<{
   if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(args.pick?.civKey)}`);
   lines.push(`**Leader:** ${leaderLine(args.edition, args.pick?.leaderKey)}`);
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_LOCK} Snake Draft`)
+    .setTitle(`${EMOJI_SNAKE} Snake Draft`)
     .setDescription(lines.join('\n'));
 }
 
@@ -66,7 +66,7 @@ export function buildSnakeDraftActiveDmEmbed(args: Readonly<{
       ? 'Choose your leader below, then press **Submit** to lock it in.'
       : 'Choose your civ below, then press **Submit** to lock it in.',
     voteUuidLine(args.voteUuid),
-    formatDeadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs, { includeRelative: false }),
     '',
   ].filter((line): line is string => Boolean(line));
   if (args.edition === 'CIV7') lines.push(`**Civ:** ${civLine(current?.civKey)}`);
@@ -74,7 +74,7 @@ export function buildSnakeDraftActiveDmEmbed(args: Readonly<{
   lines.push('');
   lines.push(`**Status:** ${args.round === 'leader' ? (current?.leaderKey ? 'Ready to submit' : 'Awaiting leader pick') : (current?.civKey ? 'Ready to submit' : 'Awaiting civ pick')}`);
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_LOCK} Snake Draft`)
+    .setTitle(`${EMOJI_SNAKE} Snake Draft`)
     .setDescription(lines.join('\n'));
 }
 
@@ -92,7 +92,7 @@ export function buildSnakeDraftStatusEmbed(args: Readonly<{
     voteUuidLine(args.voteUuid),
     `Round: **${roundLabel(args.edition, args.round)}**`,
     `Current picker: ${userMention(args.currentPickerId)}`,
-    formatDeadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs, { includeRelative: false }),
   ].filter((line): line is string => Boolean(line));
   if (args.lastEvent) {
     lines.push('', args.lastEvent);
@@ -120,7 +120,7 @@ export function buildSnakeDraftStatusEmbed(args: Readonly<{
   }
 
   return new EmbedBuilder()
-    .setTitle(`${EMOJI_LOCK} Snake Draft — ${args.edition === 'CIV6' ? 'Civ6' : 'Civ7'}`)
+    .setTitle(`${EMOJI_SNAKE} Snake Draft — ${args.edition === 'CIV6' ? 'Civ6' : 'Civ7'}`)
     .setDescription(lines.join('\n'));
 }
 

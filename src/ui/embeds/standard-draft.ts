@@ -292,6 +292,66 @@ export function buildCiv7DraftEmbed(draft: Civ7DraftResult, groupLabels?: readon
   return embed;
 }
 
+
+
+export function buildCiv6VoteDraftSummaryEmbed(draft: Civ6DraftResult): EmbedBuilder {
+  const lines: string[] = ['civ6 • standard', `Game Type: ${draft.gameType}`];
+
+  addSummaryLines(lines, {
+    allocation: draft.allocation,
+    leadersLabel: 'Leaders',
+  });
+
+  const bansLine = formatBansLine({
+    leaderKeys: draft.allocation.bannedLeaders,
+    leaderLookup: lookupCiv6LeaderMeta,
+  });
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+  });
+
+  if (bansLine) lines.push(bansLine);
+  if (ignoredLine) lines.push(ignoredLine);
+
+  return new EmbedBuilder()
+    .setTitle('Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
+}
+
+export function buildCiv7VoteDraftSummaryEmbed(draft: Civ7DraftResult): EmbedBuilder {
+  const lines: string[] = [
+    'civ7 • standard',
+    `Game Type: ${draft.gameType}`,
+    `Starting Age: ${draft.startingAge}`,
+  ];
+
+  addSummaryLines(lines, {
+    allocation: draft.allocation,
+    leadersLabel: 'Leaders',
+    civsLabel: 'Civs',
+  });
+
+  const bansLine = formatBansLine({
+    leaderKeys: draft.allocation.bannedLeaders,
+    civKeys: draft.allocation.bannedCivs,
+    leaderLookup: lookupCiv7LeaderMeta,
+    civLookup: lookupCiv7CivMeta,
+  });
+  const ignoredLine = formatIgnoredLine({
+    leader: draft.allocation.ignoredLeaderBans,
+    civ: draft.allocation.ignoredCivBans,
+  });
+
+  if (bansLine) lines.push(bansLine);
+  if (ignoredLine) lines.push(ignoredLine);
+
+  return new EmbedBuilder()
+    .setTitle('Draft')
+    .setDescription(lines.join('\n'))
+    .setColor(0x00ff00);
+}
+
 export function buildCiv6DirectDraftSummaryEmbed(
   draft: Civ6DraftResult,
 ): EmbedBuilder {

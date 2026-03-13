@@ -7,19 +7,25 @@ import type {
 import type { DraftModeOutput } from '../../../types/drafting.types.js';
 import {
   buildCiv6DirectDraftSummaryEmbed,
-  buildCiv6DraftEmbed,
+  buildCiv6VoteDraftSummaryEmbed,
   buildCiv7DirectDraftSummaryEmbed,
-  buildCiv7DraftEmbed,
+  buildCiv7VoteDraftSummaryEmbed,
 } from '../../../ui/embeds/standard-draft.js';
 import {
   buildCiv6DirectDraftMessages,
+  buildCiv6VoteDraftMessages,
   buildCiv7DirectDraftMessages,
+  buildCiv7VoteDraftMessages,
 } from '../../../ui/layouts/standard-draft.js';
 import {
   buildCommandStandardDraftResult,
   buildVoteStandardDraftResult,
 } from '../draft.service.js';
-import { labelForVoteGroup } from '../domain/labels.service.js';
+
+
+function draftGroupTeamLabels(draft: Civ6DraftResult | Civ7DraftResult): string[] {
+  return draft.groups.map((_, index) => `Team ${index + 1}`);
+}
 
 function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftModeOutput {
   const messages = draft.gameVersion === 'civ6'
@@ -53,17 +59,16 @@ export async function runStandardDraftMode(
     return buildCommandOutput(buildCommandStandardDraftResult(request));
   }
 
+  const draft = buildVoteStandardDraftResult(request);
   const groupLabels = request.gameType === 'Teamer'
-    ? undefined
-    : request.voterIds.map((voterId, index) => request.voterUsersById?.has(voterId)
-      ? `<@${voterId}>`
-      : labelForVoteGroup('Player', index));
+    ? draftGroupTeamLabels(draft)
+    : request.voterIds.map((voterId) => `<@${voterId}>`);
 
-  if (request.edition === 'CIV6') {
-    const draft = buildVoteStandardDraftResult(request) as Civ6DraftResult;
-    return { embeds: [buildCiv6DraftEmbed(draft, groupLabels)] };
+  if (draft.gameVersion === 'civ6') {
+    const followUps = buildCiv6VoteDraftMessages(draft, groupLabels).map((content) => ({ content }));
+    return { embeds: [buildCiv6VoteDraftSummaryEmbed(draft)], followUps };
   }
 
-  const draft = buildVoteStandardDraftResult(request) as Civ7DraftResult;
-  return { embeds: [buildCiv7DraftEmbed(draft, groupLabels)] };
+  const followUps = buildCiv7VoteDraftMessages(draft, groupLabels).map((content) => ({ content }));
+  return { embeds: [buildCiv7VoteDraftSummaryEmbed(draft)], followUps };
 }

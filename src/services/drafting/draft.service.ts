@@ -49,7 +49,7 @@ export function buildVoteStandardDraftResult(request: VoteDraftRequest): Civ6Dra
   const leaderBansRaw = resolveLeaderBansRaw(request);
 
   if (request.edition === 'CIV6') {
-    return generateCiv6Draft({
+    return generateDirectCiv6Draft({
       gameType: request.gameType,
       numberPlayers: request.numberPlayers,
       numberTeams: request.numberTeams,
@@ -57,7 +57,7 @@ export function buildVoteStandardDraftResult(request: VoteDraftRequest): Civ6Dra
     });
   }
 
-  return generateCiv7Draft({
+  return generateDirectCiv7Draft({
     gameType: request.gameType,
     startingAge: request.startingAge ?? 'Antiquity_Age',
     numberPlayers: request.numberPlayers,

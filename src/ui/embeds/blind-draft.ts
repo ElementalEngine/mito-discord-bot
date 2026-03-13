@@ -63,7 +63,7 @@ export function buildBlindDraftEmbed(args: Readonly<{
   const lines: string[] = [
     'Choose your blind draft picks below, then press **Submit** to lock them in.',
     voteUuidLine(args.voteUuid),
-    formatDeadlineLine(args.endsAtMs),
+    formatDeadlineLine(args.endsAtMs, { includeRelative: false }),
     '',
   ].filter((line): line is string => Boolean(line));
 
@@ -116,7 +116,7 @@ export function buildBlindDraftTrackingEmbed(args: Readonly<{
     .setTitle(`${EMOJI_LOCK} Blind Draft Status`)
     .setDescription([
       voteUuidLine(args.voteUuid),
-      formatDeadlineLine(args.endsAtMs),
+      formatDeadlineLine(args.endsAtMs, { includeRelative: false }),
       '',
       ...lines,
     ].filter((line): line is string => Boolean(line)).join('\n'));

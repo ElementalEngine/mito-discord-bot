@@ -79,3 +79,41 @@ export function buildCiv6DirectDraftMessages(draft: Civ6DraftResult): string[] {
 export function buildCiv7DirectDraftMessages(draft: Civ7DraftResult): string[] {
   return draft.groups.flatMap((_, index) => splitSection(buildCiv7Section(draft, index)));
 }
+
+
+function buildCiv6SectionWithLabel(draft: Civ6DraftResult, index: number, label: string): string {
+  const lines: string[] = [label];
+
+  for (const key of draft.groups[index].leaders) {
+    lines.push(`${formatCiv6Leader(key)} ${lookupCiv6Leader(key)}`);
+  }
+
+  return lines.join('\n');
+}
+
+function buildCiv7SectionWithLabel(draft: Civ7DraftResult, index: number, label: string): string {
+  const group = draft.groups[index];
+  const lines: string[] = [
+    label,
+    'Leaders',
+  ];
+
+  for (const key of group.leaders) {
+    lines.push(`${formatCiv7Leader(key)} ${lookupCiv7Leader(key)}`);
+  }
+
+  lines.push('', 'Civs');
+  for (const key of group.civs ?? []) {
+    lines.push(`${formatCiv7Civ(key)} ${lookupCiv7Civ(key)}`);
+  }
+
+  return lines.join('\n');
+}
+
+export function buildCiv6VoteDraftMessages(draft: Civ6DraftResult, groupLabels: readonly string[]): string[] {
+  return draft.groups.flatMap((_, index) => splitSection(buildCiv6SectionWithLabel(draft, index, groupLabels[index] ?? labelForDirectGroup(draft.allocation.groupKind, index))));
+}
+
+export function buildCiv7VoteDraftMessages(draft: Civ7DraftResult, groupLabels: readonly string[]): string[] {
+  return draft.groups.flatMap((_, index) => splitSection(buildCiv7SectionWithLabel(draft, index, groupLabels[index] ?? labelForDirectGroup(draft.allocation.groupKind, index))));
+}
