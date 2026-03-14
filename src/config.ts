@@ -107,10 +107,9 @@ const discord = {
     admin: env('ROLE_ADMIN'),
     developer: env('ROLE_DEVELOPER'),
     noviceManager: env('ROLE_NOVICE_MANAGER'),
-    civ6Rank: env('ROLE_CIV6_RANKED'),
-    civ7Rank: env('ROLE_CIV7_RANKED'),
+    civ6Rank: env('ROLE_CIV6'),
+    civ7Rank: env('ROLE_CIV7'),
     civCloud: env('ROLE_CLOUD'),
-    novice: env('ROLE_NOVICE'),
   },
   
   rankRoles,
