@@ -146,6 +146,8 @@ export type BlindDraftSession = {
   stagedPicks: Map<string, BlindDraftPick>;
   voteUuid?: string;
   pages: Map<string, BlindDraftPageState>;
+  phase: 'collecting' | 'finalizing' | 'closed';
+  trackingRenderChain: Promise<void> | null;
 };
 
 export type SnakeRoundKind = 'leader' | 'civ' | 'complete';

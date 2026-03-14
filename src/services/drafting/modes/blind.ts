@@ -180,6 +180,40 @@ function isBlindComplete(session: BlindDraftSession): boolean {
   });
 }
 
+async function applyTrackingMessagePayload(
+  session: BlindDraftSession,
+  payload: DraftRenderPayload,
+): Promise<void> {
+  try {
+    session.trackingMessage = await upsertDraftTrackingMessage(
+      session.trackingMessage,
+      payload,
+      () => session.commandChannel.send(payload),
+    );
+  } catch {
+    session.trackingMessage = null;
+  }
+}
+
+function queueTrackingMessageRender(
+  session: BlindDraftSession,
+  payload: DraftRenderPayload,
+  options?: Readonly<{ allowWhenFinalizing?: boolean }>,
+): Promise<void> {
+  if (!options?.allowWhenFinalizing && session.phase !== 'collecting') {
+    return Promise.resolve();
+  }
+
+  const previous = session.trackingRenderChain ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(async () => {
+    if (!options?.allowWhenFinalizing && session.phase !== 'collecting') return;
+    await applyTrackingMessagePayload(session, payload);
+  });
+
+  session.trackingRenderChain = next;
+  return next;
+}
+
 async function updateTrackingMessage(session: BlindDraftSession): Promise<void> {
   const payload: DraftRenderPayload = {
     embeds: [
@@ -195,18 +229,13 @@ async function updateTrackingMessage(session: BlindDraftSession): Promise<void> 
     allowedMentions: { parse: [] as const },
   };
 
-  try {
-    session.trackingMessage = await upsertDraftTrackingMessage(
-      session.trackingMessage,
-      payload,
-      () => session.commandChannel.send(payload),
-    );
-  } catch {
-    session.trackingMessage = null;
-  }
+  await queueTrackingMessageRender(session, payload);
 }
 
 async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'timeout' | 'complete'): Promise<void> {
+  if (session.phase !== 'collecting') return;
+  session.phase = 'finalizing';
+
   const trackingPayload: DraftRenderPayload = {
     embeds: [
       reason === 'complete'
@@ -226,21 +255,15 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
     allowedMentions: { parse: [] as const },
   };
 
-  if (session.trackingMessage) {
-    await safeEditDraftMessage(session.trackingMessage, trackingPayload);
-  } else {
-    try {
-      session.trackingMessage = await session.commandChannel.send(trackingPayload);
-    } catch {
-      // best effort
-    }
-  }
+  await queueTrackingMessageRender(session, trackingPayload, { allowWhenFinalizing: true });
 
   await closeInteractiveDraftSession(activeBlindDrafts, session, async () => {
     await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([voterId, message]) => {
       await safeEditDraftMessage(message, buildClosedDmPayload(session, voterId, reason));
     });
   });
+
+  session.phase = 'closed';
 }
 
 async function failSentBlindDmMessages(messages: readonly Message<false>[]): Promise<void> {
@@ -279,6 +302,8 @@ async function startBlindDraftSession(
     stagedPicks: new Map(),
     pages: new Map(),
     voteUuid: request.voteUuid,
+    phase: 'collecting',
+    trackingRenderChain: null,
   };
 
   for (const assignment of assignments) {
@@ -415,10 +440,26 @@ export async function handleBlindDraftButton(interaction: ButtonInteraction): Pr
     }
 
     session.picks.set(userId, { ...staged });
-    await interaction.update(buildBlindDmPayload(session, userId));
+    const isComplete = isBlindComplete(session);
+    const dmPayload = buildBlindDmPayload(session, userId);
+
+    try {
+      await interaction.update(dmPayload);
+    } catch {
+      try {
+        if (interaction.message.editable) {
+          await interaction.message.edit(dmPayload);
+        } else {
+          await replyDraftNotice(interaction, '✅ Blind draft pick recorded.');
+        }
+      } catch {
+        await replyDraftNotice(interaction, '✅ Blind draft pick recorded.');
+      }
+    }
+
     await updateTrackingMessage(session);
 
-    if (isBlindComplete(session)) {
+    if (isComplete) {
       await finalizeBlindDraftSession(session, 'complete');
     }
     return true;

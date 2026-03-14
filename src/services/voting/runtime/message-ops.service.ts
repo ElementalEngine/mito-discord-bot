@@ -47,7 +47,7 @@ export async function safeEditMessage(
 ): Promise<void> {
   try {
     await msg.edit({
-      content: payload.content ?? null,
+      content: payload.content ?? msg.content ?? null,
       embeds: payload.embeds,
       components: payload.components,
       allowedMentions: { parse: [] as const },

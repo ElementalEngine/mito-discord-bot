@@ -44,6 +44,18 @@ export type RecordSecretVoteResult =
       choice: SecretVoteChoice;
     }>;
 
+
+async function safeDeletePublicSecretVoteMessage(
+  publicMessage: { delete: () => Promise<unknown> } | null | undefined
+): Promise<void> {
+  if (!publicMessage) return;
+  try {
+    await publicMessage.delete();
+  } catch {
+    // best effort
+  }
+}
+
 async function finalizeSecretVote(
   sessionId: string,
   reason: 'timeout' | 'complete'
@@ -112,27 +124,6 @@ export async function startSecretVote(
     const voteId = randomUUID();
     const { startedAtMs, endsAtMs } = createSecretVoteDeadlineWindow();
 
-    const dmResult = await sendSecretVoteDmPrompts({
-      voteId,
-      hostUsername: options.host.username,
-      action: options.action,
-      turn: options.turn,
-      details: options.details,
-      voters: options.voters,
-    });
-
-    if (!dmResult.ok) {
-      await rollbackSecretVoteDmMessages(dmResult.sentMessages);
-      const name = dmResult.failedVoter.displayName
-        ? `**${dmResult.failedVoter.displayName}**`
-        : `<@${dmResult.failedVoter.id}>`;
-      return {
-        ok: false,
-        kind: 'DM_BLOCKED',
-        message: `${EMOJI_ERROR} Cannot start vote — I couldn't DM ${name}. They likely have DMs disabled.`,
-      };
-    }
-
     const initialStatus = buildInitialSecretVoteStatus({
       voteId,
       action: options.action,
@@ -147,13 +138,46 @@ export async function startSecretVote(
       })),
     });
 
-    let publicMessage;
-    try {
-      publicMessage = await sendSecretVotePublicMessage(
-        options.commandChannel,
-        initialStatus
-      );
-    } catch {
+    const [publicMessageResult, dmSendResult] = await Promise.allSettled([
+      sendSecretVotePublicMessage(options.commandChannel, initialStatus),
+      sendSecretVoteDmPrompts({
+        voteId,
+        hostUsername: options.host.username,
+        action: options.action,
+        turn: options.turn,
+        details: options.details,
+        voters: options.voters,
+      }),
+    ]);
+
+    const maybePublicMessage = publicMessageResult.status === 'fulfilled'
+      ? publicMessageResult.value
+      : null;
+
+    if (dmSendResult.status !== 'fulfilled') {
+      await safeDeletePublicSecretVoteMessage(maybePublicMessage);
+      return {
+        ok: false,
+        kind: 'SEND_FAILED',
+        message: `${EMOJI_ERROR} Secret vote failed due to an unexpected DM send error.`,
+      };
+    }
+
+    const dmResult = dmSendResult.value;
+    if (!dmResult.ok) {
+      await safeDeletePublicSecretVoteMessage(maybePublicMessage);
+      await rollbackSecretVoteDmMessages(dmResult.sentMessages);
+      const name = dmResult.failedVoter.displayName
+        ? `**${dmResult.failedVoter.displayName}**`
+        : `<@${dmResult.failedVoter.id}>`;
+      return {
+        ok: false,
+        kind: 'DM_BLOCKED',
+        message: `${EMOJI_ERROR} Cannot start vote — I couldn't DM ${name}. They likely have DMs disabled.`,
+      };
+    }
+
+    if (publicMessageResult.status !== 'fulfilled') {
       await rollbackSecretVoteDmMessages([...dmResult.dmMessages.values()]);
       return {
         ok: false,
@@ -161,6 +185,8 @@ export async function startSecretVote(
         message: `${EMOJI_ERROR} I couldn't post the public vote embed in this channel.`,
       };
     }
+
+    const publicMessage = publicMessageResult.value;
 
     const session = createSecretVoteSession({
       voteId,
