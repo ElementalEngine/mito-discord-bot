@@ -41,13 +41,41 @@ export async function replyNotice(
   await replySafe(interaction, payload);
 }
 
+function normalizeComparable(value: unknown): unknown {
+  if (value === null || value === undefined) return value ?? null;
+  if (Array.isArray(value)) return value.map((entry) => normalizeComparable(entry));
+  if (typeof value === 'object') {
+    if ('toJSON' in value && typeof (value as { toJSON?: unknown }).toJSON === 'function') {
+      return normalizeComparable((value as { toJSON: () => unknown }).toJSON());
+    }
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, normalizeComparable(entry)]);
+    return Object.fromEntries(entries);
+  }
+  return value;
+}
+
+function normalizedJson(value: unknown): string {
+  return JSON.stringify(normalizeComparable(value));
+}
+
 export async function safeEditMessage(
   msg: Message<true>,
   payload: PublicVotePayload,
 ): Promise<void> {
   try {
+    if (!msg.editable) return;
+
+    const nextContent = payload.content ?? msg.content ?? null;
+    const sameContent = nextContent === (msg.content || null);
+    const sameEmbeds = normalizedJson(payload.embeds) === normalizedJson(msg.embeds);
+    const sameComponents = normalizedJson(payload.components) === normalizedJson(msg.components);
+
+    if (sameContent && sameEmbeds && sameComponents) return;
+
     await msg.edit({
-      content: payload.content ?? msg.content ?? null,
+      content: nextContent,
       embeds: payload.embeds,
       components: payload.components,
       allowedMentions: { parse: [] as const },

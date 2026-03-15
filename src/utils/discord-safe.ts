@@ -10,7 +10,8 @@ export async function safeDelete(
 }
 
 export function deleteLater(message: DeletableMessage, ms: number): void {
-  setTimeout(() => {
+  const timeout = setTimeout(() => {
     void safeDelete(message);
   }, ms);
+  timeout.unref?.();
 }

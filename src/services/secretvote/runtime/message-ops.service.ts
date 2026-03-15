@@ -90,13 +90,36 @@ async function forEachLimit<T>(
   await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
 }
 
+function normalizeComparable(value: unknown): unknown {
+  if (value === null || value === undefined) return value ?? null;
+  if (Array.isArray(value)) return value.map((entry) => normalizeComparable(entry));
+  if (typeof value === 'object') {
+    if ('toJSON' in value && typeof (value as { toJSON?: unknown }).toJSON === 'function') {
+      return normalizeComparable((value as { toJSON: () => unknown }).toJSON());
+    }
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, normalizeComparable(entry)]);
+    return Object.fromEntries(entries);
+  }
+  return value;
+}
+
+function normalizedJson(value: unknown): string {
+  return JSON.stringify(normalizeComparable(value));
+}
+
 async function safeEditPublic(
   session: SecretVoteSession,
   status: SecretVoteStatus
 ): Promise<void> {
   if (!session.publicMessage.editable) return;
+  const embed = buildSecretVoteEmbed(status);
+  if (normalizedJson([embed]) === normalizedJson(session.publicMessage.embeds)) {
+    return;
+  }
   await session.publicMessage.edit({
-    embeds: [buildSecretVoteEmbed(status)],
+    embeds: [embed],
     allowedMentions: { parse: [] as const },
   });
 }

@@ -3,6 +3,7 @@ import type { BuildVoiceChannelVotersResult, VoterUser } from './types.js';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
 const MENTION_RE = /<@!?(\d{17,20})>/g;
+const MEMBER_FETCH_CONCURRENCY = 4;
 
 function uniqMentionIdsInOrder(raw: string | null | undefined): string[] {
   const text = (raw ?? '').trim();
@@ -40,6 +41,22 @@ function baseVoiceMembers(voiceChannel: VoiceBasedChannel): GuildMember[] {
   return out;
 }
 
+async function forEachLimit<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  if (items.length === 0) return;
+  const concurrency = Math.max(1, Math.min(limit, items.length));
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      await fn(items[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+}
+
 export async function buildVoiceChannelVoters(
   guild: Guild,
   voiceChannel: VoiceBasedChannel,
@@ -72,12 +89,12 @@ export async function buildVoiceChannelVoters(
     byId.set(m.id, { id: m.id, displayName: m.displayName, user: m.user });
   }
 
-  for (const id of addIds) {
-    if (byId.has(id)) continue;
+  await forEachLimit(addIds, MEMBER_FETCH_CONCURRENCY, async (id) => {
+    if (byId.has(id)) return;
     const resolved = await resolveUser(guild, id);
-    if (!resolved) continue;
+    if (!resolved) return;
     byId.set(id, { id, displayName: resolved.displayName, user: resolved.user });
-  }
+  });
 
   const voters: VoterUser[] = [];
   const seen = new Set<string>();

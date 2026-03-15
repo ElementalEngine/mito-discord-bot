@@ -46,6 +46,8 @@ import { DraftError } from '../draft.service.js';
 const SNAKE_MENU_PAGE_SIZE = 25;
 const activeSnakeDrafts = new Map<string, SnakeDraftSession>();
 
+const DM_CONCURRENCY = 8;
+
 type SnakeCustomId =
   | Readonly<{ action: 'pick'; pickType: 'leader' | 'civ'; sessionId: string; turnToken: number }>
   | Readonly<{ action: 'nav'; pickType: 'leader' | 'civ'; navDir: 'prev' | 'next'; sessionId: string; turnToken: number }>
@@ -86,6 +88,25 @@ function parseSnakeCustomId(customId: string): SnakeCustomId | null {
 }
 
 
+async function forEachLimit<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  if (items.length === 0) return;
+  const concurrency = Math.max(1, Math.min(limit, items.length));
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      try {
+        await fn(items[index]);
+      } catch {
+        // best effort
+      }
+    }
+  }
+
+  await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
+}
 
 function getCurrentOrder(session: SnakeDraftSession): readonly string[] {
   if (session.round === 'leader') return session.order;
@@ -206,9 +227,9 @@ async function finalizeSnakeDraftSession(session: SnakeDraftSession): Promise<vo
   await closeInteractiveDraftSession(activeSnakeDrafts, session, async () => {
     session.round = 'complete';
     await updateTrackingMessage(session);
-    for (const [userId, message] of session.dmMessages.entries()) {
+    await forEachLimit([...session.dmMessages.entries()], DM_CONCURRENCY, async ([userId, message]) => {
       await safeEditDraftMessage(message, buildWaitingPayload(session, userId));
-    }
+    });
   });
 }
 
@@ -280,12 +301,52 @@ async function handleSnakeTimeout(session: SnakeDraftSession): Promise<void> {
 }
 
 async function failSentDmMessages(messages: readonly Message<false>[]): Promise<void> {
-  for (const message of messages) {
+  await forEachLimit(messages, DM_CONCURRENCY, async (message) => {
     await safeEditDraftMessage(message, {
       content: `${EMOJI_ERROR} Snake draft could not start because I could not DM every voter. Please enable DMs and try again.`,
       embeds: [],
       components: [],
     });
+  });
+}
+
+async function sendSnakeDraftDmPrompts(session: SnakeDraftSession): Promise<void> {
+  let nextIndex = 0;
+  let failed = false;
+  const sentMessages: Message<false>[] = [];
+  const firstPickerId = getCurrentPickerId(session);
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= session.voterIds.length || failed) return;
+
+      const userId = session.voterIds[index];
+      const user = session.voterUsersById.get(userId);
+      if (!user) {
+        failed = true;
+        return;
+      }
+
+      try {
+        const payload = userId === firstPickerId
+          ? buildActivePayload(session, userId)
+          : buildWaitingPayload(session, userId);
+        const message = await user.send(payload);
+        session.dmMessages.set(userId, message);
+        sentMessages.push(message);
+      } catch {
+        failed = true;
+        return;
+      }
+    }
+  }
+
+  await Promise.allSettled(Array.from({ length: Math.max(1, Math.min(DM_CONCURRENCY, session.voterIds.length)) }, () => worker()));
+
+  if (failed) {
+    await failSentDmMessages(sentMessages);
+    throw new DraftError('VALIDATION', 'Snake draft could not start because I could not DM every voter. Please enable DMs and try again.');
   }
 }
 
@@ -337,26 +398,7 @@ export async function runSnakeDraftMode(request: VoteDraftRequest): Promise<Draf
     voteUuid: request.voteUuid,
   };
 
-  const dmMessages: Message<false>[] = [];
-  const firstPickerId = getCurrentPickerId(session);
-  for (const userId of request.voterIds) {
-    const user = request.voterUsersById.get(userId);
-    if (!user) {
-      throw new DraftError('VALIDATION', 'Snake draft requires DM access for every voter.');
-    }
-
-    try {
-      const payload = userId === firstPickerId
-        ? buildActivePayload(session, userId)
-        : buildWaitingPayload(session, userId);
-      const message = await user.send(payload);
-      session.dmMessages.set(userId, message);
-      dmMessages.push(message);
-    } catch {
-      await failSentDmMessages(dmMessages);
-      throw new DraftError('VALIDATION', 'Snake draft could not start because I could not DM every voter. Please enable DMs and try again.');
-    }
-  }
+  await sendSnakeDraftDmPrompts(session);
 
   activeSnakeDrafts.set(sessionId, session);
   await scheduleNextTurn(session, null);

@@ -59,10 +59,13 @@ export async function closeInteractiveDraftSession<T extends ActiveSession>(
 ): Promise<void> {
   if (!sessions.has(session.sessionId)) return;
   clearInteractiveSessionTimeout(session);
-  if (onClose) {
-    await onClose();
+  try {
+    if (onClose) {
+      await onClose();
+    }
+  } finally {
+    sessions.delete(session.sessionId);
   }
-  sessions.delete(session.sessionId);
 }
 
 export function isStaleDraftTurnToken(

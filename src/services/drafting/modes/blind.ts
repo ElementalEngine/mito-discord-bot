@@ -267,14 +267,53 @@ async function finalizeBlindDraftSession(session: BlindDraftSession, reason: 'ti
 }
 
 async function failSentBlindDmMessages(messages: readonly Message<false>[]): Promise<void> {
-  for (const message of messages) {
+  await forEachLimit(messages, DM_CONCURRENCY, async (message) => {
     await safeEditDraftMessage(message, {
       content: `${EMOJI_ERROR} Blind draft could not start because I could not DM every voter. Please enable DMs and try again.`,
       embeds: [],
       components: [],
       allowedMentions: { parse: [] as const },
     });
+  });
+}
+
+async function sendBlindDraftDmPrompts(session: BlindDraftSession): Promise<readonly Message<false>[]> {
+  const sentMessages: Message<false>[] = [];
+  let nextIndex = 0;
+  let failedVoterId: string | null = null;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= session.voterIds.length || failedVoterId) return;
+
+      const voterId = session.voterIds[index];
+      const user = session.voterUsersById.get(voterId);
+      if (!user) {
+        failedVoterId = voterId;
+        return;
+      }
+
+      try {
+        const message = await user.send(buildBlindDmPayload(session, voterId));
+        session.dmMessages.set(voterId, message);
+        sentMessages.push(message);
+      } catch (err) {
+        console.info('[blind-draft] dm send failed', { voterId, err });
+        if (!failedVoterId) failedVoterId = voterId;
+        return;
+      }
+    }
   }
+
+  await Promise.allSettled(Array.from({ length: Math.max(1, Math.min(DM_CONCURRENCY, session.voterIds.length)) }, () => worker()));
+
+  if (failedVoterId) {
+    await failSentBlindDmMessages(sentMessages);
+    throw new DraftError('VALIDATION', 'Blind draft could not start because I could not DM every voter. Please enable DMs and try again.');
+  }
+
+  return sentMessages;
 }
 
 async function startBlindDraftSession(
@@ -316,23 +355,7 @@ async function startBlindDraftSession(
     session.pages.set(assignment.voterId, { civPage: 0, leaderPage: 0 });
   }
 
-  const dmMessages: Message<false>[] = [];
-  for (const voterId of request.voterIds) {
-    const user = session.voterUsersById.get(voterId);
-    if (!user) {
-      throw new DraftError('VALIDATION', 'Blind draft requires DM access for every voter.');
-    }
-
-    try {
-      const message = await user.send(buildBlindDmPayload(session, voterId));
-      session.dmMessages.set(voterId, message);
-      dmMessages.push(message);
-    } catch (err) {
-      console.info('[blind-draft] dm send failed', { voterId, err });
-      await failSentBlindDmMessages(dmMessages);
-      throw new DraftError('VALIDATION', 'Blind draft could not start because I could not DM every voter. Please enable DMs and try again.');
-    }
-  }
+  await sendBlindDraftDmPrompts(session);
 
   activeBlindDrafts.set(session.sessionId, session);
   await updateTrackingMessage(session);
