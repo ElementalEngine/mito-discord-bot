@@ -61,6 +61,7 @@ const discord = {
     civ6Commands: env('CHANNEL_CIV6_COMMANDS_ID'),
     civ7Commands: env('CHANNEL_CIV7_COMMANDS_ID'),
     cloudCommands: env('CHANNEL_CLOUD_COMMANDS_ID'),
+    noviceCommands: env('CHANNEL_NOVICE_COMMANDS_ID'),
     // Vote + Draft channels
     civ6ffaVote: env('CHANNEL_CIV6_FFA_VOTE_ID'),
     civ6teamerVote: env('CHANNEL_CIV6_TEAMER_VOTE_ID'),

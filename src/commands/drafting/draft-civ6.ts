@@ -13,6 +13,7 @@ function allowedDraftChannels(): readonly string[] {
   return [
     config.discord.channels.botTesting,
     config.discord.channels.civ6Commands,
+    config.discord.channels.noviceCommands
   ];
 }
 

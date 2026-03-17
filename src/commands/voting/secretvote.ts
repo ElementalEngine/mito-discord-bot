@@ -19,6 +19,7 @@ const ACCESS_POLICY = {
     config.discord.channels.civ6Commands,
     config.discord.channels.civ7Commands,
     config.discord.channels.cloudCommands,
+    config.discord.channels.noviceCommands,
   ],
 } as const;
 

@@ -49,9 +49,15 @@ async function getMember(
 }
 
 function allowedVoteChannels(gameType: DraftGameType): readonly string[] {
-  return gameType === 'Teamer'
-    ? [config.discord.channels.civ6teamerVote]
-    : [config.discord.channels.civ6ffaVote];
+  if (gameType === 'Teamer') {
+    return [config.discord.channels.civ6teamerVote, config.discord.channels.noviceCommands];
+  }
+
+  if (gameType === 'FFA') {
+    return [config.discord.channels.civ6ffaVote, config.discord.channels.noviceCommands];
+  }
+
+  return [config.discord.channels.civ6ffaVote];
 }
 
 export const data = new SlashCommandBuilder()
