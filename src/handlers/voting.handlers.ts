@@ -226,13 +226,16 @@ export async function handleGameVoteSelect(
     }
 
     const next = ensureStagedBans(v, userId);
-    if (
-      prevLeaderKeys === next.leaderKeys.join('\u0000')
-      && prevCivKeys === next.civKeys.join('\u0000')
-    ) {
+    const changed = (
+      prevLeaderKeys !== next.leaderKeys.join('\u0000')
+      || prevCivKeys !== next.civKeys.join('\u0000')
+    );
+    if (!changed) {
       await interaction.deferUpdate();
       return true;
     }
+
+    setBanSearchQuery(v, userId, parsed.banType, '');
 
     const payload = buildBansPanelViewPayload(v, userId);
     await interaction.update({ embeds: payload.embeds, components: payload.components });
@@ -595,9 +598,11 @@ export async function handleGameVoteButton(
     const page = getBanPageState(v, userId);
     const leaders = getLeaderBanSource(v);
     const civs = getCivBanSource(v);
+    const hostLeaderBanSet = new Set(v.hostLeaderBanKeys);
+    const hostCivBanSet = new Set(v.hostCivBanKeys);
 
-    const leaderKeys = sortKeysByGameId(leaders);
-    const civKeys = civs ? sortKeysByGameId(civs) : [];
+    const leaderKeys = sortKeysByGameId(leaders).filter((key) => !hostLeaderBanSet.has(key));
+    const civKeys = civs ? sortKeysByGameId(civs).filter((key) => !hostCivBanSet.has(key)) : [];
 
     const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
     const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
