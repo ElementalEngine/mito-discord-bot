@@ -16,7 +16,6 @@ import {
   encodeVoteSelections,
   pickRandomVoteValue,
 } from '../services/voting/domain/tally.service.js';
-import { formatBanInputIssues, resolveTypedBanInput } from '../services/voting/domain/ban-input.service.js';
 import { areAllVotersFinished } from '../services/voting/domain/progress.service.js';
 import {
   buildBansPanelViewPayload,
@@ -24,6 +23,8 @@ import {
   BAN_LEADER_PAGE_SIZE,
   getCivBanSource,
   getLeaderBanSource,
+  getVisibleCivBanKeys,
+  getVisibleLeaderBanKeys,
   sortKeysByGameId,
 } from '../services/voting/panels/bans-panel.service.js';
 import { buildBallotPayload } from '../services/voting/panels/vote-panel.service.js';
@@ -36,10 +37,12 @@ import {
   setBanPageState,
   ensureStagedBans,
   mergePagedBanSelection,
+  getBanSearchState,
   hasStagedBanChanges,
   getEmptyBans,
   cloneBanSubmission,
   normalizeBanSubmission,
+  setBanSearchQuery,
 } from '../services/voting/runtime/bans-state.service.js';
 import {
   replySafe,
@@ -63,7 +66,7 @@ type ParsedCustomId =
   | Readonly<{ action: 'ballotnav'; navDir: 'prev' | 'next'; sessionId: string }>
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
-  | Readonly<{ action: 'banpick' | 'bantext' | 'bantextsubmit'; banType: 'civ' | 'leader'; sessionId: string }>
+  | Readonly<{ action: 'banpick' | 'bansearch' | 'bansearchsubmit'; banType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'bannav'; banType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
 
@@ -89,7 +92,7 @@ function parseCustomId(id: string): ParsedCustomId | null {
     return { action: 'nav', pickType, navDir, sessionId };
   }
 
-  if (action === 'banpick' || action === 'bantext' || action === 'bantextsubmit') {
+  if (action === 'banpick' || action === 'bansearch' || action === 'bansearchsubmit') {
     const banType = parts[2] as 'civ' | 'leader';
     const sessionId = parts[3];
     if (!sessionId || (banType !== 'civ' && banType !== 'leader')) return null;
@@ -135,23 +138,24 @@ function isVoter(v: GameVoteSession, userId: string): boolean {
   return v.voterIds.includes(userId);
 }
 
-function buildBanTextModal(sessionId: string, banType: 'leader' | 'civ'): ModalBuilder {
+function buildBanSearchModal(sessionId: string, banType: 'leader' | 'civ', currentQuery?: string): ModalBuilder {
   const noun = banType === 'leader' ? 'Leader' : 'Civ';
   const modal = new ModalBuilder()
-    .setCustomId(`gv:bantextsubmit:${banType}:${sessionId}`)
-    .setTitle(`Type ${noun} Bans`)
+    .setCustomId(`gv:bansearchsubmit:${banType}:${sessionId}`)
+    .setTitle(`Search ${noun} Bans`)
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
-          .setCustomId('tokens')
-          .setLabel(`${noun} bans`)
+          .setCustomId('query')
+          .setLabel(`${noun} search`)
           .setPlaceholder(
             banType === 'leader'
-              ? 'Cleopatra, :trajan:, <:_romecaesar_:123>'
-              : 'Roman, :egyptian:, Maya'
+              ? 'Cleopatra or :trajan: (leave blank to clear)'
+              : 'Rome or :egypt: (leave blank to clear)'
           )
-          .setRequired(true)
-          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setStyle(TextInputStyle.Short)
+          .setValue(currentQuery ?? '')
       )
     );
 
@@ -191,13 +195,7 @@ export async function handleGameVoteSelect(
     const prevCivKeys = cur.civKeys.join('\u0000');
 
     if (parsed.banType === 'leader') {
-      const leaders = getLeaderBanSource(v);
-      const leaderKeys = sortKeysByGameId(leaders);
-      const page = getBanPageState(v, userId);
-      const leaderSlice = leaderKeys.slice(
-        page.leaderPage * BAN_LEADER_PAGE_SIZE,
-        page.leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE
-      );
+      const leaderSlice = getVisibleLeaderBanKeys(v, userId);
 
       v.stagedBansByVoter.set(
         userId,
@@ -216,12 +214,7 @@ export async function handleGameVoteSelect(
         await replyNotice(interaction, '⚠️ Civ bans are not available right now.');
         return true;
       }
-      const civKeys = sortKeysByGameId(civs);
-      const page = getBanPageState(v, userId);
-      const civSlice = civKeys.slice(
-        page.civPage * BAN_CIV_PAGE_SIZE,
-        page.civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE
-      );
+      const civSlice = getVisibleCivBanKeys(v, userId);
 
       v.stagedBansByVoter.set(
         userId,
@@ -540,7 +533,7 @@ export async function handleGameVoteButton(
     return true;
   }
 
-  if (parsed.action === 'bantext') {
+  if (parsed.action === 'bansearch') {
     if (v.status !== 'in_progress' || v.phase !== 'voting') {
       await replyNotice(interaction, '⚠️ Bans are closed.');
       return true;
@@ -558,7 +551,9 @@ export async function handleGameVoteButton(
       return true;
     }
 
-    await interaction.showModal(buildBanTextModal(v.sessionId, parsed.banType));
+    const searchState = getBanSearchState(v, userId);
+    const currentQuery = parsed.banType === 'leader' ? searchState.leaderQuery : searchState.civQuery;
+    await interaction.showModal(buildBanSearchModal(v.sessionId, parsed.banType, currentQuery));
     return true;
   }
 
@@ -658,7 +653,7 @@ export async function handleGameVoteModal(
   interaction: ModalSubmitInteraction
 ): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);
-  if (!parsed || parsed.action !== 'bantextsubmit') return false;
+  if (!parsed || parsed.action !== 'bansearchsubmit') return false;
 
   const v = getVoteSessionById(parsed.sessionId);
   if (!v) {
@@ -684,37 +679,15 @@ export async function handleGameVoteModal(
     return true;
   }
 
-  const raw = interaction.fields.getTextInputValue('tokens');
-  const resolved = resolveTypedBanInput(v, parsed.banType, raw);
-  if (resolved.keys.length === 0) {
-    const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens) ?? 'No valid bans were found.';
-    await replyNotice(interaction, `⚠️ No valid ${parsed.banType} bans were found.\n${issues}`);
-    return true;
-  }
+  const raw = interaction.fields.getTextInputValue('query');
+  setBanSearchQuery(v, userId, parsed.banType, raw);
 
-  const current = ensureStagedBans(v, userId);
-  const next = normalizeBanSubmission(
-    v,
-    parsed.banType === 'leader'
-      ? { leaderKeys: resolved.keys, civKeys: current.civKeys }
-      : { leaderKeys: current.leaderKeys, civKeys: resolved.keys }
-  );
-
-  v.stagedBansByVoter.set(userId, next);
   const payload = buildBansPanelViewPayload(v, userId);
 
   if (interaction.isFromMessage()) {
     await interaction.update({ embeds: payload.embeds, components: payload.components });
   } else {
     await replySafe(interaction, { ...payload, flags: MessageFlags.Ephemeral });
-  }
-
-  const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens);
-  if (issues) {
-    await replySafe(interaction, {
-      content: `⚠️ Some entries were ignored.\n${issues}`,
-      flags: MessageFlags.Ephemeral,
-    });
   }
 
   return true;

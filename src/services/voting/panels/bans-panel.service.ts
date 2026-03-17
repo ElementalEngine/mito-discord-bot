@@ -9,6 +9,7 @@ import { buildBansPanelComponents, type BanMenuOption } from '../../../ui/compon
 import {
   ensureStagedBans,
   getBanPageState,
+  getBanSearchState,
   hasStagedBanChanges,
   setBanPageState,
 } from '../runtime/bans-state.service.js';
@@ -84,6 +85,11 @@ function formatCivBan(key: string): string {
   return formatCiv7Civ(key);
 }
 
+
+function buildEmptyOption(label: string): BanMenuOption {
+  return { label, value: '__none__' };
+}
+
 function buildBansPanelPayload(args: Readonly<{
   edition: CivEdition;
   sessionId: string;
@@ -98,19 +104,23 @@ function buildBansPanelPayload(args: Readonly<{
   leaderPages: number;
   leaderMenuDisabled: boolean;
   leaderMenuMaxValues: number;
+  leaderSearchQuery?: string;
   civOptions?: readonly BanMenuOption[];
   civPage: number;
   civPages: number;
   civMenuDisabled: boolean;
   civMenuMaxValues: number;
+  civSearchQuery?: string;
   submitDisabled: boolean;
 }>): BansPanelPayload {
   const desc: string[] = [
-    'Type bans with the buttons below, or browse with the select menus. Names, IDs, aliases, and matching emoji names are all accepted. Host bans are already excluded from the pool.',
+    'Search to filter the main ban menus, or browse with the page controls. Submit an empty search to return to the full list. Host bans are already excluded from the pool.',
     args.hostLeaderSummary ? `**Host Leader:** ${args.hostLeaderSummary}` : undefined,
     args.edition === 'CIV7' && args.hostCivSummary ? `**Host Civ:** ${args.hostCivSummary}` : undefined,
     `**Leader:** ${args.leaderSummary}`,
     args.edition === 'CIV7' ? `**Civ:** ${args.civSummary ?? '—'}` : undefined,
+    args.leaderSearchQuery ? `🔎 **Leader search:** ${args.leaderSearchQuery}` : undefined,
+    args.edition === 'CIV7' && args.civSearchQuery ? `🔎 **Civ search:** ${args.civSearchQuery}` : undefined,
     args.submitted ? '✅ **Bans saved** — you can keep editing until **Finish Vote**.' : undefined,
   ].filter((line): line is string => Boolean(line));
 
@@ -126,15 +136,82 @@ function buildBansPanelPayload(args: Readonly<{
       leaderPages: args.leaderPages,
       leaderMenuDisabled: args.leaderMenuDisabled,
       leaderMenuMaxValues: args.leaderMenuMaxValues,
+      leaderSearchQuery: args.leaderSearchQuery,
       civOptions: args.civOptions,
       civPage: args.civPage,
       civPages: args.civPages,
       civMenuDisabled: args.civMenuDisabled,
       civMenuMaxValues: args.civMenuMaxValues,
+      civSearchQuery: args.civSearchQuery,
       submitDisabled: args.submitDisabled,
     })],
     allowedMentions: { parse: [] as const },
   };
+}
+
+function normalizeSearchQuery(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/<a?:([^:>]+):\d+>/g, '$1')
+    .replace(/:([^:\s]+):/g, '$1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function buildSearchTokens(key: string, meta: BanMeta): string[] {
+  const raw = [key, meta.gameId, key.replace(/[_-]+/g, ' ')];
+  return raw
+    .map((value) => normalizeSearchQuery(value))
+    .filter((value, index, arr) => value.length > 0 && arr.indexOf(value) === index);
+}
+
+function rankSearchMatch(key: string, meta: BanMeta, rawQuery: string): number | null {
+  const query = normalizeSearchQuery(rawQuery);
+  if (!query) return null;
+  const tokens = buildSearchTokens(key, meta);
+  if (tokens.some((token) => token == query)) return 0;
+  if (tokens.some((token) => token.startsWith(query))) return 1;
+  if (tokens.some((token) => token.includes(query))) return 2;
+  return null;
+}
+
+function filterSearchKeys(keys: readonly string[], source: Record<string, BanMeta>, rawQuery?: string): string[] | null {
+  if (!rawQuery || rawQuery.trim().length === 0) return null;
+  return [...keys]
+    .map((key) => ({ key, rank: rankSearchMatch(key, source[key], rawQuery) }))
+    .filter((entry): entry is { key: string; rank: number } => entry.rank !== null)
+    .sort((a, b) => (a.rank - b.rank) || source[a.key].gameId.localeCompare(source[b.key].gameId))
+    .map((entry) => entry.key);
+}
+
+export function getVisibleLeaderBanKeys(v: GameVoteSession, voterId: string): readonly string[] {
+  const leaders = getLeaderBanSource(v);
+  const hostLeaderBanSet = new Set(v.hostLeaderBanKeys);
+  const allKeys = sortKeysByGameId(leaders).filter((key) => !hostLeaderBanSet.has(key));
+  const search = getBanSearchState(v, voterId);
+  const filtered = filterSearchKeys(allKeys, leaders, search.leaderQuery);
+  if (filtered) return filtered.slice(0, BAN_LEADER_PAGE_SIZE);
+
+  const page = getBanPageState(v, voterId);
+  const pages = Math.max(1, Math.ceil(allKeys.length / BAN_LEADER_PAGE_SIZE));
+  const leaderPage = Math.min(Math.max(page.leaderPage, 0), pages - 1);
+  return allKeys.slice(leaderPage * BAN_LEADER_PAGE_SIZE, leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE);
+}
+
+export function getVisibleCivBanKeys(v: GameVoteSession, voterId: string): readonly string[] {
+  const civs = getCivBanSource(v);
+  if (!civs) return [];
+  const hostCivBanSet = new Set(v.hostCivBanKeys);
+  const allKeys = sortKeysByGameId(civs).filter((key) => !hostCivBanSet.has(key));
+  const search = getBanSearchState(v, voterId);
+  const filtered = filterSearchKeys(allKeys, civs, search.civQuery);
+  if (filtered) return filtered.slice(0, BAN_CIV_PAGE_SIZE);
+
+  const page = getBanPageState(v, voterId);
+  const pages = Math.max(1, Math.ceil(allKeys.length / BAN_CIV_PAGE_SIZE));
+  const civPage = Math.min(Math.max(page.civPage, 0), pages - 1);
+  return allKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
 }
 
 export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): BansPanelPayload {
@@ -149,6 +226,7 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
   const civKeys = civs ? sortKeysByGameId(civs).filter((key) => !hostCivBanSet.has(key)) : [];
 
   const page = getBanPageState(v, voterId);
+  const search = getBanSearchState(v, voterId);
   const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
   const civPages = civs ? Math.max(1, Math.ceil(civKeys.length / BAN_CIV_PAGE_SIZE)) : 1;
 
@@ -164,12 +242,9 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
   const selectedLeaders = new Set(bans.leaderKeys);
   const selectedCivs = new Set(bans.civKeys);
 
-  const leaderSlice = leaderKeys.slice(
-    leaderPage * BAN_LEADER_PAGE_SIZE,
-    leaderPage * BAN_LEADER_PAGE_SIZE + BAN_LEADER_PAGE_SIZE,
-  );
+  const leaderSlice = getVisibleLeaderBanKeys(v, voterId);
 
-  const leaderOptions = leaderSlice.map((key) => {
+  const rawLeaderOptions = leaderSlice.map((key) => {
     const meta = leaders[key];
     return {
       label: meta?.gameId ?? key,
@@ -178,16 +253,17 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
       default: selectedLeaders.has(key),
     };
   });
+  const leaderOptions = rawLeaderOptions.length > 0 ? rawLeaderOptions : [buildEmptyOption(search.leaderQuery ? 'No matching leaders found' : 'No leaders available')];
   const selectedLeaderOnPage = leaderSlice.filter((key) => selectedLeaders.has(key)).length;
   const selectedLeaderOffPage = bans.leaderKeys.length - selectedLeaderOnPage;
   const leaderMaxOnPage = Math.min(leaderOptions.length, Math.max(0, limits.leader - selectedLeaderOffPage));
 
-  let civOptions: { label: string; value: string; emoji?: { id: string }; default: boolean }[] | undefined;
+  let civOptions: BanMenuOption[] | undefined;
   let selectedCivOnPage = 0;
   let civMaxOnPage = 0;
   if (civs) {
-    const civSlice = civKeys.slice(civPage * BAN_CIV_PAGE_SIZE, civPage * BAN_CIV_PAGE_SIZE + BAN_CIV_PAGE_SIZE);
-    civOptions = civSlice.map((key) => {
+    const civSlice = getVisibleCivBanKeys(v, voterId);
+    const rawCivOptions: BanMenuOption[] = civSlice.map((key) => {
       const meta = civs[key];
       return {
         label: meta?.gameId ?? key,
@@ -196,6 +272,7 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
         default: selectedCivs.has(key),
       };
     });
+    civOptions = rawCivOptions.length > 0 ? rawCivOptions : [buildEmptyOption(search.civQuery ? 'No matching civs found' : 'No civs available')];
     selectedCivOnPage = civSlice.filter((key) => selectedCivs.has(key)).length;
     const selectedCivOffPage = bans.civKeys.length - selectedCivOnPage;
     civMaxOnPage = Math.min(civOptions.length, Math.max(0, limits.civ - selectedCivOffPage));
@@ -223,12 +300,14 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
     leaderOptions,
     leaderPage,
     leaderPages,
-    leaderMenuDisabled: finished || leaderOptions.length === 0 || (leaderMaxOnPage === 0 && selectedLeaderOnPage === 0),
+    leaderSearchQuery: search.leaderQuery,
+    leaderMenuDisabled: finished || leaderSlice.length === 0 || (leaderMaxOnPage === 0 && selectedLeaderOnPage === 0),
     leaderMenuMaxValues: Math.max(1, leaderMaxOnPage || selectedLeaderOnPage || 1),
     civOptions,
     civPage,
     civPages,
-    civMenuDisabled: finished || !civOptions || civOptions.length === 0 || (civMaxOnPage === 0 && selectedCivOnPage === 0),
+    civSearchQuery: search.civQuery,
+    civMenuDisabled: finished || !civs || getVisibleCivBanKeys(v, voterId).length === 0 || (civMaxOnPage === 0 && selectedCivOnPage === 0),
     civMenuMaxValues: Math.max(1, civMaxOnPage || selectedCivOnPage || 1),
     submitDisabled: finished || !hasStagedBanChanges(v, voterId),
   });

@@ -21,16 +21,20 @@ export function buildBansPanelComponents(args: Readonly<{
   leaderPages: number;
   leaderMenuDisabled: boolean;
   leaderMenuMaxValues: number;
+  leaderSearchQuery?: string;
   civOptions?: readonly BanMenuOption[];
   civPage: number;
   civPages: number;
   civMenuDisabled: boolean;
   civMenuMaxValues: number;
+  civSearchQuery?: string;
   submitDisabled: boolean;
 }>): readonly ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
   const leaderMenu = new StringSelectMenuBuilder()
     .setCustomId(`gv:banpick:leader:${args.sessionId}`)
-    .setPlaceholder(`Browse leader bans (page ${args.leaderPage + 1}/${args.leaderPages})`)
+    .setPlaceholder(args.leaderSearchQuery
+      ? `Leader results: ${args.leaderSearchQuery}`
+      : `Browse leader bans (page ${args.leaderPage + 1}/${args.leaderPages})`)
     .setMinValues(0)
     .setMaxValues(Math.max(1, args.leaderMenuMaxValues))
     .setDisabled(args.leaderMenuDisabled)
@@ -43,7 +47,9 @@ export function buildBansPanelComponents(args: Readonly<{
   if (args.civOptions) {
     const civMenu = new StringSelectMenuBuilder()
       .setCustomId(`gv:banpick:civ:${args.sessionId}`)
-      .setPlaceholder(`Browse civ bans (page ${args.civPage + 1}/${args.civPages})`)
+      .setPlaceholder(args.civSearchQuery
+        ? `Civ results: ${args.civSearchQuery}`
+        : `Browse civ bans (page ${args.civPage + 1}/${args.civPages})`)
       .setMinValues(0)
       .setMaxValues(Math.max(1, args.civMenuMaxValues))
       .setDisabled(args.civMenuDisabled)
@@ -52,37 +58,37 @@ export function buildBansPanelComponents(args: Readonly<{
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
   }
 
-  const inputRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const searchRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`gv:bantext:leader:${args.sessionId}`)
+      .setCustomId(`gv:bansearch:leader:${args.sessionId}`)
       .setStyle(ButtonStyle.Primary)
-      .setLabel('Type Leaders')
+      .setLabel('Search Leaders')
       .setDisabled(args.finished),
   );
 
   if (args.civOptions) {
-    inputRow.addComponents(
+    searchRow.addComponents(
       new ButtonBuilder()
-        .setCustomId(`gv:bantext:civ:${args.sessionId}`)
+        .setCustomId(`gv:bansearch:civ:${args.sessionId}`)
         .setStyle(ButtonStyle.Primary)
-        .setLabel('Type Civs')
+        .setLabel('Search Civs')
         .setDisabled(args.finished),
     );
   }
 
-  rows.push(inputRow);
+  rows.push(searchRow);
 
   const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:prev:${args.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
       .setLabel('◀ Leaders')
-      .setDisabled(args.finished || args.leaderPages <= 1),
+      .setDisabled(args.finished || Boolean(args.leaderSearchQuery) || args.leaderPages <= 1),
     new ButtonBuilder()
       .setCustomId(`gv:bannav:leader:next:${args.sessionId}`)
       .setStyle(ButtonStyle.Secondary)
       .setLabel('Leaders ▶')
-      .setDisabled(args.finished || args.leaderPages <= 1),
+      .setDisabled(args.finished || Boolean(args.leaderSearchQuery) || args.leaderPages <= 1),
   );
 
   if (args.civOptions) {
@@ -91,12 +97,12 @@ export function buildBansPanelComponents(args: Readonly<{
         .setCustomId(`gv:bannav:civ:prev:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
         .setLabel('◀ Civs')
-        .setDisabled(args.finished || args.civPages <= 1),
+        .setDisabled(args.finished || Boolean(args.civSearchQuery) || args.civPages <= 1),
       new ButtonBuilder()
         .setCustomId(`gv:bannav:civ:next:${args.sessionId}`)
         .setStyle(ButtonStyle.Secondary)
         .setLabel('Civs ▶')
-        .setDisabled(args.finished || args.civPages <= 1),
+        .setDisabled(args.finished || Boolean(args.civSearchQuery) || args.civPages <= 1),
     );
   }
 

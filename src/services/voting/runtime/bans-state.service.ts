@@ -1,5 +1,5 @@
 import { getGameVoteBanLimits } from '../../../config/draft.config.js';
-import type { BanSubmission, GameVoteSession } from '../../../types/voting.types.js';
+import type { BanSearchState, BanSubmission, GameVoteSession } from '../../../types/voting.types.js';
 
 export function getEmptyBans(): BanSubmission {
   return { leaderKeys: [], civKeys: [] };
@@ -83,4 +83,32 @@ export function mergePagedBanSelection(
   const out = currentKeys.filter((key) => !pageSet.has(key));
   out.push(...selectedKeys);
   return dedupeStable(out);
+}
+
+
+export function getBanSearchState(v: GameVoteSession, voterId: string): BanSearchState {
+  return v.banSearches.get(voterId) ?? {};
+}
+
+export function setBanSearchQuery(
+  v: GameVoteSession,
+  voterId: string,
+  banType: 'leader' | 'civ',
+  rawQuery: string,
+): void {
+  const query = rawQuery.trim();
+  const current = getBanSearchState(v, voterId);
+  const next: { leaderQuery?: string; civQuery?: string } = { ...current };
+  if (banType === 'leader') {
+    if (query) next.leaderQuery = query;
+    else delete next.leaderQuery;
+  } else {
+    if (query) next.civQuery = query;
+    else delete next.civQuery;
+  }
+  if (!next.leaderQuery && !next.civQuery) {
+    v.banSearches.delete(voterId);
+    return;
+  }
+  v.banSearches.set(voterId, next);
 }

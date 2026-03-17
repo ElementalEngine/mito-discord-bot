@@ -65,6 +65,11 @@ export type BanPageState = Readonly<{
   leaderPage: number;
 }>;
 
+export type BanSearchState = Readonly<{
+  civQuery?: string;
+  leaderQuery?: string;
+}>;
+
 export type GameVoteSession = {
   sessionId: string;
   guildId: string;
@@ -99,6 +104,7 @@ export type GameVoteSession = {
   stagedBansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
   banPages: Map<string, BanPageState>;
+  banSearches: Map<string, BanSearchState>;
   hostLeaderBanKeys: readonly string[];
   hostCivBanKeys: readonly string[];
 
