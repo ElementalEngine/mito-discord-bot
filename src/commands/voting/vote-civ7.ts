@@ -10,6 +10,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startGameVote } from '../../services/voting/orchestration.js';
+import { formatBanInputIssues, resolveTypedBanInputForEdition } from '../../services/voting/domain/ban-input.service.js';
 import type { DraftGameType } from '../../types/drafting.types.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -92,8 +93,24 @@ function addMentionsOption(subcommand: SlashCommandSubcommandBuilder): SlashComm
   );
 }
 
+function addHostBanOptions(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return subcommand
+    .addStringOption((opt) =>
+      opt
+        .setName('leader-bans')
+        .setDescription('Optional: host pre-bans by leader names, IDs, or emoji names')
+        .setRequired(false)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('civ-bans')
+        .setDescription('Optional: host pre-bans by civ names, IDs, or emoji names')
+        .setRequired(false)
+    );
+}
+
 function addSharedOptions(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
-  return addMentionsOption(addStartingAgeOption(subcommand));
+  return addHostBanOptions(addMentionsOption(addStartingAgeOption(subcommand)));
 }
 
 export const data = new SlashCommandBuilder()
@@ -163,6 +180,28 @@ export async function execute(
         ? interaction.options.getInteger('number-of-teams', true)
         : undefined;
     const mentions = interaction.options.getString('mentions', false) ?? undefined;
+    const hostLeaderBansRaw = interaction.options.getString('leader-bans', false)?.trim() || undefined;
+    const hostCivBansRaw = interaction.options.getString('civ-bans', false)?.trim() || undefined;
+
+    const hostLeaderBanKeys = (() => {
+      if (!hostLeaderBansRaw) return [] as string[];
+      const resolved = resolveTypedBanInputForEdition('CIV7', 'leader', hostLeaderBansRaw);
+      const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens);
+      if (issues || resolved.keys.length === 0) {
+        throw new Error(`HOST_LEADER_BANS:${issues ?? 'No valid leader bans were found.'}`);
+      }
+      return [...resolved.keys];
+    })();
+
+    const hostCivBanKeys = (() => {
+      if (!hostCivBansRaw) return [] as string[];
+      const resolved = resolveTypedBanInputForEdition('CIV7', 'civ', hostCivBansRaw);
+      const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens);
+      if (issues || resolved.keys.length === 0) {
+        throw new Error(`HOST_CIV_BANS:${issues ?? 'No valid civ bans were found.'}`);
+      }
+      return [...resolved.keys];
+    })();
 
     const guild = interaction.guild;
     if (!guild) {
@@ -223,6 +262,8 @@ export async function execute(
       startingAge,
       numberTeams,
       voters,
+      hostLeaderBanKeys,
+      hostCivBanKeys,
     });
 
     if (!res.ok) {
@@ -237,6 +278,15 @@ export async function execute(
         `Panel: <#${interaction.channelId}>`
     );
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.startsWith('HOST_LEADER_BANS:')) {
+      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid host leader-bans.\n${err.message.slice('HOST_LEADER_BANS:'.length)}`);
+      return;
+    }
+    if (err instanceof Error && err.message.startsWith('HOST_CIV_BANS:')) {
+      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid host civ-bans.\n${err.message.slice('HOST_CIV_BANS:'.length)}`);
+      return;
+    }
+
     console.error('vote-civ7 failed', {
       err,
       guildId: interaction.guildId ?? null,

@@ -89,6 +89,8 @@ export function buildBansPanelPayload(args: Readonly<{
   sessionId: string;
   finished: boolean;
   submitted: boolean;
+  hostLeaderSummary?: string;
+  hostCivSummary?: string;
   leaderSummary: string;
   civSummary?: string;
   leaderOptions: readonly BanMenuOption[];
@@ -104,7 +106,9 @@ export function buildBansPanelPayload(args: Readonly<{
   submitDisabled: boolean;
 }>): BansPanelPayload {
   const desc: string[] = [
-    'Type bans with the buttons below, or browse with the select menus. Names, IDs, aliases, and matching emoji names are all accepted.',
+    'Type bans with the buttons below, or browse with the select menus. Names, IDs, aliases, and matching emoji names are all accepted. Host bans are already excluded from the pool.',
+    args.hostLeaderSummary ? `**Host Leader:** ${args.hostLeaderSummary}` : undefined,
+    args.edition === 'CIV7' && args.hostCivSummary ? `**Host Civ:** ${args.hostCivSummary}` : undefined,
     `**Leader:** ${args.leaderSummary}`,
     args.edition === 'CIV7' ? `**Civ:** ${args.civSummary ?? '—'}` : undefined,
     args.submitted ? '✅ **Bans saved** — you can keep editing until **Finish Vote**.' : undefined,
@@ -138,8 +142,11 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
   const leaders = getLeaderBanSource(v);
   const civs = getCivBanSource(v);
 
-  const leaderKeys = sortKeysByGameId(leaders);
-  const civKeys = civs ? sortKeysByGameId(civs) : [];
+  const hostLeaderBanSet = new Set(v.hostLeaderBanKeys);
+  const hostCivBanSet = new Set(v.hostCivBanKeys);
+
+  const leaderKeys = sortKeysByGameId(leaders).filter((key) => !hostLeaderBanSet.has(key));
+  const civKeys = civs ? sortKeysByGameId(civs).filter((key) => !hostCivBanSet.has(key)) : [];
 
   const page = getBanPageState(v, voterId);
   const leaderPages = Math.max(1, Math.ceil(leaderKeys.length / BAN_LEADER_PAGE_SIZE));
@@ -194,6 +201,12 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
     civMaxOnPage = Math.min(civOptions.length, Math.max(0, limits.civ - selectedCivOffPage));
   }
 
+  const hostLeaderSummary = v.hostLeaderBanKeys.length > 0
+    ? clampBanList(v.hostLeaderBanKeys.map((key) => formatLeaderBan(v, key)), 900)
+    : undefined;
+  const hostCivSummary = v.edition === 'CIV7' && v.hostCivBanKeys.length > 0
+    ? clampBanList(v.hostCivBanKeys.map((key) => formatCivBan(key)), 900)
+    : undefined;
   const leaderSummary = clampBanList(bans.leaderKeys.map((key) => formatLeaderBan(v, key)), 900);
   const civSummary = v.edition === 'CIV7' ? clampBanList(bans.civKeys.map((key) => formatCivBan(key)), 900) : undefined;
   const submitted = v.bansSubmitted.has(voterId) && !hasStagedBanChanges(v, voterId);
@@ -203,6 +216,8 @@ export function buildBansPanelViewPayload(v: GameVoteSession, voterId: string): 
     sessionId: v.sessionId,
     finished,
     submitted,
+    hostLeaderSummary,
+    hostCivSummary,
     leaderSummary,
     civSummary,
     leaderOptions,

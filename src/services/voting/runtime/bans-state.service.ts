@@ -24,11 +24,22 @@ function getBanLimits(v: GameVoteSession): Readonly<{ leader: number; civ: numbe
   return getGameVoteBanLimits(v.edition, v.startingAge);
 }
 
+function excludeHostBans(v: GameVoteSession, bans: BanSubmission): BanSubmission {
+  const hostLeaderBanKeys = new Set(v.hostLeaderBanKeys);
+  const hostCivBanKeys = new Set(v.hostCivBanKeys);
+
+  return {
+    leaderKeys: bans.leaderKeys.filter((key) => !hostLeaderBanKeys.has(key)),
+    civKeys: bans.civKeys.filter((key) => !hostCivBanKeys.has(key)),
+  };
+}
+
 export function normalizeBanSubmission(v: GameVoteSession, bans: BanSubmission): BanSubmission {
   const limits = getBanLimits(v);
+  const filtered = excludeHostBans(v, bans);
   return {
-    leaderKeys: dedupeStable(bans.leaderKeys).slice(0, limits.leader),
-    civKeys: dedupeStable(bans.civKeys).slice(0, limits.civ),
+    leaderKeys: dedupeStable(filtered.leaderKeys).slice(0, limits.leader),
+    civKeys: dedupeStable(filtered.civKeys).slice(0, limits.civ),
   };
 }
 

@@ -44,6 +44,8 @@ export type StartGameVoteOptions = Readonly<{
   numberTeams?: number;
   blindMode?: boolean;
   voters: readonly VoterUser[];
+  hostLeaderBanKeys?: readonly string[];
+  hostCivBanKeys?: readonly string[];
 }>;
 
 export type StartGameVoteResult =
@@ -98,6 +100,8 @@ export type GameVoteSession = {
   stagedBansByVoter: Map<string, BanSubmission>;
   bansSubmitted: Set<string>;
   banPages: Map<string, BanPageState>;
+  hostLeaderBanKeys: readonly string[];
+  hostCivBanKeys: readonly string[];
 
   voteSubmitted: Set<string>;
   stagedVotesByVoter: Map<string, VoteRecord>;

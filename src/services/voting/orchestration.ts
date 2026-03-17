@@ -122,6 +122,8 @@ export async function startGameVote(args: StartGameVoteOptions): Promise<StartGa
       stagedBansByVoter: new Map(),
       bansSubmitted: new Set(),
       banPages: new Map(),
+      hostLeaderBanKeys: [...(args.hostLeaderBanKeys ?? [])],
+      hostCivBanKeys: [...(args.hostCivBanKeys ?? [])],
       voteSubmitted: new Set(),
       stagedVotesByVoter: new Map(),
       finished: new Set(),

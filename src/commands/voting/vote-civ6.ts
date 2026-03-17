@@ -10,6 +10,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
 import { startGameVote } from '../../services/voting/orchestration.js';
+import { formatBanInputIssues, resolveTypedBanInputForEdition } from '../../services/voting/domain/ban-input.service.js';
 import type { DraftGameType } from '../../types/drafting.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
@@ -76,18 +77,31 @@ function addMentionsOption(subcommand: SlashCommandSubcommandBuilder): SlashComm
   );
 }
 
+function addLeaderBansOption(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return subcommand.addStringOption((opt) =>
+    opt
+      .setName('leader-bans')
+      .setDescription('Optional: host pre-bans by leader names, IDs, or emoji names')
+      .setRequired(false)
+  );
+}
+
+function addSharedOptions(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return addLeaderBansOption(addMentionsOption(subcommand));
+}
+
 export const data = new SlashCommandBuilder()
   .setName('vote-civ6')
   .setDescription('Start a Civ6 game vote in your voice channel, then draft.')
   .setDMPermission(false)
-  .addSubcommand((subcommand) => addMentionsOption(
+  .addSubcommand((subcommand) => addSharedOptions(
     subcommand.setName('ffa').setDescription('Start a Civ6 FFA vote.')
   ))
-  .addSubcommand((subcommand) => addMentionsOption(
+  .addSubcommand((subcommand) => addSharedOptions(
     subcommand.setName('duel').setDescription('Start a Civ6 duel vote.')
   ))
   .addSubcommand((subcommand) =>
-    addMentionsOption(
+    addSharedOptions(
       subcommand
         .setName('team')
         .setDescription('Start a Civ6 teamer vote.')
@@ -136,6 +150,17 @@ export async function execute(
         ? interaction.options.getInteger('number-of-teams', true)
         : undefined;
     const mentions = interaction.options.getString('mentions', false) ?? undefined;
+    const hostLeaderBansRaw = interaction.options.getString('leader-bans', false)?.trim() || undefined;
+
+    const hostLeaderBanKeys = (() => {
+      if (!hostLeaderBansRaw) return [] as string[];
+      const resolved = resolveTypedBanInputForEdition('CIV6', 'leader', hostLeaderBansRaw);
+      const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens);
+      if (issues || resolved.keys.length === 0) {
+        throw new Error(`HOST_LEADER_BANS:${issues ?? 'No valid leader bans were found.'}`);
+      }
+      return [...resolved.keys];
+    })();
 
     const guild = interaction.guild;
     if (!guild) {
@@ -195,6 +220,7 @@ export async function execute(
       gameType,
       numberTeams,
       voters,
+      hostLeaderBanKeys,
     });
 
     if (!res.ok) {
@@ -209,6 +235,11 @@ export async function execute(
         `Panel: <#${interaction.channelId}>`
     );
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.startsWith('HOST_LEADER_BANS:')) {
+      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid host leader-bans.\n${err.message.slice('HOST_LEADER_BANS:'.length)}`);
+      return;
+    }
+
     console.error('vote-civ6 failed', {
       err,
       guildId: interaction.guildId ?? null,

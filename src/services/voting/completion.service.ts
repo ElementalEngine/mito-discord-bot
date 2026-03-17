@@ -12,6 +12,17 @@ import {
 
 const COMPLETED_SESSION_RETENTION_MS = 15 * 60_000;
 
+function uniqueStable(keys: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const key of keys) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
 export function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
   const leaderPerVoter = new Map<string, ReadonlySet<string>>();
   const civPerVoter = new Map<string, ReadonlySet<string>>();
@@ -33,8 +44,10 @@ export function buildVoteDraftRequest(v: GameVoteSession): VoteDraftRequest {
     voterIds: v.voterIds,
     hostId: v.hostId,
     commandChannel: v.commandChannel,
-    bannedLeaderKeys: majorityBans(v.voterIds, leaderPerVoter),
-    bannedCivKeys: v.edition === 'CIV7' ? majorityBans(v.voterIds, civPerVoter) : [],
+    bannedLeaderKeys: uniqueStable([...v.hostLeaderBanKeys, ...majorityBans(v.voterIds, leaderPerVoter)]),
+    bannedCivKeys: v.edition === 'CIV7'
+      ? uniqueStable([...v.hostCivBanKeys, ...majorityBans(v.voterIds, civPerVoter)])
+      : [],
     voterUsersById: v.voterUsersById,
     publicMessage: v.publicMessage,
   };

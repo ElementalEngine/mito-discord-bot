@@ -16,7 +16,7 @@ import {
   encodeVoteSelections,
   pickRandomVoteValue,
 } from '../services/voting/domain/tally.service.js';
-import { resolveTypedBanInput } from '../services/voting/domain/ban-input.service.js';
+import { formatBanInputIssues, resolveTypedBanInput } from '../services/voting/domain/ban-input.service.js';
 import { areAllVotersFinished } from '../services/voting/domain/progress.service.js';
 import {
   buildBansPanelViewPayload,
@@ -156,17 +156,6 @@ function buildBanTextModal(sessionId: string, banType: 'leader' | 'civ'): ModalB
     );
 
   return modal;
-}
-
-function formatBanInputIssues(unknownTokens: readonly string[], ambiguousTokens: readonly string[]): string | null {
-  const parts: string[] = [];
-  if (unknownTokens.length > 0) {
-    parts.push(`Unknown: ${unknownTokens.map((token) => `\`${token}\``).join(', ')}`);
-  }
-  if (ambiguousTokens.length > 0) {
-    parts.push(`Ambiguous: ${ambiguousTokens.map((token) => `\`${token}\``).join(', ')}`);
-  }
-  return parts.length > 0 ? parts.join('\n') : null;
 }
 
 export async function handleGameVoteSelect(

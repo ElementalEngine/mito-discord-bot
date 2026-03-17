@@ -2,6 +2,7 @@ import { CIV6_LEADERS } from '../../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
 import type { CivMeta, LeaderMeta } from '../../../data/types.js';
 import type { GameVoteSession } from '../../../types/voting.types.js';
+import type { CivEdition } from '../../../config/types.js';
 import { humanizeGameId } from '../../../utils/humanize-game-id.js';
 import { humanizeDraftKey, sanitizeEmojiName } from '../../drafting/domain/labels.service.js';
 
@@ -12,7 +13,7 @@ const KEY_PREFIX_RE = /^(leader|civilization)_/;
 
 type BanMeta = Readonly<{ gameId: string; emojiId?: string }>;
 
-type BanEntityKind = 'leader' | 'civ';
+export type BanEntityKind = 'leader' | 'civ';
 
 type BanLookupResult = Readonly<{
   keys: readonly string[];
@@ -63,15 +64,15 @@ const CIV6_LEADER_INDEX = buildIndex(CIV6_LEADERS as Readonly<Record<string, Lea
 const CIV7_LEADER_INDEX = buildIndex(CIV7_LEADERS as Readonly<Record<string, LeaderMeta>>);
 const CIV7_CIV_INDEX = buildIndex(CIV7_CIVS as Readonly<Record<string, CivMeta>>);
 
-function getIndexForSession(
-  session: GameVoteSession,
+function getIndexForEdition(
+  edition: CivEdition,
   kind: BanEntityKind,
 ): ReadonlyMap<string, ReadonlySet<string>> | null {
   if (kind === 'leader') {
-    return session.edition === 'CIV6' ? CIV6_LEADER_INDEX : CIV7_LEADER_INDEX;
+    return edition === 'CIV6' ? CIV6_LEADER_INDEX : CIV7_LEADER_INDEX;
   }
 
-  if (session.edition !== 'CIV7') return null;
+  if (edition !== 'CIV7') return null;
   return CIV7_CIV_INDEX;
 }
 
@@ -162,15 +163,37 @@ function resolveTokens(
   };
 }
 
-export function resolveTypedBanInput(
-  session: GameVoteSession,
+export function resolveTypedBanInputForEdition(
+  edition: CivEdition,
   kind: BanEntityKind,
   raw: string,
 ): BanLookupResult {
-  const index = getIndexForSession(session, kind);
+  const index = getIndexForEdition(edition, kind);
   if (!index) {
     return { keys: [], unknownTokens: [], ambiguousTokens: [] };
   }
 
   return resolveTokens(tokenizeBanInput(raw), index);
+}
+
+export function resolveTypedBanInput(
+  session: GameVoteSession,
+  kind: BanEntityKind,
+  raw: string,
+): BanLookupResult {
+  return resolveTypedBanInputForEdition(session.edition, kind, raw);
+}
+
+export function formatBanInputIssues(
+  unknownTokens: readonly string[],
+  ambiguousTokens: readonly string[],
+): string | null {
+  const parts: string[] = [];
+  if (unknownTokens.length > 0) {
+    parts.push(`Unknown: ${unknownTokens.map((token) => `\`${token}\``).join(', ')}`);
+  }
+  if (ambiguousTokens.length > 0) {
+    parts.push(`Ambiguous: ${ambiguousTokens.map((token) => `\`${token}\``).join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
 }

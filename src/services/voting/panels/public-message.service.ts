@@ -48,6 +48,17 @@ function formatCivBan(key: string): string {
   return formatCiv7Civ(key);
 }
 
+function uniqueStable(keys: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const key of keys) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
 function buildVerticalBanSection(label: string, items: readonly string[], maxLength: number): string {
   const header = `• ${label} (${items.length})`;
   const lines = [header];
@@ -83,13 +94,25 @@ function buildBansQuestionValue(v: GameVoteSession): string {
   const summary = getSubmittedBanSummary(v);
   const leaderEntries = [...summary.leader.entries()];
   const civEntries = [...summary.civ.entries()];
+  const hostLeaderKeys = uniqueStable(v.hostLeaderBanKeys);
+  const hostCivKeys = uniqueStable(v.hostCivBanKeys);
 
-  if (leaderEntries.length === 0 && civEntries.length === 0) {
+  if (leaderEntries.length === 0 && civEntries.length === 0 && hostLeaderKeys.length === 0 && hostCivKeys.length === 0) {
     return v.status === 'completed' ? '• None' : '• Pending';
   }
 
   const sections: string[] = [];
   let remaining = 1000;
+
+  if (hostLeaderKeys.length > 0) {
+    sections.push(buildVerticalBanSection('Host Leader', hostLeaderKeys.map((key) => formatLeaderBan(v, key)), remaining));
+    remaining = Math.max(128, 1000 - sections.join('\n\n').length);
+  }
+
+  if (v.edition === 'CIV7' && hostCivKeys.length > 0) {
+    sections.push(buildVerticalBanSection('Host Civ', hostCivKeys.map((key) => formatCivBan(key)), remaining));
+    remaining = Math.max(128, 1000 - sections.join('\n\n').length);
+  }
 
   const finalLeaderKeys = v.status === 'completed'
     ? majorityBans(v.voterIds, new Map(v.voterIds.map((id) => [id, new Set(v.bansSubmitted.has(id) ? (v.bansByVoter.get(id) ?? { leaderKeys: [], civKeys: [] }).leaderKeys : [])])))
