@@ -193,7 +193,7 @@ function buildQuestionFields(v: GameVoteSession): readonly GameVoteQuestionField
   ];
 }
 
-export function buildPublicVotePayload(args: Readonly<{
+function buildPublicVotePayload(args: Readonly<{
   session: GameVoteSession;
   progress: GameVoteProgress;
   questionFields: readonly GameVoteQuestionField[];

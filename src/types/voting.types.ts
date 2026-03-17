@@ -42,7 +42,6 @@ export type StartGameVoteOptions = Readonly<{
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberTeams?: number;
-  blindMode?: boolean;
   voters: readonly VoterUser[];
   hostLeaderBanKeys?: readonly string[];
   hostCivBanKeys?: readonly string[];

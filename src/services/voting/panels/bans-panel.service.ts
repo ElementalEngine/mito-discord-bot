@@ -84,7 +84,7 @@ function formatCivBan(key: string): string {
   return formatCiv7Civ(key);
 }
 
-export function buildBansPanelPayload(args: Readonly<{
+function buildBansPanelPayload(args: Readonly<{
   edition: CivEdition;
   sessionId: string;
   finished: boolean;
