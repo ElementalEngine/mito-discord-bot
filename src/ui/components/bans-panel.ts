@@ -30,7 +30,7 @@ export function buildBansPanelComponents(args: Readonly<{
 }>): readonly ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] {
   const leaderMenu = new StringSelectMenuBuilder()
     .setCustomId(`gv:banpick:leader:${args.sessionId}`)
-    .setPlaceholder(`Leader bans (page ${args.leaderPage + 1}/${args.leaderPages})`)
+    .setPlaceholder(`Browse leader bans (page ${args.leaderPage + 1}/${args.leaderPages})`)
     .setMinValues(0)
     .setMaxValues(Math.max(1, args.leaderMenuMaxValues))
     .setDisabled(args.leaderMenuDisabled)
@@ -43,7 +43,7 @@ export function buildBansPanelComponents(args: Readonly<{
   if (args.civOptions) {
     const civMenu = new StringSelectMenuBuilder()
       .setCustomId(`gv:banpick:civ:${args.sessionId}`)
-      .setPlaceholder(`Civ bans (optional) (page ${args.civPage + 1}/${args.civPages})`)
+      .setPlaceholder(`Browse civ bans (page ${args.civPage + 1}/${args.civPages})`)
       .setMinValues(0)
       .setMaxValues(Math.max(1, args.civMenuMaxValues))
       .setDisabled(args.civMenuDisabled)
@@ -51,6 +51,26 @@ export function buildBansPanelComponents(args: Readonly<{
 
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(civMenu));
   }
+
+  const inputRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gv:bantext:leader:${args.sessionId}`)
+      .setStyle(ButtonStyle.Primary)
+      .setLabel('Type Leaders')
+      .setDisabled(args.finished),
+  );
+
+  if (args.civOptions) {
+    inputRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`gv:bantext:civ:${args.sessionId}`)
+        .setStyle(ButtonStyle.Primary)
+        .setLabel('Type Civs')
+        .setDisabled(args.finished),
+    );
+  }
+
+  rows.push(inputRow);
 
   const navRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

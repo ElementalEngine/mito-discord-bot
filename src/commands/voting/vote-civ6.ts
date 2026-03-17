@@ -4,6 +4,7 @@ import {
   type ChatInputCommandInteraction,
   type GuildMember,
   type SendableChannels,
+  type SlashCommandSubcommandBuilder,
 } from 'discord.js';
 
 import { config } from '../../config.js';
@@ -13,7 +14,13 @@ import type { DraftGameType } from '../../types/drafting.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 
-const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
+const SUBCOMMAND_TO_GAME_TYPE = {
+  ffa: 'FFA',
+  team: 'Teamer',
+  duel: 'Duel',
+} as const satisfies Record<'ffa' | 'team' | 'duel', DraftGameType>;
+
+type VoteCiv6Subcommand = keyof typeof SUBCOMMAND_TO_GAME_TYPE;
 
 async function replyEphemeral(
   interaction: ChatInputCommandInteraction,
@@ -60,46 +67,47 @@ function allowedVoteChannels(gameType: DraftGameType): readonly string[] {
   return [config.discord.channels.civ6ffaVote];
 }
 
-export const data = new SlashCommandBuilder()
-  .setName('vote-civ6')
-  .setDescription('Start a Civ6 game vote in your voice channel, then draft.')
-  .setDMPermission(false)
-  .addStringOption((opt) =>
-    opt
-      .setName('game-type')
-      .setDescription('FFA, Teamer, or Duel')
-      .setRequired(true)
-      .addChoices(
-        { name: 'FFA', value: 'FFA' },
-        { name: 'Teamer', value: 'Teamer' },
-        { name: 'Duel', value: 'Duel' }
-      )
-  )
-  .addIntegerOption((opt) =>
-    opt
-      .setName('number-teams')
-      .setDescription('Required for Teamer (2–5).')
-      .setMinValue(2)
-      .setMaxValue(5)
-      .setRequired(false)
-  )
-  .addStringOption((opt) =>
+function addMentionsOption(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return subcommand.addStringOption((opt) =>
     opt
       .setName('mentions')
       .setDescription('Optional: mention users to add/remove from voters')
       .setRequired(false)
+  );
+}
+
+export const data = new SlashCommandBuilder()
+  .setName('vote-civ6')
+  .setDescription('Start a Civ6 game vote in your voice channel, then draft.')
+  .setDMPermission(false)
+  .addSubcommand((subcommand) => addMentionsOption(
+    subcommand.setName('ffa').setDescription('Start a Civ6 FFA vote.')
+  ))
+  .addSubcommand((subcommand) => addMentionsOption(
+    subcommand.setName('duel').setDescription('Start a Civ6 duel vote.')
+  ))
+  .addSubcommand((subcommand) =>
+    addMentionsOption(
+      subcommand
+        .setName('team')
+        .setDescription('Start a Civ6 teamer vote.')
+        .addIntegerOption((opt) =>
+          opt
+            .setName('number-of-teams')
+            .setDescription('Required for teamer (2–5).')
+            .setMinValue(2)
+            .setMaxValue(5)
+            .setRequired(true)
+        )
+    )
   );
 
 export async function execute(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
   try {
-    const gameTypeRaw = interaction.options.getString('game-type', true);
-    if (!GAME_TYPES.includes(gameTypeRaw as (typeof GAME_TYPES)[number])) {
-      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid game-type.`);
-      return;
-    }
-    const gameType = gameTypeRaw as DraftGameType;
+    const subcommand = interaction.options.getSubcommand(true) as VoteCiv6Subcommand;
+    const gameType = SUBCOMMAND_TO_GAME_TYPE[subcommand];
 
     const ACCESS_POLICY = {
       allowedChannelIds: allowedVoteChannels(gameType),
@@ -123,14 +131,11 @@ export async function execute(
       return;
     }
 
-    const numberTeams = interaction.options.getInteger('number-teams') ?? undefined;
-    const mentions = interaction.options.getString('mentions', false);
-
-
-    if (gameType === 'Teamer' && !numberTeams) {
-      await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires **number-teams**.`);
-      return;
-    }
+    const numberTeams =
+      subcommand === 'team'
+        ? interaction.options.getInteger('number-of-teams', true)
+        : undefined;
+    const mentions = interaction.options.getString('mentions', false) ?? undefined;
 
     const guild = interaction.guild;
     if (!guild) {
@@ -140,7 +145,6 @@ export async function execute(
 
     const { voters } = await buildVoiceChannelVoters(guild, voiceChannel, mentions);
 
-    // Validate voter counts against draft constraints.
     if (gameType === 'Duel' && voters.length !== 2) {
       await replyEphemeral(
         interaction,
@@ -164,7 +168,7 @@ export async function execute(
         return;
       }
       if (teams < 2 || teams > 5) {
-        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–5**.`);
+        await replyEphemeral(interaction, `${EMOJI_FAIL} number-of-teams must be **2–5**.`);
         return;
       }
       if (voters.length % teams !== 0) {

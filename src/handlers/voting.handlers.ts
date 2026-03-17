@@ -1,6 +1,10 @@
 import {
+  ActionRowBuilder,
   EmbedBuilder,
   MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
@@ -12,6 +16,7 @@ import {
   encodeVoteSelections,
   pickRandomVoteValue,
 } from '../services/voting/domain/tally.service.js';
+import { resolveTypedBanInput } from '../services/voting/domain/ban-input.service.js';
 import { areAllVotersFinished } from '../services/voting/domain/progress.service.js';
 import {
   buildBansPanelViewPayload,
@@ -58,7 +63,7 @@ type ParsedCustomId =
   | Readonly<{ action: 'ballotnav'; navDir: 'prev' | 'next'; sessionId: string }>
   | Readonly<{ action: 'pick'; pickType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'nav'; pickType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>
-  | Readonly<{ action: 'banpick'; banType: 'civ' | 'leader'; sessionId: string }>
+  | Readonly<{ action: 'banpick' | 'bantext' | 'bantextsubmit'; banType: 'civ' | 'leader'; sessionId: string }>
   | Readonly<{ action: 'bannav'; banType: 'civ' | 'leader'; navDir: 'prev' | 'next'; sessionId: string }>;
 
 
@@ -84,11 +89,11 @@ function parseCustomId(id: string): ParsedCustomId | null {
     return { action: 'nav', pickType, navDir, sessionId };
   }
 
-  if (action === 'banpick') {
+  if (action === 'banpick' || action === 'bantext' || action === 'bantextsubmit') {
     const banType = parts[2] as 'civ' | 'leader';
     const sessionId = parts[3];
     if (!sessionId || (banType !== 'civ' && banType !== 'leader')) return null;
-    return { action: 'banpick', banType, sessionId };
+    return { action, banType, sessionId };
   }
 
   if (action === 'bannav') {
@@ -128,6 +133,40 @@ function parseCustomId(id: string): ParsedCustomId | null {
 
 function isVoter(v: GameVoteSession, userId: string): boolean {
   return v.voterIds.includes(userId);
+}
+
+function buildBanTextModal(sessionId: string, banType: 'leader' | 'civ'): ModalBuilder {
+  const noun = banType === 'leader' ? 'Leader' : 'Civ';
+  const modal = new ModalBuilder()
+    .setCustomId(`gv:bantextsubmit:${banType}:${sessionId}`)
+    .setTitle(`Type ${noun} Bans`)
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('tokens')
+          .setLabel(`${noun} bans`)
+          .setPlaceholder(
+            banType === 'leader'
+              ? 'Cleopatra, :trajan:, <:_romecaesar_:123>'
+              : 'Roman, :egyptian:, Maya'
+          )
+          .setRequired(true)
+          .setStyle(TextInputStyle.Paragraph)
+      )
+    );
+
+  return modal;
+}
+
+function formatBanInputIssues(unknownTokens: readonly string[], ambiguousTokens: readonly string[]): string | null {
+  const parts: string[] = [];
+  if (unknownTokens.length > 0) {
+    parts.push(`Unknown: ${unknownTokens.map((token) => `\`${token}\``).join(', ')}`);
+  }
+  if (ambiguousTokens.length > 0) {
+    parts.push(`Ambiguous: ${ambiguousTokens.map((token) => `\`${token}\``).join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
 }
 
 export async function handleGameVoteSelect(
@@ -512,6 +551,28 @@ export async function handleGameVoteButton(
     return true;
   }
 
+  if (parsed.action === 'bantext') {
+    if (v.status !== 'in_progress' || v.phase !== 'voting') {
+      await replyNotice(interaction, '⚠️ Bans are closed.');
+      return true;
+    }
+    if (!isVoter(v, userId)) {
+      await replyNotice(interaction, '⚠️ You are not part of this vote session.');
+      return true;
+    }
+    if (v.finished.has(userId)) {
+      await replyNotice(interaction, '⚠️ You already finished your vote.');
+      return true;
+    }
+    if (parsed.banType === 'civ' && v.edition !== 'CIV7') {
+      await replyNotice(interaction, '⚠️ Civ bans are not available for Civ6.');
+      return true;
+    }
+
+    await interaction.showModal(buildBanTextModal(v.sessionId, parsed.banType));
+    return true;
+  }
+
   if (parsed.action === 'ban') {
     if (v.status !== 'in_progress' || v.phase !== 'voting') {
       await replyNotice(interaction, '⚠️ Bans are closed.');
@@ -608,12 +669,64 @@ export async function handleGameVoteModal(
   interaction: ModalSubmitInteraction
 ): Promise<boolean> {
   const parsed = parseCustomId(interaction.customId);
-  if (!parsed || parsed.action !== 'ban') return false;
+  if (!parsed || parsed.action !== 'bantextsubmit') return false;
 
-  await replyNotice(
-    interaction,
-    '⚠️ Bans are now submitted via the **Submit Bans** button (emoji menus), not via the modal.'
+  const v = getVoteSessionById(parsed.sessionId);
+  if (!v) {
+    await replyNotice(interaction, '⚠️ This vote session has ended or is invalid.');
+    return true;
+  }
+
+  const userId = interaction.user.id;
+  if (v.status !== 'in_progress' || v.phase !== 'voting') {
+    await replyNotice(interaction, '⚠️ Bans are closed.');
+    return true;
+  }
+  if (!isVoter(v, userId)) {
+    await replyNotice(interaction, '⚠️ You are not part of this vote session.');
+    return true;
+  }
+  if (v.finished.has(userId)) {
+    await replyNotice(interaction, '⚠️ You already finished your vote.');
+    return true;
+  }
+  if (parsed.banType === 'civ' && v.edition !== 'CIV7') {
+    await replyNotice(interaction, '⚠️ Civ bans are not available for Civ6.');
+    return true;
+  }
+
+  const raw = interaction.fields.getTextInputValue('tokens');
+  const resolved = resolveTypedBanInput(v, parsed.banType, raw);
+  if (resolved.keys.length === 0) {
+    const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens) ?? 'No valid bans were found.';
+    await replyNotice(interaction, `⚠️ No valid ${parsed.banType} bans were found.\n${issues}`);
+    return true;
+  }
+
+  const current = ensureStagedBans(v, userId);
+  const next = normalizeBanSubmission(
+    v,
+    parsed.banType === 'leader'
+      ? { leaderKeys: resolved.keys, civKeys: current.civKeys }
+      : { leaderKeys: current.leaderKeys, civKeys: resolved.keys }
   );
+
+  v.stagedBansByVoter.set(userId, next);
+  const payload = buildBansPanelViewPayload(v, userId);
+
+  if (interaction.isFromMessage()) {
+    await interaction.update({ embeds: payload.embeds, components: payload.components });
+  } else {
+    await replySafe(interaction, { ...payload, flags: MessageFlags.Ephemeral });
+  }
+
+  const issues = formatBanInputIssues(resolved.unknownTokens, resolved.ambiguousTokens);
+  if (issues) {
+    await replySafe(interaction, {
+      content: `⚠️ Some entries were ignored.\n${issues}`,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   return true;
 }

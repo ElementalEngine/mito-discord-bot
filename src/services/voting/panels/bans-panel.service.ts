@@ -104,10 +104,10 @@ export function buildBansPanelPayload(args: Readonly<{
   submitDisabled: boolean;
 }>): BansPanelPayload {
   const desc: string[] = [
-    'Choose one or more bans with the menus below, then press **Submit Bans**. You can keep editing until either pressing **Finish Vote** or the vote concludes and a draft is called.',
-    `**Leader bans:** ${args.leaderSummary}`,
-    args.edition === 'CIV7' ? `**Civ bans:** ${args.civSummary ?? '—'}` : undefined,
-    args.submitted ? '✅ **Bans saved** — you can reopen this panel and keep editing until **Finish Vote**.' : undefined,
+    'Type bans with the buttons below, or browse with the select menus. Names, IDs, aliases, and matching emoji names are all accepted.',
+    `**Leader:** ${args.leaderSummary}`,
+    args.edition === 'CIV7' ? `**Civ:** ${args.civSummary ?? '—'}` : undefined,
+    args.submitted ? '✅ **Bans saved** — you can keep editing until **Finish Vote**.' : undefined,
   ].filter((line): line is string => Boolean(line));
 
   const embed = new EmbedBuilder().setTitle('🛑 Bans').setDescription(desc.join('\n'));

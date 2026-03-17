@@ -4,6 +4,7 @@ import {
   type ChatInputCommandInteraction,
   type GuildMember,
   type SendableChannels,
+  type SlashCommandSubcommandBuilder,
 } from 'discord.js';
 
 import { config } from '../../config.js';
@@ -14,13 +15,19 @@ import type { Civ7StartingAge } from '../../data/types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
 
-const GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
+const SUBCOMMAND_TO_GAME_TYPE = {
+  ffa: 'FFA',
+  team: 'Teamer',
+  duel: 'Duel',
+} as const satisfies Record<'ffa' | 'team' | 'duel', DraftGameType>;
 const STARTING_AGES = [
   'Antiquity_Age',
   'Exploration_Age',
   'Modern_Age',
   'None',
 ] as const;
+
+type VoteCiv7Subcommand = keyof typeof SUBCOMMAND_TO_GAME_TYPE;
 
 async function replyEphemeral(
   interaction: ChatInputCommandInteraction,
@@ -61,22 +68,8 @@ function allowedVoteChannels(gameType: DraftGameType): readonly string[] {
     : [config.discord.channels.civ7ffaVote];
 }
 
-export const data = new SlashCommandBuilder()
-  .setName('vote-civ7')
-  .setDescription('Start a Civ7 game vote in your voice channel, then draft.')
-  .setDMPermission(false)
-  .addStringOption((opt) =>
-    opt
-      .setName('game-type')
-      .setDescription('FFA, Teamer, or Duel')
-      .setRequired(true)
-      .addChoices(
-        { name: 'FFA', value: 'FFA' },
-        { name: 'Teamer', value: 'Teamer' },
-        { name: 'Duel', value: 'Duel' }
-      )
-  )
-  .addStringOption((opt) =>
+function addStartingAgeOption(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return subcommand.addStringOption((opt) =>
     opt
       .setName('starting-age')
       .setDescription('Required Civ7 starting age pool')
@@ -87,32 +80,54 @@ export const data = new SlashCommandBuilder()
         { name: 'Modern_Age', value: 'Modern_Age' },
         { name: 'None', value: 'None' }
       )
-  )
-  .addIntegerOption((opt) =>
-    opt
-      .setName('number-teams')
-      .setDescription('Required for Teamer (2–5).')
-      .setMinValue(2)
-      .setMaxValue(5)
-      .setRequired(false)
-  )
-  .addStringOption((opt) =>
+  );
+}
+
+function addMentionsOption(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return subcommand.addStringOption((opt) =>
     opt
       .setName('mentions')
       .setDescription('Optional: mention users to add/remove from voters')
       .setRequired(false)
+  );
+}
+
+function addSharedOptions(subcommand: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
+  return addMentionsOption(addStartingAgeOption(subcommand));
+}
+
+export const data = new SlashCommandBuilder()
+  .setName('vote-civ7')
+  .setDescription('Start a Civ7 game vote in your voice channel, then draft.')
+  .setDMPermission(false)
+  .addSubcommand((subcommand) =>
+    addSharedOptions(subcommand.setName('ffa').setDescription('Start a Civ7 FFA vote.'))
+  )
+  .addSubcommand((subcommand) =>
+    addSharedOptions(subcommand.setName('duel').setDescription('Start a Civ7 duel vote.'))
+  )
+  .addSubcommand((subcommand) =>
+    addSharedOptions(
+      subcommand
+        .setName('team')
+        .setDescription('Start a Civ7 teamer vote.')
+        .addIntegerOption((opt) =>
+          opt
+            .setName('number-of-teams')
+            .setDescription('Required for teamer (2–5).')
+            .setMinValue(2)
+            .setMaxValue(5)
+            .setRequired(true)
+        )
+    )
   );
 
 export async function execute(
   interaction: ChatInputCommandInteraction
 ): Promise<void> {
   try {
-    const gameTypeRaw = interaction.options.getString('game-type', true);
-    if (!GAME_TYPES.includes(gameTypeRaw as (typeof GAME_TYPES)[number])) {
-      await replyEphemeral(interaction, `${EMOJI_FAIL} Invalid game-type.`);
-      return;
-    }
-    const gameType = gameTypeRaw as DraftGameType;
+    const subcommand = interaction.options.getSubcommand(true) as VoteCiv7Subcommand;
+    const gameType = SUBCOMMAND_TO_GAME_TYPE[subcommand];
 
     const startingAgeRaw = interaction.options.getString('starting-age', true);
     if (!STARTING_AGES.includes(startingAgeRaw as (typeof STARTING_AGES)[number])) {
@@ -143,14 +158,11 @@ export async function execute(
       return;
     }
 
-    const numberTeams = interaction.options.getInteger('number-teams') ?? undefined;
-    const mentions = interaction.options.getString('mentions', false);
-
-
-    if (gameType === 'Teamer' && !numberTeams) {
-      await replyEphemeral(interaction, `${EMOJI_FAIL} Teamer requires **number-teams**.`);
-      return;
-    }
+    const numberTeams =
+      subcommand === 'team'
+        ? interaction.options.getInteger('number-of-teams', true)
+        : undefined;
+    const mentions = interaction.options.getString('mentions', false) ?? undefined;
 
     const guild = interaction.guild;
     if (!guild) {
@@ -183,7 +195,7 @@ export async function execute(
         return;
       }
       if (teams < 2 || teams > 5) {
-        await replyEphemeral(interaction, `${EMOJI_FAIL} number-teams must be **2–5**.`);
+        await replyEphemeral(interaction, `${EMOJI_FAIL} number-of-teams must be **2–5**.`);
         return;
       }
       if (voters.length % teams !== 0) {
