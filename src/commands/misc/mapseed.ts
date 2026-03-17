@@ -58,6 +58,8 @@ const ACCESS_POLICY = {
     config.discord.channels.civ6Commands,
     config.discord.channels.civ7Commands,
     config.discord.channels.cloudCommands,
+    config.discord.channels.civ6ffaVote,
+    config.discord.channels.civ6teamerVote,
   ],
   requiredRoleIds: [
     config.discord.roles.civ6Rank,
