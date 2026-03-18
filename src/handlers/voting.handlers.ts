@@ -594,6 +594,16 @@ export async function handleGameVoteButton(
       await replyNotice(interaction, '⚠️ You already finished your vote.');
       return true;
     }
+    if (parsed.banType === 'civ' && v.edition !== 'CIV7') {
+      await replyNotice(interaction, '⚠️ Civ bans are not available for Civ6.');
+      return true;
+    }
+
+    const search = getBanSearchState(v, userId);
+    if ((parsed.banType === 'leader' && search.leaderQuery) || (parsed.banType === 'civ' && search.civQuery)) {
+      await interaction.deferUpdate();
+      return true;
+    }
 
     const page = getBanPageState(v, userId);
     const leaders = getLeaderBanSource(v);
