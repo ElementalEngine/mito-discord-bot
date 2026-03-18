@@ -65,7 +65,8 @@ async function handleSecretVoteButton(
   const res = await recordSecretVoteChoice(
     parsed.voteId,
     parsed.voterId,
-    parsed.choice
+    parsed.choice,
+    interaction.createdTimestamp
   );
 
   if (!res.ok) {

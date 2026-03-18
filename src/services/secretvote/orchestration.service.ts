@@ -6,7 +6,12 @@ import type {
   StartSecretVoteOptions,
   StartSecretVoteResult,
 } from '../../types/secretvote.types.js';
-import { createSecretVoteDeadlineWindow, clearSecretVoteTimeout, scheduleSecretVoteTimeout } from './runtime/deadline.service.js';
+import {
+  createSecretVoteDeadlineWindow,
+  clearSecretVoteTimeout,
+  isSecretVoteWithinAcceptanceWindow,
+  scheduleSecretVoteTimeout,
+} from './runtime/deadline.service.js';
 import {
   buildInitialSecretVoteStatus,
   buildSecretVoteStatus,
@@ -225,10 +230,19 @@ export async function startSecretVote(
 export async function recordSecretVoteChoice(
   voteId: string,
   voterId: string,
-  choice: SecretVoteChoice
+  choice: SecretVoteChoice,
+  submittedAtMs: number = Date.now()
 ): Promise<RecordSecretVoteResult> {
   const session = getSecretVoteSession(voteId);
   if (!session || !isSecretVoteCollecting(session)) {
+    return {
+      ok: false,
+      kind: 'NOT_ACTIVE',
+      message: `${EMOJI_FAIL} This vote is no longer active.`,
+    };
+  }
+
+  if (!isSecretVoteWithinAcceptanceWindow(session.endsAtMs, submittedAtMs)) {
     return {
       ok: false,
       kind: 'NOT_ACTIVE',

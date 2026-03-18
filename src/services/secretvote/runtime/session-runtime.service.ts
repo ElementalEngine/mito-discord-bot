@@ -1,7 +1,6 @@
 import type {
   SecretVoteChoice,
   SecretVoteSession,
-  SecretVoteSessionPhase,
 } from '../../../types/secretvote.types.js';
 
 type SecretVoteSessionSeed = Readonly<{
@@ -125,8 +124,3 @@ export function recordSecretVoteInSession(
   session.awaiting.delete(voterId);
 }
 
-export function getSecretVotePhase(
-  session: SecretVoteSession
-): SecretVoteSessionPhase {
-  return session.phase;
-}
