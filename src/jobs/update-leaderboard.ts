@@ -11,7 +11,7 @@ import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.data.js';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
-const PLACEHOLDER_COUNT = 11; 
+const PLACEHOLDER_COUNT = 12;
 const PLACEHOLDER_TEXT = 'Placeholder for leaderboard entry.';
 
 function sleep(ms: number): Promise<void> {
@@ -98,7 +98,8 @@ async function ensurePlaceholderMessages(
             c === PLACEHOLDER_TEXT ||
             c.startsWith('`Rank') ||
             c.startsWith('`#') ||
-            c.startsWith('Last updated:')
+            c.startsWith('Last updated:') ||
+            c.startsWith('```')
           );
         })
     : [];
@@ -114,6 +115,26 @@ async function ensurePlaceholderMessages(
 
   arr.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   return arr;
+}
+
+async function printRankings(message: Message<true>): Promise<void> {
+  const rankingsStr = ['Ranks:',
+    'Deity ***   2400+',
+    'Deity **    2200 - 2399',
+    'Deity       2000 - 2199',
+    'Immortal    1800 - 1999',
+    'Emperor     1600 - 1799',
+    'King        1500 - 1599',
+    'Prince      1400 - 1499',
+    'Warlord     1300 - 1399',
+    'Chieftain   1200 - 1299',
+    'Settler     1100 - 1199',
+    'Builder     1000 - 1099',
+    'Scout          0 - 999'
+  ].join('\n\t');
+
+  await message.edit(`\`\`\`\n${rankingsStr}\`\`\``).catch(() => undefined);
+  await sleep(4000);
 }
 
 async function updateLeaderboard(
@@ -141,7 +162,7 @@ async function updateLeaderboard(
     `${new Date().toLocaleTimeString()}: Updating leaderboard: ${leaderboard.name} (${leaderboard.thread_id})`
   );
 
-  for (let i = 0; i < messages.length - 1; i++) {
+  for (let i = 0; i < messages.length - 2; i++) {
     const msg = messages[i];
     const leaderboardMsg = getLeaderboardMessage(
       leaderboardRanking,
@@ -151,6 +172,8 @@ async function updateLeaderboard(
     await msg.edit(leaderboardMsg).catch(() => undefined);
     await sleep(4000);
   }
+
+  await printRankings(messages[messages.length - 2]);
 
   const incomingTs = toUnixSeconds(leaderboardRanking.last_updated);
   await messages[messages.length - 1].edit(`Last updated: <t:${incomingTs}:F>`).catch(() => undefined);
