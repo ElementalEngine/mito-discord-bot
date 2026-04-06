@@ -24,4 +24,12 @@ export class StatsService {
   }): Promise<BatchStatsResponse> {
     return this.api.getUsersStatsBatch(opts.civVersion, opts.gameType, opts.discordIds);
   }
+
+  resetUserStats(opts: {
+    civVersion: CivVersion;
+    gameType: StatsGameType;
+    discordId: string;
+  }): Promise<UserStatsResponse> {
+    return this.api.resetUserStats(opts.civVersion, opts.gameType, opts.discordId);
+  }
 }

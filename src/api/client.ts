@@ -267,6 +267,20 @@ export class ApiClient {
     return (await this.parseJson(res)) as BatchStatsResponse;
   }
 
+  async resetUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<UserStatsResponse> {
+    const params = new URLSearchParams({
+      civ_version: civVersion,
+      game_type: gameType,
+      discord_id: discordId,
+    });
+
+    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/reset/user?${params.toString()}`, {
+      method: "PUT",
+    });
+
+    return (await this.parseJson(res)) as UserStatsResponse;
+  }
+
   async getTeamGen(
     civVersion: CivVersion,
     gameType: StatsGameType,
