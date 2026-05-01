@@ -188,18 +188,14 @@ async function updateLeaderboards(client: Client): Promise<void> {
 
 export function startUpdateLeaderboardsJob(client: Client): () => void {
   let stopped = false;
-  let running = false;
 
   const runOnce = async (): Promise<void> => {
-    if (stopped || running) return;
-    running = true;
+    if (stopped) return;
     try {
       await updateLeaderboards(client);
       console.log('✅ Leaderboards updated successfully');
     } catch (err: unknown) {
       console.error('❌ Failed to update leaderboards:', err);
-    } finally {
-      running = false;
     }
   };
 
