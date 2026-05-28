@@ -4,8 +4,8 @@ export const CIV6_LEADERS = Object.freeze({
   LEADER_ABRAHAM_LINCOLN: { gameId: "AmericaAbrahamLincoln", emojiId: "1464719535990116563", type: "None" },
   LEADER_T_ROOSEVELT: { gameId: "AmericaTeddyBullMoose", emojiId: "1464719538145988710", type: "None" },
   LEADER_T_ROOSEVELT_ROUGHRIDER: { gameId: "AmericaTeddyRoughRider", emojiId: "1464719540284821624", type: "None" },
-  LEADER_SALADIN: { gameId: "ArabiaSaladinVizier", emojiId: "1464719544198365236", type: "None" },
-  LEADER_SALADIN_ALT: { gameId: "ArabiaSaladinSultan", emojiId: "1464719542747009278", type: "None" },
+  LEADER_SALADIN: { gameId: "ArabiaVizier", emojiId: "1464719544198365236", type: "None" },
+  LEADER_SALADIN_ALT: { gameId: "ArabiaSultan", emojiId: "1464719542747009278", type: "None" },
   LEADER_JOHN_CURTIN: { gameId: "AustraliaJohnCurtin", emojiId: "1464719545909645568", type: "None" },
   LEADER_MONTEZUMA: { gameId: "AztecMontezuma", emojiId: "1464719547490894084", type: "None" },
   LEADER_HAMMURABI: { gameId: "BabylonHammurabi", emojiId: "1464719549059436545", type: "None" },
@@ -87,9 +87,13 @@ export const CIV6_LEADERS = Object.freeze({
   LEADER_SUK_TRISONG_DETSEN: { gameId: "Trisong", emojiId: "1464712226978922617", type: "None" },
   LEADER_SUK_AL_HASAN: { gameId: "AlHasan", emojiId: "1464712221341909012", type: "None" },
   LEADER_SUK_VERCINGETORIX_DLC: { gameId: "Vercingetorix", emojiId: "1464712214131773532", type: "None" },
+  LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509636812522389655", type: "None" },
+  LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509636807665385492", type: "None" },
+  LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509636809443901563", type: "None" },
+  LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509636809443901563", type: "None" },
 } satisfies Record<string, LeaderMeta>);
 
-/* test bot data */
+// /* test bot data */
 // export const CIV6_LEADERS = Object.freeze({
 //   LEADER_ABRAHAM_LINCOLN: { gameId: "AmericaAbrahamLincoln", emojiId: "1474902355542544525", type: "None" },
 //   LEADER_T_ROOSEVELT: { gameId: "AmericaTeddyBullMoose", emojiId: "1474902357300220099", type: "None" },
@@ -177,6 +181,10 @@ export const CIV6_LEADERS = Object.freeze({
 //   LEADER_SUK_TRISONG_DETSEN: { gameId: "Trisong", emojiId: "1480033190797115440", type: "None" },
 //   LEADER_SUK_AL_HASAN: { gameId: "AlHasan", emojiId: "1480033185466417467", type: "None" },
 //   LEADER_SUK_VERCINGETORIX_DLC: { gameId: "Vercingetorix", emojiId: "1480033179166576821", type: "None" },
+//   LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509639336361066689", type: "None" },
+//   LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509639330816200874", type: "None" },
+//   LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509639333265543442", type: "None" },
+//   LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509639334985207900", type: "None" },
 // } satisfies Record<string, LeaderMeta>);
 
 function render(meta: LeaderMeta): string {
