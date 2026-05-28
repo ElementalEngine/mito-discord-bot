@@ -87,10 +87,10 @@ export const CIV6_LEADERS = Object.freeze({
   LEADER_SUK_TRISONG_DETSEN: { gameId: "Trisong", emojiId: "1464712226978922617", type: "None" },
   LEADER_SUK_AL_HASAN: { gameId: "AlHasan", emojiId: "1464712221341909012", type: "None" },
   LEADER_SUK_VERCINGETORIX_DLC: { gameId: "Vercingetorix", emojiId: "1464712214131773532", type: "None" },
-  LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509636812522389655", type: "None" },
-  LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509636807665385492", type: "None" },
-  LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509636809443901563", type: "None" },
-  LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509636809443901563", type: "None" },
+  LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509642544395325470", type: "None" },
+  LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509642049681494146", type: "None" },
+  LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509642121693626508", type: "None" },
+  LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509642146045759609", type: "None" },
 } satisfies Record<string, LeaderMeta>);
 
 // /* test bot data */
