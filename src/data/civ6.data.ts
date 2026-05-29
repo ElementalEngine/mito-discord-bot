@@ -87,10 +87,10 @@ export const CIV6_LEADERS = Object.freeze({
   LEADER_SUK_TRISONG_DETSEN: { gameId: "Trisong", emojiId: "1464712226978922617", type: "None" },
   LEADER_SUK_AL_HASAN: { gameId: "AlHasan", emojiId: "1464712221341909012", type: "None" },
   LEADER_SUK_VERCINGETORIX_DLC: { gameId: "Vercingetorix", emojiId: "1464712214131773532", type: "None" },
-  LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509642544395325470", type: "None" },
-  LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509642049681494146", type: "None" },
-  LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509642121693626508", type: "None" },
-  LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509642146045759609", type: "None" },
+  LEADER_MER_MARIA_THERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509642544395325470", type: "None" },
+  LEADER_CVS_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509642049681494146", type: "None" },
+  LEADER_JFD_STANISLAW: { gameId: "PolandStanislausII", emojiId: "1509642121693626508", type: "None" },
+  LEADER_MER_THEODORIC: { gameId: "GothsTheodoric", emojiId: "1509642146045759609", type: "None" },
 } satisfies Record<string, LeaderMeta>);
 
 // /* test bot data */
@@ -181,10 +181,10 @@ export const CIV6_LEADERS = Object.freeze({
 //   LEADER_SUK_TRISONG_DETSEN: { gameId: "Trisong", emojiId: "1480033190797115440", type: "None" },
 //   LEADER_SUK_AL_HASAN: { gameId: "AlHasan", emojiId: "1480033185466417467", type: "None" },
 //   LEADER_SUK_VERCINGETORIX_DLC: { gameId: "Vercingetorix", emojiId: "1480033179166576821", type: "None" },
-//   LEADER_MARIA_TERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509639336361066689", type: "None" },
-//   LEADER_TAINO_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509639330816200874", type: "None" },
-//   LEADER_STANISLAW_II: { gameId: "PolandStanislausII", emojiId: "1509639333265543442", type: "None" },
-//   LEADER_GOTHS_THEODO: { gameId: "GothsTheodoric", emojiId: "1509639334985207900", type: "None" },
+//   LEADER_MER_MARIA_THERESA: { gameId: "AustriaMariaTeresa", emojiId: "1509639336361066689", type: "None" },
+//   LEADER_CVS_ANACAONA: { gameId: "TainoAnacaona", emojiId: "1509639330816200874", type: "None" },
+//   LEADER_JFD_STANISLAW: { gameId: "PolandStanislausII", emojiId: "1509639333265543442", type: "None" },
+//   LEADER_MER_THEODORIC: { gameId: "GothsTheodoric", emojiId: "1509639334985207900", type: "None" },
 // } satisfies Record<string, LeaderMeta>);
 
 function render(meta: LeaderMeta): string {
