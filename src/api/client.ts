@@ -16,10 +16,12 @@ type FetchLike = typeof fetch;
 export class ApiClient {
   private readonly base: string;
   private readonly fetcher: FetchLike;
+  private readonly serviceToken: string;
 
-  constructor(base = config.backend.url, fetcher: FetchLike = fetch) {
+  constructor(base = config.backend.url, fetcher: FetchLike = fetch, serviceToken = config.backend.serviceToken) {
     this.base = base.replace(/\/+$/, "");
     this.fetcher = fetcher;
+    this.serviceToken = serviceToken;
   }
 
   async uploadSave(fileBuf: Buffer, filename: string, reporterDiscordId: string, isCloud: boolean, discordMessageId: string): Promise<UploadSaveResponse> {
@@ -308,7 +310,9 @@ export class ApiClient {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30_000);
         try {
-          const res = await this.fetcher(input, { ...init, signal: controller.signal });
+          const headers = new Headers(init?.headers);
+          if (this.serviceToken) headers.set("authorization", `Bearer ${this.serviceToken}`);
+          const res = await this.fetcher(input, { ...init, headers, signal: controller.signal });
           if (!res.ok) {
             const body = await this.safeJson(res);
             throw new ApiError(`HTTP ${res.status}`, res.status, body);

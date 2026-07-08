@@ -133,6 +133,7 @@ export const config = {
   port,
   backend: {
     url: env('BACKEND_SERVICE_URL', backendDefault),
+    serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
   env: nodeEnv,
   rateLimit: {
