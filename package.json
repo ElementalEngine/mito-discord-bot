@@ -1,11 +1,10 @@
 {
   "name": "mito-civ-discord-bot",
   "version": "2.0.0",
-  "description": "Bot for Civilization VI Discord Community «CivCPL». Developed in TypeScript using MongoDB, Express, Discord API, Steam Web API.",
+  "description": "Bot for the Civilization VI & VII Discord community «CivCPL». TypeScript Discord bot built on discord.js, backed by the core-api service over HTTP.",
   "keywords": [
     "Discord",
     "Bot",
-    "Express",
     "TypeScript"
   ],
   "homepage": "https://github.com/ElementalEngine/mito-civ-discord-bot#readme",
@@ -37,39 +36,27 @@
     "clean": "node --input-type=commonjs -e \"const fs=require('node:fs'); const path=require('node:path'); for (const p of ['dist','tsconfig.tsbuildinfo']) { fs.rmSync(path.resolve(p), { recursive: true, force: true }); }\"",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json -w --preserveWatchOutput",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "npm run typecheck && npm run build && npm run lint",
+    "typecheck": "tsc -p tsconfig.tests.json",
+    "verify": "npm run typecheck && npm run build && npm run lint && npm run test",
     "dev": "concurrently -k -n tsc,node \"npm:build:watch\" \"npm:start:watch\"",
     "dev:ts": "tsx watch src/index.ts",
     "start": "node --enable-source-maps dist/index.js",
     "start:watch": "node --enable-source-maps --watch dist/index.js",
-    "deploy": "node dist/deploy.js",
     "lint": "eslint .",
-    "test": "node --input-type=commonjs -e \"console.log('No tests configured');\""
+    "test": "node --import tsx --test \"tests/**/*.test.ts\""
   },
   "dependencies": {
     "@discordjs/rest": "^2.6.0",
-    "axios": "^1.13.2",
-    "body-parser": "^2.2.2",
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0",
-    "morgan": "^1.10.1",
-    "steamapi": "^3.1.4"
+    "express-rate-limit": "^8.2.1"
   },
   "overrides": {
     "undici": "6.27.0"
   },
   "devDependencies": {
-    "@types/compression": "^1.8.1",
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/helmet": "^4.0.0",
-    "@types/morgan": "^1.9.10",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",

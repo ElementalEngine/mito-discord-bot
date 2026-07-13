@@ -108,6 +108,7 @@ export const config = {
   discord,
   backend: {
     url: env('BACKEND_SERVICE_URL', backendDefault),
+    serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
   env: nodeEnv,
 } as const;
