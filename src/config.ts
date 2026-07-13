@@ -1,4 +1,3 @@
-import type { CorsOptions } from 'cors';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 
@@ -15,22 +14,6 @@ dotenvConfig({
 });
 
 const env = (key: string, fallback = ''): string => process.env[key] ?? fallback;
-const host = process.env.HOST!;
-const port = Number(process.env.PORT!);
-
-// CORS
-const corsOriginRaw = env('CORS', '*').trim();
-const corsOrigin =
-  corsOriginRaw === '*'
-    ? '*'
-    : corsOriginRaw.split(',').map((s) => s.trim()).filter(Boolean);
-
-const cors: CorsOptions = {
-  origin: corsOrigin,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  credentials: corsOriginRaw !== '*',
-  exposedHeaders: ['x-auth-token'],
-};
 
 const rankRoles = {
   Deity_3_STAR: env('ROLE_RANK_DEITY_3_STAR', ''),
@@ -117,27 +100,14 @@ const discord = {
 };
 
 // Backend URL
-const redirectUri = `http://${host}:${port}`;
 const backendDefault =
   nodeEnv === 'production' ? 'http://localhost:8000' : 'http://localhost:8001';
 
 // Final config export
 export const config = {
-  oauth:
-    `https://discord.com/api/oauth2/authorize?client_id=${discord.clientId}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&response_type=code&scope=identify%20connections&state=`,
-  cors,
   discord,
-  host,
-  port,
   backend: {
     url: env('BACKEND_SERVICE_URL', backendDefault),
-    serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
   env: nodeEnv,
-  rateLimit: {
-    windowMs: Number(env('RATE_LIMIT_WINDOW_MS', String(15 * 60 * 1000))),
-    max: Number(env('RATE_LIMIT_MAX', '100')),
-  },
 } as const;
