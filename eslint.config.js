@@ -80,6 +80,7 @@ export default [
             'Architecture boundary violation (${file.type} → ${dependency.type}) — see mite-v2-architecture.md §3',
           rules: [
             { from: ['engine'], allow: ['data', 'shared', 'engine'] },
+            { from: ['shared'], allow: ['shared', 'data'] },
             { from: ['core'], allow: ['shared', 'core'] },
             {
               from: ['session'],

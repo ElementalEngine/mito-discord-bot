@@ -37,13 +37,14 @@
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json -w --preserveWatchOutput",
     "typecheck": "tsc -p tsconfig.tests.json",
-    "verify": "npm run typecheck && npm run build && npm run lint && npm run lint:selftest && npm run test",
+    "verify": "npm run typecheck && npm run build && npm run lint && npm run lint:selftest && npm run test && npm run test:coverage",
     "dev": "concurrently -k -n tsc,node \"npm:build:watch\" \"npm:start:watch\"",
     "dev:ts": "tsx watch src/index.ts",
     "start": "node --enable-source-maps dist/index.js",
     "start:watch": "node --enable-source-maps --watch dist/index.js",
     "lint": "eslint .",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-include=\"src/engine/**\" --test-coverage-branches=94 --test-coverage-lines=99 --test-coverage-functions=100 \"tests/**/*.test.ts\"",
     "lint:selftest": "node scripts/lint-selftest.mjs"
   },
   "dependencies": {

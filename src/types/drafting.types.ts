@@ -2,64 +2,20 @@ import type { EmbedBuilder, Message, SendableChannels, User } from 'discord.js';
 
 import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
+import type { DraftGameType, DraftMode } from '../shared/draft.types.js';
 
-export const DRAFT_GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
-export type DraftGameType = (typeof DRAFT_GAME_TYPES)[number];
-
-export const DRAFT_MODES = ['standard', 'snake', 'random', 'cwc', 'blind'] as const;
-export type DraftMode = (typeof DRAFT_MODES)[number];
-
-export type Civ6DraftRequest = Readonly<{
-  gameType: DraftGameType;
-  numberPlayers?: number;
-  numberTeams?: number;
-  leaderBansRaw?: string;
-}>;
-
-export type Civ7DraftRequest = Readonly<{
-  gameType: DraftGameType;
-  startingAge: Civ7StartingAge;
-  numberPlayers?: number;
-  numberTeams?: number;
-  leaderBansRaw?: string;
-  civBansRaw?: string;
-}>;
-
-export type DraftGroupKind = 'Player' | 'Team';
-
-export type DraftAllocation = Readonly<{
-  groupKind: DraftGroupKind;
-  groupCount: number;
-  leadersPerGroup: number;
-  leadersPerGroupMax?: number;
-  civsPerGroup?: number;
-  civsPerGroupMax?: number;
-  note?: string;
-  bannedLeaders?: readonly string[];
-  ignoredLeaderBans?: readonly string[];
-  bannedCivs?: readonly string[];
-  ignoredCivBans?: readonly string[];
-}>;
-
-export type DraftGroup = Readonly<{
-  leaders: readonly string[];
-  civs?: readonly string[];
-}>;
-
-export type Civ6DraftResult = Readonly<{
-  gameVersion: 'civ6';
-  gameType: DraftGameType;
-  allocation: DraftAllocation;
-  groups: readonly DraftGroup[];
-}>;
-
-export type Civ7DraftResult = Readonly<{
-  gameVersion: 'civ7';
-  gameType: DraftGameType;
-  startingAge: Civ7StartingAge;
-  allocation: DraftAllocation;
-  groups: readonly DraftGroup[];
-}>;
+export { DRAFT_GAME_TYPES, DRAFT_MODES } from '../shared/draft.types.js';
+export type {
+  Civ6DraftRequest,
+  Civ6DraftResult,
+  Civ7DraftRequest,
+  Civ7DraftResult,
+  DraftAllocation,
+  DraftGameType,
+  DraftGroup,
+  DraftGroupKind,
+  DraftMode,
+} from '../shared/draft.types.js';
 
 export type DraftCommandRequest = Readonly<{
   source: 'command';
