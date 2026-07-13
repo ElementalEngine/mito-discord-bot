@@ -9,7 +9,7 @@ import {
   handleGameVoteButton,
   handleGameVoteModal,
   handleGameVoteSelect,
-} from '../handlers/voting.handlers.js';
+} from './voting.handlers.js';
 
 export async function handleGameVoteInteraction(
   interaction: Interaction

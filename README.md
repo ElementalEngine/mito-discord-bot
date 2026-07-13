@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/Status-Active-success" alt="Status" />
   <img src="https://img.shields.io/badge/Version-1.5.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/Discord-Slash%20Commands-7289da" alt="Discord Slash Commands" />
-  <img src="https://img.shields.io/badge/Tech-Node.js%20%7C%20TypeScript%20%7C%20MongoDB-lightgrey" alt="Tech Stack" />
+  <img src="https://img.shields.io/badge/Tech-Node.js%20%7C%20TypeScript-lightgrey" alt="Tech Stack" />
 </p>
 
 ---
@@ -104,9 +104,9 @@ Below are example previews of MitoCiv’s features:
 
 ## Technology Stack
 - **Languages & Frameworks:** Node.js, TypeScript, FastAPI (Python microservices)  
-- **Libraries:** discord.js, Express  
-- **Database:** MongoDB  
-- **APIs:** Steam Web API, civ-save-phase API  
+- **Libraries:** discord.js  
+- **Database:** none — all persistence goes through the core-api service over HTTP  
+- **APIs:** core-api (HTTP), civ-save-phase API  
 - **Other Tools:** Node.js `--watch` + TypeScript watch (`tsc -w`), ESLint, npm  
 
 [Back to Top](#table-of-contents)
@@ -132,7 +132,7 @@ It requires access to a centralized database for leaderboards and statistics.
 - Dev (watch): `npm run dev`
 - Verify (pre-deploy gate): `npm run verify`
 - Build + run (prod): `npm run build && npm start`
-- Deploy commands: `npm run build && npm run deploy`
+- Slash-command registration runs automatically on startup (ClientReady) — no separate deploy step.
 
 [Back to Top](#table-of-contents)
 
