@@ -5,10 +5,10 @@ import {
   type Interaction,
 } from 'discord.js';
 
-import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
-import { handleDraftingInteraction } from '../interactions/drafting.interactions.js';
-import { handleGameVoteInteraction } from '../interactions/voting.interactions.js';
-import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
+import { EMOJI_ERROR, EMOJI_FAIL } from '../../core/config/constants.js';
+import { handleDraftingInteraction } from '../../interactions/drafting.interactions.js';
+import { handleGameVoteInteraction } from '../../interactions/voting.interactions.js';
+import { handleSecretVoteInteraction } from '../../interactions/secretvote.interactions.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;

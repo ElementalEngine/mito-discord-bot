@@ -1,1 +1,1 @@
-export const SESSION_SCAFFOLD: true = true;
+export const SESSION_SCAFFOLD = true as const;

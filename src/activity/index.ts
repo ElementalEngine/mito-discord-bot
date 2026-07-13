@@ -1,1 +1,1 @@
-export const ACTIVITY_SCAFFOLD: true = true;
+export const ACTIVITY_SCAFFOLD = true as const;

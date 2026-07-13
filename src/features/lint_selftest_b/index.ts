@@ -1,0 +1,1 @@
+export const LINT_SELFTEST_B = true;

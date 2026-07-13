@@ -1,1 +1,1 @@
-export const ENGINE_SCAFFOLD: true = true;
+export const ENGINE_SCAFFOLD = true as const;
