@@ -1,26 +1,28 @@
-import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const eslintBin = require.resolve('eslint/bin/eslint.js');
+import { loadESLint } from 'eslint';
 
 const targets = [
   'src/engine/__lint_selftest__.ts',
-  'src/features/lint_selftest_a',
-  'src/features/lint_selftest_b',
+  'src/features/lint_selftest_a/index.ts',
+  'src/features/lint_selftest_b/index.ts',
 ];
 
-const res = spawnSync(process.execPath, [eslintBin, '--no-ignore', ...targets], {
-  encoding: 'utf8',
-});
-const out = `${res.stdout ?? ''}${res.stderr ?? ''}`;
+const ESLint = await loadESLint();
+const eslint = new ESLint({ ignore: false }); // fixtures are ignored in normal lint
+const results = await eslint.lintFiles(targets);
 
-if (res.status === 0) {
-  console.error('lint:selftest FAILED — boundary rules did not fire on known violations.');
-  process.exit(1);
-}
-if (!/boundaries\/element-types|no-restricted-imports/.test(out)) {
-  console.error('lint:selftest FAILED — eslint failed, but not on boundary rules:\n' + out);
+const ruleIds = new Set(
+  results.flatMap((r) => r.messages.map((m) => m.ruleId).filter(Boolean))
+);
+const errorCount = results.reduce((n, r) => n + r.errorCount, 0);
+
+const expected =
+  ruleIds.has('boundaries/element-types') || ruleIds.has('no-restricted-imports');
+
+if (errorCount === 0 || !expected) {
+  console.error(
+    'lint:selftest FAILED — boundary rules did not fire on known violations.',
+    { errorCount, ruleIds: [...ruleIds] }
+  );
   process.exit(1);
 }
 console.log('lint:selftest OK — boundary rules fire on known violations.');
