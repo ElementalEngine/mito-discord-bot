@@ -38,6 +38,6 @@
 
     "noEmitOnError": true
   },
-  "include": ["src", "tsconfig.test.json"],
+  "include": ["src", "tsconfig.tests.json"],
   "exclude": ["node_modules", "dist"]
 }
