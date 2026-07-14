@@ -109,7 +109,7 @@ export default [
                 'legacy',
               ],
             },
-            { from: ['data'], allow: ['data', 'shared', 'core', 'legacy'] },
+            { from: ['data'], allow: ['data'] },
             { from: ['legacy'], allow: ['legacy', 'core', 'data', 'shared'] },
           ],
         },

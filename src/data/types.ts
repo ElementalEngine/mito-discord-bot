@@ -22,16 +22,6 @@ export type CivMeta = Readonly<{
   agePool: AgePool;
 }>;
 
-export type Leaderboard = {
-  name: string;
-  game: string;
-  game_type: string;
-  game_mode: string;
-  is_seasonal: boolean;
-  is_combined: boolean;
-  thread_id: string;
-};
-
 export type Civ6LeaderKey = keyof typeof import('./civ6.data.js').CIV6_LEADERS;
 export type Civ7LeaderKey = keyof typeof import('./civ7.data.js').CIV7_LEADERS;
 export type Civ7CivKey = keyof typeof import('./civ7.data.js').CIV7_CIVS;

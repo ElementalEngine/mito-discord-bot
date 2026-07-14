@@ -2,7 +2,7 @@ import { Events } from 'discord.js';
 import type { Client } from 'discord.js';
 import { deployCommands } from '../register.js';
 import { registerJob, startJobs } from '../../core/scheduling.js';
-import { startUpdateLeaderboardsJob } from '../../jobs/update-leaderboard.js';
+import { startUpdateLeaderboardsJob } from '../../features/stats/index.js';
 import { error as logError, log as logInfo } from '../../core/logging.js';
 
 export const name = Events.ClientReady;
