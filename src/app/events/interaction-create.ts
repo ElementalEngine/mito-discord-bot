@@ -9,6 +9,7 @@ import { EMOJI_ERROR, EMOJI_FAIL } from '../../core/config/constants.js';
 import { handleDraftingInteraction } from '../../interactions/drafting.interactions.js';
 import { handleGameVoteInteraction } from '../../interactions/voting.interactions.js';
 import { handleSecretVoteInteraction } from '../../interactions/secretvote.interactions.js';
+import { error as logError } from '../../core/logging.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -71,7 +72,7 @@ export async function execute(interaction: Interaction): Promise<void> {
       if (await handleDraftingInteraction(interaction)) return;
       if (await handleGameVoteInteraction(interaction)) return;
     } catch (err) {
-      console.error('Interaction handler failed', {
+      logError('Interaction handler failed', {
         err,
         customId,
         interactionId: interaction.id,
@@ -98,7 +99,7 @@ export async function execute(interaction: Interaction): Promise<void> {
   try {
     await command.execute(interaction);
   } catch (err) {
-    console.error('Command execution failed', {
+    logError('Command execution failed', {
       err,
       commandName: interaction.commandName,
       interactionId: interaction.id,

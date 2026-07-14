@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createSeededRandom } from '../../src/engine/random.js';
-import { normalizeRankedBallot, resolveRankedChoiceElection } from '../../src/engine/vote/irv.js';
+import { createSeededRandom } from '../../../src/engine/random.js';
+import { normalizeRankedBallot, resolveRankedChoiceElection } from '../../../src/engine/vote/irv.js';
 
 const rng = (): ReturnType<typeof createSeededRandom> => createSeededRandom('irv-seed');
 

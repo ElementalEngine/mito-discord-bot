@@ -202,14 +202,12 @@ const VOTE_SETTINGS_TEAMER: readonly VoteQuestion[] = [
 const DRAFT_MODES_FFA: readonly VoteOption[] = [
   { id: 'standard', emoji: '✅', label: 'Standard' },
   { id: 'snake', emoji: '🐍', label: 'Snake' },
-  { id: 'random', emoji: '❓', label: 'Random' },
   { id: 'blind', emoji: '🕶️', label: 'Blind' },
 ];
 
 const DRAFT_MODES_TEAMER: readonly VoteOption[] = [
   { id: 'standard', emoji: '✅', label: 'Standard' },
   { id: 'cwc', emoji: '🌍', label: 'CWC (shared pool)' },
-  { id: 'random', emoji: '❓', label: 'Random' },
 ];
 
 export const CIV6_VOTING_QUESTIONS: Readonly<Record<DraftGameType, readonly VoteQuestion[]>> = {

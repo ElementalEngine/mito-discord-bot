@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isDraftInputError } from '../../src/engine/drafts/errors.js';
+import { isDraftInputError } from '../../../src/engine/draft/errors.js';
 import {
   getAvailableCiv6LeaderKeys,
   getAvailableCiv7CivKeys,
-} from '../../src/engine/drafts/pools.js';
-import { ENGINE_DRAFT_TIMERS_MS } from '../../src/engine/drafts/constants.js';
-import { createDraftSession, processDraftInput } from '../../src/engine/drafts/machine.js';
-import type { DraftResult } from '../../src/engine/drafts/machine.js';
-import { createSeededRandom } from '../../src/engine/random.js';
-import type { RandomSource } from '../../src/engine/random.js';
+} from '../../../src/engine/draft/pools.js';
+import { ENGINE_DRAFT_TIMERS_MS } from '../../../src/engine/draft/constants.js';
+import { createDraftSession, processDraftInput } from '../../../src/engine/draft/machine.js';
+import type { DraftResult } from '../../../src/engine/draft/machine.js';
+import { createSeededRandom } from '../../../src/engine/random.js';
+import type { RandomSource } from '../../../src/engine/random.js';
 import type {
   BlindDraftState,
   CwcDraftState,
@@ -18,7 +18,7 @@ import type {
   DraftSessionConfig,
   DraftSessionState,
   SnakeDraftState,
-} from '../../src/engine/types.js';
+} from '../../../src/engine/types.js';
 
 const baseConfig: Omit<DraftSessionConfig, 'edition' | 'gameType' | 'seatIds'> = {
   sessionId: 's1',
@@ -142,9 +142,15 @@ test('blind: timeout reveals partial picks with NO auto-assign (legacy parity); 
 
 test('blind: create-time validation wraps allocation errors; synthetic missing-pool + picks-fallback branches', () => {
   const rng = createSeededRandom('blind-3');
+  // D15: blind is FFA/Duel only — the game-type gate fires before allocation
   expectCreateError(
-    () => createDraftSession('blind', { ...baseConfig, edition: 'CIV6', gameType: 'Teamer', seatIds: ['u1', 'u2'] }, rng),
-    'For Teamer, number-teams is required.',
+    () => createDraftSession('blind', { ...baseConfig, edition: 'CIV6', gameType: 'Teamer', numberTeams: 2, seatIds: ['u1', 'u2'] }, rng),
+    'Blind draft is only available for FFA or Duel votes.',
+  );
+  // and allocation errors still surface for legal game types
+  expectCreateError(
+    () => createDraftSession('blind', { ...baseConfig, edition: 'CIV6', gameType: 'FFA', seatIds: ['u1'] }, rng),
+    'For FFA, number-players must be at least 2.',
   );
 
   const created = createDraftSession('blind', {
@@ -395,8 +401,13 @@ test('cwc: captain selection, pick order [0,1,1,0], guard notices, auto timeout,
 
 test('cwc: create validations, captain timeout fill (one and both missing), CIV6 leader-only rounds', () => {
   const rng = createSeededRandom('cwc-2');
+  // D15: CWC is Teamer-only — neither FFA nor Duel may reach it
   expectCreateError(
     () => createDraftSession('cwc', { ...baseConfig, edition: 'CIV6', gameType: 'FFA', seatIds: ['a', 'b', 'c', 'd'] }, rng),
+    'CWC is only available for Teamer votes.',
+  );
+  expectCreateError(
+    () => createDraftSession('cwc', { ...baseConfig, edition: 'CIV6', gameType: 'Duel', seatIds: ['a', 'b'] }, rng),
     'CWC is only available for Teamer votes.',
   );
   expectCreateError(

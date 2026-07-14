@@ -7,10 +7,10 @@ import * as legacyRules from '../../../src/services/drafting/domain/rules.servic
 import { buildVoteStandardDraftResult } from '../../../src/services/drafting/draft.service.js';
 import type { VoteDraftRequest } from '../../../src/types/drafting.types.js';
 
-import * as engAlloc from '../../../src/engine/drafts/allocation.js';
-import * as engFormats from '../../../src/engine/drafts/formats.js';
-import * as engPools from '../../../src/engine/drafts/pools.js';
-import * as engRules from '../../../src/engine/drafts/rules.js';
+import * as engAlloc from '../../../src/engine/draft/allocation.js';
+import * as engFormats from '../../../src/engine/draft/formats.js';
+import * as engPools from '../../../src/engine/draft/pools.js';
+import * as engRules from '../../../src/engine/draft/rules.js';
 import { createSeededRandom } from '../../../src/engine/random.js';
 import type { DraftSessionConfig } from '../../../src/engine/types.js';
 

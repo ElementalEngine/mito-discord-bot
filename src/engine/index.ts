@@ -24,11 +24,11 @@ export type {
 export type { DraftEngineEvent, EventVisibility } from './events.js';
 export { eventsVisibleToSeat, publicEvent, seatEvent } from './events.js';
 
-export { DraftError, inputError, isDraftInputError } from './drafts/errors.js';
-export type { DraftInputError } from './drafts/errors.js';
+export { DraftError, inputError, isDraftInputError } from './draft/errors.js';
+export type { DraftInputError } from './draft/errors.js';
 
-export { ENGINE_CWC_PICK_ORDER, ENGINE_DRAFT_TIMERS_MS } from './drafts/constants.js';
-export type { EngineDraftTimersMs } from './drafts/constants.js';
+export { ENGINE_CWC_PICK_ORDER, ENGINE_DRAFT_TIMERS_MS } from './draft/constants.js';
+export type { EngineDraftTimersMs } from './draft/constants.js';
 
 export {
   buildCivBanIndex,
@@ -40,15 +40,15 @@ export {
   getAvailableCiv7LeaderKeys,
   resolveEmojiBans,
   tokenizeBans,
-} from './drafts/pools.js';
-export type { BanResolution } from './drafts/pools.js';
+} from './draft/pools.js';
+export type { BanResolution } from './draft/pools.js';
 
 export {
   buildAllocationNote,
   computeLeadersPerGroup,
   getCiv7CivTarget,
   LEADER_TYPES,
-} from './drafts/rules.js';
+} from './draft/rules.js';
 
 export {
   computeLayout,
@@ -56,18 +56,20 @@ export {
   generateCiv7DraftCore,
   generateDirectCiv6DraftCore,
   generateDirectCiv7DraftCore,
-} from './drafts/allocation.js';
+} from './draft/allocation.js';
 
 export {
+  assertDraftFormatAllowed,
   DRAFT_FORMATS,
+  getDraftFormat,
+  isDraftFormatAllowed,
   keysToColonTokens,
-  resolveRandomDraft,
   resolveVoteStandardDraft,
-} from './drafts/formats.js';
-export type { DraftFormatDescriptor, RandomDraftAssignment, RandomDraftResult } from './drafts/formats.js';
+} from './draft/formats.js';
+export type { DraftFormatDescriptor, DraftFormatId } from './draft/formats.js';
 
-export { createDraftSession, processDraftInput } from './drafts/machine.js';
-export type { DraftCreation, DraftResult } from './drafts/machine.js';
+export { createDraftSession, processDraftInput } from './draft/machine.js';
+export type { DraftCreation, DraftResult } from './draft/machine.js';
 
 export {
   decodeVoteSelections,

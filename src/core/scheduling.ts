@@ -1,4 +1,5 @@
 import type { Client } from 'discord.js';
+import { error as logError } from './logging.js';
 
 type StopFn = () => void;
 export type JobFactory = (client: Client) => StopFn;
@@ -20,7 +21,7 @@ export function startJobs(client: Client): void {
       try {
         stop();
       } catch (err) {
-        console.error('Job stop failed:', err);
+        logError('Job stop failed:', err);
       }
     }
     stopAll = null;

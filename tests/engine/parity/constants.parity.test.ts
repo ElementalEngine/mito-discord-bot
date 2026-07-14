@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { CWC_PICK_ORDER, DRAFT_TIMERS_MS } from '../../../src/config/draft.config.js';
-import { ENGINE_CWC_PICK_ORDER, ENGINE_DRAFT_TIMERS_MS } from '../../../src/engine/drafts/constants.js';
+import { ENGINE_CWC_PICK_ORDER, ENGINE_DRAFT_TIMERS_MS } from '../../../src/engine/draft/constants.js';
 
 // Anti-drift gate: the engine owns copies of the legacy draft constants
 // (the engine zone cannot import legacy config). If either side changes,

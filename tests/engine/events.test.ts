@@ -3,7 +3,6 @@ import { test } from 'node:test';
 
 import { eventsVisibleToSeat, publicEvent, seatEvent } from '../../src/engine/events.js';
 import type { DraftEngineEvent } from '../../src/engine/events.js';
-import { DraftError, inputError, isDraftInputError } from '../../src/engine/drafts/errors.js';
 
 test('publicEvent / seatEvent: visibility markers', () => {
   const pub = publicEvent('ROUND_ADVANCED', { round: 'leader' });
@@ -25,21 +24,4 @@ test('eventsVisibleToSeat: censoring filter (public + own seat only)', () => {
   assert.ok(forU1.every((event) => event.visibility === 'public' || event.visibility.seatId === 'u1'));
   const forU3 = eventsVisibleToSeat(events, 'u3');
   assert.equal(forU3.length, 1);
-});
-
-test('DraftError: code + name preserved (legacy parity shape)', () => {
-  const err = new DraftError('NO_POOL', 'nope');
-  assert.equal(err.code, 'NO_POOL');
-  assert.equal(err.name, 'DraftError');
-  assert.equal(err.message, 'nope');
-  assert.ok(err instanceof Error);
-});
-
-test('inputError / isDraftInputError', () => {
-  const err = inputError('STALE', 'stale');
-  assert.deepEqual(err, { error: { code: 'STALE', message: 'stale' } });
-  assert.equal(isDraftInputError(err), true);
-  assert.equal(isDraftInputError(null), false);
-  assert.equal(isDraftInputError('x'), false);
-  assert.equal(isDraftInputError({ state: {} }), false);
 });

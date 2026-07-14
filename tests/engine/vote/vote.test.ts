@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { majorityBans, summarizeSubmittedBans } from '../../src/engine/vote/bans.js';
-import { getDraftModeFromLocked, lockAllQuestions, resolveQuestionWinner } from '../../src/engine/vote/plurality.js';
-import { decodeVoteSelections, pickRandomVoteValue } from '../../src/engine/vote/tally.js';
-import { createSeededRandom } from '../../src/engine/random.js';
-import type { VoteQuestion } from '../../src/shared/vote.types.js';
+import { majorityBans, summarizeSubmittedBans } from '../../../src/engine/vote/bans.js';
+import { getDraftModeFromLocked, lockAllQuestions, resolveQuestionWinner } from '../../../src/engine/vote/plurality.js';
+import { decodeVoteSelections, pickRandomVoteValue } from '../../../src/engine/vote/tally.js';
+import { createSeededRandom } from '../../../src/engine/random.js';
+import type { VoteQuestion } from '../../../src/shared/vote.types.js';
 
 const Q_SINGLE: VoteQuestion = {
   id: 'q1',

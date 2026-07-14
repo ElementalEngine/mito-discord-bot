@@ -12,16 +12,18 @@ import type {
 } from '../types.js';
 import type { DraftEngineEvent } from '../events.js';
 import { publicEvent, seatEvent } from '../events.js';
-import { ENGINE_DRAFT_TIMERS_MS } from './constants.js';
-import { ENGINE_CWC_PICK_ORDER } from './constants.js';
-import { resolveVoteStandardDraft } from './formats.js';
+import { ENGINE_CWC_PICK_ORDER, ENGINE_DRAFT_TIMERS_MS } from './constants.js';
+import { assertDraftFormatAllowed, resolveVoteStandardDraft } from './formats.js';
 import { buildKeyedCivPool, buildKeyedLeaderPool } from './pools.js';
-import { DraftError, inputError, type DraftInputError } from './errors.js';
+import type { DraftInputError } from './errors.js';
+import { DraftError, inputError } from './errors.js';
 
 export type DraftResult = Readonly<{
   state: DraftSessionState;
   events: readonly DraftEngineEvent[];
 }>;
+
+type DraftReducerInput = Exclude<DraftEngineInput, { type: 'CANCEL' }>;
 
 export type DraftCreation = Readonly<{
   state: DraftSessionState;
@@ -65,10 +67,7 @@ function baseFields(config: DraftSessionConfig): Pick<
 }
 
 function createBlindSession(config: DraftSessionConfig, rng: RandomSource): DraftCreation {
-  // Legacy createBlindDraftLaunch: a standard vote draft deals the per-seat
-  // pools; group i belongs to seat i. DraftError from allocation propagates
-  // (legacy wraps it into VALIDATION with the same message text via
-  // createBlindDraftLaunch — replicated below).
+  assertDraftFormatAllowed('blind', config.gameType);
   let draft;
   try {
     draft = resolveVoteStandardDraft(config, rng);
@@ -108,9 +107,7 @@ function createBlindSession(config: DraftSessionConfig, rng: RandomSource): Draf
 }
 
 function createSnakeSession(config: DraftSessionConfig, rng: RandomSource): DraftCreation {
-  if (config.gameType === 'Teamer') {
-    throw new DraftError('VALIDATION', 'Snake draft is only available for FFA or Duel votes.');
-  }
+  assertDraftFormatAllowed('snake', config.gameType);
 
   const leaderPool = buildKeyedLeaderPool({
     edition: config.edition,
@@ -162,9 +159,7 @@ function createSnakeSession(config: DraftSessionConfig, rng: RandomSource): Draf
 }
 
 function createCwcSession(config: DraftSessionConfig, rng: RandomSource): DraftCreation {
-  if (config.gameType !== 'Teamer') {
-    throw new DraftError('VALIDATION', 'CWC is only available for Teamer votes.');
-  }
+  assertDraftFormatAllowed('cwc', config.gameType);
   if (config.numberTeams !== 2) {
     throw new DraftError('VALIDATION', 'CWC requires exactly 2 teams.');
   }
@@ -300,7 +295,7 @@ function finalizeBlind(state: BlindDraftState, reason: 'complete' | 'timeout'): 
   };
 }
 
-function reduceBlind(state: BlindDraftState, input: DraftEngineInput): DraftResult | DraftInputError {
+function reduceBlind(state: BlindDraftState, input: DraftReducerInput): DraftResult | DraftInputError {
   if (input.type === 'TIMEOUT') {
     // Legacy parity: no auto-assignment; picks stay as-is and are revealed.
     return finalizeBlind(state, 'timeout');
@@ -452,7 +447,7 @@ function snakeApplyPick(state: SnakeDraftState, seatId: string, key: string, aut
 
 function reduceSnake(
   state: SnakeDraftState,
-  input: DraftEngineInput,
+  input: DraftReducerInput,
   rng: RandomSource,
 ): DraftResult | DraftInputError {
   if (input.type === 'TIMEOUT') {
@@ -595,7 +590,7 @@ function cwcStartLeaderRound(state: CwcDraftState): DraftEngineEvent[] {
 
 function reduceCwc(
   state: CwcDraftState,
-  input: DraftEngineInput,
+  input: DraftReducerInput,
   rng: RandomSource,
 ): DraftResult | DraftInputError {
   if (input.type === 'TIMEOUT') {

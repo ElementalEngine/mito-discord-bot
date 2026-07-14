@@ -32,8 +32,6 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       ...prettier.rules,
-
-      // Keep lint low-friction. Warnings don't fail.
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
@@ -45,8 +43,6 @@ export default [
       ],
     },
   },
-
-  // ---- Architecture boundaries (mite-v2-architecture.md §3) ----
   {
     files: ['src/**/*.ts'],
     plugins: { boundaries },
@@ -65,9 +61,7 @@ export default [
         },
         { type: 'activity', mode: 'full', pattern: 'src/activity/**/*' },
         { type: 'app', mode: 'full', pattern: 'src/app/**/*' },
-        // The systemd entry shim is app's alias at the legacy path (R1 §2).
         { type: 'app', mode: 'full', pattern: 'src/index.ts' },
-        // Catch-all LAST: everything else under src/ is the shrinking legacy zone.
         { type: 'legacy', mode: 'full', pattern: 'src/**/*' },
       ],
     },
@@ -115,23 +109,13 @@ export default [
                 'legacy',
               ],
             },
-            // R1 TRANSITIONAL: src/data/leaderboards-list.data.ts (frozen
-            // contents) imports '../config.js' — a real pre-v2 edge. Allowed
-            // until R3 relocates leaderboard config; R9 must re-tighten to
-            // data → data only. Tracked in the rebuild plan risk table.
             { from: ['data'], allow: ['data', 'shared', 'core', 'legacy'] },
-            // Legacy may keep its internal web + the shimmed core surfaces,
-            // but never reaches into the new world. Shrinks per R3 batch;
-            // flips to empty at R9.1.
             { from: ['legacy'], allow: ['legacy', 'core', 'data', 'shared'] },
           ],
         },
       ],
     },
   },
-
-  // Repo-wide dependency bans (architecture drivers 2): Mite never touches
-  // Mongo directly; axios is dead since v2.0.0.
   {
     files: ['src/**/*.ts'],
     rules: {
@@ -147,8 +131,33 @@ export default [
       ],
     },
   },
-
-  // Engine is pure: no runtime deps (architecture §3 hard rules).
+  {
+    files: [
+      'src/app/**/*.ts',
+      'src/core/**/*.ts',
+      'src/engine/**/*.ts',
+      'src/features/**/*.ts',
+      'src/session/**/*.ts',
+      'src/activity/**/*.ts',
+      'src/shared/**/*.ts',
+    ],
+    rules: {
+      'no-console': 'error',
+    },
+  },
+  {
+    files: ['src/core/logging.ts'],
+    rules: { 'no-console': 'off' },
+  },
+  {
+    files: ['src/engine/**/*.ts', 'src/shared/**/*.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
+      ],
+    },
+  },
   {
     files: ['src/engine/**/*.ts'],
     rules: {
@@ -173,8 +182,6 @@ export default [
       ],
     },
   },
-
-  // Only core/api/http.ts may perform HTTP in the new zones (architecture §3).
   {
     files: [
       'src/app/**/*.ts',

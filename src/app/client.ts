@@ -4,6 +4,7 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Command } from '../types/global.js';
+import { error as logError, log as logInfo, warn as logWarn } from '../core/logging.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,7 @@ async function importCommand(
       !maybe.data ||
       typeof maybe.data.name !== 'string'
     ) {
-      console.warn(`⚠️ Skipping invalid command module: ${label}`);
+      logWarn(`⚠️ Skipping invalid command module: ${label}`);
       return null;
     }
 
@@ -53,7 +54,7 @@ async function importCommand(
       execute: maybe.execute as Command['execute'],
     };
   } catch (err) {
-    console.error(`❌ Failed to load command ${label}:`, err);
+    logError(`❌ Failed to load command ${label}:`, err);
     return null;
   }
 }
@@ -150,7 +151,7 @@ async function loadEvents(): Promise<number> {
         typeof maybe.name !== 'string' ||
         typeof maybe.execute !== 'function'
       ) {
-        console.warn(`⚠️ Skipping invalid event module: ${file}`);
+        logWarn(`⚠️ Skipping invalid event module: ${file}`);
         continue;
       }
 
@@ -160,7 +161,7 @@ async function loadEvents(): Promise<number> {
 
       loaded++;
     } catch (err) {
-      console.error(`❌ Failed to load event ${file}:`, err);
+      logError(`❌ Failed to load event ${file}:`, err);
     }
   }
 
@@ -171,7 +172,7 @@ export async function initClient(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
       const [commands, events] = await Promise.all([loadCommands(), loadEvents()]);
-      console.log(
+      logInfo(
         `✅ Loaded ${commands} commands and ${events} events (${RUNTIME_EXT})`
       );
     })();

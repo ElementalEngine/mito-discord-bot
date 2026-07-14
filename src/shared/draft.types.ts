@@ -3,7 +3,7 @@ import type { Civ7StartingAge } from '../data/types.js';
 export const DRAFT_GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 export type DraftGameType = (typeof DRAFT_GAME_TYPES)[number];
 
-export const DRAFT_MODES = ['standard', 'snake', 'random', 'cwc', 'blind'] as const;
+export const DRAFT_MODES = ['standard', 'snake', 'cwc', 'blind'] as const;
 export type DraftMode = (typeof DRAFT_MODES)[number];
 
 export type Civ6DraftRequest = Readonly<{

@@ -1,7 +1,7 @@
 import type { Civ7StartingAge } from '../data/types.js';
 import type { CivEdition } from '../shared/civ.types.js';
 import type { DraftGameType } from '../shared/draft.types.js';
-import type { EngineDraftTimersMs } from './drafts/constants.js';
+import type { EngineDraftTimersMs } from './draft/constants.js';
 
 export type InteractiveDraftKind = 'blind' | 'snake' | 'cwc';
 
