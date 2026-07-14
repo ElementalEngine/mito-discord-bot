@@ -35,18 +35,7 @@ export function isValidPlayerList(player_list: string, players: ParsedPlayer[]):
   return true;
 }
 
-export function normalizePlayerList(playerOrder: string): string {
-  return playerOrder
-    .trim()
-    .split(/\s+|<|>/)
-    .filter((token) => token.length > 0)
-    .map(token => token.startsWith('@') ? token.substring(1) : token)
-    .map((token) => {
-      if (TIE_RE.test(token)) return 'TIE';
-      return tokenToDiscordId(token);
-    })
-    .join(' ');
-}
+export { normalizePlayerList } from '../shared/player-list.js';
 
 export function isValidOrder(new_order: string, players: ParsedPlayer[]): boolean {
   const tokens = new_order.trim().split(/\s+/).filter(Boolean);

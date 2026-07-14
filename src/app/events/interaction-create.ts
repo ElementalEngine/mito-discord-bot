@@ -1,14 +1,11 @@
-import {
-  Events,
-  MessageFlags,
-  type ChatInputCommandInteraction,
-  type Interaction,
-} from 'discord.js';
+import { Events } from 'discord.js';
+import type { Interaction } from 'discord.js';
 
 import { EMOJI_ERROR, EMOJI_FAIL } from '../../core/config/constants.js';
 import { handleDraftingInteraction } from '../../interactions/drafting.interactions.js';
 import { handleGameVoteInteraction } from '../../interactions/voting.interactions.js';
 import { handleSecretVoteInteraction } from '../../interactions/secretvote.interactions.js';
+import { replyEphemeral } from '../../core/discord/index.js';
 import { error as logError } from '../../core/logging.js';
 
 export const name = Events.InteractionCreate;
@@ -33,31 +30,6 @@ function shouldHandle(interactionId: string): boolean {
   }
 
   return true;
-}
-
-async function safeEphemeral(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-
-    await interaction.reply(payload);
-  } catch {
-    // swallow: interaction may already be acknowledged/expired
-  }
 }
 
 export async function execute(interaction: Interaction): Promise<void> {
@@ -89,7 +61,7 @@ export async function execute(interaction: Interaction): Promise<void> {
 
   const command = interaction.client.commands.get(interaction.commandName);
   if (!command) {
-    await safeEphemeral(
+    await replyEphemeral(
       interaction,
       `${EMOJI_FAIL} Command not found. The bot may be updating — try again in a moment.`
     );
@@ -108,7 +80,7 @@ export async function execute(interaction: Interaction): Promise<void> {
       userId: interaction.user.id,
     });
 
-    await safeEphemeral(
+    await replyEphemeral(
       interaction,
       `${EMOJI_ERROR} Something went wrong while running that command.`
     );

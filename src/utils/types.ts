@@ -10,8 +10,4 @@ export type BuildVoiceChannelVotersResult = Readonly<{
   voters: VoterUser[];
 }>;
 
-export type CommandAccessPolicy = Readonly<{
-  allowedChannelIds: readonly (string | null | undefined)[];
-  requiredRoleIds?: readonly (string | null | undefined)[];
-  allowDeveloperOverride?: boolean;
-}>;
+export type { CommandAccessPolicy } from '../core/discord/index.js';
