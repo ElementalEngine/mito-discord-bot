@@ -1,13 +1,14 @@
-import {
-  ChatInputCommandInteraction,
-  MessageFlags,
-  SlashCommandBuilder,
-} from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
 
-import { config } from '../../config.js';
-import { EMOJI_ERROR } from '../../config/constants.js';
-import { executeDraftCommand } from '../../services/drafting/orchestration.service.js';
-import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { config } from '../../../core/config/index.js';
+import { EMOJI_ERROR } from '../../../core/config/constants.js';
+import {
+  ensureCommandAccess,
+  replyEphemeral,
+} from '../../../core/discord/index.js';
+import { error as logError } from '../../../core/logging.js';
+import { executeStandardDraft } from '../service.js';
 
 function allowedDraftChannels(): readonly string[] {
   return [
@@ -34,27 +35,6 @@ type GameType = (typeof GAME_TYPES)[number];
 const MAX_FFA_PLAYERS = 14;
 const MAX_TEAMS = 5;
 
-async function replyError(
-  interaction: ChatInputCommandInteraction,
-  content: string,
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // swallow: interaction may already be acknowledged/expired
-  }
-}
 
 function validateDraftCommand(args: Readonly<{
   gameType: GameType;
@@ -140,7 +120,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const gameTypeRaw = interaction.options.getString('game-type', true);
     if (!GAME_TYPES.includes(gameTypeRaw as GameType)) {
-      await replyError(interaction, `${EMOJI_ERROR} Invalid game-type.`);
+      await replyEphemeral(interaction, `${EMOJI_ERROR} Invalid game-type.`);
       return;
     }
 
@@ -151,29 +131,27 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const validationError = validateDraftCommand({ gameType, numberPlayers, numberTeams });
     if (validationError) {
-      await replyError(interaction, validationError);
+      await replyEphemeral(interaction, validationError);
       return;
     }
 
     await interaction.deferReply();
 
-    await executeDraftCommand(interaction, {
-      source: 'command',
+    await executeStandardDraft(interaction, {
       edition: 'CIV6',
-      draftMode: 'standard',
       gameType,
       numberPlayers,
       numberTeams,
       leaderBansRaw,
     });
   } catch (err: unknown) {
-    console.error('draftciv6 failed', {
+    logError('draftciv6 failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,
       userId: interaction.user.id,
     });
 
-    await replyError(interaction, `${EMOJI_ERROR} Draft failed due to an unexpected error.`);
+    await replyEphemeral(interaction, `${EMOJI_ERROR} Draft failed due to an unexpected error.`);
   }
 }

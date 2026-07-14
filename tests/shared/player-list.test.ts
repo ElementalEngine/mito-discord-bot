@@ -10,8 +10,12 @@ test('normalizePlayerList converts plain mentions to raw ids', () => {
   );
 });
 
-test('normalizePlayerList leaves the bang on nickname mentions (KNOWN LEGACY BUG)', () => {
-  assert.equal(normalizePlayerList('<@!876543210987654321>'), '!876543210987654321');
+test('normalizePlayerList converts nickname mentions to raw ids (R3 fix)', () => {
+  assert.equal(normalizePlayerList('<@!876543210987654321>'), '876543210987654321');
+  assert.equal(
+    normalizePlayerList('<@123456789012345678> <@!876543210987654321>'),
+    '123456789012345678 876543210987654321'
+  );
 });
 
 test('normalizePlayerList passes raw ids through and uppercases tie markers', () => {

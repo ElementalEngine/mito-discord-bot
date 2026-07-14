@@ -12,6 +12,7 @@ export function normalizePlayerList(playerOrder: string): string {
     .split(/\s+|<|>/)
     .filter((token) => token.length > 0)
     .map((token) => (token.startsWith('@') ? token.substring(1) : token))
+    .map((token) => (token.startsWith('!') ? token.substring(1) : token))
     .map((token) => {
       if (TIE_RE.test(token)) return 'TIE';
       return tokenToDiscordId(token);
