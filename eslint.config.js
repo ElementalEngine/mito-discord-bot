@@ -150,7 +150,13 @@ export default [
     rules: { 'no-console': 'off' },
   },
   {
-    files: ['src/engine/**/*.ts', 'src/shared/**/*.ts'],
+    files: [
+      'src/engine/**/*.ts',
+      'src/shared/**/*.ts',
+      'src/core/**/*.ts',
+      'src/app/**/*.ts',
+      'src/features/**/*.ts',
+    ],
     rules: {
       '@typescript-eslint/consistent-type-imports': [
         'error',
