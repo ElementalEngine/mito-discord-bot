@@ -1,6 +1,6 @@
 import {
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
+  type ChatInputCommandInteraction,
   MessageFlags,
 } from "discord.js";
 import { log as logInfo } from "../../../core/logging.js";

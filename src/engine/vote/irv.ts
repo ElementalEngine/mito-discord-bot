@@ -126,7 +126,6 @@ export function resolveRankedChoiceElection<T extends string>(
   }
 
   const remainingCandidateIds = candidateIds.filter((candidateId) => totalMentions.get(candidateId)! > 0);
-  if (remainingCandidateIds.length === 0) return { winnerId: fallback, rounds: [], finalVotes: 0 };
 
   const rounds: RankedChoiceRound<T>[] = [];
 
@@ -165,7 +164,7 @@ export function resolveRankedChoiceElection<T extends string>(
         totalMentions,
         rng
       );
-      const winnerVotes = tallies.get(tie.chosenId) ?? 0;
+      const winnerVotes = tallies.get(tie.chosenId)!;
       rounds.push({
         round: rounds.length + 1,
         tallies: roundTallies,

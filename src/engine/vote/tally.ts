@@ -48,7 +48,7 @@ export function encodeVoteSelections(
   );
   const normalized = dedupeStable(selectedIds)
     .filter((value) => allowed.has(value))
-    .sort((a, b) => (orderById.get(a) ?? 0) - (orderById.get(b) ?? 0))
+    .sort((a, b) => orderById.get(a)! - orderById.get(b)!)
     .slice(0, getQuestionMaxSelections(question));
 
   if (normalized.length === 0) return null;

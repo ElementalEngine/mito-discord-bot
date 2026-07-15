@@ -1,5 +1,5 @@
 import {
-  Guild,
+  type Guild,
   PermissionsBitField,
   type GuildMember,
   type Role,

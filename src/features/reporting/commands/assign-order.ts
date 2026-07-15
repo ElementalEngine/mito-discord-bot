@@ -1,6 +1,6 @@
 import {
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
+  type ChatInputCommandInteraction,
   MessageFlags,
 } from "discord.js";
 import { config } from "../../../core/config/index.js";

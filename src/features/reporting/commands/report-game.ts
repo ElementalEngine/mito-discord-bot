@@ -1,7 +1,7 @@
 import {
   EmbedBuilder,
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
+  type ChatInputCommandInteraction,
 } from "discord.js";
 import { error as logError } from "../../../core/logging.js";
 import { config } from "../../../core/config/index.js";
