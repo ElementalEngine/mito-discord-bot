@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { memberHasRole } from "../access.js";
 import { error as logError, log as logInfo } from "../../../core/logging.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -24,24 +25,6 @@ export const data = new SlashCommandBuilder()
   );
 
 
-function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
-  const member = interaction.member;
-  if (!member || typeof member !== "object") return false;
-
-  if ("roles" in member && Array.isArray((member as { roles: unknown }).roles)) {
-    return (member as { roles: string[] }).roles.includes(roleId);
-  }
-
-  if ("roles" in member) {
-    const roles = (member as { roles: unknown }).roles;
-    if (roles && typeof roles === "object" && "cache" in roles) {
-      const cache = (roles as { cache: { has: (id: string) => boolean } }).cache;
-      return cache.has(roleId);
-    }
-  }
-
-  return false;
-}
 
 async function safeDefer(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (interaction.deferred || interaction.replied) return true;

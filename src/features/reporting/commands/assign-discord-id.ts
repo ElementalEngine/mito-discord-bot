@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { memberHasRole } from "../access.js";
 import { error as logError, warn as logWarn } from "../../../core/logging.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
@@ -14,25 +15,6 @@ import { deleteLater } from "../../../core/discord/index.js";
 import { errorMessage } from "../../../core/errors.js";
 import { logCommand } from "../../../core/discord/index.js";
 
-function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
-  const member = interaction.member;
-  if (!member || typeof member !== "object") return false;
-
-  // APIInteractionGuildMember: roles is string[]
-  if ("roles" in member && Array.isArray((member as { roles: unknown }).roles)) {
-    return (member as { roles: string[] }).roles.includes(roleId);
-  }
-
-  if ("roles" in member) {
-    const roles = (member as { roles: unknown }).roles;
-    if (roles && typeof roles === "object" && "cache" in roles) {
-      const cache = (roles as { cache: { has: (id: string) => boolean } }).cache;
-      return cache.has(roleId);
-    }
-  }
-
-  return false;
-}
 
 async function safeDefer(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (interaction.deferred || interaction.replied) return true;
