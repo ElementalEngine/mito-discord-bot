@@ -77,3 +77,9 @@ test('createSeededRandom: empty seed still produces a usable, deterministic stre
     assert.ok(v >= 0 && v < 1);
   }
 });
+
+test('randomIndex: clamps a contract-violating rng (>= 1) to the top valid index', () => {
+  const overshoot: () => number = () => 1; // floor(1 * n) === n → must clamp to n - 1
+  assert.equal(randomIndex(overshoot, 3), 2);
+  assert.equal(randomIndex(overshoot, 1), 0);
+});

@@ -80,7 +80,7 @@ function breakTie<T extends string>(
   totalMentions: ReadonlyMap<T, number>,
   rng: RandomSource
 ): { chosenId: T; tieBreak: RankedChoiceTieBreak<T> } {
-  const firstChoiceSorted = chooseCandidates(candidateIds, (candidateId) => originalFirstChoiceVotes.get(candidateId) ?? 0, mode);
+  const firstChoiceSorted = chooseCandidates(candidateIds, (candidateId) => originalFirstChoiceVotes.get(candidateId)!, mode);
   if (firstChoiceSorted.length === 1) {
     return {
       chosenId: firstChoiceSorted[0] as T,
@@ -88,7 +88,7 @@ function breakTie<T extends string>(
     };
   }
 
-  const totalMentionSorted = chooseCandidates(firstChoiceSorted, (candidateId) => totalMentions.get(candidateId) ?? 0, mode);
+  const totalMentionSorted = chooseCandidates(firstChoiceSorted, (candidateId) => totalMentions.get(candidateId)!, mode);
   if (totalMentionSorted.length === 1) {
     return {
       chosenId: totalMentionSorted[0] as T,
@@ -121,11 +121,11 @@ export function resolveRankedChoiceElection<T extends string>(
 
   for (const ballot of normalizedBallots) {
     const firstChoice = ballot[0];
-    if (firstChoice != null) originalFirstChoiceVotes.set(firstChoice, (originalFirstChoiceVotes.get(firstChoice) ?? 0) + 1);
-    for (const candidateId of ballot) totalMentions.set(candidateId, (totalMentions.get(candidateId) ?? 0) + 1);
+    if (firstChoice != null) originalFirstChoiceVotes.set(firstChoice, originalFirstChoiceVotes.get(firstChoice)! + 1);
+    for (const candidateId of ballot) totalMentions.set(candidateId, totalMentions.get(candidateId)! + 1);
   }
 
-  const remainingCandidateIds = candidateIds.filter((candidateId) => (totalMentions.get(candidateId) ?? 0) > 0);
+  const remainingCandidateIds = candidateIds.filter((candidateId) => totalMentions.get(candidateId)! > 0);
   if (remainingCandidateIds.length === 0) return { winnerId: fallback, rounds: [], finalVotes: 0 };
 
   const rounds: RankedChoiceRound<T>[] = [];
@@ -136,7 +136,7 @@ export function resolveRankedChoiceElection<T extends string>(
       .map((id) => ({ id, votes: tallies.get(id) ?? 0 }))
       .sort((left, right) => {
         if (right.votes !== left.votes) return right.votes - left.votes;
-        return (candidateOrder.get(left.id) ?? 0) - (candidateOrder.get(right.id) ?? 0);
+        return candidateOrder.get(left.id)! - candidateOrder.get(right.id)!;
       });
     const activeBallotCount = roundTallies.reduce((count, tally) => count + tally.votes, 0);
     const majorityThreshold = Math.floor(activeBallotCount / 2) + 1;
@@ -154,9 +154,6 @@ export function resolveRankedChoiceElection<T extends string>(
       });
       return { winnerId: outrightWinner.id, rounds, finalVotes: outrightWinner.votes };
     }
-
-    // (a lone remaining candidate always clears the majority threshold above,
-    // so no separate single-candidate branch is needed here)
 
     if (remainingCandidateIds.length === 2 && roundTallies[0]?.votes === roundTallies[1]?.votes) {
       const leftTally = roundTallies[0] as RankedChoiceRoundTally<T>;
@@ -181,7 +178,7 @@ export function resolveRankedChoiceElection<T extends string>(
       return { winnerId: tie.chosenId, rounds, finalVotes: winnerVotes };
     }
 
-    const lowestVotes = roundTallies[roundTallies.length - 1]?.votes ?? 0;
+    const lowestVotes = roundTallies[roundTallies.length - 1]!.votes;
     const lowestIds = roundTallies.filter((tally) => tally.votes === lowestVotes).map((tally) => tally.id);
     const tie = lowestIds.length === 1
       ? { chosenId: lowestIds[0] as T, tieBreak: null }

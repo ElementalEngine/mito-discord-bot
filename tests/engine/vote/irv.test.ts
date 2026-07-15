@@ -135,15 +135,12 @@ test('elimination tie: original-first-choice rule picks the weakest candidate', 
 
 test('elimination tie: first-choice rule fires when transfers separate original strength', () => {
   // Round 2 lowest tie between b (original first-choice 2) and c (original 1
-  // + 1 transferred): original-first-choice rule eliminates c.
   const result = resolveRankedChoiceElection(
     [['a'], ['a'], ['a'], ['b'], ['b'], ['c'], ['e', 'c'], ['e', 'a'], ['a']],
     ['a', 'b', 'c', 'e'],
     'a',
     rng(),
   );
-  // r1: a4 b2 c1 e2 majority 5 → eliminate c (unique lowest, no tiebreak).
-  // Adjust: we want a b-vs-c tie in a later round; verify the audit trail instead.
   assert.equal(result.rounds[0]?.eliminatedId, 'c');
   assert.equal(result.rounds[0]?.tieBreak, null);
   assert.equal(result.winnerId, 'a');
@@ -174,12 +171,6 @@ test('round tallies are sorted votes-desc then candidate order', () => {
 });
 
 test('elimination tie: the original-first-choice rule separates candidates tied on current votes', () => {
-  // r1: a3 b2 c1 d1 → d and c tie for lowest at 1 vote each.
-  // original first choices: c 1, d 1 → still tied; total mentions: c 2 (one
-  // second-place mention), d 1 → total-mentions eliminates d.
-  // r2: the [d, c] ballot transfers to c → a3 b2 c2; no majority (threshold 4)
-  // → b and c tie for lowest at 2; original first choices b 2 vs c 1 →
-  // the original-first-choice rule eliminates c.
   const result = resolveRankedChoiceElection(
     [['a'], ['a'], ['a'], ['b'], ['b'], ['c'], ['d', 'c']],
     ['a', 'b', 'c', 'd'],
@@ -198,4 +189,67 @@ test('elimination tie: the original-first-choice rule separates candidates tied 
   assert.equal(round2.eliminatedId, 'c');
 
   assert.equal(result.winnerId, 'a');
+});
+
+test('elimination tie: total-mentions rule breaks a first-choice tie (eliminate mode)', () => {
+  const result = resolveRankedChoiceElection(
+    [['a', 'b', 'c'], ['a'], ['b'], ['b'], ['c'], ['c']],
+    ['a', 'b', 'c'],
+    'a',
+    rng(),
+  );
+  const round1 = result.rounds[0];
+  assert.ok(round1?.tieBreak);
+  assert.equal(round1.tieBreak.rule, 'total-mentions');
+  assert.equal(round1.eliminatedId, 'a');
+  assert.equal(result.winnerId, 'b');
+});
+
+test('final-two tie: seeded-random rule when first-choice and total-mentions both tie (winner mode)', () => {
+  const result = resolveRankedChoiceElection(
+    [['a', 'b'], ['b', 'a']],
+    ['a', 'b'],
+    'a',
+    createSeededRandom('irv-tie-winner'),
+  );
+  const finalRound = result.rounds[result.rounds.length - 1];
+  assert.ok(finalRound?.tieBreak);
+  assert.equal(finalRound.tieBreak.rule, 'seeded-random');
+  assert.ok(['a', 'b'].includes(result.winnerId));
+  // determinism: same seed → same winner
+  const again = resolveRankedChoiceElection(
+    [['a', 'b'], ['b', 'a']],
+    ['a', 'b'],
+    'a',
+    createSeededRandom('irv-tie-winner'),
+  );
+  assert.equal(again.winnerId, result.winnerId);
+});
+
+test('elimination tie: seeded-random rule when a 3-way tie is fully symmetric (eliminate mode)', () => {
+  const result = resolveRankedChoiceElection(
+    [['a', 'b', 'c'], ['b', 'c', 'a'], ['c', 'a', 'b']],
+    ['a', 'b', 'c'],
+    'a',
+    createSeededRandom('irv-tie-elim'),
+  );
+  const round1 = result.rounds[0];
+  assert.ok(round1?.tieBreak);
+  assert.equal(round1.tieBreak.rule, 'seeded-random');
+  assert.ok(['a', 'b', 'c'].includes(round1.eliminatedId as string));
+});
+
+test('round tally lists a remaining candidate that received zero current-round votes', () => {
+  const result = resolveRankedChoiceElection(
+    [['a', 'c'], ['a', 'c'], ['b', 'c']],
+    ['a', 'b', 'c'],
+    'a',
+    rng(),
+  );
+  assert.equal(result.winnerId, 'a'); // a has 2/3 first prefs → outright
+  const round1 = result.rounds[0];
+  assert.ok(round1);
+  const cTally = round1.tallies.find((t) => t.id === 'c');
+  assert.ok(cTally, 'c must appear in the round tally');
+  assert.equal(cTally.votes, 0);
 });
