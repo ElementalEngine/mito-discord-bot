@@ -25,5 +25,8 @@ export type { Recipient, PublicConfig, RoomSnapshot, ProjectionResult } from './
 
 export { buildDraftRecord, buildReportingToken } from './telemetry.js';
 
-/** Scaffold flag imported by tests/smoke.test.ts; */
+export { createDeadlineRegistry, createSystemClock } from './timers.js';
+export type { Clock, Deadline, DeadlineRegistry } from './timers.js';
+
+/** Scaffold flag imported by tests/smoke.test.ts; removed at R9. */
 export const SESSION_SCAFFOLD = true as const;
