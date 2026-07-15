@@ -1,1 +1,0 @@
-export { errorMessage } from '../core/errors.js';
