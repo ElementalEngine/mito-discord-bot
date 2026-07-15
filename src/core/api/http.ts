@@ -3,11 +3,6 @@ import { ApiError } from "./errors.js";
 
 export type FetchLike = typeof fetch;
 
-/**
- * Shared HTTP transport for all core-api domain clients (architecture §2).
- * Behavior is byte-equivalent to the legacy ApiClient transport: 30s timeout,
- * Bearer BACKEND_SERVICE_TOKEN injection (frozen contract), 5xx/network retry.
- */
 export class HttpClient {
   readonly base: string;
   private readonly fetcher: FetchLike;
@@ -65,4 +60,10 @@ export class HttpClient {
       return text;
     }
   }
+}
+
+export async function downloadAttachment(url: string): Promise<Buffer> {
+  const res = await fetch(url, { method: 'GET' });
+  if (!res.ok) throw new Error(`Failed to download attachment: HTTP ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
 }

@@ -4,7 +4,7 @@ import type {
   LeaderboardRanking,
 } from "../api/index.js";
 import { ApiClient } from "../api/index.js";
-import { downloadAttachment } from "../utils/save-attachment.js";
+import { downloadAttachment } from "../core/api/http.js";
 
 export async function submitSaveForReport(
   fileUrl: string,

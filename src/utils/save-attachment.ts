@@ -25,9 +25,3 @@ export function validateSaveAttachment(
     throw new Error(`Invalid file type. Please upload a ${label} save file ending in ${ext}.`);
   }
 }
-
-export async function downloadAttachment(url: string): Promise<Buffer> {
-  const res = await fetch(url, { method: 'GET' });
-  if (!res.ok) throw new Error(`Failed to download attachment: HTTP ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
-}
