@@ -28,5 +28,8 @@ export { buildDraftRecord, buildReportingToken } from './telemetry.js';
 export { createDeadlineRegistry, createSystemClock } from './timers.js';
 export type { Clock, Deadline, DeadlineRegistry } from './timers.js';
 
+export { createSessionActor, SessionActorDirectory } from './actor.js';
+export type { SessionActor, EffectExecutor } from './actor.js';
+
 /** Scaffold flag imported by tests/smoke.test.ts; removed at R9. */
 export const SESSION_SCAFFOLD = true as const;
