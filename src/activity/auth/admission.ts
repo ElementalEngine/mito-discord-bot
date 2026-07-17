@@ -3,7 +3,6 @@ import type { RoomRecord, Recipient } from '../../session/index.js';
 import { verifyIdentityToken, verifyRoomAccessToken } from './tokens.js';
 import type { IdentityClaims, TokenFailure } from './tokens.js';
 
-
 export type AdmissionRefusal =
   | { kind: 'unauthenticated'; reason: TokenFailure } // identity token invalid
   | { kind: 'forbidden'; reason: TokenFailure } // room-access token invalid / unbound
@@ -50,8 +49,8 @@ export function admitConnection(input: AdmissionInput): AdmissionResult {
     ? { kind: 'seat', seatId: identity.sub }
     : { kind: 'observer', userId: identity.sub };
 
-  // 4. Unseated non-staff may not observe.
-  if (!seated && identity.staff !== true) {
+  // 4. Unseated non-staff: allowed ONLY during the lobby (so they can JOIN a seat).
+  if (!seated && identity.staff !== true && room.phase !== 'lobby') {
     return refuse({ kind: 'observer-forbidden' });
   }
 

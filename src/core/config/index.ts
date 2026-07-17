@@ -110,5 +110,11 @@ export const config = {
     url: env('BACKEND_SERVICE_URL', backendDefault),
     serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
+  activity: {
+    devGuildIds: env('ACTIVITY_DEV_GUILD_IDS', '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0),
+  },
   env: nodeEnv,
 } as const;

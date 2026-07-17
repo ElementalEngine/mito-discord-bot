@@ -46,6 +46,14 @@ function lobbyWithSeats(): RoomRecord {
   return room;
 }
 
+/** Same room advanced past the lobby (host u1 advances lobby → settings). */
+function advancedToSettings(): RoomRecord {
+  const deps = makeDeps();
+  let room = lobbyWithSeats();
+  room = processSessionCommand(room, { type: 'ADVANCE', byUserId: 'u1' }, deps).room;
+  return room;
+}
+
 function identity(userId: string, staff = false): string {
   return createIdentityToken(SECRET, { userId, ...(staff ? { staff: true } : {}) }, { ttlSeconds: TTL, nowMs: NOW });
 }
@@ -90,8 +98,20 @@ test('unseated staff is admitted as an observer', () => {
   assert.deepEqual(expectAdmitted(result), { kind: 'observer', userId: 'mod' });
 });
 
-test('unseated non-staff is refused (observer-forbidden)', () => {
-  const room = lobbyWithSeats();
+test('unseated non-staff is admitted as a provisional observer in the lobby (can then JOIN)', () => {
+  const room = lobbyWithSeats(); // phase: lobby
+  const result = admitConnection({
+    secret: SECRET,
+    room,
+    identityToken: identity('rando', false),
+    roomAccessToken: access('rando', 's1'),
+    nowMs: NOW,
+  });
+  assert.deepEqual(expectAdmitted(result), { kind: 'observer', userId: 'rando' });
+});
+
+test('unseated non-staff is refused once the session leaves the lobby', () => {
+  const room = advancedToSettings(); // phase past lobby
   const result = admitConnection({
     secret: SECRET,
     room,

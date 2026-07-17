@@ -46,6 +46,11 @@ export const SMOKE_PAGE_HTML = `<!doctype html>
         <select id="draftMode"><option>standard</option><option>snake</option><option>blind</option><option>cwc</option></select>
       </div>
       <div class="row">
+        <label>Host id</label>
+        <input type="text" id="hostId" value="u1" />
+        <span style="color:#6a7280">(the user who can ADVANCE — make it match your User id below)</span>
+      </div>
+      <div class="row">
         <button id="btnCreate">Create session</button>
         <label>Session id</label>
         <input type="text" id="sessionId" placeholder="paste or create" />
@@ -125,6 +130,7 @@ export const SMOKE_PAGE_HTML = `<!doctype html>
             edition: $('edition').value,
             gameType: $('gameType').value,
             draftMode: $('draftMode').value,
+            hostId: $('hostId').value.trim() || 'u1',
           });
           $('sessionId').value = r.sessionId;
           log('session created: ' + r.sessionId + ' (' + r.edition + '/' + r.gameType + '/' + r.draftMode + ')', 'ok');
@@ -141,6 +147,18 @@ export const SMOKE_PAGE_HTML = `<!doctype html>
           connect(sessionId);
         } catch (e) { log(String(e), 'bad'); }
       };
+
+      // Launch mode: a URL like /?session=…&identity=…&access=… (from the Discord launch
+      // command) carries pre-minted host tokens. Prefill and auto-connect with them.
+      (function tryLaunchAutoConnect() {
+        const q = new URLSearchParams(location.search);
+        const session = q.get('session'), identity = q.get('identity'), access = q.get('access');
+        if (!session || !identity || !access) return;
+        $('sessionId').value = session;
+        tokens = { identity, access };
+        log('launch link detected — auto-connecting', 'ok');
+        connect(session);
+      })();
 
       function connect(sessionId) {
         if (ws) { ws.close(); ws = null; }

@@ -1,15 +1,5 @@
 import { config } from '../core/config/index.js';
 
-/**
- * Activity transport config (R6.1).
- *
- * Reads its own dedicated signing secret — NEVER a service token. Kept in the
- * activity zone (not core/config) so the transport owns its surface and the
- * secret has one consumer. `validateActivityConfig()` is called by the server at
- * startup (R6.2): a missing/short secret fails LOUD there, rather than silently
- * rejecting every connection with a 4403.
- */
-
 const MIN_SECRET_LENGTH = 32;
 
 /** Default bind port; overridable via ACTIVITY_PORT. Bound to 127.0.0.1 — Caddy is the only ingress. */
@@ -30,19 +20,18 @@ function readPort(): number {
 export const activityConfig = {
   /** HMAC signing secret for both activity tokens. */
   sessionSecret: process.env.ACTIVITY_SESSION_SECRET ?? '',
-  /** Bind port (loopback only). */
   port: readPort(),
   identityTtlSeconds: IDENTITY_TTL_SECONDS,
   roomAccessTtlSeconds: ROOM_ACCESS_TTL_SECONDS,
-  /** Dev-only test-token endpoint gate (R6.3). Off unless explicitly enabled. */
   devTokenEndpointEnabled: config.env !== 'production' && process.env.ACTIVITY_DEV_TOKENS === '1',
+  publicUrl: (process.env.ACTIVITY_PUBLIC_URL ?? '').trim().replace(/\/+$/, ''),
+  devGuildIds: (process.env.ACTIVITY_DEV_GUILD_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0),
 } as const;
 
-/**
- * Throw if the activity transport is not safely configured. Call once at server
- * startup (R6.2), before binding. Never called at import time — importing the
- * module (e.g. for the token unit tests) must not require a secret.
- */
+
 export function validateActivityConfig(): void {
   const secret = activityConfig.sessionSecret.trim();
   if (secret.length < MIN_SECRET_LENGTH) {
