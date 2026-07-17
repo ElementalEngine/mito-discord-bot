@@ -2,6 +2,10 @@ import client, { initClient } from './client.js';
 import { config } from '../core/config/index.js';
 import { stopJobs } from '../core/scheduling.js';
 import { error as logError, log as logInfo } from '../core/logging.js';
+import { startActivity } from '../activity/index.js';
+import type { ActivityServer } from '../activity/index.js';
+
+let activityServer: ActivityServer | null = null;
 
 async function main(): Promise<void> {
   try {
@@ -10,6 +14,8 @@ async function main(): Promise<void> {
 
     await client.login(config.discord.token);
     logInfo(`✅ Discord client ready as ${client.user?.tag ?? 'Unknown'}`);
+
+    activityServer = await startActivity();
   } catch (error) {
     logError('Fatal error starting app:', error);
     process.exit(1);
@@ -29,6 +35,10 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     }, 10_000);
 
     try {
+      if (activityServer) {
+        await activityServer.close();
+        logInfo('🔴 Activity server closed.');
+      }
       client.destroy();
       logInfo('🔴 Discord client destroyed.');
     } finally {
