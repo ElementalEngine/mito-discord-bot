@@ -13,6 +13,8 @@ import { ActivityHub } from './hub.js';
 import type { HubConnection } from './hub.js';
 import { parseClientMessage } from './protocol.js';
 import type { ServerMessage } from './protocol.js';
+import { createDevRouter } from './dev.js';
+import { SMOKE_PAGE_HTML } from './smoke-page.js';
 import { error as logError, log as logInfo, warn as logWarn } from '../core/logging.js';
 
 const WS_PATH_PREFIX = '/session/';
@@ -41,6 +43,16 @@ export function createActivityServer(hub: ActivityHub): ActivityServer {
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true });
   });
+
+  // Dev-only QA harness: token/session endpoints + the smoke page. Never in prod.
+  if (activityConfig.devTokenEndpointEnabled) {
+    app.use(express.json({ limit: '16kb' }));
+    app.use('/dev', createDevRouter(hub));
+    app.get('/', (_req, res) => {
+      res.type('html').send(SMOKE_PAGE_HTML);
+    });
+    logWarn('[activity] DEV endpoints + smoke page ENABLED (ACTIVITY_DEV_TOKENS=1). Do not use in prod.');
+  }
 
   const httpServer: HttpServer = createServer(app);
   const wss = new WebSocketServer({ noServer: true });
