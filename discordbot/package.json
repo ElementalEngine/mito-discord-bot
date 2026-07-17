@@ -1,0 +1,79 @@
+{
+  "name": "@mitobot/discordbot",
+  "version": "2.0.0",
+  "description": "Bot for the Civilization VI & VII Discord community «CivCPL». TypeScript Discord bot built on discord.js, backed by the core-api service over HTTP.",
+  "keywords": [
+    "Discord",
+    "Bot",
+    "TypeScript"
+  ],
+  "homepage": "https://github.com/ElementalEngine/mito-civ-discord-bot#readme",
+  "bugs": {
+    "url": "https://github.com/ElementalEngine/mito-civ-discord-bot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ElementalEngine/mito-civ-discord-bot.git"
+  },
+  "license": "Apache-2.0",
+  "author": "ProjectCisco",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24.12.0"
+  },
+  "scripts": {
+    "clean": "node --input-type=commonjs -e \"const fs=require('node:fs'); const path=require('node:path'); for (const p of ['dist','tsconfig.tsbuildinfo']) { fs.rmSync(path.resolve(p), { recursive: true, force: true }); }\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json -w --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.tests.json",
+    "verify": "npm run typecheck && npm run build && npm run lint && npm run lint:selftest && npm run test && npm run test:coverage",
+    "dev": "concurrently -k -n tsc,node \"npm:build:watch\" \"npm:start:watch\"",
+    "dev:ts": "tsx watch src/index.ts",
+    "start": "node --enable-source-maps dist/index.js",
+    "start:watch": "node --enable-source-maps --watch dist/index.js",
+    "lint": "eslint .",
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-include=\"src/engine/**\" --test-coverage-branches=94 --test-coverage-lines=99 --test-coverage-functions=100 \"tests/**/*.test.ts\"",
+    "lint:selftest": "node scripts/lint-selftest.mjs"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.6.0",
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1"
+  },
+  "overrides": {
+    "undici": "6.27.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-boundaries": "<5.2.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  },
+  "prettier": {
+    "printWidth": 80,
+    "singleQuote": true,
+    "trailingComma": "es5",
+    "arrowParens": "always",
+    "endOfLine": "auto"
+  }
+}
