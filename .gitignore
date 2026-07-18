@@ -136,3 +136,4 @@ vite.config.ts.timestamp-*
 **/*.tsbuildinfo
 **/node_modules/
 discordbot/.env.development
+discordbot/package-lock.json
