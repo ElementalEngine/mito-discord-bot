@@ -1,82 +1,28 @@
 {
-  "name": "mito-civ-discord-bot",
+  "name": "mito-workspace",
+  "private": true,
   "version": "2.0.0",
-  "description": "Bot for Civilization VI Discord Community «CivCPL». Developed in TypeScript using MongoDB, Express, Discord API, Steam Web API.",
-  "keywords": [
-    "Discord",
-    "Bot",
-    "Express",
-    "TypeScript"
-  ],
-  "homepage": "https://github.com/ElementalEngine/mito-civ-discord-bot#readme",
-  "bugs": {
-    "url": "https://github.com/ElementalEngine/mito-civ-discord-bot/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ElementalEngine/mito-civ-discord-bot.git"
-  },
-  "license": "Apache-2.0",
-  "author": "ProjectCisco",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=24.12.0"
-  },
+  "license": "Apache-2.0",
+  "engines": { "node": ">=24.18.0" },
+  "workspaces": ["apps/*", "packages/*"],
+  "overrides": { "undici": "6.27.0" },
   "scripts": {
-    "clean": "node --input-type=commonjs -e \"const fs=require('node:fs'); const path=require('node:path'); for (const p of ['dist','tsconfig.tsbuildinfo']) { fs.rmSync(path.resolve(p), { recursive: true, force: true }); }\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
-    "build:watch": "tsc -p tsconfig.json -w --preserveWatchOutput",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "npm run typecheck && npm run build && npm run lint",
-    "dev": "concurrently -k -n tsc,node \"npm:build:watch\" \"npm:start:watch\"",
-    "dev:ts": "tsx watch src/index.ts",
-    "start": "node --enable-source-maps dist/index.js",
-    "start:watch": "node --enable-source-maps --watch dist/index.js",
-    "deploy": "node dist/deploy.js",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
-    "test": "node --input-type=commonjs -e \"console.log('No tests configured');\""
-  },
-  "dependencies": {
-    "@discordjs/rest": "^2.6.0",
-    "axios": "^1.13.2",
-    "body-parser": "^2.2.2",
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0",
-    "morgan": "^1.10.1",
-    "steamapi": "^3.1.4"
-  },
-  "overrides": {
-    "undici": "6.27.0"
+    "test": "node --test",
+    "build": "npm run build --workspaces --if-present",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "gen:contracts": "node scripts/gen-contracts.mjs",
+    "gen:contracts:check": "node scripts/gen-contracts.mjs --check"
   },
   "devDependencies": {
-    "@types/compression": "^1.8.1",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/helmet": "^4.0.0",
-    "@types/morgan": "^1.9.10",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",
-    "concurrently": "^9.2.1",
-    "tsx": "^4.19.2",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
+    "openapi-typescript": "^7.4.0",
     "typescript": "^5.9.3"
   },
   "prettier": {

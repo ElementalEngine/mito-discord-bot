@@ -1,0 +1,9 @@
+source-repo: ElementalEngine/core-api-backend
+source-sha: d80aa1d
+source-date: 2026-08-12
+generated-by: npm run gen:contracts
+
+The join between this spec and core-api's live app is NOT machine-checked
+(D98). It is bumped as a deliberate, reviewable act. Two diffs chain around
+it: core-api CI asserts app.openapi() == its own openapi.json; this repo's
+CI asserts gen:contracts --check produces no diff against src/.

@@ -1,0 +1,24 @@
+{
+  "name": "@cpl/bot",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "engines": { "node": ">=24.18.0" },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node --enable-source-maps dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@discordjs/rest": "2.6.0",
+    "discord.js": "14.27.0",
+    "dotenv": "17.2.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "tsx": "^4.19.2"
+  }
+}
