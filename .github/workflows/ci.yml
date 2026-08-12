@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [wave1]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24.18.1'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Version pins (D12)
+        run: npm run pins
+
+      - name: Build
+        run: npm run build
+
+      # D98 / C12: regenerate from the VENDORED spec and diff against the
+      # committed types. No network, no live core-api. Catches hand edits,
+      # partial commits, and regenerating without committing.
+      - name: Contracts — types match vendored spec
+        run: npm run gen:contracts:check
