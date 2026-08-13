@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [wave1]
+    branches: [v2]
   pull_request:
 
 jobs:
