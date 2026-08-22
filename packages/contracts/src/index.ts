@@ -740,6 +740,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/civ-data/{edition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Civ Data */
+        get: operations["get_civ_data_api_v2_civ_data__edition__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -925,6 +942,26 @@ export interface components {
             /** New Order */
             new_order: string;
         };
+        /** CivDataResponse */
+        CivDataResponse: {
+            /** Civs */
+            civs: components["schemas"]["CivRow"][];
+            /** Edition */
+            edition: string;
+            /** Leader Data Version */
+            leader_data_version: number;
+            /** Leaders */
+            leaders: components["schemas"]["LeaderRow"][];
+        };
+        /** CivRow */
+        CivRow: {
+            /** Age Pool */
+            age_pool: string;
+            /** Name */
+            name: string;
+            /** Token */
+            token: string;
+        };
         /** CompleteRegistrationSessionRequest */
         CompleteRegistrationSessionRequest: {
             /** Discord User Id */
@@ -1060,6 +1097,15 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LeaderRow */
+        LeaderRow: {
+            /** Civ */
+            civ?: string | null;
+            /** Name */
+            name: string;
+            /** Token */
+            token: string;
         };
         /** LeaderboardRankingResponse */
         LeaderboardRankingResponse: {
@@ -3099,6 +3145,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_civ_data_api_v2_civ_data__edition__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CivDataResponse"];
                 };
             };
             /** @description Validation Error */

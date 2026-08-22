@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: a2030ef
-source-date: 2026-08-12
+source-sha: e528da6
+source-date: 2026-08-22
 generated-by: npm run gen:contracts
 
 The join between this spec and core-api's live app is NOT machine-checked
