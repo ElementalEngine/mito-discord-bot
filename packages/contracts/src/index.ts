@@ -757,6 +757,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Match */
+        post: operations["upload_match_api_v2_matches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Leaderboard */
+        get: operations["get_leaderboard_api_v2_matches_leaderboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Match */
+        get: operations["get_match_api_v2_matches__match_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Match */
+        delete: operations["delete_match_api_v2_matches__match_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Match */
+        post: operations["approve_match_api_v2_matches__match_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}/contest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Contest Match */
+        post: operations["contest_match_api_v2_matches__match_id__contest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}/players": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Players */
+        patch: operations["patch_players_api_v2_matches__match_id__players_patch"];
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revert Match */
+        post: operations["revert_match_api_v2_matches__match_id__revert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -933,6 +1053,18 @@ export interface components {
             /** Reporter Discord Id */
             reporter_discord_id: string;
         };
+        /** Body_upload_match_api_v2_matches_post */
+        Body_upload_match_api_v2_matches_post: {
+            /** Discord Message Id */
+            discord_message_id: string;
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+            /** Is Cloud */
+            is_cloud: string;
+        };
         /** ChangeOrder */
         ChangeOrder: {
             /** Discord Message Id */
@@ -966,6 +1098,11 @@ export interface components {
         CompleteRegistrationSessionRequest: {
             /** Discord User Id */
             discord_user_id: string;
+        };
+        /** ContestBody */
+        ContestBody: {
+            /** Reason */
+            reason: string;
         };
         /** ContestReport */
         ContestReport: {
@@ -1299,6 +1436,11 @@ export interface components {
             /** User Name */
             user_name?: string | null;
         };
+        /** PlayersPatch */
+        PlayersPatch: {
+            /** Players */
+            players?: components["schemas"]["SeatPatchIn"][];
+        };
         /** RankRoleRequest */
         RankRoleRequest: {
             /** Discord User Id */
@@ -1447,6 +1589,28 @@ export interface components {
          * @enum {string}
          */
         RoleIntent: "grant_civ6_rank" | "grant_civ7_rank" | "grant_novice" | "grant_server_news" | "grant_civ6_news" | "grant_civ7_news" | "grant_pc_steam" | "grant_2k_crossplatform" | "remove_non_verified";
+        /**
+         * SeatPatchIn
+         * @description One seat's requested changes. Absent means unchanged (D89, D154).
+         *
+         *     `sub_out` is three-state: absent leaves the pairing alone, a discord id
+         *     creates or repoints it, null clears it. Nothing else is nullable -- a
+         *     null placement would otherwise read as "unchanged" on one path and as a
+         *     value on another, which is the kind of silence this route exists to
+         *     remove.
+         */
+        SeatPatchIn: {
+            /** Discord Id */
+            discord_id?: string | null;
+            /** Placement */
+            placement?: number | null;
+            /** Quit */
+            quit?: boolean | null;
+            /** Seat */
+            seat: number;
+            /** Sub Out */
+            sub_out?: string | null;
+        };
         /**
          * SelfServiceRegistrationRequest
          * @description Civ7 non-Steam self-service registration (currently 2K only).
@@ -3178,6 +3342,292 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CivDataResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_match_api_v2_matches_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_match_api_v2_matches_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_leaderboard_api_v2_matches_leaderboard_get: {
+        parameters: {
+            query: {
+                game: string;
+                game_type: string;
+                game_mode: string;
+                is_seasonal?: boolean;
+                is_combined?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaderboardRankingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_match_api_v2_matches__match_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_match_api_v2_matches__match_id__delete: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_match_api_v2_matches__match_id__approve_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    contest_match_api_v2_matches__match_id__contest_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_players_api_v2_matches__match_id__players_patch: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayersPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_match_api_v2_matches__match_id__revert_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
                 };
             };
             /** @description Validation Error */
