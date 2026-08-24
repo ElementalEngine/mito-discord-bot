@@ -364,40 +364,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/get-user-stats-batch/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Put Get Users Stats Batch */
-        put: operations["put_get_users_stats_batch_api_v1_get_user_stats_batch__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/get-user-stats/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Put Get User Stats */
-        put: operations["put_get_user_stats_api_v1_get_user_stats__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/infractions/active": {
         parameters: {
             query?: never;
@@ -877,6 +843,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/stats/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Users Stats Batch */
+        post: operations["get_users_stats_batch_api_v2_stats_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/stats/reset/user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reset User Stats */
+        put: operations["reset_user_stats_api_v2_stats_reset_user_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/stats/team-gen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Team Gen */
+        post: operations["get_team_gen_api_v2_stats_team_gen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/stats/user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User Stats */
+        get: operations["get_user_stats_api_v2_stats_user_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1012,32 +1046,19 @@ export interface components {
             /** Results */
             results: components["schemas"]["UserStatsResponse"][];
         };
+        /** BatchStatsResponseV2 */
+        BatchStatsResponseV2: {
+            /** Civ Version */
+            civ_version: string;
+            /** Game Type */
+            game_type: string;
+            /** Results */
+            results: components["schemas"]["UserStatsResponseV2"][];
+        };
         /** Body_get_match_api_v1_get_match__put */
         Body_get_match_api_v1_get_match__put: {
             /** Match Id */
             match_id: string;
-        };
-        /** Body_put_get_user_stats_api_v1_get_user_stats__put */
-        Body_put_get_user_stats_api_v1_get_user_stats__put: {
-            /** Civ Version */
-            civ_version?: string | null;
-            /** Discord Id */
-            discord_id: string;
-            /** Game Type */
-            game_type: string;
-            /** Version */
-            version?: string | null;
-        };
-        /** Body_put_get_users_stats_batch_api_v1_get_user_stats_batch__put */
-        Body_put_get_users_stats_batch_api_v1_get_user_stats_batch__put: {
-            /** Civ Version */
-            civ_version?: string | null;
-            /** Discord Id List */
-            discord_id_list: string[];
-            /** Game Type */
-            game_type: string;
-            /** Version */
-            version?: string | null;
         };
         /** Body_upload_game_report_api_v1_upload_game_report__post */
         Body_upload_game_report_api_v1_upload_game_report__post: {
@@ -1666,11 +1687,42 @@ export interface components {
             /** Wins */
             wins: number;
         };
+        /** StatRowV2 */
+        StatRowV2: {
+            /** First */
+            first: number;
+            /** Games */
+            games: number;
+            /** Lastmodified */
+            lastModified?: string | null;
+            /** Mu */
+            mu: number;
+            /** Rating Gains */
+            rating_gains: number;
+            /** Sigma */
+            sigma: number;
+            /**
+             * Subbedin
+             * @default 0
+             */
+            subbedIn: number;
+            /**
+             * Subbedout
+             * @default 0
+             */
+            subbedOut: number;
+        };
         /** StatSet */
         StatSet: {
             duel?: components["schemas"]["StatRow"] | null;
             ffa?: components["schemas"]["StatRow"] | null;
             teamer?: components["schemas"]["StatRow"] | null;
+        };
+        /** StatSetV2 */
+        StatSetV2: {
+            duel?: components["schemas"]["StatRowV2"] | null;
+            ffa?: components["schemas"]["StatRowV2"] | null;
+            teamer?: components["schemas"]["StatRowV2"] | null;
         };
         /**
          * SupportedGame
@@ -1753,6 +1805,17 @@ export interface components {
             game_type: string;
             lifetime: components["schemas"]["StatSet"];
             season: components["schemas"]["StatSet"];
+        };
+        /** UserStatsResponseV2 */
+        UserStatsResponseV2: {
+            /** Civ Version */
+            civ_version: string;
+            /** Discord Id */
+            discord_id: string;
+            /** Game Type */
+            game_type: string;
+            lifetime: components["schemas"]["StatSetV2"];
+            season: components["schemas"]["StatSetV2"];
         };
         /** ValidationError */
         ValidationError: {
@@ -2475,76 +2538,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    put_get_users_stats_batch_api_v1_get_user_stats_batch__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_put_get_users_stats_batch_api_v1_get_user_stats_batch__put"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    put_get_user_stats_api_v1_get_user_stats__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_put_get_user_stats_api_v1_get_user_stats__put"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserStatsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3628,6 +3621,146 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_users_stats_batch_api_v2_stats_batch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchStatsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchStatsResponseV2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_user_stats_api_v2_stats_reset_user_put: {
+        parameters: {
+            query: {
+                civ_version: string;
+                game_type: string;
+                discord_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserStatsResponseV2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_team_gen_api_v2_stats_team_gen_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamGenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamGenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_stats_api_v2_stats_user_get: {
+        parameters: {
+            query: {
+                civ_version: string;
+                game_type: string;
+                discord_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserStatsResponseV2"];
                 };
             };
             /** @description Validation Error */
