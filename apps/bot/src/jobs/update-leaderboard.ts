@@ -31,14 +31,32 @@ async function fetchLeaderboardThread(
   return ch as GuildTextBasedChannel;
 }
 
-function getLeaderboardMessage(
+/**
+ * Two layouts, and the split is measured rather than chosen.
+ *
+ * `first` is the win count. `wins` counts games where the rating went up,
+ * which is about half of all games in every mode by construction -- so the
+ * old `wins / games` printed roughly 50% for every player on every board,
+ * and `games - wins` was never a loss count (D164, section 4 item 70).
+ *
+ * Across 340k games duel has `wins == first` exactly and teamer agrees
+ * 99.87% of the time, so head-to-head boards show one pair of columns. In
+ * FFA and combined the two are five times apart, so both are shown and the
+ * rating-gain counter is labelled as a gain, never as a win.
+ */
+export function getLeaderboardMessage(
   leaderboardRanking: LeaderboardRanking,
+  gameMode: string,
   startIdx: number,
   endIdx: number
 ): string {
+  const headToHead = gameMode === 'duel' || gameMode === 'teamer';
+
   let message = '';
   if (startIdx === 0) {
-    message += `\`Rank   Skill\t[wins - loss]\tWin%\t   1st\`\n`;
+    message += headToHead
+      ? `\`Rank   Skill\t[wins - loss]\tWin%\`\n`
+      : `\`Rank   Skill\tGames\t 1st\tWin%\t   ^\`\n`;
   }
 
   const rankings = leaderboardRanking.rankings;
@@ -55,16 +73,22 @@ function getLeaderboardMessage(
     const rating = String(Math.round(entry.rating)).padStart(4);
 
     const games = entry.games_played;
-    const wins = entry.wins;
-    const losses = Math.max(0, games - wins);
+    const first = entry.first;
 
-    const winLossRecord = `[${String(wins).padStart(4)} - ${String(losses).padEnd(4)}]`;
-    const winPct = games > 0 ? ((wins / games) * 100).toFixed(1) : '0.0';
+    const winPct = games > 0 ? ((first / games) * 100).toFixed(1) : '0.0';
     const winPctStr = `${winPct}%`.padEnd(6);
 
-    const firstPlaces = String(entry.first).padStart(4);
+    if (headToHead) {
+      const losses = Math.max(0, games - first);
+      const record = `[${String(first).padStart(4)} - ${String(losses).padEnd(4)}]`;
+      message += `\`${rank}\t${rating}\t${record}\t${winPctStr}\`\t<@${discordId}>\n`;
+      continue;
+    }
 
-    message += `\`${rank}\t${rating}\t${winLossRecord}\t${winPctStr}\t${firstPlaces}\`\t<@${discordId}>\n`;
+    const gamesStr = String(games).padStart(5);
+    const firstStr = String(first).padStart(4);
+    const gains = String(entry.wins).padStart(4);
+    message += `\`${rank}\t${rating}\t${gamesStr}\t${firstStr}\t${winPctStr}\t${gains}\`\t<@${discordId}>\n`;
   }
 
   return message;
@@ -166,6 +190,7 @@ async function updateLeaderboard(
     const msg = messages[i];
     const leaderboardMsg = getLeaderboardMessage(
       leaderboardRanking,
+      leaderboard.game_mode,
       i * 10,
       i * 10 + 10
     );
