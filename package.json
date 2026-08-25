@@ -10,7 +10,7 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings=0",
-    "test": "node --test",
+    "test": "node --import tsx --test",
     "build": "npm run build --workspaces --if-present",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run pins && npm run build",
     "pins": "node scripts/version-pins.mjs",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
     "@typescript-eslint/parser": "^8.46.0",
     "eslint": "^9.39.2",
