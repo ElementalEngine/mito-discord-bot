@@ -13,6 +13,14 @@ import type {
 
 type FetchLike = typeof fetch;
 
+// D93. The policy lives here and nowhere else: no call site chooses, and
+// fetchWithRetry takes no attempts argument for one to pass.
+const RETRY_ATTEMPTS = 2;
+const RETRY_BASE_MS = 250;
+const TIMEOUT_MS = 10_000;
+// Multipart carries a save file. Everything else is a form post or a query.
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 export class ApiClient {
   private readonly base: string;
   private readonly fetcher: FetchLike;
@@ -303,12 +311,34 @@ export class ApiClient {
     return (await this.parseJson(res)) as TeamGenResponse;
   }
 
-  private async fetchWithRetry(input: string | URL, init?: RequestInit, attempts = 1): Promise<Response> {
+  /**
+   * D93. Two attempts, and whether the second happens is decided here.
+   *
+   * An enveloped error means core-api answered and chose not to act, so
+   * its retryable flag can be trusted on any method. A transport failure
+   * -- timeout, reset, a proxy 502 -- means we never learned whether the
+   * write landed, so only a read may be repeated. Fifteen of this client's
+   * nineteen calls are PUTs that approve, revert or mutate a match.
+   */
+  private shouldRetry(err: unknown, method: string): boolean {
+    if (err instanceof ApiError && typeof err.retryable === "boolean") {
+      return err.retryable;
+    }
+    if (err instanceof ApiError && err.status > 0 && err.status < 500) {
+      return false;
+    }
+    return method === "GET";
+  }
+
+  private async fetchWithRetry(input: string | URL, init?: RequestInit): Promise<Response> {
+    const method = (init?.method ?? "GET").toUpperCase();
+    const timeoutMs = init?.body instanceof FormData ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS;
+
     let lastErr: unknown;
-    for (let i = 0; i < attempts; i++) {
+    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30_000);
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
           const headers = new Headers(init?.headers);
           if (this.serviceToken) headers.set("authorization", `Bearer ${this.serviceToken}`);
@@ -323,10 +353,9 @@ export class ApiClient {
         }
       } catch (err) {
         lastErr = err;
-        const status = err instanceof ApiError ? err.status : 0;
-        const retriable = status === 0 || (status >= 500 && status <= 599);
-        if (!retriable || i === attempts - 1) throw err;
-        await new Promise(r => setTimeout(r, Math.min(2000, 200 * Math.pow(2, i))));
+        if (attempt === RETRY_ATTEMPTS || !this.shouldRetry(err, method)) throw err;
+        // Jittered, so a backend blip does not bring every shard back at once.
+        await new Promise(r => setTimeout(r, RETRY_BASE_MS * (1 + Math.random())));
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error("Unknown API error");
