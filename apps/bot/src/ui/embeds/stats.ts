@@ -42,19 +42,37 @@ function rankColorFromMu(mu: number | null): number {
   return DEFAULT_COLOR;
 }
 
-function fmtRow(row: StatRow | null | undefined): string {
+/**
+ * `first` is the win count. `wins` counts games where the rating went up,
+ * which is about half of all games in every mode by construction.
+ *
+ * In duel `wins == first` exactly and in teamer they agree 99.87% of the
+ * time, so the old Wins and 1st lines printed the same number twice. In
+ * FFA they are five times apart, so both belong -- with the rating-gain
+ * one labelled as a gain (D164, section 4 item 70).
+ */
+export function fmtRow(
+  row: StatRow | null | undefined,
+  headToHead: boolean
+): string {
   if (!row) return '—';
 
   const lines = [
     `Skill: ${row.mu}`,
-    `TS Mu: ${row.mu}`,
     `TS Sigma: ${Math.round(row.sigma)}`,
     `Games: ${row.games}`,
-    `Wins: ${row.wins}`,
-    `1st: ${row.first}`,
-    `Sub In: ${row.subbedIn}`,
-    `Sub Out: ${row.subbedOut}`,
   ];
+
+  if (headToHead) {
+    lines.push(
+      `Wins: ${row.first}`,
+      `Losses: ${Math.max(0, row.games - row.first)}`
+    );
+  } else {
+    lines.push(`1st: ${row.first}`, `Rating gains: ${row.wins}`);
+  }
+
+  lines.push(`Sub In: ${row.subbedIn}`, `Sub Out: ${row.subbedOut}`);
 
   return '```\n' + lines.join('\n') + '\n```';
 }
@@ -66,17 +84,17 @@ function addSectionHeader(embed: EmbedBuilder, emoji: string, title: string): vo
 
 function addRealtimeFields(embed: EmbedBuilder, set: StatSet): void {
   embed.addFields(
-    { name: 'FFA', value: fmtRow(set.ffa), inline: true },
-    { name: 'Teamer', value: fmtRow(set.teamer), inline: true },
-    { name: 'Duel', value: fmtRow(set.duel), inline: true }
+    { name: 'FFA', value: fmtRow(set.ffa, false), inline: true },
+    { name: 'Teamer', value: fmtRow(set.teamer, true), inline: true },
+    { name: 'Duel', value: fmtRow(set.duel, true), inline: true }
   );
 }
 
 function addCloudFields(embed: EmbedBuilder, set: StatSet): void {
   embed.addFields(
-    { name: 'PBC', value: fmtRow(set.ffa), inline: true },
-    { name: 'PBC-Teamer', value: fmtRow(set.teamer), inline: true },
-    { name: 'PBC-Duel', value: fmtRow(set.duel), inline: true }
+    { name: 'PBC', value: fmtRow(set.ffa, false), inline: true },
+    { name: 'PBC-Teamer', value: fmtRow(set.teamer, true), inline: true },
+    { name: 'PBC-Duel', value: fmtRow(set.duel, true), inline: true }
   );
 }
 
