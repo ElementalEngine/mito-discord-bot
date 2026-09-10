@@ -723,6 +723,242 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/lobbies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse Lobbies
+         * @description Open lobbies for a guild (D180).
+         *
+         *     ⚠ `guild_id` is required, never defaulted: a service token is
+         *     per-service, not per-guild, so an unfiltered read would expose every
+         *     lobby on the deployment to any holder of it.
+         */
+        get: operations["browse_lobbies_api_v2_lobbies_get"];
+        put?: never;
+        /** Create Lobby */
+        post: operations["create_lobby_api_v2_lobbies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Active
+         * @description One open lobby or none, by the D71 index.
+         */
+        get: operations["resolve_active_api_v2_lobbies_active_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/claim-post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Post
+         * @description Claim the oldest unposted finished lobby, or 204 when there is none.
+         *
+         *     ⚠ Declared BEFORE any parameterised sibling: a `/{lobby_id}` route
+         *     registered first would swallow this literal path and check a Mite-facing
+         *     request against the Activity gate.
+         */
+        post: operations["claim_post_api_v2_lobbies_claim_post_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Lobby
+         * @description One lobby, censored for the caller (D73), revision-gated (D77).
+         *
+         *     204 when `since` already holds the current revision -- not 304, which
+         *     would invite cache and proxy semantics into the polling path. A lobby
+         *     with no `since` is read unconditionally.
+         *
+         *     ⚠ `revision` starts at 1, so `since=0` is refused rather than treated as
+         *     "send me everything": no lobby has ever held it, and a client sending it
+         *     has a bug worth surfacing.
+         */
+        get: operations["read_lobby_api_v2_lobbies__lobby_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/bans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Submit Bans
+         * @description One seat's bans, resolving the phase on the last submission.
+         *
+         *     ⚠ Leaders are checked against the edition; civs against the STARTING
+         *     AGE's pool only, so a real token for a civ that is not in the game
+         *     cannot burn one of three slots (D196).
+         */
+        put: operations["submit_bans_api_v2_lobbies__lobby_id__bans_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Lobby
+         * @description The host ends the lobby. Frees the channel and every seat at once.
+         */
+        post: operations["cancel_lobby_api_v2_lobbies__lobby_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/picks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Submit Pick
+         * @description One seat's pick, completing the lobby on the last one.
+         *
+         *     ⚠ **409 for a second pick, and it is not a revision conflict.** A pick is
+         *     final once made (O-34); the refusal reads the seat, not the revision.
+         */
+        put: operations["submit_pick_api_v2_lobbies__lobby_id__picks_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/seats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change Seat
+         * @description Self-place, leave, move and host rearrange (C5), returning the
+         *     updated censored snapshot so the caller never waits for a poll tick.
+         *
+         *     Both revisions reach journald on every outcome (C5 invariant 4): when a
+         *     409 is disputed the log answers who held which revision, with no event
+         *     machinery.
+         */
+        patch: operations["change_seat_api_v2_lobbies__lobby_id__seats_patch"];
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Lobby
+         * @description Close seating, open the settings vote (D190).
+         *
+         *     The one transition no timer covers: section 7's table has no
+         *     `lobby -> settings` row and there is no "all submitted" to hang it on.
+         */
+        post: operations["start_lobby_api_v2_lobbies__lobby_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/{lobby_id}/votes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Submit Ballot
+         * @description One seat's settings ballot, resolving the phase on the last one.
+         *
+         *     ⚠ The response may come back already at `bans`: the final ballot tallies
+         *     and advances in the same call, and so does any request arriving after
+         *     `turn_expires_at` (D74, D194).
+         */
+        put: operations["submit_ballot_api_v2_lobbies__lobby_id__votes_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/matches": {
         parameters: {
             query?: never;
@@ -1055,10 +1291,20 @@ export interface components {
             /** Results */
             results: components["schemas"]["UserStatsResponseV2"][];
         };
+        /** Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post */
+        Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post: {
+            /** Expected Revision */
+            expected_revision: number;
+        };
         /** Body_get_match_api_v1_get_match__put */
         Body_get_match_api_v1_get_match__put: {
             /** Match Id */
             match_id: string;
+        };
+        /** Body_start_lobby_api_v2_lobbies__lobby_id__start_post */
+        Body_start_lobby_api_v2_lobbies__lobby_id__start_post: {
+            /** Expected Revision */
+            expected_revision: number;
         };
         /** Body_upload_game_report_api_v1_upload_game_report__post */
         Body_upload_game_report_api_v1_upload_game_report__post: {
@@ -1094,6 +1340,31 @@ export interface components {
             match_id: string;
             /** New Order */
             new_order: string;
+        };
+        /**
+         * ChangeSeatRequest
+         * @description One seat change. `place` covers self-place, move and host rearrange.
+         *
+         *     ⚠ Two actions rather than four. Moving IS placing at a different index,
+         *     and a host rearrange is placing aimed at somebody else -- so one action
+         *     plus an optional target covers all four of C5's verbs with one code path
+         *     and one call to `validate_seats`.
+         *
+         *     ⚠ `place` states the WHOLE desired position. Omitting `team` means no
+         *     side, not "keep the side you had": distinguishing the two would need a
+         *     sentinel, and a seat move that silently retains a team is the kind of
+         *     quiet action O-19b's compaction bug was made of.
+         */
+        ChangeSeatRequest: {
+            action: components["schemas"]["SeatAction"];
+            /** Discord Id */
+            discord_id?: string | null;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Seat Index */
+            seat_index?: number | null;
+            /** Team */
+            team?: number | null;
         };
         /** CivDataResponse */
         CivDataResponse: {
@@ -1142,6 +1413,38 @@ export interface components {
             match_id: string;
             /** Reason */
             reason: string;
+        };
+        /**
+         * CreateLobbyRequest
+         * @description Mite's create call. Authoritative guild, channel, host and roster.
+         *
+         *     `extra="forbid"` so a camelCase field name is refused rather than
+         *     silently dropped and then reported as a missing required field.
+         */
+        CreateLobbyRequest: {
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "civ6" | "civ7";
+            /** Game Type */
+            game_type: string;
+            /** Guild Id */
+            guild_id: string;
+            /** Host Discord Id */
+            host_discord_id: string;
+            /** Instance Id */
+            instance_id?: string | null;
+            /** Number Teams */
+            number_teams?: number | null;
+            /** Roster */
+            roster?: string[];
+            /** Starting Age */
+            starting_age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
+            /** Team Size */
+            team_size?: number | null;
         };
         /** CreatePendingSuspensionRequest */
         CreatePendingSuspensionRequest: {
@@ -1611,6 +1914,11 @@ export interface components {
          */
         RoleIntent: "grant_civ6_rank" | "grant_civ7_rank" | "grant_novice" | "grant_server_news" | "grant_civ6_news" | "grant_civ7_news" | "grant_pc_steam" | "grant_2k_crossplatform" | "remove_non_verified";
         /**
+         * SeatAction
+         * @enum {string}
+         */
+        SeatAction: "place" | "leave";
+        /**
          * SeatPatchIn
          * @description One seat's requested changes. Absent means unchanged (D89, D154).
          *
@@ -1723,6 +2031,69 @@ export interface components {
             duel?: components["schemas"]["StatRowV2"] | null;
             ffa?: components["schemas"]["StatRowV2"] | null;
             teamer?: components["schemas"]["StatRowV2"] | null;
+        };
+        /**
+         * SubmitBallotRequest
+         * @description One seat's settings ballot.
+         *
+         *     ⚠ The whole ballot, not a delta. A seat re-submitting replaces what it
+         *     had, so a client that dropped an answer cannot leave a stale one behind
+         *     -- and "has this seat answered question X" stays a single lookup rather
+         *     than a merge of every submission it ever made.
+         *
+         *     Selections are `option_id`, or `a|b` where the question allows more than
+         *     one (D191). Ids are checked against the catalogue, so a question or option
+         *     the ballot invents is a 400 rather than a vote nothing counts.
+         */
+        SubmitBallotRequest: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Selections */
+            selections: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * SubmitBansRequest
+         * @description One seat's bans. The whole set, not a delta.
+         *
+         *     ⚠ Both lists may be empty -- a seat banning nothing has still SUBMITTED,
+         *     and the phase advances on all-submitted. Distinguishing "banned nothing"
+         *     from "has not banned" is why the seat stores `bans` as a document rather
+         *     than two bare lists (`bans is not None` is the submitted test).
+         *
+         *     Tokens are civ-data's, and are checked against it: leaders against the
+         *     edition's whole set, civs against the STARTING AGE's pool only. A civ
+         *     outside the chosen age is a real token for a civ not in the game, and
+         *     banning it would burn one of three slots (D196).
+         */
+        SubmitBansRequest: {
+            /** Civ Keys */
+            civ_keys?: string[];
+            /** Expected Revision */
+            expected_revision: number;
+            /** Leader Keys */
+            leader_keys?: string[];
+        };
+        /**
+         * SubmitPickRequest
+         * @description One seat's pick, from the pool that seat was dealt.
+         *
+         *     ⚠ **A pick is final once made (O-34).** The refusal is on the seat's own
+         *     state, NOT on `revision`: a revision guard permits exactly what the rule
+         *     forbids -- read at revision 5, change your mind, write at revision 5, and
+         *     nothing has moved so the guard is satisfied. Same shape as D176's `$ne`,
+         *     which is a clause about the document's content rather than its version.
+         *
+         *     `civ_token` is civ7 only; civ6 drafts leaders alone.
+         */
+        SubmitPickRequest: {
+            /** Civ Token */
+            civ_token?: string | null;
+            /** Expected Revision */
+            expected_revision: number;
+            /** Token */
+            token?: string | null;
         };
         /**
          * SupportedGame
@@ -3335,6 +3706,415 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CivDataResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    browse_lobbies_api_v2_lobbies_get: {
+        parameters: {
+            query: {
+                guild_id: string;
+                edition?: string | null;
+                game_type?: string | null;
+            };
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_lobby_api_v2_lobbies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLobbyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_active_api_v2_lobbies_active_get: {
+        parameters: {
+            query: {
+                guild_id: string;
+                channel_id: string;
+            };
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    } | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_post_api_v2_lobbies_claim_post_post: {
+        parameters: {
+            query: {
+                guild_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_lobby_api_v2_lobbies__lobby_id__get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+            };
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_bans_api_v2_lobbies__lobby_id__bans_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitBansRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_lobby_api_v2_lobbies__lobby_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_pick_api_v2_lobbies__lobby_id__picks_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitPickRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_seat_api_v2_lobbies__lobby_id__seats_patch: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeSeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_lobby_api_v2_lobbies__lobby_id__start_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Body_start_lobby_api_v2_lobbies__lobby_id__start_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_ballot_api_v2_lobbies__lobby_id__votes_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitBallotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

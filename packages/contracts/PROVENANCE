@@ -1,9 +1,16 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: e01469b
-source-date: 2026-08-24
+source-sha: 112b9ba
+source-date: 2026-09-10
+
 generated-by: npm run gen:contracts
 
 The join between this spec and core-api's live app is NOT machine-checked
 (D98). It is bumped as a deliberate, reviewable act. Two diffs chain around
 it: core-api CI asserts app.openapi() == its own openapi.json; this repo's
 CI asserts gen:contracts --check produces no diff against src/.
+
+Bumped at Phase 3 S8 close: e01469b -> 112b9ba, 56 -> 66 paths. Batched on
+purpose across fifteen core-api commits so this file names ONE reviewable
+SHA rather than a chain of them (D185, C12). The ten new paths are C5's
+lobby surface; nothing in apps/ calls them yet -- Mite's lobby integration
+is S9, and these types exist so that work has something to compile against.

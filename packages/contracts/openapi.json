@@ -237,6 +237,20 @@
         "title": "BatchStatsResponseV2",
         "type": "object"
       },
+      "Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post",
+        "type": "object"
+      },
       "Body_get_match_api_v1_get_match__put": {
         "properties": {
           "match_id": {
@@ -248,6 +262,20 @@
           "match_id"
         ],
         "title": "Body_get_match_api_v1_get_match__put",
+        "type": "object"
+      },
+      "Body_start_lobby_api_v2_lobbies__lobby_id__start_post": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "Body_start_lobby_api_v2_lobbies__lobby_id__start_post",
         "type": "object"
       },
       "Body_upload_game_report_api_v1_upload_game_report__post": {
@@ -324,6 +352,63 @@
           "discord_message_id"
         ],
         "title": "ChangeOrder",
+        "type": "object"
+      },
+      "ChangeSeatRequest": {
+        "additionalProperties": false,
+        "description": "One seat change. `place` covers self-place, move and host rearrange.\n\n\u26a0 Two actions rather than four. Moving IS placing at a different index,\nand a host rearrange is placing aimed at somebody else -- so one action\nplus an optional target covers all four of C5's verbs with one code path\nand one call to `validate_seats`.\n\n\u26a0 `place` states the WHOLE desired position. Omitting `team` means no\nside, not \"keep the side you had\": distinguishing the two would need a\nsentinel, and a seat move that silently retains a team is the kind of\nquiet action O-19b's compaction bug was made of.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/SeatAction"
+          },
+          "discord_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Id"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "seat_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seat Index"
+          },
+          "team": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "action"
+        ],
+        "title": "ChangeSeatRequest",
         "type": "object"
       },
       "CivDataResponse": {
@@ -455,6 +540,109 @@
           "discord_message_id"
         ],
         "title": "ContestReportRequest",
+        "type": "object"
+      },
+      "CreateLobbyRequest": {
+        "additionalProperties": false,
+        "description": "Mite's create call. Authoritative guild, channel, host and roster.\n\n`extra=\"forbid\"` so a camelCase field name is refused rather than\nsilently dropped and then reported as a missing required field.",
+        "properties": {
+          "channel_id": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Channel Id",
+            "type": "string"
+          },
+          "edition": {
+            "enum": [
+              "civ6",
+              "civ7"
+            ],
+            "title": "Edition",
+            "type": "string"
+          },
+          "game_type": {
+            "title": "Game Type",
+            "type": "string"
+          },
+          "guild_id": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Guild Id",
+            "type": "string"
+          },
+          "host_discord_id": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Host Discord Id",
+            "type": "string"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
+          },
+          "number_teams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number Teams"
+          },
+          "roster": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 99,
+            "title": "Roster",
+            "type": "array"
+          },
+          "starting_age": {
+            "anyOf": [
+              {
+                "enum": [
+                  "AGE_ANTIQUITY",
+                  "AGE_EXPLORATION",
+                  "AGE_MODERN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starting Age"
+          },
+          "team_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Size"
+          }
+        },
+        "required": [
+          "guild_id",
+          "channel_id",
+          "host_discord_id",
+          "edition",
+          "game_type"
+        ],
+        "title": "CreateLobbyRequest",
         "type": "object"
       },
       "CreatePendingSuspensionRequest": {
@@ -1993,6 +2181,14 @@
         "title": "RoleIntent",
         "type": "string"
       },
+      "SeatAction": {
+        "enum": [
+          "place",
+          "leave"
+        ],
+        "title": "SeatAction",
+        "type": "string"
+      },
       "SeatPatchIn": {
         "description": "One seat's requested changes. Absent means unchanged (D89, D154).\n\n`sub_out` is three-state: absent leaves the pairing alone, a discord id\ncreates or repoints it, null clears it. Nothing else is nullable -- a\nnull placement would otherwise read as \"unchanged\" on one path and as a\nvalue on another, which is the kind of silence this route exists to\nremove.",
         "properties": {
@@ -2317,6 +2513,105 @@
           }
         },
         "title": "StatSetV2",
+        "type": "object"
+      },
+      "SubmitBallotRequest": {
+        "additionalProperties": false,
+        "description": "One seat's settings ballot.\n\n\u26a0 The whole ballot, not a delta. A seat re-submitting replaces what it\nhad, so a client that dropped an answer cannot leave a stale one behind\n-- and \"has this seat answered question X\" stays a single lookup rather\nthan a merge of every submission it ever made.\n\nSelections are `option_id`, or `a|b` where the question allows more than\none (D191). Ids are checked against the catalogue, so a question or option\nthe ballot invents is a 400 rather than a vote nothing counts.",
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "selections": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "minProperties": 1,
+            "title": "Selections",
+            "type": "object"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "selections"
+        ],
+        "title": "SubmitBallotRequest",
+        "type": "object"
+      },
+      "SubmitBansRequest": {
+        "additionalProperties": false,
+        "description": "One seat's bans. The whole set, not a delta.\n\n\u26a0 Both lists may be empty -- a seat banning nothing has still SUBMITTED,\nand the phase advances on all-submitted. Distinguishing \"banned nothing\"\nfrom \"has not banned\" is why the seat stores `bans` as a document rather\nthan two bare lists (`bans is not None` is the submitted test).\n\nTokens are civ-data's, and are checked against it: leaders against the\nedition's whole set, civs against the STARTING AGE's pool only. A civ\noutside the chosen age is a real token for a civ not in the game, and\nbanning it would burn one of three slots (D196).",
+        "properties": {
+          "civ_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Civ Keys",
+            "type": "array"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "leader_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Leader Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "SubmitBansRequest",
+        "type": "object"
+      },
+      "SubmitPickRequest": {
+        "additionalProperties": false,
+        "description": "One seat's pick, from the pool that seat was dealt.\n\n\u26a0 **A pick is final once made (O-34).** The refusal is on the seat's own\nstate, NOT on `revision`: a revision guard permits exactly what the rule\nforbids -- read at revision 5, change your mind, write at revision 5, and\nnothing has moved so the guard is satisfied. Same shape as D176's `$ne`,\nwhich is a clause about the document's content rather than its version.\n\n`civ_token` is civ7 only; civ6 drafts leaders alone.",
+        "properties": {
+          "civ_token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Civ Token"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "SubmitPickRequest",
         "type": "object"
       },
       "SupportedGame": {
@@ -5329,6 +5624,857 @@
         "summary": "Get Civ Data",
         "tags": [
           "civ-data"
+        ]
+      }
+    },
+    "/api/v2/lobbies": {
+      "get": {
+        "description": "Open lobbies for a guild (D180).\n\n\u26a0 `guild_id` is required, never defaulted: a service token is\nper-service, not per-guild, so an unfiltered read would expose every\nlobby on the deployment to any holder of it.",
+        "operationId": "browse_lobbies_api_v2_lobbies_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "guild_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Guild Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "edition",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Edition"
+            }
+          },
+          {
+            "in": "query",
+            "name": "game_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Game Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Browse Lobbies Api V2 Lobbies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Browse Lobbies",
+        "tags": [
+          "lobbies"
+        ]
+      },
+      "post": {
+        "operationId": "create_lobby_api_v2_lobbies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLobbyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Lobby Api V2 Lobbies Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Lobby",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/active": {
+      "get": {
+        "description": "One open lobby or none, by the D71 index.",
+        "operationId": "resolve_active_api_v2_lobbies_active_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "guild_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Guild Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Channel Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Resolve Active Api V2 Lobbies Active Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Active",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/claim-post": {
+      "post": {
+        "description": "Claim the oldest unposted finished lobby, or 204 when there is none.\n\n\u26a0 Declared BEFORE any parameterised sibling: a `/{lobby_id}` route\nregistered first would swallow this literal path and check a Mite-facing\nrequest against the Activity gate.",
+        "operationId": "claim_post_api_v2_lobbies_claim_post_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "guild_id",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Guild Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Post",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}": {
+      "get": {
+        "description": "One lobby, censored for the caller (D73), revision-gated (D77).\n\n204 when `since` already holds the current revision -- not 304, which\nwould invite cache and proxy semantics into the polling path. A lobby\nwith no `since` is read unconditionally.\n\n\u26a0 `revision` starts at 1, so `since=0` is refused rather than treated as\n\"send me everything\": no lobby has ever held it, and a client sending it\nhas a bug worth surfacing.",
+        "operationId": "read_lobby_api_v2_lobbies__lobby_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Lobby",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/bans": {
+      "put": {
+        "description": "One seat's bans, resolving the phase on the last submission.\n\n\u26a0 Leaders are checked against the edition; civs against the STARTING\nAGE's pool only, so a real token for a civ that is not in the game\ncannot burn one of three slots (D196).",
+        "operationId": "submit_bans_api_v2_lobbies__lobby_id__bans_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBansRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Bans",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/cancel": {
+      "post": {
+        "description": "The host ends the lobby. Frees the channel and every seat at once.",
+        "operationId": "cancel_lobby_api_v2_lobbies__lobby_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Lobby",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/picks": {
+      "put": {
+        "description": "One seat's pick, completing the lobby on the last one.\n\n\u26a0 **409 for a second pick, and it is not a revision conflict.** A pick is\nfinal once made (O-34); the refusal reads the seat, not the revision.",
+        "operationId": "submit_pick_api_v2_lobbies__lobby_id__picks_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitPickRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Pick",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/seats": {
+      "patch": {
+        "description": "Self-place, leave, move and host rearrange (C5), returning the\nupdated censored snapshot so the caller never waits for a poll tick.\n\nBoth revisions reach journald on every outcome (C5 invariant 4): when a\n409 is disputed the log answers who held which revision, with no event\nmachinery.",
+        "operationId": "change_seat_api_v2_lobbies__lobby_id__seats_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSeatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Seat",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/start": {
+      "post": {
+        "description": "Close seating, open the settings vote (D190).\n\nThe one transition no timer covers: section 7's table has no\n`lobby -> settings` row and there is no \"all submitted\" to hang it on.",
+        "operationId": "start_lobby_api_v2_lobbies__lobby_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_start_lobby_api_v2_lobbies__lobby_id__start_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Lobby",
+        "tags": [
+          "lobbies"
+        ]
+      }
+    },
+    "/api/v2/lobbies/{lobby_id}/votes": {
+      "put": {
+        "description": "One seat's settings ballot, resolving the phase on the last one.\n\n\u26a0 The response may come back already at `bans`: the final ballot tallies\nand advances in the same call, and so does any request arriving after\n`turn_expires_at` (D74, D194).",
+        "operationId": "submit_ballot_api_v2_lobbies__lobby_id__votes_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lobby_id",
+            "required": true,
+            "schema": {
+              "title": "Lobby Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBallotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Ballot",
+        "tags": [
+          "lobbies"
         ]
       }
     },
