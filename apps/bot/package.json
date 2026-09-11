@@ -4,9 +4,11 @@
   "version": "2.0.0",
   "type": "module",
   "main": "./dist/index.js",
-  "engines": { "node": ">=24.18.0" },
+  "engines": {
+    "node": ">=24.18.0"
+  },
   "scripts": {
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "clean": "node -e \"const {rmSync}=require('node:fs');for(const t of ['dist','tsconfig.tsbuildinfo'])rmSync(t,{recursive:true,force:true})\"",
     "build": "npm run clean && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node --enable-source-maps dist/index.js",
