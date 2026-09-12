@@ -8,16 +8,24 @@
   },
   "scripts": {
     "clean": "node -e \"const {rmSync}=require('node:fs');for(const t of ['dist','tsconfig.tsbuildinfo'])rmSync(t,{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run clean && tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "start": "node --enable-source-maps dist/server/index.js",
-    "dev": "tsx watch src/server/index.ts"
+    "dev": "tsx watch src/server/index.ts",
+    "dev:client": "vite"
   },
   "dependencies": {
     "@cpl/core": "*",
-    "dotenv": "17.2.3"
+    "@discord/embedded-app-sdk": "2.5.0",
+    "dotenv": "17.2.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.2"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "tsx": "^4.19.2",
+    "vite": "8.3.0"
   }
 }
