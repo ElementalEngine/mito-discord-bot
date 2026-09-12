@@ -1,5 +1,5 @@
 import type { CivEdition } from '../../../config/types.js';
-import type { BlindDraftPick, SnakeDraftPick, SnakeRoundKind } from '../../../types/drafting.types.js';
+import type { BlindDraftPick } from '../../../types/drafting.types.js';
 
 type DraftPickType = 'leader' | 'civ';
 type SharedDraftPick = { leaderKey?: string; civKey?: string };
@@ -19,11 +19,4 @@ export function isBlindDraftSubmissionReady(edition: CivEdition, pick?: BlindDra
   return edition === 'CIV6'
     ? Boolean(pick?.leaderKey)
     : Boolean(pick?.leaderKey) && Boolean(pick?.civKey);
-}
-
-export function isSnakeDraftSubmissionReady(
-  round: Exclude<SnakeRoundKind, 'complete'>,
-  pick?: SnakeDraftPick,
-): boolean {
-  return round === 'leader' ? Boolean(pick?.leaderKey) : Boolean(pick?.civKey);
 }

@@ -23,7 +23,6 @@ export const EMOJI_LOCK = '🔒' as const;
 export const EMOJI_SECRET_VOTE = '🔎' as const;
 export const EMOJI_VOTE_PANEL = '🗳️' as const;
 export const EMOJI_RANDOM = '🎲' as const;
-export const EMOJI_SNAKE = '🐍' as const;
 export const EMOJI_FIRST_PLACE = '🥇' as const;
 export const EMOJI_SECOND_PLACE = '🥈' as const;
 export const EMOJI_THIRD_PLACE = '🥉' as const;

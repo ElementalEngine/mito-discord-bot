@@ -69,16 +69,8 @@ export type {
   BlindDraftPageState,
   BlindDraftPick,
   BlindDraftPools,
-  CwcDraftPageState,
-  CwcDraftSession,
-  CwcRoundKind,
-  CwcTeamPicks,
   DraftMessagePayload,
   DraftModeOutput,
-  SnakeDraftPageState,
-  SnakeDraftPick,
-  SnakeDraftSession,
-  SnakeRoundKind,
 } from './drafting.types.js';
 
 export type { Leaderboard } from '../data/types.js';

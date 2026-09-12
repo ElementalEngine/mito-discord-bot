@@ -28,12 +28,7 @@ export const ACTIVE_VOTE_LIMITS = {
 export const DRAFT_TIMERS_MS = {
   vote: { CIV6: 10 * 60_000, CIV7: 10 * 60_000 },
   blind: 10 * 60_000,
-  snakePick: 3 * 60_000,
-  cwcCaptainSelect: 5 * 60_000,
-  cwcPick: 60_000,
 } as const;
-
-export const CWC_PICK_ORDER = [0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1] as const;
 
 export function getDraftLimits(edition: CivEdition) {
   return DRAFT_LIMITS[edition];

@@ -6,7 +6,7 @@ import type { Civ7StartingAge } from '../data/types.js';
 export const DRAFT_GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 export type DraftGameType = (typeof DRAFT_GAME_TYPES)[number];
 
-export const DRAFT_MODES = ['standard', 'snake', 'random', 'cwc', 'blind'] as const;
+export const DRAFT_MODES = ['standard', 'random', 'blind'] as const;
 export type DraftMode = (typeof DRAFT_MODES)[number];
 
 export type Civ6DraftRequest = Readonly<{
@@ -148,77 +148,4 @@ export type BlindDraftSession = {
   pages: Map<string, BlindDraftPageState>;
   phase: 'collecting' | 'finalizing' | 'closed';
   trackingRenderChain: Promise<void> | null;
-};
-
-export type SnakeRoundKind = 'leader' | 'civ' | 'complete';
-
-export type SnakeDraftPick = Readonly<{
-  leaderKey?: string;
-  civKey?: string;
-}>;
-
-export type SnakeDraftPageState = Readonly<{
-  leaderPage: number;
-  civPage: number;
-}>;
-
-export type SnakeDraftSession = {
-  sessionId: string;
-  edition: CivEdition;
-  startingAge?: string;
-  voterIds: readonly string[];
-  order: readonly string[];
-  civOrder: readonly string[];
-  commandChannel: SendableChannels;
-  voterUsersById: ReadonlyMap<string, User>;
-  trackingMessage: Message | null;
-  dmMessages: Map<string, Message<false>>;
-  leaderPool: readonly string[];
-  civPool: readonly string[];
-  picks: Map<string, SnakeDraftPick>;
-  stagedPicks: Map<string, SnakeDraftPick>;
-  pages: Map<string, SnakeDraftPageState>;
-  round: SnakeRoundKind;
-  turnIndex: number;
-  turnToken: number;
-  turnEndsAtMs: number;
-  timeout: NodeJS.Timeout | null;
-  lastEvent?: string;
-  voteUuid?: string;
-};
-
-export type CwcRoundKind = 'captains' | 'leader' | 'civ' | 'complete';
-
-export type CwcDraftPageState = Readonly<{
-  leaderPage: number;
-  civPage: number;
-}>;
-
-export type CwcTeamPicks = {
-  leaders: string[];
-  civs: string[];
-};
-
-export type CwcDraftSession = {
-  sessionId: string;
-  edition: CivEdition;
-  startingAge?: string;
-  hostId: string;
-  voterIds: readonly string[];
-  commandChannel: SendableChannels;
-  voterUsersById: ReadonlyMap<string, User>;
-  trackingMessage: Message | null;
-  captainIds: [string | null, string | null];
-  pages: Map<string, CwcDraftPageState>;
-  leaderPool: readonly string[];
-  civPool: readonly string[];
-  picks: [CwcTeamPicks, CwcTeamPicks];
-  pickOrder: readonly number[];
-  round: CwcRoundKind;
-  turnIndex: number;
-  turnToken: number;
-  turnEndsAtMs: number;
-  timeout: NodeJS.Timeout | null;
-  lastEvent?: string;
-  voteUuid?: string;
 };
