@@ -732,32 +732,12 @@ export interface paths {
         };
         /**
          * Browse Lobbies
-         * @description Open lobbies for a guild.
+         * @description Open lobbies for a guild, optionally narrowed to one channel.
          */
         get: operations["browse_lobbies_api_v2_lobbies_get"];
         put?: never;
         /** Create Lobby */
         post: operations["create_lobby_api_v2_lobbies_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/lobbies/active": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Resolve Active
-         * @description One open lobby or none, by the index.
-         */
-        get: operations["resolve_active_api_v2_lobbies_active_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -837,7 +817,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel Lobby
-         * @description The host ends the lobby. Frees the channel and every seat at once.
+         * @description The host ends the lobby, freeing every seat at once.
          */
         post: operations["cancel_lobby_api_v2_lobbies__lobby_id__cancel_post"];
         delete?: never;
@@ -1282,20 +1262,10 @@ export interface components {
             /** Results */
             results: components["schemas"]["UserStatsResponseV2"][];
         };
-        /** Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post */
-        Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post: {
-            /** Expected Revision */
-            expected_revision: number;
-        };
         /** Body_get_match_api_v1_get_match__put */
         Body_get_match_api_v1_get_match__put: {
             /** Match Id */
             match_id: string;
-        };
-        /** Body_start_lobby_api_v2_lobbies__lobby_id__start_post */
-        Body_start_lobby_api_v2_lobbies__lobby_id__start_post: {
-            /** Expected Revision */
-            expected_revision: number;
         };
         /** Body_upload_game_report_api_v1_upload_game_report__post */
         Body_upload_game_report_api_v1_upload_game_report__post: {
@@ -1322,6 +1292,14 @@ export interface components {
             file: string;
             /** Is Cloud */
             is_cloud: string;
+        };
+        /**
+         * CancelLobbyRequest
+         * @description The host ends the lobby.
+         */
+        CancelLobbyRequest: {
+            /** Expected Revision */
+            expected_revision: number;
         };
         /** ChangeOrder */
         ChangeOrder: {
@@ -1945,6 +1923,14 @@ export interface components {
             match_id: string;
             /** Player Order */
             player_order: string;
+        };
+        /**
+         * StartLobbyRequest
+         * @description The host closes seating and opens the settings vote.
+         */
+        StartLobbyRequest: {
+            /** Expected Revision */
+            expected_revision: number;
         };
         /** StatRow */
         StatRow: {
@@ -3672,6 +3658,7 @@ export interface operations {
         parameters: {
             query: {
                 guild_id: string;
+                channel_id?: string | null;
                 edition?: string | null;
                 game_type?: string | null;
             };
@@ -3730,43 +3717,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    resolve_active_api_v2_lobbies_active_get: {
-        parameters: {
-            query: {
-                guild_id: string;
-                channel_id: string;
-            };
-            header: {
-                authorization?: string | null;
-                "x-actor-discord-id": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    } | null;
                 };
             };
             /** @description Validation Error */
@@ -3902,7 +3852,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Body_cancel_lobby_api_v2_lobbies__lobby_id__cancel_post"];
+                "application/json": components["schemas"]["CancelLobbyRequest"];
             };
         };
         responses: {
@@ -4054,7 +4004,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Body_start_lobby_api_v2_lobbies__lobby_id__start_post"];
+                "application/json": components["schemas"]["StartLobbyRequest"];
             };
         };
         responses: {
