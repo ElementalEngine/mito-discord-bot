@@ -1,6 +1,7 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { upstreamPath } from './allowlist.js';
+import { CivDataCache, isEdition } from './civdata.js';
 import { log } from './log.js';
 import { envelope, forward, type Upstream } from './proxy.js';
 import { RateLimiter } from './ratelimit.js';
@@ -10,6 +11,7 @@ export type ServerDeps = Readonly<{
   upstream: Upstream;
   sessionSigningKey: string;
   proxyLimiter?: RateLimiter;
+  civData?: CivDataCache;
 }>;
 
 async function healthz(upstream: Upstream, res: ServerResponse): Promise<void> {
@@ -28,6 +30,7 @@ function bearer(req: IncomingMessage): string | null {
 
 export function createServer(deps: ServerDeps) {
   const limiter = deps.proxyLimiter ?? new RateLimiter(120, 60_000);
+  const civData = deps.civData ?? new CivDataCache(deps.upstream);
 
   return createHttpServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://activity');
@@ -35,6 +38,21 @@ export function createServer(deps: ServerDeps) {
 
     if (method === 'GET' && url.pathname === '/healthz') {
       void healthz(deps.upstream, res);
+      return;
+    }
+
+    if (method === 'GET' && url.pathname.startsWith('/api/civ-data/')) {
+      const token = bearer(req);
+      if (!token || !verify(token, deps.sessionSigningKey).ok) {
+        return envelope(res, 401, 'UNAUTHORIZED', false);
+      }
+      const edition = url.pathname.slice('/api/civ-data/'.length);
+      if (!isEdition(edition)) return envelope(res, 404, 'NOT_FOUND', false);
+      void civData.get(edition).then(({ status, body }) => {
+        if (body === null) return envelope(res, status, 'UNAVAILABLE', true);
+        res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' });
+        res.end(body);
+      });
       return;
     }
 
