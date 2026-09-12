@@ -1,0 +1,23 @@
+{
+  "name": "@cpl/activity",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.18.0"
+  },
+  "scripts": {
+    "clean": "node -e \"const {rmSync}=require('node:fs');for(const t of ['dist','tsconfig.tsbuildinfo'])rmSync(t,{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node --enable-source-maps dist/server/index.js",
+    "dev": "tsx watch src/server/index.ts"
+  },
+  "dependencies": {
+    "@cpl/core": "*",
+    "dotenv": "17.2.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

@@ -12,6 +12,7 @@ export const FLEET_DEPS = ['discord.js', '@discordjs/rest', 'undici'];
 export const MANIFESTS = [
   'package.json',
   'apps/bot/package.json',
+  'apps/activity/package.json',
   'packages/contracts/package.json',
 ];
 
