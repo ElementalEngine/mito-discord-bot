@@ -36,6 +36,7 @@ import {
   buildBlindDraftTrackingEmbed,
 } from '../../../ui/embeds/blind-draft.js';
 import { buildVoteStandardDraftResult, DraftError } from '../draft.service.js';
+import { log } from '../../../utils/log.js';
 
 const BLIND_DRAFT_DURATION_MS = 10 * 60_000;
 const BLIND_MENU_PAGE_SIZE = 25;
@@ -299,7 +300,7 @@ async function sendBlindDraftDmPrompts(session: BlindDraftSession): Promise<read
         session.dmMessages.set(voterId, message);
         sentMessages.push(message);
       } catch (err) {
-        console.info('[blind-draft] dm send failed', { voterId, err });
+        log.info('[blind-draft] dm send failed', { voterId, err });
         if (!failedVoterId) failedVoterId = voterId;
         return;
       }

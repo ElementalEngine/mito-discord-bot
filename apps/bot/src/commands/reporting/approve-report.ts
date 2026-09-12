@@ -10,6 +10,7 @@ import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
+import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
   .setName("approve-report")
@@ -51,7 +52,7 @@ async function safeDefer(interaction: ChatInputCommandInteraction): Promise<bool
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     return true;
   } catch (e: unknown) {
-    console.error("/approve-report deferReply failed:", e);
+    log.error("/approve-report deferReply failed:", e);
     return false;
   }
 }
@@ -130,7 +131,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         const message = await interaction.channel?.messages.fetch(messageId);
         if (message) await message.delete();
       } catch {
-        console.log(`Failed to delete message id ${messageId} for match ${matchId}`);
+        log.info(`Failed to delete message id ${messageId} for match ${matchId}`);
       }
     }
 

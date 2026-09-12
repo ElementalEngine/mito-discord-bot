@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { VoteQuestion } from '../../../config/types.js';
 import type { GameVoteDraftMode, GameVoteSession, VoteRecord } from '../../../types/voting.types.js';
 import { voteCountByOption } from './tally.service.js';
+import { log } from '../../../utils/log.js';
 
 function pickDeterministic(
   sessionId: string,
@@ -40,7 +41,7 @@ export function selectWinner(
   const { winnerId, seed } = pickDeterministic(sessionId, question.id, tied);
   tiebrokenQuestions.add(question.id);
 
-  console.info('[gamevote] tiebreak', {
+  log.info('[gamevote] tiebreak', {
     sessionId,
     questionId: question.id,
     tied,

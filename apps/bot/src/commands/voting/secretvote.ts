@@ -12,6 +12,7 @@ import { startSecretVote } from '../../services/secretvote/secretvote.service.js
 import type { SecretVoteAction } from '../../types/secretvote.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
+import { log } from '../../utils/log.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -180,7 +181,7 @@ export async function execute(
 
     await replyEphemeral(interaction, summary);
   } catch (err) {
-    console.error('secretvote failed', {
+    log.error('secretvote failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,

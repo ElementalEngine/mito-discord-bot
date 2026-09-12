@@ -7,6 +7,7 @@ import {
 import { config } from '../../config.js';
 import { EMOJI_REPORT } from '../../config/constants.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
   .setName('get-users')
@@ -100,7 +101,7 @@ export async function execute(
       }],
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    log.error('Error fetching users:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred';
     await interaction.editReply(

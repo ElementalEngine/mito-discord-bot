@@ -1,6 +1,7 @@
 import type { Client } from 'discord.js';
 
 import { startUpdateLeaderboardsJob } from './update-leaderboard.js';
+import { log } from '../utils/log.js';
 
 type StopFn = () => void;
 
@@ -16,7 +17,7 @@ export function startJobs(client: Client): void {
       try {
         stop();
       } catch (err) {
-        console.error('Job stop failed:', err);
+        log.error('Job stop failed:', err);
       }
     }
     stopAll = null;

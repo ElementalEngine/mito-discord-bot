@@ -11,6 +11,7 @@ import { EMOJI_ERROR } from '../../config/constants.js';
 import { StatsService } from '../../services/stats.service.js';
 import { buildStatsEmbed } from '../../ui/embeds/stats.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { log } from '../../utils/log.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -136,7 +137,7 @@ export async function execute(
       return;
     }
 
-    console.error('resetstats failed', {
+    log.error('resetstats failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,

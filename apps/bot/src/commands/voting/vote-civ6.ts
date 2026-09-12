@@ -14,6 +14,7 @@ import { formatBanInputIssues, resolveTypedBanInputForEdition } from '../../serv
 import type { DraftGameType } from '../../types/drafting.types.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
+import { log } from '../../utils/log.js';
 
 const SUBCOMMAND_TO_GAME_TYPE = {
   ffa: 'FFA',
@@ -240,7 +241,7 @@ export async function execute(
       return;
     }
 
-    console.error('vote-civ6 failed', {
+    log.error('vote-civ6 failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,

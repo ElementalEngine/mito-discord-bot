@@ -7,6 +7,7 @@ import { revertMatch } from "../../services/reporting.service.js";
 import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 import { logCommand } from "../../utils/log-command.js";
 import { ApiError } from "../../api/errors.js";
+import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
   .setName("revert-report")
@@ -48,7 +49,7 @@ async function safeDefer(interaction: ChatInputCommandInteraction): Promise<bool
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     return true;
   } catch (e: unknown) {
-    console.error("/approve-report deferReply failed:", e);
+    log.error("/approve-report deferReply failed:", e);
     return false;
   }
 }

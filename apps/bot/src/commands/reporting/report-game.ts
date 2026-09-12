@@ -26,6 +26,7 @@ import { logCommand } from "../../utils/log-command.js";
 
 import type { BaseReport } from "../../types/reporting.types.js";
 import type { UploadSaveResponse, ParsedPlayer } from "../../api/types.js";
+import { log } from '../../utils/log.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -152,7 +153,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     );
 
     if (!appendRes) {
-      console.error("Failed to append message ID list for match:", res.match_id);
+      log.error("Failed to append message ID list for match:", res.match_id);
     }
   } catch (err: unknown) {
     const msg = await interaction

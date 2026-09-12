@@ -7,6 +7,7 @@ import {
 
 import { config } from '../config.js';
 import { RANK_DEFS_CIV6, type RankNames } from '../config/constants.js';
+import { log } from '../utils/log.js';
 
 export type AffectedPlayerRating = {
   discord_id: string;
@@ -107,7 +108,7 @@ async function applyRankRole(
   if (hasDesired && toRemove.length === 0) return;
 
   if (!desired.editable) {
-    console.warn(
+    log.warn(
       `[rank-roles] Cannot assign desired role due to hierarchy: guild=${guild.id} role=${desired.id}`,
     );
     return;
@@ -120,14 +121,14 @@ async function applyRankRole(
     });
 
     if (removable.length !== toRemove.length) {
-      console.warn(
+      log.warn(
         `[rank-roles] Some roles not removable due to hierarchy: guild=${guild.id} member=${member.id}`,
       );
     }
 
     if (removable.length > 0) {
       await member.roles.remove(removable).catch((e: unknown) => {
-        console.warn(
+        log.warn(
           `[rank-roles] Failed to remove roles: guild=${guild.id} member=${member.id}`,
           e,
         );
@@ -137,7 +138,7 @@ async function applyRankRole(
 
   if (!hasDesired) {
     await member.roles.add(desired.id).catch((e: unknown) => {
-      console.warn(
+      log.warn(
         `[rank-roles] Failed to add role: guild=${guild.id} member=${member.id} role=${desired.id}`,
         e,
       );
@@ -173,16 +174,16 @@ export async function updateRankRolesForApprovedMatch(
 
   const canManage = await ensureBotCanManageRoles(guild);
   if (!canManage) {
-    console.warn(`[rank-roles] Missing ManageRoles permission: guild=${guild.id}`);
+    log.warn(`[rank-roles] Missing ManageRoles permission: guild=${guild.id}`);
     return;
   }
 
   const { byName, managedIds, missingConfig, missingInGuild } = collectManagedRoles(guild);
   if (missingConfig.length > 0) {
-    console.warn(`[rank-roles] Missing rank role IDs in config: ${missingConfig.join(', ')}`);
+    log.warn(`[rank-roles] Missing rank role IDs in config: ${missingConfig.join(', ')}`);
   }
   if (missingInGuild.length > 0) {
-    console.warn(`[rank-roles] Rank roles not found in guild: ${missingInGuild.join(', ')}`);
+    log.warn(`[rank-roles] Rank roles not found in guild: ${missingInGuild.join(', ')}`);
   }
 
   if (byName.size === 0 || managedIds.size === 0) return;
@@ -192,14 +193,14 @@ export async function updateRankRolesForApprovedMatch(
   await runBounded(unique, opts.concurrency ?? 3, async ({ discord_id, rating_mu }) => {
     const member = await fetchMember(guild, discord_id);
     if (!member) {
-      console.warn(`[rank-roles] Member not found: guild=${guild.id} member=${discord_id}`);
+      log.warn(`[rank-roles] Member not found: guild=${guild.id} member=${discord_id}`);
       return;
     }
 
     const targetRank = pickRankName(rating_mu);
     const desiredRole = byName.get(targetRank);
     if (!desiredRole) {
-      console.warn(
+      log.warn(
         `[rank-roles] Desired role missing: guild=${guild.id} rank=${targetRank} member=${discord_id}`,
       );
       return;

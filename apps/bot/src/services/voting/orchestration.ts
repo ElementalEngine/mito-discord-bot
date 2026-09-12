@@ -26,6 +26,7 @@ import type {
   StartGameVoteOptions,
   StartGameVoteResult,
 } from '../../types/voting.types.js';
+import { log } from '../../utils/log.js';
 
 type RenderPayload = PublicVotePayload;
 
@@ -49,7 +50,7 @@ async function openInitialMessages(
   try {
     payload = buildRenderPayload(v);
   } catch (err: unknown) {
-    console.error('gamevote initial render failed', {
+    log.error('gamevote initial render failed', {
       sessionId: v.sessionId,
       guildId: v.guildId,
       channelId: 'id' in v.commandChannel ? v.commandChannel.id : undefined,

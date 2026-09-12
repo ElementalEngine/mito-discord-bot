@@ -9,6 +9,7 @@ import { getLeaderboardRanking } from '../services/reporting.service.js';
 import type { LeaderboardRanking } from '../api/types.js';
 import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.data.js';
+import { log } from '../utils/log.js';
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const PLACEHOLDER_COUNT = 12;
@@ -182,7 +183,7 @@ async function updateLeaderboard(
     return;
   }
 
-  console.log(
+  log.info(
     `${new Date().toLocaleTimeString()}: Updating leaderboard: ${leaderboard.name} (${leaderboard.thread_id})`
   );
 
@@ -218,9 +219,9 @@ export function startUpdateLeaderboardsJob(client: Client): () => void {
     if (stopped) return;
     try {
       await updateLeaderboards(client);
-      console.log('✅ Leaderboards updated successfully');
+      log.info('✅ Leaderboards updated successfully');
     } catch (err: unknown) {
-      console.error('❌ Failed to update leaderboards:', err);
+      log.error('❌ Failed to update leaderboards:', err);
     }
   };
 

@@ -9,6 +9,7 @@ import { EMOJI_ERROR } from '../../config/constants.js';
 import type { Civ7StartingAge } from '../../data/types.js';
 import { executeDraftCommand } from '../../services/drafting/orchestration.service.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { log } from '../../utils/log.js';
 
 function allowedDraftChannels(): readonly string[] {
   return [
@@ -196,7 +197,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       civBansRaw,
     });
   } catch (err: unknown) {
-    console.error('draftciv7 failed', {
+    log.error('draftciv7 failed', {
       err,
       guildId: interaction.guildId ?? null,
       channelId: interaction.channelId,

@@ -10,6 +10,7 @@ import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
 import { deleteLater, safeDelete } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 import { logCommand } from "../../utils/log-command.js";
+import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
   .setName("remove-match")
@@ -48,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (!interaction.inCachedGuild()) throw new Error('Not a cached guild');
     if (getMatchRes?.reporter_discord_id != interaction.user.id &&
         !interaction.member.roles.cache.has(config.discord.roles.moderator)) {
-      console.log(`User trying to delete match: ${interaction.user.id}. Original reporter id ${getMatchRes?.reporter_discord_id}`);
+      log.info(`User trying to delete match: ${interaction.user.id}. Original reporter id ${getMatchRes?.reporter_discord_id}`);
       await interaction.editReply(`${EMOJI_FAIL} Only original reporter <@${getMatchRes?.reporter_discord_id}> or a moderator can delete a report`);
       return;
     }

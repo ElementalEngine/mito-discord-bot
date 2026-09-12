@@ -12,6 +12,7 @@ import { parseDiscordUserId } from "../../utils/parse-discord-id.js";
 import { deleteLater } from "../../utils/discord-safe.js";
 import { errorMessage } from "../../utils/error-message.js";
 import { logCommand } from "../../utils/log-command.js";
+import { log } from '../../utils/log.js';
 
 function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
   const member = interaction.member;
@@ -39,7 +40,7 @@ async function safeDefer(interaction: ChatInputCommandInteraction): Promise<bool
     await interaction.deferReply(); // keep non-ephemeral behavior
     return true;
   } catch (e: unknown) {
-    console.error("/assign-discord-id deferReply failed:", e);
+    log.error("/assign-discord-id deferReply failed:", e);
     return false;
   }
 }
@@ -129,7 +130,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const msg = await interaction.channel.messages.fetch(embedMsgId).catch(() => null);
       if (msg) {
         await msg.edit({ embeds: [updatedEmbed] }).catch((e: unknown) => {
-          console.warn("Failed to edit report embed message:", e);
+          log.warn("Failed to edit report embed message:", e);
         });
       }
     }

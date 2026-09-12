@@ -2,6 +2,7 @@ import { MessageFlags, type ButtonInteraction, type Guild, type InteractionReply
 
 import type { PublicVotePayload } from '../panels/public-message.service.js';
 import type { GameVoteSession } from '../../../types/voting.types.js';
+import { log } from '../../../utils/log.js';
 
 function formatUnknownError(err: unknown): string {
   if (!err || typeof err !== 'object') return '';
@@ -109,7 +110,7 @@ export async function openInitialVoteMessages(
     session.publicMessage = msg;
     return { ok: true };
   } catch (err: unknown) {
-    console.error('gamevote initial send failed', {
+    log.error('gamevote initial send failed', {
       sessionId: session.sessionId,
       guildId: session.guildId,
       channelId: 'id' in session.commandChannel ? session.commandChannel.id : undefined,

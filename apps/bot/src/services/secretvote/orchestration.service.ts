@@ -37,6 +37,7 @@ import {
   reserveSecretVoteVoice,
 } from './runtime/session-runtime.service.js';
 import { evaluateSecretVoteOutcome } from './domain/rules.service.js';
+import { log } from '../../utils/log.js';
 
 export type RecordSecretVoteResult =
   | Readonly<{ ok: false; kind: 'NOT_ACTIVE'; message: string }>
@@ -85,7 +86,7 @@ async function finalizeSecretVote(
       buildSecretVoteStatus(session, true, result)
     );
   } catch (err) {
-    console.error('Failed to publish secret vote final embed', {
+    log.error('Failed to publish secret vote final embed', {
       err,
       voteId: session.voteId,
       guildId: session.guildId,
