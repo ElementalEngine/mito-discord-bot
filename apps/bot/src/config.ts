@@ -1,4 +1,3 @@
-import type { CorsOptions } from 'cors';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 
@@ -17,20 +16,6 @@ dotenvConfig({
 const env = (key: string, fallback = ''): string => process.env[key] ?? fallback;
 const host = process.env.HOST!;
 const port = Number(process.env.PORT!);
-
-// CORS
-const corsOriginRaw = env('CORS', '*').trim();
-const corsOrigin =
-  corsOriginRaw === '*'
-    ? '*'
-    : corsOriginRaw.split(',').map((s) => s.trim()).filter(Boolean);
-
-const cors: CorsOptions = {
-  origin: corsOrigin,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-  credentials: corsOriginRaw !== '*',
-  exposedHeaders: ['x-auth-token'],
-};
 
 const rankRoles = {
   Deity_3_STAR: env('ROLE_RANK_DEITY_3_STAR', ''),
@@ -127,7 +112,6 @@ export const config = {
     `https://discord.com/api/oauth2/authorize?client_id=${discord.clientId}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_type=code&scope=identify%20connections&state=`,
-  cors,
   discord,
   host,
   port,
