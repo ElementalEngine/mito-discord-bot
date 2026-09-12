@@ -1,38 +1,63 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-import type { config as Config } from './config.js';
+import { upstreamPath } from './allowlist.js';
 import { log } from './log.js';
+import { envelope, forward, type Upstream } from './proxy.js';
+import { RateLimiter } from './ratelimit.js';
+import { verify } from './session.js';
 
-type Cfg = typeof Config;
+export type ServerDeps = Readonly<{
+  upstream: Upstream;
+  sessionSigningKey: string;
+  proxyLimiter?: RateLimiter;
+}>;
 
-// Reachability of core-api, not of this process. No body in either case.
-async function healthz(cfg: Cfg, res: ServerResponse): Promise<void> {
+async function healthz(upstream: Upstream, res: ServerResponse): Promise<void> {
   try {
-    const upstream = await fetch(`${cfg.coreApiUrl}/healthz`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    res.writeHead(upstream.ok ? 200 : 503).end();
+    const reply = await fetch(`${upstream.baseUrl}/healthz`, { signal: AbortSignal.timeout(2_000) });
+    res.writeHead(reply.ok ? 200 : 503).end();
   } catch {
     res.writeHead(503).end();
   }
 }
 
-export function createServer(cfg: Cfg) {
+function bearer(req: IncomingMessage): string | null {
+  const header = req.headers.authorization ?? '';
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+export function createServer(deps: ServerDeps) {
+  const limiter = deps.proxyLimiter ?? new RateLimiter(120, 60_000);
+
   return createHttpServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://activity');
-    if (req.method === 'GET' && url.pathname === '/healthz') {
-      void healthz(cfg, res);
+    const method = req.method ?? 'GET';
+
+    if (method === 'GET' && url.pathname === '/healthz') {
+      void healthz(deps.upstream, res);
       return;
     }
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: { code: 'NOT_FOUND', retryable: false } }));
+
+    if (url.pathname.startsWith('/api/lobbies')) {
+      const token = bearer(req);
+      if (!token) return envelope(res, 401, 'UNAUTHORIZED', false);
+      const session = verify(token, deps.sessionSigningKey);
+      if (!session.ok) return envelope(res, 401, 'UNAUTHORIZED', false);
+      if (!limiter.allow(token)) return envelope(res, 429, 'RATE_LIMITED', true);
+      const path = upstreamPath(method, url.pathname);
+      if (path === null) return envelope(res, 404, 'NOT_FOUND', false);
+      void forward(deps.upstream, session.claims, req, res, path, url.search);
+      return;
+    }
+
+    envelope(res, 404, 'NOT_FOUND', false);
   });
 }
 
-export function listen(cfg: Cfg): void {
-  const server = createServer(cfg);
-  server.listen(cfg.port, '127.0.0.1', () => {
-    log.info(`activity server listening on 127.0.0.1:${cfg.port} (${cfg.env})`);
+export function listen(deps: ServerDeps, port: number, env: string): void {
+  const server = createServer(deps);
+  server.listen(port, '127.0.0.1', () => {
+    log.info(`activity server listening on 127.0.0.1:${port} (${env})`);
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
