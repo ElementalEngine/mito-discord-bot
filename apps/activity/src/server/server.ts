@@ -2,15 +2,20 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 
 import { upstreamPath } from './allowlist.js';
 import { CivDataCache, isEdition } from './civdata.js';
+import type { DiscordApp } from './discord.js';
 import { log } from './log.js';
 import { envelope, forward, type Upstream } from './proxy.js';
 import { RateLimiter } from './ratelimit.js';
 import { verify } from './session.js';
+import { clientIp, handleSession } from './session-route.js';
 
 export type ServerDeps = Readonly<{
   upstream: Upstream;
+  discord: DiscordApp;
   sessionSigningKey: string;
+  staffRoleIds: readonly string[];
   proxyLimiter?: RateLimiter;
+  sessionLimiter?: RateLimiter;
   civData?: CivDataCache;
 }>;
 
@@ -31,6 +36,7 @@ function bearer(req: IncomingMessage): string | null {
 export function createServer(deps: ServerDeps) {
   const limiter = deps.proxyLimiter ?? new RateLimiter(120, 60_000);
   const civData = deps.civData ?? new CivDataCache(deps.upstream);
+  const mintLimiter = deps.sessionLimiter ?? new RateLimiter(10, 60_000);
 
   return createHttpServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://activity');
@@ -38,6 +44,16 @@ export function createServer(deps: ServerDeps) {
 
     if (method === 'GET' && url.pathname === '/healthz') {
       void healthz(deps.upstream, res);
+      return;
+    }
+
+    if (method === 'POST' && url.pathname === '/api/session') {
+      if (!mintLimiter.allow(clientIp(req))) return envelope(res, 429, 'RATE_LIMITED', true);
+      void handleSession(
+        { discord: deps.discord, sessionSigningKey: deps.sessionSigningKey, staffRoleIds: deps.staffRoleIds },
+        req,
+        res,
+      );
       return;
     }
 

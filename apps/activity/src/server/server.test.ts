@@ -37,7 +37,9 @@ before(async () => {
   const baseUrl = await listen(fake);
   activity = createServer({
     upstream: { baseUrl, bearer: 'service-secret' },
+    discord: { baseUrl: 'http://127.0.0.1:1', clientId: 'c', clientSecret: 's', guildId: 'g' },
     sessionSigningKey: KEY,
+    staffRoleIds: [],
     proxyLimiter: new RateLimiter(2, 60_000),
   });
   base = await listen(activity);
