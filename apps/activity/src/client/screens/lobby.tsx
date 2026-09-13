@@ -4,6 +4,8 @@ import { firstEmptySeat, type LobbyDoc, seatOf } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
 import { subscribe } from '../transport/poll.js';
 import { BansScreen } from './bans.js';
+import { CompleteScreen } from './complete.js';
+import { DraftScreen } from './draft.js';
 import { SettingsScreen } from './settings.js';
 import type { Me } from '../whoami.js';
 
@@ -44,6 +46,12 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
   }
   if (lobby.phase === 'bans') {
     return <BansScreen api={api} lobby={lobby} mine={mine} act={act} />;
+  }
+  if (lobby.phase === 'draft') {
+    return <DraftScreen lobby={lobby} mine={mine} act={act} />;
+  }
+  if (lobby.phase === 'complete' || lobby.phase === 'cancelled') {
+    return <><CompleteScreen lobby={lobby} /><button onClick={onBack}>Back</button></>;
   }
   if (lobby.phase !== 'lobby') {
     return <p>Phase: {lobby.phase} — screen not built yet. <button onClick={onBack}>Back</button></p>;

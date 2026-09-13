@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { LobbyDoc, Seat } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
+import { pretty } from './draft.js';
 
 type Leader = { token: string; name: string; civ: string };
 type CivData = { leaders: Leader[]; civs: { token: string; name: string }[] };
@@ -12,8 +13,6 @@ type Props = {
   act: (method: string, path: string, body: unknown) => Promise<unknown>;
 };
 
-const pretty = (token: string) =>
-  token.replace(/^(LEADER|CIVILIZATION)_/, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 export function BansScreen({ api, lobby, mine, act }: Props) {
   const [data, setData] = useState<CivData | null>(null);
