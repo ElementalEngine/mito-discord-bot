@@ -343,6 +343,14 @@ export class ApiClient {
     return (await this.parseJson(res)) as LobbyDocument;
   }
 
+  // Closes every lobby untouched past the stale cutoff. Returns how many.
+  async sweepStaleLobbies(): Promise<number> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/sweep`, { method: "POST" });
+    const body = (await this.parseJson(res)) as { closed?: number };
+
+    return body.closed ?? 0;
+  }
+
   private shouldRetry(err: unknown, method: string): boolean {
     if (err instanceof ApiError && typeof err.retryable === "boolean") {
       return err.retryable;
