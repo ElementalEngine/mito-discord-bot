@@ -29,7 +29,8 @@ export class ApiClient {
     private readonly basePath: string,
     private readonly store: TokenStore,
     private readonly reauthorize: () => Promise<string>,
-    private readonly fetchImpl: Fetch = fetch,
+    // Wrapped, not stored: a browser's fetch refuses to run with `this` bound to us.
+    private readonly fetchImpl: Fetch = (input, init) => fetch(input, init),
   ) {}
 
   // One re-mint on a 401, then the failed request once more. A second 401

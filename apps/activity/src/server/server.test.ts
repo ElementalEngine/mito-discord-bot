@@ -89,6 +89,14 @@ test('identity is stamped from the claims; client headers never arrive', async (
   assert.equal(got.headers.cookie, undefined);
 });
 
+test('browse always carries the session guild, whatever the client sent', async () => {
+  await call('/api/lobbies?guild_id=someone-elses&edition=civ6', { Authorization: `Bearer ${token('browser')}` });
+  const url = new URL(`http://x${seen.at(-1)!.url}`);
+  assert.equal(url.pathname, '/api/v2/lobbies');
+  assert.equal(url.searchParams.get('guild_id'), 'g');
+  assert.equal(url.searchParams.get('edition'), 'civ6');
+});
+
 test('a staff claim stamps true', async () => {
   await call(`/api/lobbies/${ID}`, { Authorization: `Bearer ${token('staffer', true)}` });
   assert.equal(seen.at(-1)!.headers['x-actor-is-staff'], 'true');

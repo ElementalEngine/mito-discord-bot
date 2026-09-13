@@ -80,6 +80,8 @@ export function createServer(deps: ServerDeps) {
       if (!limiter.allow(token)) return envelope(res, 429, 'RATE_LIMITED', true);
       const path = upstreamPath(method, url.pathname);
       if (path === null) return envelope(res, 404, 'NOT_FOUND', false);
+      // The guild comes from the session, like identity: a client never browses another.
+      if (path === '/api/v2/lobbies') url.searchParams.set('guild_id', session.claims.gid);
       void forward(deps.upstream, session.claims, req, res, path, url.search);
       return;
     }
