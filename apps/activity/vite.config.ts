@@ -8,5 +8,5 @@ export default defineConfig({
   envDir: '../..',
   plugins: [react()],
   build: { outDir: '../../dist/client', emptyOutDir: true },
-  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:3100' } },
+  server: { host: '127.0.0.1', port: 5173, proxy: { '/api': 'http://127.0.0.1:3100' } },
 });

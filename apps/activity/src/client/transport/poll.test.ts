@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ApiClient, ApiError } from '../api/client.js';
+import { ApiClient, ApiError } from './client.js';
 import { subscribe } from './poll.js';
 
 function client(replies: Array<{ status: number; body?: string }>) {

@@ -1,4 +1,4 @@
-import type { TokenStore } from './api/client.js';
+import type { TokenStore } from './transport/client.js';
 import { devToken } from './platform/browser.js';
 import { authorizeCode } from './platform/discord.js';
 import type { Runtime } from './platform/runtime.js';

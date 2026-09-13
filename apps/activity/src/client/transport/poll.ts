@@ -1,4 +1,4 @@
-import type { ApiClient, Reply } from '../api/client.js';
+import type { ApiClient, Reply } from './client.js';
 
 export type Phase = 'lobby' | 'settings' | 'bans' | 'draft' | 'complete' | 'cancelled';
 export const TERMINAL: ReadonlySet<string> = new Set<Phase>(['complete', 'cancelled']);

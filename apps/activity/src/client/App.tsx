@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { ApiClient } from './api/client.js';
+import { ApiClient } from './transport/client.js';
 import { detect } from './platform/runtime.js';
 import { establish, store } from './session.js';
 
