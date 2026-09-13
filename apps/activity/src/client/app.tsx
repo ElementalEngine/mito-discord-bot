@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { detect } from './platform/runtime.js';
-import { Dashboard } from './screens/Dashboard.js';
-import { LobbyScreen } from './screens/LobbyScreen.js';
+import { Dashboard } from './screens/dashboard.js';
+import { LobbyScreen } from './screens/lobby.js';
 import { establish, store } from './session.js';
 import { ApiClient } from './transport/client.js';
 import { type Me, whoami } from './whoami.js';

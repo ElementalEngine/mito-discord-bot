@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 
-import { CivDataCache } from './civdata.js';
+import { CivDataCache } from './civ-data.js';
 
 let fake: Server;
 let baseUrl = '';

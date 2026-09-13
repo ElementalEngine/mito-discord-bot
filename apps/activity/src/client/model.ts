@@ -1,7 +1,7 @@
 import type { Lobby } from './transport/poll.js';
 
 // Seats are sparse: only occupied ones are stored.
-export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown };
+export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; ballot?: Record<string, string> };
 
 export type LobbyDoc = Lobby & {
   host_discord_id: string;

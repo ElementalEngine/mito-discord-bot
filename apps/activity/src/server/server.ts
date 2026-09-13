@@ -1,11 +1,11 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { upstreamPath } from './allowlist.js';
-import { CivDataCache, isEdition } from './civdata.js';
+import { CivDataCache, isEdition } from './civ-data.js';
 import type { DiscordApp } from './discord.js';
 import { log } from './log.js';
 import { envelope, forward, type Upstream } from './proxy.js';
-import { RateLimiter } from './ratelimit.js';
+import { RateLimiter } from './rate-limit.js';
 import { verify } from './session.js';
 import { clientIp, handleSession } from './session-route.js';
 

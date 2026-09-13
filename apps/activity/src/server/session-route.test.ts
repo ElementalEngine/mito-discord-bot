@@ -3,7 +3,7 @@ import { createServer as httpServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 
-import { RateLimiter } from './ratelimit.js';
+import { RateLimiter } from './rate-limit.js';
 import { createServer } from './server.js';
 import { verify } from './session.js';
 

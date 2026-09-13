@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { firstEmptySeat, type LobbyDoc, seatOf } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
 import { subscribe } from '../transport/poll.js';
+import { SettingsScreen } from './settings.js';
 import type { Me } from '../whoami.js';
 
 type Props = { api: ApiClient; me: Me; lobbyId: string; onBack: () => void };
@@ -37,6 +38,9 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
   const empty = firstEmptySeat(lobby);
   const rev = { expected_revision: lobby.revision };
 
+  if (lobby.phase === 'settings') {
+    return <SettingsScreen lobby={lobby} mine={mine} act={act} />;
+  }
   if (lobby.phase !== 'lobby') {
     return <p>Phase: {lobby.phase} — screen not built yet. <button onClick={onBack}>Back</button></p>;
   }

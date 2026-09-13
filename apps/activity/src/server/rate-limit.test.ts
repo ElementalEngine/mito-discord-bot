@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { RateLimiter } from './ratelimit.js';
+import { RateLimiter } from './rate-limit.js';
 
 test('the limit is inclusive and the next one is refused', () => {
   const limiter = new RateLimiter(3, 1000);
