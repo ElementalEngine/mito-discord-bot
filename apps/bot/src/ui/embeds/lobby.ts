@@ -2,9 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 
 import type { LobbyDocument } from '../../api/types.js';
 
-// custom_id carries the voice channel because Mite cannot read a lobby back:
-// mite_router is create and claim-post only. Under Discord's 100-char limit.
-export const openLobbyId = (lobby: LobbyDocument): string => `lobby:open:${lobby._id}:${lobby.voice_channel_id}`;
+export const openLobbyId = (lobby: LobbyDocument): string => `lobby:open:${lobby._id}`;
 export const BROWSE_LOBBIES_ID = 'lobby:browse';
 
 const pretty = (token: string): string =>
@@ -19,7 +17,7 @@ export function buildLobbyOpenEmbed(lobby: LobbyDocument): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(`LOBBY OPEN — ${lobby.edition.toUpperCase()} ${lobby.game_type.toUpperCase()}`)
     .setDescription([lobby.host_rules?.trim() || null, rows.join('\n')].filter(Boolean).join('\n\n'))
-    .setFooter({ text: `Be in the host's voice channel to take a seat · needs ${lobby.min_seats}` });
+    .setFooter({ text: `Voice: the host's channel · needs ${lobby.min_seats} to start` });
 }
 
 export function buildLobbyButtons(lobby: LobbyDocument): ActionRowBuilder<ButtonBuilder> {
