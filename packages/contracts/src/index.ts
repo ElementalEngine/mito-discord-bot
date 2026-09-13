@@ -736,15 +736,35 @@ export interface paths {
          */
         get: operations["browse_lobbies_api_v2_lobbies_get"];
         put?: never;
-        /** Create Lobby */
-        post: operations["create_lobby_api_v2_lobbies_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v2/lobbies/claim-post": {
+    "/api/v2/lobbies/mite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse For Mite
+         * @description Open lobbies for a guild, for the command that lists them.
+         */
+        get: operations["browse_for_mite_api_v2_lobbies_mite_get"];
+        put?: never;
+        /** Create Lobby */
+        post: operations["create_lobby_api_v2_lobbies_mite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/mite/claim-post": {
         parameters: {
             query?: never;
             header?: never;
@@ -757,11 +777,71 @@ export interface paths {
          * Claim Post
          * @description Claim the oldest unposted finished lobby, or 204 when there is none.
          */
-        post: operations["claim_post_api_v2_lobbies_claim_post_post"];
+        post: operations["claim_post_api_v2_lobbies_mite_claim_post_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/mite/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sweep For Mite
+         * @description Close every lobby untouched past the stale cutoff.
+         */
+        post: operations["sweep_for_mite_api_v2_lobbies_mite_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/mite/{lobby_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel For Mite
+         * @description The host cancels from a command; staff may cancel anyone's.
+         */
+        post: operations["cancel_for_mite_api_v2_lobbies_mite__lobby_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/mite/{lobby_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Leave For Mite
+         * @description A player leaves their seat from a command, freeing them at once.
+         */
+        patch: operations["leave_for_mite_api_v2_lobbies_mite__lobby_id__leave_patch"];
         trace?: never;
     };
     "/api/v2/lobbies/{lobby_id}": {
@@ -3693,7 +3773,44 @@ export interface operations {
             };
         };
     };
-    create_lobby_api_v2_lobbies_post: {
+    browse_for_mite_api_v2_lobbies_mite_get: {
+        parameters: {
+            query: {
+                guild_id: string;
+                channel_id?: string | null;
+            };
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_lobby_api_v2_lobbies_mite_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3730,7 +3847,7 @@ export interface operations {
             };
         };
     };
-    claim_post_api_v2_lobbies_claim_post_post: {
+    claim_post_api_v2_lobbies_mite_claim_post_post: {
         parameters: {
             query: {
                 guild_id: string;
@@ -3742,6 +3859,116 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sweep_for_mite_api_v2_lobbies_mite_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_for_mite_api_v2_lobbies_mite__lobby_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelLobbyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_for_mite_api_v2_lobbies_mite__lobby_id__leave_patch: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeSeatRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
