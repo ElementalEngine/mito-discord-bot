@@ -13,7 +13,29 @@ const FFA_SIZES = [8, 10, 12] as const;
 const AGES = ['AGE_ANTIQUITY', 'AGE_EXPLORATION', 'AGE_MODERN'] as const;
 
 type Game = 'civ6' | 'civ7';
-type Mode = 'ffa' | 'teamer' | 'duel';
+type GameType = 'ffa' | 'teamer' | 'duel';
+
+// A teamer's shape is the mode, so an invalid one is not expressible: CWC
+// needs a pick order, and CPL plays it at 4v4 and 5v5.
+type ModeChoice = Readonly<{
+  label: string;
+  value: string;
+  gameType: GameType;
+  teams?: number;
+  teamSize?: number;
+  draftMode?: 'standard' | 'cwc';
+}>;
+
+const MODES: readonly ModeChoice[] = [
+  { label: 'FFA', value: 'ffa', gameType: 'ffa' },
+  { label: 'Duel', value: 'duel', gameType: 'duel' },
+  { label: 'Teamer 2v2', value: 'teamer-2v2', gameType: 'teamer', teams: 2, teamSize: 2, draftMode: 'standard' },
+  { label: 'Teamer 3v3', value: 'teamer-3v3', gameType: 'teamer', teams: 2, teamSize: 3, draftMode: 'standard' },
+  { label: 'Teamer 4v4', value: 'teamer-4v4', gameType: 'teamer', teams: 2, teamSize: 4, draftMode: 'standard' },
+  { label: 'Teamer 5v5', value: 'teamer-5v5', gameType: 'teamer', teams: 2, teamSize: 5, draftMode: 'standard' },
+  { label: 'CWC 4v4', value: 'cwc-4v4', gameType: 'teamer', teams: 2, teamSize: 4, draftMode: 'cwc' },
+  { label: 'CWC 5v5', value: 'cwc-5v5', gameType: 'teamer', teams: 2, teamSize: 5, draftMode: 'cwc' },
+];
 
 // Edition and mode are data, not structure: Discord allows three levels of
 // nesting and the verbs need them. The combinations are checked here, where
@@ -30,38 +52,21 @@ export const data = new SlashCommandBuilder()
           .addChoices({ name: 'Civ6', value: 'civ6' }, { name: 'Civ7', value: 'civ7' }))
       .addStringOption((o) =>
         o.setName('mode').setDescription('Game mode').setRequired(true)
-          .addChoices({ name: 'FFA', value: 'ffa' }, { name: 'Teamer', value: 'teamer' }, { name: 'Duel', value: 'duel' }))
+          .addChoices(...MODES.map((m) => ({ name: m.label, value: m.value }))))
       .addIntegerOption((o) =>
         o.setName('size').setDescription('Seats — FFA only')
           .addChoices(...FFA_SIZES.map((n) => ({ name: String(n), value: n }))))
-      .addIntegerOption((o) => o.setName('number-of-teams').setDescription('Teams — teamer only').setMinValue(2).setMaxValue(6))
-      .addIntegerOption((o) => o.setName('team-size').setDescription('Players per team — teamer only').setMinValue(1).setMaxValue(6))
-      .addStringOption((o) =>
-        o.setName('draft-mode').setDescription('Draft mode — teamer only')
-          .addChoices({ name: 'standard', value: 'standard' }, { name: 'cwc (two teams only)', value: 'cwc' }))
       .addStringOption((o) =>
         o.setName('starting-age').setDescription('Starting age — Civ7 only')
           .addChoices({ name: 'Antiquity', value: AGES[0] }, { name: 'Exploration', value: AGES[1] }, { name: 'Modern', value: AGES[2] }))
       .addStringOption((o) => o.setName('rules').setDescription('Host rules, shown on the lobby').setMaxLength(500)));
 
-function allowedChannels(game: Game, mode: Mode): readonly string[] {
+function allowedChannels(game: Game, mode: GameType): readonly string[] {
   const c = config.discord.channels;
   const vote = mode === 'teamer'
     ? (game === 'civ6' ? c.civ6teamerVote : c.civ7teamerVote)
     : (game === 'civ6' ? c.civ6ffaVote : c.civ7ffaVote);
   return mode === 'duel' ? [vote] : [vote, c.noviceCommands];
-}
-
-// Every option that only applies to one shape, refused in one place.
-function wrongFor(game: Game, mode: Mode, o: ChatInputCommandInteraction['options']): string | null {
-  if (mode !== 'ffa' && o.getInteger('size') !== null) return 'size is FFA only.';
-  if (mode !== 'teamer' && (o.getInteger('number-of-teams') !== null || o.getInteger('team-size') !== null || o.getString('draft-mode') !== null))
-    return 'number-of-teams, team-size and draft-mode are teamer only.';
-  if (mode === 'teamer' && (o.getInteger('number-of-teams') === null || o.getInteger('team-size') === null))
-    return 'A teamer needs number-of-teams and team-size.';
-  if (game !== 'civ7' && o.getString('starting-age') !== null) return 'starting-age is Civ7 only.';
-  if (o.getString('draft-mode') === 'cwc' && o.getInteger('number-of-teams') !== 2) return 'CWC is two teams only.';
-  return null;
 }
 
 async function member(interaction: ChatInputCommandInteraction): Promise<GuildMember | null> {
@@ -72,13 +77,16 @@ async function member(interaction: ChatInputCommandInteraction): Promise<GuildMe
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const game = interaction.options.getString('game', true) as Game;
-  const mode = interaction.options.getString('mode', true) as Mode;
-  if (!(await ensureCommandAccess(interaction, { allowedChannelIds: allowedChannels(game, mode) }))) return;
+  const chosen = MODES.find((m) => m.value === interaction.options.getString('mode', true));
+  if (!chosen) return void (await interaction.reply({ content: `${EMOJI_FAIL} Unknown mode.`, flags: MessageFlags.Ephemeral }));
+  if (!(await ensureCommandAccess(interaction, { allowedChannelIds: allowedChannels(game, chosen.gameType) }))) return;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const say = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
 
-  const wrong = wrongFor(game, mode, interaction.options);
-  if (wrong) return void (await say(`${EMOJI_FAIL} ${wrong}`));
+  const size = interaction.options.getInteger('size');
+  if (size !== null && chosen.gameType !== 'ffa') return void (await say(`${EMOJI_FAIL} size is FFA only.`));
+  const startingAge = interaction.options.getString('starting-age');
+  if (startingAge !== null && game !== 'civ7') return void (await say(`${EMOJI_FAIL} starting-age is Civ7 only.`));
 
   const host = await member(interaction);
   if (!host) return void (await say(`${EMOJI_ERROR} Unable to resolve your member info.`));
@@ -94,12 +102,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       voice_channel_id: host.voice.channel.id,
       host_discord_id: interaction.user.id,
       edition: game,
-      game_type: mode,
-      size: mode === 'ffa' ? (interaction.options.getInteger('size') ?? FFA_SIZES[0]) : null,
-      number_teams: interaction.options.getInteger('number-of-teams'),
-      team_size: interaction.options.getInteger('team-size'),
-      draft_mode: mode === 'teamer' ? ((interaction.options.getString('draft-mode') ?? 'standard') as 'standard' | 'cwc') : null,
-      starting_age: interaction.options.getString('starting-age') as (typeof AGES)[number] | null,
+      game_type: chosen.gameType,
+      size: chosen.gameType === 'ffa' ? (size ?? FFA_SIZES[0]) : null,
+      number_teams: chosen.teams ?? null,
+      team_size: chosen.teamSize ?? null,
+      draft_mode: chosen.draftMode ?? null,
+      starting_age: startingAge as (typeof AGES)[number] | null,
       host_rules: interaction.options.getString('rules'),
     });
     await interaction.channel.send({ embeds: [buildLobbyOpenEmbed(lobby)], components: [buildLobbyButtons(lobby)] });
