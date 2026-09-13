@@ -8,6 +8,7 @@ import {
 import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
 import { handleDraftingInteraction } from '../interactions/drafting.interactions.js';
 import { handleGameVoteInteraction } from '../interactions/voting.interactions.js';
+import { handleLobbyInteraction } from '../handlers/lobby.handlers.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
 import { log } from '../utils/log.js';
 
@@ -68,6 +69,7 @@ export async function execute(interaction: Interaction): Promise<void> {
     const customId = 'customId' in interaction ? interaction.customId : '';
 
     try {
+      if (await handleLobbyInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;
       if (await handleDraftingInteraction(interaction)) return;
       if (await handleGameVoteInteraction(interaction)) return;
