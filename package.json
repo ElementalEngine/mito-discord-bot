@@ -4,9 +4,16 @@
   "version": "2.0.0",
   "type": "module",
   "license": "Apache-2.0",
-  "engines": { "node": ">=24.18.0" },
-  "workspaces": ["apps/*", "packages/*"],
-  "overrides": { "undici": "6.27.0" },
+  "engines": {
+    "node": ">=24.18.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "overrides": {
+    "undici": "6.27.0"
+  },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings=0",
@@ -15,7 +22,8 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run pins && npm run build",
     "pins": "node scripts/version-pins.mjs",
     "gen:contracts": "node scripts/gen-contracts.mjs",
-    "gen:contracts:check": "node scripts/gen-contracts.mjs --check"
+    "gen:contracts:check": "node scripts/gen-contracts.mjs --check",
+    "vendor:contracts": "node scripts/gen-contracts.mjs --vendor && npm run gen:contracts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
