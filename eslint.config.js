@@ -1,6 +1,7 @@
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 /**
  * Minimal, stable ESLint 9 flat config.
@@ -11,6 +12,14 @@ import prettier from 'eslint-config-prettier';
  * Important: keep lint low-friction (no repo-wide refactors required).
  */
 export default [
+  {
+    files: ['apps/activity/src/client/**/*.tsx'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
   {
     ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
   },

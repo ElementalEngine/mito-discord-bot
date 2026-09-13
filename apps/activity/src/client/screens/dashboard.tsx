@@ -21,15 +21,11 @@ export function Dashboard({ api, onOpen, inDiscord }: Props) {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [api]);
 
-  if (error) return <p>Could not load lobbies: {error}</p>;
-  if (lobbies === null) return <p>Loading lobbies…</p>;
-  if (lobbies.length === 0) return <p>No open lobbies.</p>;
-
   const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!inDiscord) return;
-    const ids = [...new Set(lobbies.map((l) => l.voice_channel_id))];
+    const ids = [...new Set((lobbies ?? []).map((l) => l.voice_channel_id))];
     let live = true;
     void Promise.all(ids.map(async (id) => [id, await channelName(CLIENT_ID, id)] as const)).then((pairs) => {
       if (live) setVoiceNames(Object.fromEntries(pairs));
@@ -39,6 +35,10 @@ export function Dashboard({ api, onOpen, inDiscord }: Props) {
       live = false;
     };
   }, [lobbies, inDiscord]);
+
+  if (error) return <p>Could not load lobbies: {error}</p>;
+  if (lobbies === null) return <p>Loading lobbies…</p>;
+  if (lobbies.length === 0) return <p>No open lobbies.</p>;
 
   return (
     <ul style={{ listStyle: 'none', padding: 0 }}>
