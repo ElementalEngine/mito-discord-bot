@@ -44,7 +44,8 @@ async function replyError(
       return;
     }
     await interaction.reply(payload);
-  } catch {
+  } catch (error) {
+    log.warn('reset stats: reply failed', error);
   }
 }
 

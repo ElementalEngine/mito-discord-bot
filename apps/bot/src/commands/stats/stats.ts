@@ -49,7 +49,8 @@ async function replyError(
       return;
     }
     await interaction.reply(payload);
-  } catch {
+  } catch (error) {
+    log.warn('stats: reply failed', error);
   }
 }
 

@@ -4,7 +4,6 @@ import type {
   Civ6LeaderKey,
   Civ7CivKey,
   Civ7LeaderKey,
-  LeaderType,
 } from '../../../data/types.js';
 import type {
   Civ6DraftRequest,
@@ -12,7 +11,6 @@ import type {
   Civ7DraftRequest,
   Civ7DraftResult,
   DraftGameType,
-  DraftGroup,
   DraftGroupKind,
 } from '../../../types/drafting.types.js';
 import {
@@ -26,11 +24,8 @@ import {
   tokenizeBans,
 } from './pool.service.js';
 import {
-  buildAllocationNote,
-  computeLeadersPerGroup,
   DraftError,
   getCiv7CivTarget,
-  LEADER_TYPES,
 } from './rules.service.js';
 
 export function computeLayout(args: Readonly<{
@@ -87,65 +82,6 @@ function pickDistinct<T>(pool: readonly T[], count: number): T[] {
 
 function clampAtLeast1(n: number): number {
   return n < 1 ? 1 : n;
-}
-
-function dealCiv6LeadersByType(args: Readonly<{
-  availableKeys: readonly Civ6LeaderKey[];
-  leadersPerGroup: number;
-  groupCount: number;
-}>): DraftGroup[] {
-  const { availableKeys, leadersPerGroup, groupCount } = args;
-
-  const buckets = new Map<LeaderType, Civ6LeaderKey[]>();
-  for (const type of LEADER_TYPES) {
-    buckets.set(type, []);
-  }
-
-  for (const key of availableKeys) {
-    const meta = CIV6_LEADERS[key];
-    const type = meta?.type ?? 'None';
-    (buckets.get(type) ?? buckets.get('None')!).push(key);
-  }
-
-  for (const arr of buckets.values()) {
-    shufflePool(arr);
-  }
-
-  const groups: DraftGroup[] = Array.from({ length: groupCount }, () => ({ leaders: [] }));
-  const typeCount = LEADER_TYPES.length;
-
-  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
-    const picks: Civ6LeaderKey[] = [];
-    let cursor = groupIndex % typeCount;
-
-    for (let i = 0; i < leadersPerGroup; i += 1) {
-      let chosen: Civ6LeaderKey | undefined;
-
-      for (let step = 0; step < typeCount; step += 1) {
-        const type = LEADER_TYPES[(cursor + step) % typeCount];
-        const arr = buckets.get(type);
-        const value = arr?.pop();
-        if (value) {
-          chosen = value;
-          cursor = (cursor + step + 1) % typeCount;
-          break;
-        }
-      }
-
-      if (!chosen) {
-        throw new DraftError(
-          'NO_POOL',
-          'Not enough leaders remaining to complete the draft. Remove bans or reduce players/teams.',
-        );
-      }
-
-      picks.push(chosen);
-    }
-
-    groups[groupIndex] = { leaders: picks };
-  }
-
-  return groups;
 }
 
 function dealEvenUniqueGroups<T>(pool: readonly T[], targets: readonly number[]): T[][] {
