@@ -351,6 +351,43 @@ export class ApiClient {
     return body.closed ?? 0;
   }
 
+  // The viewer decides the censoring, so browse carries an actor like the rest.
+  async browseLobbies(guildId: string, actor: string, channelId?: string): Promise<LobbyDocument[]> {
+    const query = new URLSearchParams({ guild_id: guildId });
+    if (channelId) query.set("channel_id", channelId);
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite?${query}`, {
+      method: "GET",
+      headers: { "x-actor-discord-id": actor }
+    });
+
+    return (await this.parseJson(res)) as LobbyDocument[];
+  }
+
+  // Staff cancel on the host's behalf; the header decides, not the caller.
+  async cancelLobby(lobbyId: string, actor: string, expectedRevision: number, isStaff = false): Promise<LobbyDocument> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/${lobbyId}/cancel`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-actor-discord-id": actor,
+        ...(isStaff ? { "x-actor-is-staff": "true" } : {})
+      },
+      body: JSON.stringify({ expected_revision: expectedRevision })
+    });
+
+    return (await this.parseJson(res)) as LobbyDocument;
+  }
+
+  async leaveLobby(lobbyId: string, actor: string, expectedRevision: number): Promise<LobbyDocument> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/${lobbyId}/leave`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-actor-discord-id": actor },
+      body: JSON.stringify({ expected_revision: expectedRevision, action: "leave" })
+    });
+
+    return (await this.parseJson(res)) as LobbyDocument;
+  }
+
   private shouldRetry(err: unknown, method: string): boolean {
     if (err instanceof ApiError && typeof err.retryable === "boolean") {
       return err.retryable;
