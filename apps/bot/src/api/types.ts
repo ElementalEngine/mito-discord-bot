@@ -19,12 +19,6 @@ export type ParsedPlayer = {
   subbed_out: boolean;
 };
 
-export type ParsedSave = {
-  edition: Edition;
-  leaders: string[];
-  players: ParsedPlayer[];
-};
-
 export type UploadSaveResponse = {
   match_id: string;
   game: string;
@@ -117,12 +111,6 @@ export type UserStatsResponse = {
   game_type: StatsGameType;
   lifetime: StatSet;
   season: StatSet;
-};
-
-export type BatchStatsRequest = {
-  civ_version: CivVersion;
-  game_type: StatsGameType;
-  discord_ids: string[];
 };
 
 export type BatchStatsResponse = {

@@ -14,8 +14,6 @@ dotenvConfig({
 });
 
 const env = (key: string, fallback = ''): string => process.env[key] ?? fallback;
-const host = process.env.HOST!;
-const port = Number(process.env.PORT!);
 
 const rankRoles = {
   Deity_3_STAR: env('ROLE_RANK_DEITY_3_STAR', ''),
@@ -35,7 +33,6 @@ const rankRoles = {
 // Discord
 const discord = {
   clientId: env('BOT_CLIENT_ID'),
-  clientSecret: env('BOT_CLIENT_SECRET'),
   guildId: env('DISCORD_GUILD_ID'),
   token: env('BOT_TOKEN'),
 
@@ -93,35 +90,23 @@ const discord = {
     admin: env('ROLE_ADMIN'),
     developer: env('ROLE_DEVELOPER'),
     noviceManager: env('ROLE_NOVICE_MANAGER'),
-    civ6Rank: env('ROLE_CIV6'),
-    civ7Rank: env('ROLE_CIV7'),
+    civ6Rank: env('ROLE_CIV6_RANKED'),
+    civ7Rank: env('ROLE_CIV7_RANKED'),
     civCloud: env('ROLE_CLOUD'),
   },
   
   rankRoles,
 };
 
-// Backend URL
-const redirectUri = `http://${host}:${port}`;
 const backendDefault =
   nodeEnv === 'production' ? 'http://localhost:8000' : 'http://localhost:8001';
 
 // Final config export
 export const config = {
-  oauth:
-    `https://discord.com/api/oauth2/authorize?client_id=${discord.clientId}` +
-    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&response_type=code&scope=identify%20connections&state=`,
   discord,
-  host,
-  port,
   backend: {
     url: env('BACKEND_SERVICE_URL', backendDefault),
     serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
   env: nodeEnv,
-  rateLimit: {
-    windowMs: Number(env('RATE_LIMIT_WINDOW_MS', String(15 * 60 * 1000))),
-    max: Number(env('RATE_LIMIT_MAX', '100')),
-  },
 } as const;

@@ -9,8 +9,6 @@ import type {
 import { CIV6_LEADERS } from '../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../data/civ7.data.js';
 import {
-  generateCiv6DraftCore,
-  generateCiv7DraftCore,
   generateDirectCiv6DraftCore,
   generateDirectCiv7DraftCore,
 } from './domain/allocation.service.js';
@@ -87,16 +85,8 @@ export function buildCommandStandardDraftResult(request: DraftCommandRequest): C
   });
 }
 
-export function generateCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
-  return generateCiv6DraftCore(req);
-}
-
 export function generateDirectCiv6Draft(req: Civ6DraftRequest): Civ6DraftResult {
   return generateDirectCiv6DraftCore(req);
-}
-
-export function generateCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {
-  return generateCiv7DraftCore(req);
 }
 
 export function generateDirectCiv7Draft(req: Civ7DraftRequest): Civ7DraftResult {

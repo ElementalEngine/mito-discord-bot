@@ -1,7 +1,6 @@
 import { CIV6_LEADERS } from '../../../data/civ6.data.js';
 import { CIV7_CIVS, CIV7_LEADERS } from '../../../data/civ7.data.js';
 import type { CivMeta, LeaderMeta } from '../../../data/types.js';
-import type { GameVoteSession } from '../../../types/voting.types.js';
 import type { CivEdition } from '../../../config/types.js';
 import { humanizeGameId } from '../../../utils/humanize-game-id.js';
 import { humanizeDraftKey, sanitizeEmojiName } from '../../drafting/domain/labels.service.js';
@@ -174,14 +173,6 @@ export function resolveTypedBanInputForEdition(
   }
 
   return resolveTokens(tokenizeBanInput(raw), index);
-}
-
-export function resolveTypedBanInput(
-  session: GameVoteSession,
-  kind: BanEntityKind,
-  raw: string,
-): BanLookupResult {
-  return resolveTypedBanInputForEdition(session.edition, kind, raw);
 }
 
 export function formatBanInputIssues(

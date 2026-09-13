@@ -91,8 +91,6 @@ export type VoteDraftRequest = Readonly<{
   publicMessage?: Message<true>;
 }>;
 
-export type DraftRequest = DraftCommandRequest | VoteDraftRequest;
-
 export type DraftMessagePayload = Readonly<{
   content?: string;
   embeds?: readonly EmbedBuilder[];

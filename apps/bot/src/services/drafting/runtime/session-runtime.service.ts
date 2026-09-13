@@ -67,10 +67,3 @@ export async function closeInteractiveDraftSession<T extends ActiveSession>(
     sessions.delete(session.sessionId);
   }
 }
-
-export function isStaleDraftTurnToken(
-  currentTurnToken: number,
-  interactionTurnToken: number,
-): boolean {
-  return currentTurnToken !== interactionTurnToken;
-}
