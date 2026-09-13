@@ -45,7 +45,7 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
     return <SettingsScreen lobby={lobby} mine={mine} act={act} />;
   }
   if (lobby.phase === 'bans') {
-    return <BansScreen api={api} lobby={lobby} mine={mine} act={act} />;
+    return <BansScreen api={api} lobby={lobby} me={me} mine={mine} act={act} />;
   }
   if (lobby.phase === 'draft') {
     return <DraftScreen lobby={lobby} mine={mine} act={act} />;
