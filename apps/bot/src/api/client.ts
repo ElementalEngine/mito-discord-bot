@@ -323,7 +323,7 @@ export class ApiClient {
    * nineteen calls are PUTs that approve, revert or mutate a match.
    */
   async createLobby(body: components['schemas']['CreateLobbyRequest']): Promise<LobbyDocument> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body)
@@ -335,7 +335,7 @@ export class ApiClient {
   // The oldest finished lobby nobody has posted yet, or null when there is none.
   async claimLobbyPost(guildId: string): Promise<LobbyDocument | null> {
     const res = await this.fetchWithRetry(
-      `${this.base}/api/v2/lobbies/claim-post?guild_id=${encodeURIComponent(guildId)}`,
+      `${this.base}/api/v2/lobbies/mite/claim-post?guild_id=${encodeURIComponent(guildId)}`,
       { method: "POST" }
     );
     if (res.status === 204) return null;
