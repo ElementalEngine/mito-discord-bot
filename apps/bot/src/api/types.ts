@@ -118,3 +118,24 @@ export type BatchStatsResponse = {
   game_type: StatsGameType;
   results: UserStatsResponse[];
 };
+
+// The fields Mite reads from a lobby document. The read route is untyped
+// upstream, so this is the bot's own view of it, kept to what the embeds use.
+export type LobbyDocument = {
+  _id: string;
+  phase: 'lobby' | 'settings' | 'bans' | 'draft' | 'complete' | 'cancelled';
+  revision: number;
+  guild_id: string;
+  channel_id: string;
+  voice_channel_id: string;
+  host_discord_id: string;
+  edition: 'civ6' | 'civ7';
+  game_type: string;
+  seat_count: number;
+  min_seats: number;
+  seats: { seat_index: number; discord_id: string; pick?: string | null }[];
+  host_rules?: string | null;
+  settings?: Record<string, string>;
+  bans?: { leader?: string[]; civ?: string[] };
+  cancel_reason?: string | null;
+};

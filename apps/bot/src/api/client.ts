@@ -1,3 +1,4 @@
+import type { components } from '@cpl/contracts';
 import { config } from "../config.js";
 import type { TeamGenResponse } from "../types/teamgen.types.js";
 import { ApiError } from "./errors.js";
@@ -9,7 +10,8 @@ import type {
   BatchStatsResponse,
   CivVersion,
   StatsGameType,
-} from "./types.js";
+  LobbyDocument,
+} from './types.js';
 
 type FetchLike = typeof fetch;
 
@@ -320,6 +322,27 @@ export class ApiClient {
    * write landed, so only a read may be repeated. Fifteen of this client's
    * nineteen calls are PUTs that approve, revert or mutate a match.
    */
+  async createLobby(body: components['schemas']['CreateLobbyRequest']): Promise<LobbyDocument> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    return (await this.parseJson(res)) as LobbyDocument;
+  }
+
+  // The oldest finished lobby nobody has posted yet, or null when there is none.
+  async claimLobbyPost(guildId: string): Promise<LobbyDocument | null> {
+    const res = await this.fetchWithRetry(
+      `${this.base}/api/v2/lobbies/claim-post?guild_id=${encodeURIComponent(guildId)}`,
+      { method: "POST" }
+    );
+    if (res.status === 204) return null;
+
+    return (await this.parseJson(res)) as LobbyDocument;
+  }
+
   private shouldRetry(err: unknown, method: string): boolean {
     if (err instanceof ApiError && typeof err.retryable === "boolean") {
       return err.retryable;

@@ -15,6 +15,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@cpl/contracts": "^0.0.0",
     "@cpl/core": "*",
     "@discordjs/rest": "2.6.0",
     "discord.js": "14.27.0",
