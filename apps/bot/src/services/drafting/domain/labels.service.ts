@@ -29,10 +29,6 @@ export function humanizeDraftKey(key: string): string {
     .join(' ');
 }
 
-export function labelForVoteGroup(kind: DraftGroupKind, index: number): string {
-  return kind === 'Team' ? `Team ${index + 1}` : `Player ${index + 1}`;
-}
-
 export function labelForDirectGroup(kind: DraftGroupKind, index: number): string {
   return kind === 'Team' ? `Team n°${index + 1}` : `Player n°${index + 1}`;
 }
@@ -49,7 +45,6 @@ export function renderEmojiReadableLine(
 
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${name}`;
 }
-
 
 export function renderEmojiHumanizedLine(
   meta: Readonly<{ gameId: string; emojiId?: string }> | undefined,

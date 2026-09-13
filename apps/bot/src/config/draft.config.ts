@@ -1,19 +1,6 @@
 import type { CivEdition } from './types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 
-export const DRAFT_LIMITS = {
-  CIV6: {
-    FFA: { minUsers: 2, maxUsers: 14 },
-    Teamer: { minUsers: 2, maxUsers: 16, minTeams: 2, maxTeams: 5 },
-    Duel: { minUsers: 2, maxUsers: 2 },
-  },
-  CIV7: {
-    FFA: { minUsers: 2, maxUsers: 10 },
-    Teamer: { minUsers: 2, maxUsers: 10, minTeams: 2, maxTeams: 5 },
-    Duel: { minUsers: 2, maxUsers: 2 },
-  },
-} as const;
-
 export const DRAFT_BAN_LIMITS = {
   CIV6: { leader: 25, civ: 0 },
   CIV7: { leader: 10, civWhenAgeNone: 15, civWhenAgeSpecific: 5 },
