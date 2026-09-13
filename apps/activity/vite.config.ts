@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 // /api is forwarded to the Activity server so both halves run locally.
 export default defineConfig({
   root: 'src/client',
+  envDir: '../..',
   plugins: [react()],
   build: { outDir: '../../dist/client', emptyOutDir: true },
   server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:3100' } },
