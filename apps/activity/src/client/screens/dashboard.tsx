@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 
 import { type LobbyDoc, nameOf } from '../model.js';
+import { channelName } from '../platform/discord.js';
 import type { ApiClient } from '../transport/client.js';
 
-type Props = { api: ApiClient; onOpen: (lobbyId: string) => void };
+type Props = { api: ApiClient; onOpen: (lobbyId: string) => void; inDiscord: boolean };
+
+const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID as string;
 
 // The launcher path: every open lobby in the guild, with the voice channel
 // a player has to be in to take a seat.
-export function Dashboard({ api, onOpen }: Props) {
+export function Dashboard({ api, onOpen, inDiscord }: Props) {
   const [lobbies, setLobbies] = useState<LobbyDoc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +25,21 @@ export function Dashboard({ api, onOpen }: Props) {
   if (lobbies === null) return <p>Loading lobbies…</p>;
   if (lobbies.length === 0) return <p>No open lobbies.</p>;
 
+  const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!inDiscord) return;
+    const ids = [...new Set(lobbies.map((l) => l.voice_channel_id))];
+    let live = true;
+    void Promise.all(ids.map(async (id) => [id, await channelName(CLIENT_ID, id)] as const)).then((pairs) => {
+      if (live) setVoiceNames(Object.fromEntries(pairs));
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [lobbies, inDiscord]);
+
   return (
     <ul style={{ listStyle: 'none', padding: 0 }}>
       {lobbies.map((lobby) => (
@@ -31,7 +49,7 @@ export function Dashboard({ api, onOpen }: Props) {
           </strong>{' '}
           — {lobby.seats.length}/{lobby.seat_count} seated · host {nameOf(lobby.seats.find((s) => s.discord_id === lobby.host_discord_id))} · phase {lobby.phase}
           <br />
-          <small>voice channel: {lobby.voice_channel_id}</small>
+          <small>voice: {voiceNames[lobby.voice_channel_id] ?? lobby.voice_channel_id}</small>
           {lobby.host_rules && (
             <>
               <br />

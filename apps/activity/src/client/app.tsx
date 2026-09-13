@@ -44,7 +44,7 @@ export function App() {
       {lobbyId ? (
         <LobbyScreen api={boot.api} me={boot.me} lobbyId={lobbyId} onBack={() => setLobbyId(null)} />
       ) : (
-        <Dashboard api={boot.api} onOpen={setLobbyId} />
+        <Dashboard api={boot.api} onOpen={setLobbyId} inDiscord={runtime.surface === 'discord'} />
       )}
     </main>
   );
