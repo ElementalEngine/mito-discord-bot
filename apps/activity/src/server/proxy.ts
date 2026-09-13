@@ -38,6 +38,7 @@ export async function forward(
     Accept: 'application/json',
     'X-Actor-Discord-Id': claims.uid,
     'X-Actor-Is-Staff': claims.staff ? 'true' : 'false',
+    'X-Actor-Name': claims.name ?? '',
   };
   if (hasBody) headers['Content-Type'] = req.headers['content-type'] ?? 'application/json';
 

@@ -58,7 +58,7 @@ export async function handleSession(
 
   const { member } = resolved;
   const staff = member.roles.some((role) => deps.staffRoleIds.includes(role));
-  const { token, expiresAt } = mint({ uid: member.id, gid: deps.discord.guildId, staff }, deps.sessionSigningKey);
+  const { token, expiresAt } = mint({ uid: member.id, name: member.name, gid: deps.discord.guildId, staff }, deps.sessionSigningKey);
 
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(

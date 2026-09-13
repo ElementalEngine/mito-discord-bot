@@ -322,10 +322,10 @@ export class ApiClient {
    * write landed, so only a read may be repeated. Fifteen of this client's
    * nineteen calls are PUTs that approve, revert or mutate a match.
    */
-  async createLobby(body: components['schemas']['CreateLobbyRequest']): Promise<LobbyDocument> {
+  async createLobby(body: components['schemas']['CreateLobbyRequest'], hostName?: string): Promise<LobbyDocument> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(hostName ? { "x-actor-name": hostName } : {}) },
       body: JSON.stringify(body)
     });
 

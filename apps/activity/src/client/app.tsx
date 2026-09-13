@@ -11,6 +11,16 @@ type Boot = { state: 'booting' } | { state: 'ready'; api: ApiClient; me: Me } | 
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID as string;
 
+function describe(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return Object.prototype.toString.call(error);
+  }
+}
+
 export function App() {
   const runtime = useMemo(() => detect(window.location), []);
   const [boot, setBoot] = useState<Boot>({ state: 'booting' });
@@ -24,7 +34,7 @@ export function App() {
         if (!me) throw new Error('session payload unreadable');
         setBoot({ state: 'ready', api: new ApiClient(runtime.apiBase, store, reauthorize), me });
       })
-      .catch((error: unknown) => setBoot({ state: 'failed', reason: error instanceof Error ? error.message : String(error) }));
+      .catch((error: unknown) => setBoot({ state: 'failed', reason: describe(error) }));
   }, [runtime]);
 
   if (boot.state === 'booting') return <main>Connecting…</main>;

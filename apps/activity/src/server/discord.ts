@@ -7,7 +7,7 @@ export type DiscordApp = Readonly<{
   guildId: string;
 }>;
 
-export type Member = Readonly<{ id: string; username: string; roles: readonly string[] }>;
+export type Member = Readonly<{ id: string; username: string; name: string; roles: readonly string[] }>;
 export type Resolved =
   | { ok: true; member: Member }
   | { ok: false; reason: 'BAD_CODE' | 'NOT_A_MEMBER' | 'UNAVAILABLE' };
@@ -52,7 +52,7 @@ export async function resolveMember(app: DiscordApp, code: string): Promise<Reso
   if (!membership) return { ok: false, reason: 'UNAVAILABLE' };
   if (membership.status === 404) return { ok: false, reason: 'NOT_A_MEMBER' };
   if (!membership.ok) return { ok: false, reason: 'UNAVAILABLE' };
-  const { roles } = (await membership.json()) as { roles?: string[] };
+  const { roles, nick } = (await membership.json()) as { roles?: string[]; nick?: string | null };
 
-  return { ok: true, member: { id: user.id, username: user.username, roles: roles ?? [] } };
+  return { ok: true, member: { id: user.id, username: user.username, name: nick || user.username, roles: roles ?? [] } };
 }

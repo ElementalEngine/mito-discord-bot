@@ -6,6 +6,7 @@ const PREFIX = 'act.v1';
 
 export type Claims = Readonly<{
   uid: string;
+  name?: string;
   gid: string;
   staff: boolean;
   iat: number;
@@ -20,7 +21,7 @@ function sign(payload: string, key: string): string {
 }
 
 export function mint(
-  who: Pick<Claims, 'uid' | 'gid' | 'staff'>,
+  who: Pick<Claims, 'uid' | 'name' | 'gid' | 'staff'>,
   key: string,
   now = Date.now(),
 ): { token: string; expiresAt: number } {

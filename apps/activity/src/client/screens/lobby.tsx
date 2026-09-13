@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { firstEmptySeat, type LobbyDoc, type Seat, seatOf } from '../model.js';
+import { firstEmptySeat, type LobbyDoc, nameOf, type Seat, seatOf } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
 import { subscribe } from '../transport/poll.js';
 import { BansScreen } from './bans.js';
@@ -46,7 +46,7 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
   // Seat one of a team captains it, so the first name in a column is the one
   // who bans in CWC. Seating never implies a side; picking a team does.
   const label = (seat: Seat | undefined) =>
-    seat ? `${seat.discord_id}${seat.discord_id === lobby.host_discord_id ? ' (host)' : ''}` : '[empty]';
+    seat ? `${nameOf(seat)}${seat.discord_id === lobby.host_discord_id ? ' (host)' : ''}` : '[empty]';
 
   if (lobby.phase === 'settings') {
     return <SettingsScreen lobby={lobby} mine={mine} act={act} />;

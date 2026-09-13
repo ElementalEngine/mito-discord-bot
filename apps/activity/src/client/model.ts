@@ -1,7 +1,7 @@
 import type { Lobby } from './transport/poll.js';
 
 // Seats are sparse: only occupied ones are stored.
-export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[] };
+export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[]; name?: string };
 
 export type LobbyDoc = Lobby & {
   host_discord_id: string;
@@ -14,6 +14,9 @@ export type LobbyDoc = Lobby & {
   host_rules?: string;
   number_teams?: number | null;
 };
+
+export const nameOf = (seat: { discord_id: string; name?: string } | undefined): string =>
+  seat ? (seat.name ?? seat.discord_id) : '[empty]';
 
 export const seatOf = (lobby: LobbyDoc, uid: string): Seat | undefined =>
   lobby.seats.find((seat) => seat.discord_id === uid);

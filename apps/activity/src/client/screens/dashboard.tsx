@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { LobbyDoc } from '../model.js';
+import { type LobbyDoc, nameOf } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
 
 type Props = { api: ApiClient; onOpen: (lobbyId: string) => void };
@@ -29,7 +29,7 @@ export function Dashboard({ api, onOpen }: Props) {
           <strong>
             {lobby.edition.toUpperCase()} {lobby.game_type}
           </strong>{' '}
-          — {lobby.seats.length}/{lobby.seat_count} seated · host {lobby.host_discord_id} · phase {lobby.phase}
+          — {lobby.seats.length}/{lobby.seat_count} seated · host {nameOf(lobby.seats.find((s) => s.discord_id === lobby.host_discord_id))} · phase {lobby.phase}
           <br />
           <small>voice channel: {lobby.voice_channel_id}</small>
           {lobby.host_rules && (

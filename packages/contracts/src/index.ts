@@ -3815,6 +3815,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-actor-name"?: string;
             };
             path?: never;
             cookie?: never;
@@ -3958,6 +3959,7 @@ export interface operations {
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
+                "x-actor-name"?: string;
             };
             path: {
                 lobby_id: string;
@@ -4185,6 +4187,7 @@ export interface operations {
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
+                "x-actor-name"?: string;
             };
             path: {
                 lobby_id: string;

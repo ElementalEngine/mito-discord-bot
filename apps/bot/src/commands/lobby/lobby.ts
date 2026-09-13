@@ -179,7 +179,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       draft_mode: chosen.draftMode ?? null,
       starting_age: startingAge as (typeof AGES)[number] | null,
       host_rules: interaction.options.getString('rules'),
-    });
+    }, host.displayName);
     await interaction.channel.send({ embeds: [buildLobbyOpenEmbed(lobby)], components: [buildLobbyButtons(lobby)] });
     await say(`${EMOJI_CONFIRM} Lobby posted. Open it from the message to take your seat.`);
   } catch (error) {

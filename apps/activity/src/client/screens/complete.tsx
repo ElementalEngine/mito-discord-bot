@@ -1,4 +1,4 @@
-import type { LobbyDoc } from '../model.js';
+import { type LobbyDoc, nameOf } from '../model.js';
 import { pretty } from './draft.js';
 
 type Props = { lobby: LobbyDoc & { settings?: Record<string, string>; bans?: { leader?: string[]; civ?: string[] }; cancel_reason?: string } };
@@ -15,7 +15,7 @@ export function CompleteScreen({ lobby }: Props) {
       <h3>Bans</h3><p>{banned.length ? banned.map(pretty).join(', ') : 'none'}</p>
       <h3>Picks</h3>
       <ol>{[...lobby.seats].sort((a, b) => a.seat_index - b.seat_index).map((s) => (
-        <li key={s.seat_index}>{s.discord_id} — {s.pick ? pretty(String(s.pick)) : '—'}</li>
+        <li key={s.seat_index}>{nameOf(s)} — {s.pick ? pretty(String(s.pick)) : '—'}</li>
       ))}</ol>
     </section>
   );
