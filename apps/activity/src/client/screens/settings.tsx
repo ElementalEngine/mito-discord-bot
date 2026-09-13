@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import type { LobbyDoc, Seat } from '../model.js';
 
-export type Question = { id: string; prompt: string; options: { id: string; label: string }[]; default: string };
+export type Question = { id: string; prompt: string; options: { id: string; label: string }[]; default?: string };
 type Selections = Record<string, string>;
 type Props = {
   lobby: LobbyDoc & { questions?: Question[]; ballots_submitted?: number };
@@ -16,7 +16,7 @@ export function SettingsScreen({ lobby, mine, act }: Props) {
   const questions = lobby.questions ?? [];
   const submitted = (mine?.ballot as Selections | undefined) ?? null;
   const [draft, setDraft] = useState<Selections>(
-    () => submitted ?? Object.fromEntries(questions.map((q) => [q.id, q.default])),
+    () => submitted ?? Object.fromEntries(questions.map((q) => [q.id, q.default ?? q.options[0]?.id ?? ''])),
   );
   const rev = { expected_revision: lobby.revision };
   const seated = lobby.seats.length;
