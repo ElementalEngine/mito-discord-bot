@@ -1,25 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { type LobbyDoc, nameOf } from '../model.js';
 import { channelName } from '../platform/discord.js';
 import type { ApiClient } from '../transport/client.js';
 
-type Props = { api: ApiClient; onOpen: (lobbyId: string) => void; inDiscord: boolean };
+type Props = {
+  api: ApiClient;
+  onOpen: (lobbyId: string) => void;
+  inDiscord: boolean;
+  channelId: string | null;
+};
 
 const CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID as string;
 
 // The launcher path: every open lobby in the guild, with the voice channel
 // a player has to be in to take a seat.
-export function Dashboard({ api, onOpen, inDiscord }: Props) {
+export function Dashboard({ api, onOpen, inDiscord, channelId }: Props) {
   const [lobbies, setLobbies] = useState<LobbyDoc[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const scoped = channelId ? `/lobbies?channel_id=${encodeURIComponent(channelId)}` : '/lobbies';
     api
-      .request<LobbyDoc[]>('GET', '/lobbies')
-      .then((reply) => setLobbies(reply.body ?? []))
+      .request<LobbyDoc[]>('GET', scoped)
+      .then((reply) => {
+        const here = reply.body ?? [];
+        if (channelId && here.length === 1 && !jumped.current) {
+          jumped.current = true;
+
+          return onOpen(here[0]!._id);
+        }
+        if (channelId && here.length === 0) {
+          return api
+            .request<LobbyDoc[]>('GET', '/lobbies')
+            .then((all) => setLobbies(all.body ?? []));
+        }
+        setLobbies(here);
+
+        return undefined;
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [api]);
+  }, [api, channelId, onOpen]);
+
+  const jumped = useRef(false);
 
   const [voiceNames, setVoiceNames] = useState<Record<string, string>>({});
 
