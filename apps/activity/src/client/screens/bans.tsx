@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 
 import type { LobbyDoc, Seat } from '../model.js';
 import type { Me } from '../whoami.js';
+import { Button, Panel, Screen, Tile } from '../ui/index.js';
 import type { ApiClient } from '../transport/client.js';
 import { pretty } from './draft.js';
 
-type Leader = { token: string; name: string; civ: string };
-type CivData = { leaders: Leader[]; civs: { token: string; name: string }[] };
+type Leader = { token: string; name: string; civ: string | null; emoji_id?: string | null };
+type CivData = { leaders: Leader[]; civs: { token: string; name: string; emoji_id?: string | null }[] };
 type Props = {
   api: ApiClient;
   lobby: LobbyDoc & {
@@ -53,18 +54,29 @@ export function BansScreen({ api, lobby, me, mine, act }: Props) {
     if (cap === 1) return set([key]);
     if (list.length < cap) set([...list, key]);
   };
-  const grid = (rows: { token: string }[], picked: string[], set: (v: string[]) => void, cap: number) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+  const grid = (
+    rows: { token: string; emoji_id?: string | null; civ?: string | null }[],
+    picked: string[],
+    set: (v: string[]) => void,
+    cap: number,
+  ) => (
+    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 md:grid-cols-8">
       {rows
         .filter((r) => !landed.includes(r.token))
         .map((r) => (
-          <button key={r.token} disabled={locked} onClick={() => toggle(picked, set, cap, r.token)}
-            style={{ fontWeight: picked.includes(r.token) ? 'bold' : 'normal', opacity: picked.includes(r.token) ? 1 : 0.7 }}>
-            {pretty(r.token)}
-          </button>
+          <Tile
+            key={r.token}
+            emojiId={r.emoji_id}
+            label={pretty(r.token)}
+            sub={r.civ ? pretty(r.civ) : undefined}
+            selected={picked.includes(r.token)}
+            disabled={locked || (!picked.includes(r.token) && picked.length >= cap && cap !== 1)}
+            onClick={() => toggle(picked, set, cap, r.token)}
+          />
         ))}
     </div>
   );
+
   const submit = () =>
     act('PUT', '/bans', { ...rev, leader_keys: leaders, civ_keys: civs }).then(() => {
       if (inTurns) {
@@ -74,33 +86,52 @@ export function BansScreen({ api, lobby, me, mine, act }: Props) {
     });
 
   return (
-    <section>
-      <h2>BANS — {lobby.edition.toUpperCase()} {lobby.game_type}</h2>
-      {inTurns ? (
-        <p>
-          Turn {(lobby.turn_index ?? 0) + 1} of {lobby.ban_order?.length} —{' '}
-          {myTurn ? <strong>your ban</strong> : <>waiting on {lobby.ban_order?.[lobby.turn_index ?? 0]}</>} · rev {lobby.revision}
+    <Screen
+      title={`BANS — ${lobby.edition.toUpperCase()} ${lobby.game_type}`}
+      meta={
+        inTurns
+          ? `Turn ${(lobby.turn_index ?? 0) + 1} of ${lobby.ban_order?.length} · rev ${lobby.revision}`
+          : `${lobby.seats.filter((s) => s.ready).length}/${lobby.seats.length} ready · rev ${lobby.revision}`
+      }
+    >
+      <Panel className="flex flex-wrap items-center justify-between gap-3 py-3">
+        <p className="text-sm">
+          {inTurns ? (
+            myTurn ? <span className="font-semibold text-accent">Your ban</span> : <>Waiting on {lobby.ban_order?.[lobby.turn_index ?? 0]}</>
+          ) : locked ? (
+            'Waiting for the others…'
+          ) : (
+            `Leaders ${leaders.length}/${leaderCap}${civCap > 0 ? ` · Civs ${civs.length}/${civCap}` : ''}`
+          )}
         </p>
-      ) : (
-        <p>{lobby.seats.filter((s) => s.ready).length}/{lobby.seats.length} ready · rev {lobby.revision}</p>
+        <div className="flex gap-2">
+          {inTurns && myTurn && (
+            <Button variant="primary" disabled={leaders.length !== 1 || civs.length !== civCap} onClick={submit}>
+              Ban
+            </Button>
+          )}
+          {!inTurns && mine && !locked && (
+            <>
+              <Button variant="primary" onClick={submit}>{submitted ? 'Update bans' : 'Submit bans'}</Button>
+              <Button disabled={!submitted} onClick={() => act('PUT', '/ready', rev)}>Next</Button>
+            </>
+          )}
+        </div>
+      </Panel>
+
+      {landed.length > 0 && (
+        <p className="text-xs text-muted">Banned: {landed.map(pretty).join(' · ')}</p>
       )}
-      {landed.length > 0 && <p>Banned so far: {landed.map(pretty).join(', ')}</p>}
-      <h3>Leaders — {leaders.length}/{leaderCap}</h3>
+
+      <h2 className="text-xs uppercase tracking-wider text-muted">Leaders</h2>
       {grid(data.leaders, leaders, setLeaders, leaderCap)}
-      {civCap > 0 && (<><h3>Civs — {civs.length}/{civCap}</h3>{grid(data.civs, civs, setCivs, civCap)}</>)}
-      {inTurns && myTurn && (
-        <button disabled={leaders.length !== 1 || civs.length !== civCap} onClick={submit}>
-          Ban
-        </button>
-      )}
-      {!inTurns && mine && !locked && (
+      {civCap > 0 && (
         <>
-          <button onClick={submit}>{submitted ? 'Update bans' : 'Submit bans'}</button>{' '}
-          <button disabled={!submitted} onClick={() => act('PUT', '/ready', rev)}>Next</button>
+          <h2 className="text-xs uppercase tracking-wider text-muted">Civilizations</h2>
+          {grid(data.civs, civs, setCivs, civCap)}
         </>
       )}
-      {locked && <p>{inTurns ? 'Not your turn.' : 'Waiting for the others…'}</p>}
-      {!mine && <p>You are not seated in this lobby.</p>}
-    </section>
+      {!mine && <p className="text-sm text-muted">You are not seated in this lobby.</p>}
+    </Screen>
   );
 }

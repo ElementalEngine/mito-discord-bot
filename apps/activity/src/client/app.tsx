@@ -23,6 +23,14 @@ function describe(error: unknown): string {
 
 export function App() {
   const runtime = useMemo(() => detect(window.location), []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = runtime.appearance.theme;
+    root.dataset.reducedMotion = String(runtime.appearance.reducedMotion);
+    root.dataset.highContrast = String(runtime.appearance.highContrast);
+    root.style.setProperty('--cpl-font-scale', String(runtime.appearance.fontScale));
+  }, [runtime]);
   const [boot, setBoot] = useState<Boot>({ state: 'booting' });
   const [lobbyId, setLobbyId] = useState<string | null>(runtime.lobbyId);
 

@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #16171a;
+  --color-panel: #1e2025;
+  --color-line: #2c2f36;
+  --color-ink: #e6e7ea;
+  --color-muted: #9aa0aa;
+  --color-accent: #d4a13c;
+  --color-accent-ink: #1a1408;
+  --color-danger: #c4453c;
+  --color-good: #4b9e5f;
+
+  --font-sans: "gg sans", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 0.5rem;
+}
+
+/* Discord sends the player's own settings in the launch URL; the root
+   carries them so type scales and motion respects the preference. */
+html {
+  font-size: calc(16px * var(--cpl-font-scale, 1));
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+[data-reduced-motion="true"] *, [data-reduced-motion="true"] *::before {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
