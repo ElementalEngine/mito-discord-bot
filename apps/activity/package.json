@@ -8,8 +8,8 @@
   },
   "scripts": {
     "clean": "node -e \"const {rmSync}=require('node:fs');for(const t of ['dist','tsconfig.tsbuildinfo'])rmSync(t,{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.json && vite build",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "build": "npm run clean && tsc -p tsconfig.build.json && vite build",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.client-tests.json --noEmit",
     "start": "node --enable-source-maps dist/server/index.js",
     "dev": "tsx watch src/server/index.ts",
     "dev:client": "vite"

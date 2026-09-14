@@ -32,7 +32,8 @@ before(async () => {
       return res.end('{"detail":{"error":{"code":"CONFLICT","retryable":false}}}');
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end('{"echo":true}');
+
+    return res.end('{"echo":true}');
   });
   const baseUrl = await listen(fake);
   activity = createServer({

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "clean": "node -e \"const {rmSync}=require('node:fs');for(const t of ['dist','tsconfig.tsbuildinfo'])rmSync(t,{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node --enable-source-maps dist/index.js",
     "dev": "tsx watch src/index.ts"
