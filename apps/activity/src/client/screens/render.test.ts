@@ -6,7 +6,9 @@ import { renderToString } from 'react-dom/server';
 import type { LobbyDoc, Seat } from '../model.js';
 import { ApiError } from '../transport/client.js';
 import { portraitUrl, Tile } from '../ui/index.js';
+import { BansScreen } from './bans.js';
 import { CompleteScreen } from './complete.js';
+import { DraftScreen } from './draft.js';
 import { LobbyScreen } from './lobby.js';
 import { SettingsScreen } from './settings.js';
 
@@ -102,4 +104,61 @@ test('an api error shows the server sentence, not the code', () => {
 
 test('an api error with no sentence falls back to the code', () => {
   assert.equal(new ApiError(500, 'INTERNAL', false).message, '500 INTERNAL');
+});
+
+const CIV_DATA = {
+  leaders: [
+    { token: 'LEADER_SHAKA', name: 'ZuluShaka', civ: 'CIVILIZATION_ZULU', emoji_id: '111' },
+    { token: 'LEADER_GANDHI', name: 'IndiaGandhi', civ: 'CIVILIZATION_INDIA', emoji_id: '222' },
+  ],
+  civs: [],
+};
+
+// A banned leader is gone from the grid: offering it again is a refusal
+// waiting to happen.
+test('the ban grid drops what has already been banned', () => {
+  const doc = lobby({
+    phase: 'bans',
+    ban_caps: { leader: 20, civ: 0 },
+    bans: { leader: ['LEADER_SHAKA'] },
+  } as Partial<LobbyDoc>);
+  const html = renderToString(
+    h(BansScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }),
+  );
+  assert.match(html, /Gandhi/);
+  assert.match(html, /emojis\/222/);
+  assert.doesNotMatch(html, /emojis\/111/);
+});
+
+// Only the captain in turn may act; everyone else watches.
+test('a cwc turn belongs to one captain', () => {
+  const mine = lobby({
+    phase: 'bans',
+    ban_caps: { leader: 20, civ: 0 },
+    ban_order: ['u1', 'u2'],
+    turn_index: 0,
+  } as Partial<LobbyDoc>);
+  const yours = renderToString(
+    h(BansScreen, { civData: CIV_DATA as never, lobby: mine as never, me: ME, mine: mine.seats[0], act: noop }),
+  );
+  assert.match(yours, /Your ban/);
+
+  const theirs = lobby({ ...mine, turn_index: 1 } as Partial<LobbyDoc>);
+  const html = renderToString(
+    h(BansScreen, { civData: CIV_DATA as never, lobby: theirs as never, me: ME, mine: theirs.seats[0], act: noop }),
+  );
+  assert.match(html, /Waiting on/);
+  assert.match(html, /u2/);
+  assert.match(html, /disabled=""/);
+});
+
+test('the draft shows the pool it was dealt, with portraits', () => {
+  const doc = lobby({ phase: 'draft' } as Partial<LobbyDoc>);
+  doc.seats[0]!.pool = ['LEADER_SHAKA', 'LEADER_GANDHI'];
+  const html = renderToString(
+    h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, mine: doc.seats[0], act: noop }),
+  );
+  assert.match(html, /Shaka/);
+  assert.match(html, /emojis\/111/);
+  assert.match(html, /choose one/i);
 });

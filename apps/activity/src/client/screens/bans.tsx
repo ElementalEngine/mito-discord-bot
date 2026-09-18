@@ -1,15 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import type { LobbyDoc, Seat } from '../model.js';
+import type { CivData, LobbyDoc, Seat } from '../model.js';
 import type { Me } from '../whoami.js';
 import { Button, Panel, Screen, Tile } from '../ui/index.js';
-import type { ApiClient } from '../transport/client.js';
 import { pretty } from './draft.js';
 
-type Leader = { token: string; name: string; civ: string | null; emoji_id?: string | null };
-type CivData = { leaders: Leader[]; civs: { token: string; name: string; emoji_id?: string | null }[] };
 type Props = {
-  api: ApiClient;
+  civData: CivData;
   lobby: LobbyDoc & {
     ban_caps?: { leader: number; civ: number };
     ban_order?: string[];
@@ -22,21 +19,11 @@ type Props = {
 };
 
 
-export function BansScreen({ api, lobby, me, mine, act }: Props) {
-  const [data, setData] = useState<CivData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function BansScreen({ civData, lobby, me, mine, act }: Props) {
+
   const submitted = (mine?.bans as { leader_keys: string[]; civ_keys: string[] } | undefined) ?? null;
   const [leaders, setLeaders] = useState<string[]>(submitted?.leader_keys ?? []);
   const [civs, setCivs] = useState<string[]>(submitted?.civ_keys ?? []);
-
-  useEffect(() => {
-    api.request<CivData>('GET', `/civ-data/${lobby.edition}`)
-      .then((r) => setData(r.body))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [api, lobby.edition]);
-
-  if (error) return <p>Could not load civ data: {error}</p>;
-  if (!data) return <p>Loading civ data…</p>;
 
   const caps = lobby.ban_caps ?? { leader: 0, civ: 0 };
   const rev = { expected_revision: lobby.revision };
@@ -124,11 +111,11 @@ export function BansScreen({ api, lobby, me, mine, act }: Props) {
       )}
 
       <h2 className="text-xs uppercase tracking-wider text-muted">Leaders</h2>
-      {grid(data.leaders, leaders, setLeaders, leaderCap)}
+      {grid(civData.leaders, leaders, setLeaders, leaderCap)}
       {civCap > 0 && (
         <>
           <h2 className="text-xs uppercase tracking-wider text-muted">Civilizations</h2>
-          {grid(data.civs, civs, setCivs, civCap)}
+          {grid(civData.civs, civs, setCivs, civCap)}
         </>
       )}
       {!mine && <p className="text-sm text-muted">You are not seated in this lobby.</p>}

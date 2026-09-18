@@ -27,3 +27,6 @@ export const firstEmptySeat = (lobby: LobbyDoc): number | null => {
   for (let i = 0; i < lobby.seat_count; i += 1) if (!taken.has(i)) return i;
   return null;
 };
+
+export type CivRow = { token: string; name: string; civ?: string | null; emoji_id?: string | null };
+export type CivData = { leaders: CivRow[]; civs: CivRow[] };

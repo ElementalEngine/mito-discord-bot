@@ -1,11 +1,8 @@
-import { useEffect, useState } from 'react';
-
-import type { LobbyDoc, Seat } from '../model.js';
-import type { ApiClient } from '../transport/client.js';
+import type { CivData, LobbyDoc, Seat } from '../model.js';
 import { Panel, Screen, Tile } from '../ui/index.js';
 
 type Props = {
-  api: ApiClient;
+  civData: CivData;
   lobby: LobbyDoc;
   mine: Seat | undefined;
   act: (method: string, path: string, body: unknown) => Promise<unknown>;
@@ -14,19 +11,10 @@ type Props = {
 export const pretty = (token: string) =>
   token.replace(/^(LEADER|CIVILIZATION)_/, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-type Row = { token: string; civ?: string | null; emoji_id?: string | null };
-
 // Your dealt pool; pick one. Other seats' pools are censored by the server,
 // so this screen only ever knows its own.
-export function DraftScreen({ api, lobby, mine, act }: Props) {
-  const [art, setArt] = useState<Map<string, Row>>(new Map());
-
-  useEffect(() => {
-    api
-      .request<{ leaders: Row[]; civs: Row[] }>('GET', `/civ-data/${lobby.edition}`)
-      .then((r) => setArt(new Map([...(r.body?.leaders ?? []), ...(r.body?.civs ?? [])].map((x) => [x.token, x]))))
-      .catch(() => setArt(new Map()));
-  }, [api, lobby.edition]);
+export function DraftScreen({ civData, lobby, mine, act }: Props) {
+  const art = new Map([...civData.leaders, ...civData.civs].map((x) => [x.token, x]));
 
   const pool = (mine?.pool as string[] | undefined) ?? [];
   const pick = mine?.pick as string | undefined;

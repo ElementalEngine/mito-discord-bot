@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { firstEmptySeat, type LobbyDoc, nameOf, type Seat, seatOf } from '../model.js';
+import { type CivData, firstEmptySeat, type LobbyDoc, nameOf, type Seat, seatOf } from '../model.js';
 import type { ApiClient } from '../transport/client.js';
 import { subscribe } from '../transport/poll.js';
 import { BansScreen } from './bans.js';
@@ -26,6 +26,16 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
     return () => sub.stop();
   }, [api, lobbyId]);
 
+  const [civData, setCivData] = useState<CivData | null>(null);
+
+  useEffect(() => {
+    if (!lobby?.edition) return;
+    api
+      .request<CivData>('GET', `/civ-data/${lobby?.edition ?? ''}`)
+      .then((r) => setCivData(r.body))
+      .catch(() => setCivData({ leaders: [], civs: [] }));
+  }, [api, lobby?.edition]);
+
   // Every mutation returns the updated document, so render it at once
   // rather than waiting for the next poll tick.
   const act = (method: string, path: string, body: unknown) =>
@@ -49,10 +59,12 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
     return <SettingsScreen lobby={lobby} mine={mine} act={act} />;
   }
   if (lobby.phase === 'bans') {
-    return <BansScreen api={api} lobby={lobby} me={me} mine={mine} act={act} />;
+    if (!civData) return <Screen title="Bans"><p className="text-sm text-muted">Loading civ data…</p></Screen>;
+
+    return <BansScreen civData={civData} lobby={lobby} me={me} mine={mine} act={act} />;
   }
   if (lobby.phase === 'draft') {
-    return <DraftScreen api={api} lobby={lobby} mine={mine} act={act} />;
+    return <DraftScreen civData={civData ?? { leaders: [], civs: [] }} lobby={lobby} mine={mine} act={act} />;
   }
   if (lobby.phase === 'complete' || lobby.phase === 'cancelled') {
     return <><CompleteScreen lobby={lobby} /><div className="mx-auto max-w-3xl px-3 pb-4"><Button onClick={onBack}>Back</Button></div></>;
