@@ -17,7 +17,7 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint . --max-warnings=0",
-    "test": "node --import tsx --test",
+    "test": "TSX_TSCONFIG_PATH=apps/activity/tsconfig.client.json node --import tsx --test",
     "build": "npm run build --workspaces --if-present",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run pins && npm run build",
     "pins": "node scripts/version-pins.mjs",
