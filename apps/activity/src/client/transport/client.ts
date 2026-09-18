@@ -6,8 +6,9 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     readonly retryable: boolean,
+    detail?: string,
   ) {
-    super(`${status} ${code}`);
+    super(detail ?? `${status} ${code}`);
   }
 }
 export class SessionExpired extends Error {}
@@ -15,13 +16,19 @@ export class SessionExpired extends Error {}
 export type Reply<T> = { status: number; body: T | null };
 
 // Reads either envelope shape: core-api's {detail: {error}} or the bare {error}.
-function envelope(body: unknown): { code: string; retryable: boolean } | null {
+function envelope(body: unknown): { code: string; retryable: boolean; message?: string } | null {
   if (typeof body !== 'object' || body === null) return null;
   const outer = body as { detail?: { error?: unknown }; error?: unknown };
   const error = outer.detail?.error ?? outer.error;
   if (typeof error !== 'object' || error === null) return null;
-  const e = error as { code?: unknown; retryable?: unknown };
-  return typeof e.code === 'string' ? { code: e.code, retryable: e.retryable === true } : null;
+  const e = error as { code?: unknown; retryable?: unknown; message?: unknown };
+  if (typeof e.code !== 'string') return null;
+
+  return {
+    code: e.code,
+    retryable: e.retryable === true,
+    message: typeof e.message === 'string' ? e.message : undefined,
+  };
 }
 
 export class ApiClient {
@@ -44,7 +51,7 @@ export class ApiClient {
     }
     if (reply.status >= 400) {
       const parsed = envelope(reply.json);
-      throw new ApiError(reply.status, parsed?.code ?? 'UNKNOWN', parsed?.retryable ?? false);
+      throw new ApiError(reply.status, parsed?.code ?? 'UNKNOWN', parsed?.retryable ?? false, parsed?.message);
     }
     return { status: reply.status, body: reply.json as T | null };
   }

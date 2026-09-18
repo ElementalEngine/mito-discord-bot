@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { type LobbyDoc, nameOf } from '../model.js';
+import { Button, Panel, Screen } from '../ui/index.js';
 import { channelName } from '../platform/discord.js';
 import type { ApiClient } from '../transport/client.js';
 
@@ -59,30 +60,33 @@ export function Dashboard({ api, onOpen, inDiscord, channelId }: Props) {
     };
   }, [lobbies, inDiscord]);
 
-  if (error) return <p>Could not load lobbies: {error}</p>;
-  if (lobbies === null) return <p>Loading lobbies…</p>;
-  if (lobbies.length === 0) return <p>No open lobbies.</p>;
+  if (error) return <Screen title="Lobbies"><Panel className="text-sm text-danger">{error}</Panel></Screen>;
+  if (lobbies === null) return <Screen title="Lobbies"><p className="text-sm text-muted">Loading…</p></Screen>;
+  if (lobbies.length === 0) return <Screen title="Lobbies"><Panel className="py-6 text-center text-sm text-muted">No open lobbies. Start one with /lobby create.</Panel></Screen>;
 
   return (
-    <ul style={{ listStyle: 'none', padding: 0 }}>
-      {lobbies.map((lobby) => (
-        <li key={lobby._id} style={{ border: '1px solid #888', padding: 8, marginBottom: 8 }}>
-          <strong>
-            {lobby.edition.toUpperCase()} {lobby.game_type}
-          </strong>{' '}
-          — {lobby.seats.length}/{lobby.seat_count} seated · host {nameOf(lobby.seats.find((s) => s.discord_id === lobby.host_discord_id))} · phase {lobby.phase}
-          <br />
-          <small>voice: {voiceNames[lobby.voice_channel_id] ?? lobby.voice_channel_id}</small>
-          {lobby.host_rules && (
-            <>
-              <br />
-              <small>{lobby.host_rules}</small>
-            </>
-          )}
-          <br />
-          <button onClick={() => onOpen(lobby._id)}>Open</button>
-        </li>
-      ))}
-    </ul>
+    <Screen title="OPEN LOBBIES" meta={`${lobbies.length} in this guild`}>
+      {lobbies.map((lobby) => {
+        const host = lobby.seats.find((x) => x.discord_id === lobby.host_discord_id);
+
+        return (
+          <Panel key={lobby._id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <p className="font-semibold">
+                {lobby.edition.toUpperCase()} {lobby.game_type}
+                <span className="ml-2 text-xs font-normal text-muted">
+                  {lobby.seats.length}/{lobby.seat_count} seated · {lobby.phase}
+                </span>
+              </p>
+              <p className="text-xs text-muted">
+                host {nameOf(host)} · 🔊 {voiceNames[lobby.voice_channel_id] ?? lobby.voice_channel_id}
+              </p>
+              {lobby.host_rules && <p className="mt-1 truncate text-xs text-muted">{lobby.host_rules}</p>}
+            </div>
+            <Button variant="primary" onClick={() => onOpen(lobby._id)}>Open</Button>
+          </Panel>
+        );
+      })}
+    </Screen>
   );
 }

@@ -46,7 +46,7 @@ export async function resolveMember(app: DiscordApp, code: string): Promise<Reso
   const me = await call(`${app.baseUrl}/users/@me`, { headers: auth });
   if (!me) return { ok: false, reason: 'UNAVAILABLE' };
   if (!me.ok) return { ok: false, reason: 'BAD_CODE' };
-  const user = (await me.json()) as { id: string; username: string };
+  const user = (await me.json()) as { id: string; username: string; global_name?: string | null };
 
   const membership = await call(`${app.baseUrl}/users/@me/guilds/${app.guildId}/member`, { headers: auth });
   if (!membership) return { ok: false, reason: 'UNAVAILABLE' };
@@ -54,5 +54,5 @@ export async function resolveMember(app: DiscordApp, code: string): Promise<Reso
   if (!membership.ok) return { ok: false, reason: 'UNAVAILABLE' };
   const { roles, nick } = (await membership.json()) as { roles?: string[]; nick?: string | null };
 
-  return { ok: true, member: { id: user.id, username: user.username, name: nick || user.username, roles: roles ?? [] } };
+  return { ok: true, member: { id: user.id, username: user.username, name: nick || user.global_name || user.username, roles: roles ?? [] } };
 }

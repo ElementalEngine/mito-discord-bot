@@ -13,6 +13,7 @@ export type LobbyDoc = Lobby & {
   voice_channel_id: string;
   host_rules?: string;
   number_teams?: number | null;
+  team_size?: number | null;
 };
 
 export const nameOf = (seat: { discord_id: string; name?: string } | undefined): string =>

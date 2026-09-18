@@ -8,6 +8,7 @@ import { CompleteScreen } from './complete.js';
 import { DraftScreen } from './draft.js';
 import { SettingsScreen } from './settings.js';
 import type { Me } from '../whoami.js';
+import { Button, Panel, Screen } from '../ui/index.js';
 
 type Props = { api: ApiClient; me: Me; lobbyId: string; onBack: () => void };
 
@@ -33,8 +34,8 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
       .then((reply) => reply.body && setLobby(reply.body))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
 
-  if (error) return <p>{error} <button onClick={onBack}>Back</button></p>;
-  if (!lobby) return <p>Loading lobby…</p>;
+  if (error) return <Screen title="Lobby"><Panel className="text-sm text-danger">{error}</Panel><Button onClick={onBack}>Back</Button></Screen>;
+  if (!lobby) return <Screen title="Lobby"><p className="text-sm text-muted">Loading…</p></Screen>;
 
   const mine = seatOf(lobby, me.uid);
   const isHost = lobby.host_discord_id === me.uid;
@@ -43,10 +44,6 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
   const teams = lobby.number_teams ?? null;
   const seatAt = (i: number) => lobby.seats.find((s) => s.seat_index === i);
   const unassigned = lobby.seats.filter((s) => s.team === null || s.team === undefined);
-  // Seat one of a team captains it, so the first name in a column is the one
-  // who bans in CWC. Seating never implies a side; picking a team does.
-  const label = (seat: Seat | undefined) =>
-    seat ? `${nameOf(seat)}${seat.discord_id === lobby.host_discord_id ? ' (host)' : ''}` : '[empty]';
 
   if (lobby.phase === 'settings') {
     return <SettingsScreen lobby={lobby} mine={mine} act={act} />;
@@ -55,73 +52,96 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
     return <BansScreen api={api} lobby={lobby} me={me} mine={mine} act={act} />;
   }
   if (lobby.phase === 'draft') {
-    return <DraftScreen lobby={lobby} mine={mine} act={act} />;
+    return <DraftScreen api={api} lobby={lobby} mine={mine} act={act} />;
   }
   if (lobby.phase === 'complete' || lobby.phase === 'cancelled') {
-    return <><CompleteScreen lobby={lobby} /><button onClick={onBack}>Back</button></>;
+    return <><CompleteScreen lobby={lobby} /><div className="mx-auto max-w-3xl px-3 pb-4"><Button onClick={onBack}>Back</Button></div></>;
   }
   if (lobby.phase !== 'lobby') {
-    return <p>Phase: {lobby.phase} — screen not built yet. <button onClick={onBack}>Back</button></p>;
+    return <Screen title={lobby.phase}><Panel><p className="text-sm text-muted">No screen for this phase yet.</p></Panel><Button onClick={onBack}>Back</Button></Screen>;
   }
 
+  const seatRow = (seat: Seat | undefined, index: number, captain = false) => (
+    <li
+      key={index}
+      className={[
+        'flex items-center justify-between gap-2 rounded border border-line/60 px-2 py-1.5 text-sm',
+        seat?.discord_id === me.uid ? 'border-accent/50 bg-accent/5' : 'bg-panel/60',
+      ].join(' ')}
+    >
+      <span className="flex items-center gap-2">
+        <span className="w-4 text-right text-xs text-muted">{index + 1}</span>
+        <span className={seat ? '' : 'text-muted'}>{seat ? nameOf(seat) : 'empty'}</span>
+      </span>
+      <span className="text-[10px] uppercase tracking-wider text-muted">
+        {seat?.discord_id === lobby.host_discord_id ? 'host' : captain ? 'captain' : ''}
+      </span>
+    </li>
+  );
+
   return (
-    <section>
-      <h2>
-        LOBBY OPEN — {lobby.edition.toUpperCase()} {lobby.game_type}
-      </h2>
-      {lobby.host_rules && <p>{lobby.host_rules}</p>}
+    <Screen
+      title={`LOBBY — ${lobby.edition.toUpperCase()} ${lobby.game_type}`}
+      meta={`${lobby.seats.length}/${lobby.seat_count} seated · needs ${lobby.min_seats} · rev ${lobby.revision}`}
+    >
+      {lobby.host_rules && (
+        <Panel className="py-2 text-sm text-muted">{lobby.host_rules}</Panel>
+      )}
+
       {teams === null ? (
-        <ol start={1} style={{ columns: 2 }}>
-          {Array.from({ length: lobby.seat_count }, (_, i) => (
-            <li key={i} style={{ fontWeight: seatAt(i)?.discord_id === me.uid ? 'bold' : 'normal' }}>
-              {label(seatAt(i))}
-            </li>
-          ))}
-        </ol>
+        <ul className="grid gap-1.5 sm:grid-cols-2">
+          {Array.from({ length: lobby.seat_count }, (_, i) => seatRow(seatAt(i), i))}
+        </ul>
       ) : (
-        <div style={{ display: 'flex', gap: 24 }}>
-          {Array.from({ length: teams }, (_, team) => (
-            <div key={team}>
-              <h3>Team {team + 1}</h3>
-              <ol>
-                {lobby.seats
-                  .filter((s) => s.team === team)
-                  .sort((a, b) => a.seat_index - b.seat_index)
-                  .map((s, place) => (
-                    <li key={s.seat_index} style={{ fontWeight: s.discord_id === me.uid ? 'bold' : 'normal' }}>
-                      {label(s)}
-                      {place === 0 ? ' — captain' : ''}
-                    </li>
-                  ))}
-              </ol>
-              {(!mine || mine.team !== team) && empty !== null && (
-                <button onClick={() => act('PATCH', '/seats', { ...rev, action: 'place', seat_index: mine?.seat_index ?? empty, team })}>
-                  {mine ? 'Switch here' : 'Join here'}
-                </button>
-              )}
-            </div>
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: teams }, (_, team) => {
+            const side = lobby.seats.filter((s) => s.team === team).sort((a, b) => a.seat_index - b.seat_index);
+
+            return (
+              <Panel key={team} className="flex flex-col gap-2 py-3">
+                <h2 className="text-xs uppercase tracking-wider text-muted">Team {team + 1}</h2>
+                <ul className="flex flex-col gap-1.5">
+                  {side.map((s, place) => seatRow(s, s.seat_index, place === 0 && (lobby.team_size ?? 1) > 1))}
+                </ul>
+                {(!mine || mine.team !== team) && empty !== null && (
+                  <Button
+                    onClick={() =>
+                      act('PATCH', '/seats', { ...rev, action: 'place', seat_index: mine?.seat_index ?? empty, team })
+                    }
+                  >
+                    {mine ? 'Switch here' : 'Join here'}
+                  </Button>
+                )}
+              </Panel>
+            );
+          })}
           {unassigned.length > 0 && (
-            <div>
-              <h3>No team yet</h3>
-              <ol>{unassigned.map((s) => <li key={s.seat_index}>{label(s)}</li>)}</ol>
-            </div>
+            <Panel className="py-3">
+              <h2 className="text-xs uppercase tracking-wider text-muted">No team yet</h2>
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {unassigned.map((s) => seatRow(s, s.seat_index))}
+              </ul>
+            </Panel>
           )}
         </div>
       )}
-      <p>
-        {lobby.seats.length}/{lobby.seat_count} seated · needs {lobby.min_seats} · rev {lobby.revision}
-      </p>
-      {teams === null && !mine && empty !== null && (
-        <button onClick={() => act('PATCH', '/seats', { ...rev, action: 'place', seat_index: empty })}>Join</button>
-      )}{' '}
-      {mine && !isHost && <button onClick={() => act('PATCH', '/seats', { ...rev, action: 'leave' })}>Leave</button>}{' '}
-      {isHost && (
-        <button disabled={lobby.seats.length < lobby.min_seats} onClick={() => act('POST', '/start', rev)}>
-          Start
-        </button>
-      )}{' '}
-      <button onClick={onBack}>Back</button>
-    </section>
+
+      <div className="flex flex-wrap gap-2">
+        {teams === null && !mine && empty !== null && (
+          <Button variant="primary" onClick={() => act('PATCH', '/seats', { ...rev, action: 'place', seat_index: empty })}>
+            Take a seat
+          </Button>
+        )}
+        {mine && !isHost && (
+          <Button variant="danger" onClick={() => act('PATCH', '/seats', { ...rev, action: 'leave' })}>Leave</Button>
+        )}
+        {isHost && (
+          <Button variant="primary" disabled={lobby.seats.length < lobby.min_seats} onClick={() => act('POST', '/start', rev)}>
+            Start
+          </Button>
+        )}
+        <Button onClick={onBack}>Back</Button>
+      </div>
+    </Screen>
   );
 }
