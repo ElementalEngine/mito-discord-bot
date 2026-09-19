@@ -12,10 +12,21 @@ export type SessionDeps = Readonly<{
 
 const LOBBY_ID = /^[0-9a-f]{24}$/;
 
+const MAX_SESSION_BODY = 16 * 1024;
+
 function readJson(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let total = 0;
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > MAX_SESSION_BODY) {
+        req.destroy();
+        resolve(null);
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null'));
@@ -30,9 +41,12 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 // Behind Caddy every connection is local, so the forwarded header is the
 // client. A direct local call has none and falls back to the socket.
 export function clientIp(req: IncomingMessage): string {
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf) return cf;
   const forwarded = req.headers['x-forwarded-for'];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
-  return first || req.socket.remoteAddress || 'unknown';
+  const chain = (Array.isArray(forwarded) ? forwarded.join(',') : forwarded) ?? '';
+  const last = chain.split(',').map((s) => s.trim()).filter(Boolean).at(-1);
+  return last || req.socket.remoteAddress || 'unknown';
 }
 
 // The SDK code becomes a session. Membership decides whether one is minted

@@ -9,7 +9,11 @@ export class RateLimiter {
   constructor(
     private readonly limit: number,
     private readonly windowMs: number,
-  ) {}
+  ) {
+    // Idle keys are dropped once a window; unref so this never holds the
+    // process open on its own.
+    setInterval(() => this.prune(), windowMs).unref();
+  }
 
   allow(key: string, now = Date.now()): boolean {
     const current = this.windows.get(key);

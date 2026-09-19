@@ -33,3 +33,11 @@ test('prune forgets expired keys and keeps live ones', () => {
   assert.equal(limiter.allow('old', 1001), true);
   assert.equal(limiter.allow('live', 1001), false);
 });
+
+test('a limiter prunes its own idle keys', async () => {
+  const limiter = new RateLimiter(5, 20);
+  limiter.allow('gone');
+  await new Promise((r) => setTimeout(r, 60));
+  // A pruned key is a fresh window: the first call allows regardless of history.
+  assert.equal(limiter.allow('gone'), true);
+});

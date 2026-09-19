@@ -6,6 +6,7 @@ import { after, before, test } from 'node:test';
 import { RateLimiter } from './rate-limit.js';
 import { createServer } from './server.js';
 import { verify } from './session.js';
+import { clientIp } from './session-route.js';
 
 const KEY = 'test-key';
 const LOBBY = '507f1f77bcf86cd799439011';
@@ -114,4 +115,13 @@ test('the mint is limited by client IP', async () => {
   await post();
   assert.equal((await post()).status, 429);
   tight.close();
+});
+
+// Behind Cloudflare the first forwarded entry is whatever the client wrote;
+// the limiter keyed on it could be evaded.
+test('clientIp prefers the proxy header, then the trusted hop, never the client entry', () => {
+  const socket = { remoteAddress: '127.0.0.1' };
+  assert.equal(clientIp({ headers: { 'cf-connecting-ip': '203.0.113.9' }, socket } as never), '203.0.113.9');
+  assert.equal(clientIp({ headers: { 'x-forwarded-for': '1.1.1.1, 203.0.113.9' }, socket } as never), '203.0.113.9');
+  assert.equal(clientIp({ headers: {}, socket } as never), '127.0.0.1');
 });

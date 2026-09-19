@@ -325,7 +325,7 @@ export class ApiClient {
   async createLobby(body: components['schemas']['CreateLobbyRequest'], hostName?: string): Promise<LobbyDocument> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite`, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(hostName ? { "x-actor-name": hostName } : {}) },
+      headers: { "content-type": "application/json", ...(hostName ? { "x-actor-name": encodeURIComponent(hostName) } : {}) },
       body: JSON.stringify(body)
     });
 

@@ -28,6 +28,12 @@ async function healthz(upstream: Upstream, res: ServerResponse): Promise<void> {
   }
 }
 
+function internal(res: ServerResponse, where: string, error: unknown): void {
+  log.error(`${where}: unhandled`, error instanceof Error ? error.stack ?? error.message : error);
+  if (!res.headersSent) envelope(res, 500, 'INTERNAL', false);
+  else res.destroy();
+}
+
 function bearer(req: IncomingMessage): string | null {
   const header = req.headers.authorization ?? '';
   return header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -49,11 +55,11 @@ export function createServer(deps: ServerDeps) {
 
     if (method === 'POST' && url.pathname === '/api/session') {
       if (!mintLimiter.allow(clientIp(req))) return envelope(res, 429, 'RATE_LIMITED', true);
-      void handleSession(
+      handleSession(
         { discord: deps.discord, sessionSigningKey: deps.sessionSigningKey, staffRoleIds: deps.staffRoleIds },
         req,
         res,
-      );
+      ).catch((error: unknown) => internal(res, 'session', error));
       return;
     }
 
@@ -64,11 +70,14 @@ export function createServer(deps: ServerDeps) {
       }
       const edition = url.pathname.slice('/api/civ-data/'.length);
       if (!isEdition(edition)) return envelope(res, 404, 'NOT_FOUND', false);
-      void civData.get(edition).then(({ status, body }) => {
-        if (body === null) return envelope(res, status, 'UNAVAILABLE', true);
-        res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' });
-        res.end(body);
-      });
+      civData
+        .get(edition)
+        .then(({ status, body }) => {
+          if (body === null) return envelope(res, status, 'UNAVAILABLE', true);
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' });
+          res.end(body);
+        })
+        .catch((error: unknown) => internal(res, 'civ-data', error));
       return;
     }
 
@@ -82,7 +91,7 @@ export function createServer(deps: ServerDeps) {
       if (path === null) return envelope(res, 404, 'NOT_FOUND', false);
       // The guild comes from the session, like identity: a client never browses another.
       if (path === '/api/v2/lobbies') url.searchParams.set('guild_id', session.claims.gid);
-      void forward(deps.upstream, session.claims, req, res, path, url.search);
+      forward(deps.upstream, session.claims, req, res, path, url.search).catch((error: unknown) => internal(res, 'proxy', error));
       return;
     }
 

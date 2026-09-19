@@ -20,6 +20,11 @@ if (missing.length > 0) {
 
 const need = (key: (typeof REQUIRED)[number]): string => process.env[key] as string;
 
+function strongKey(key: string): string {
+  if (key.length < 32) throw new Error('activity: ACTIVITY_SESSION_SIGNING_KEY must be at least 32 characters');
+  return key;
+}
+
 export const config = {
   env: nodeEnv,
   port: Number(process.env.PORT ?? '3000'),
@@ -27,7 +32,7 @@ export const config = {
   // The two secrets never meet: the Bearer goes outbound only, the signing
   // key never leaves the process.
   coreApiToken: need('ACTIVITY_SERVICE_TOKEN'),
-  sessionSigningKey: need('ACTIVITY_SESSION_SIGNING_KEY'),
+  sessionSigningKey: strongKey(need('ACTIVITY_SESSION_SIGNING_KEY')),
   discord: {
     clientId: need('DISCORD_CLIENT_ID'),
     clientSecret: need('DISCORD_CLIENT_SECRET'),

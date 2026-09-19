@@ -7,10 +7,21 @@ const UPSTREAM_TIMEOUT_MS = 10_000;
 
 export type Upstream = Readonly<{ baseUrl: string; bearer: string }>;
 
+const MAX_PROXIED_BODY = 256 * 1024;
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let total = 0;
+    req.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > MAX_PROXIED_BODY) {
+        req.destroy();
+        reject(new Error('body too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
@@ -38,11 +49,12 @@ export async function forward(
     Accept: 'application/json',
     'X-Actor-Discord-Id': claims.uid,
     'X-Actor-Is-Staff': claims.staff ? 'true' : 'false',
-    'X-Actor-Name': claims.name ?? '',
+    'X-Actor-Name': encodeURIComponent(claims.name ?? ''),
   };
   if (hasBody) headers['Content-Type'] = req.headers['content-type'] ?? 'application/json';
 
   let response: Response;
+  let body: Buffer;
   try {
     response = await fetch(`${upstream.baseUrl}${path}${search}`, {
       method,
@@ -50,13 +62,13 @@ export async function forward(
       body: hasBody ? await readBody(req) : undefined,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
+    body = Buffer.from(await response.arrayBuffer());
   } catch (error) {
     log.warn('upstream unreachable', method, path, error instanceof Error ? error.message : error);
     envelope(res, 503, 'UNAVAILABLE', true);
     return;
   }
 
-  const body = Buffer.from(await response.arrayBuffer());
   const contentType = response.headers.get('content-type');
   res.writeHead(response.status, contentType ? { 'Content-Type': contentType } : {});
   res.end(body.length > 0 ? body : undefined);
