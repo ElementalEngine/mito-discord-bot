@@ -30,8 +30,8 @@ export function mint(
   return { token: `${PREFIX}.${payload}.${sign(payload, key)}`, expiresAt: claims.exp };
 }
 
-// Signature first, over the raw payload; expiry second; the fields are
-// trusted only after both. A tampered token never reaches JSON.parse.
+// Signature first, over the raw payload, so a tampered token never reaches
+// JSON.parse; then shape, then expiry. Fields are trusted only after all three.
 export function verify(token: string, key: string, now = Date.now()): Verified {
   const parts = token.split('.');
   if (parts.length !== 4 || `${parts[0]}.${parts[1]}` !== PREFIX) {

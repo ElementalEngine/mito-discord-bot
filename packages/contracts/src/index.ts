@@ -1420,6 +1420,8 @@ export interface components {
         CivRow: {
             /** Age Pool */
             age_pool: string;
+            /** Emoji Id */
+            emoji_id?: string | null;
             /** Name */
             name: string;
             /** Token */
@@ -1605,6 +1607,8 @@ export interface components {
         LeaderRow: {
             /** Civ */
             civ?: string | null;
+            /** Emoji Id */
+            emoji_id?: string | null;
             /** Name */
             name: string;
             /** Token */
