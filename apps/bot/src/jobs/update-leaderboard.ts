@@ -187,6 +187,9 @@ async function updateLeaderboard(
     `${new Date().toLocaleTimeString()}: Updating leaderboard: ${leaderboard.name} (${leaderboard.thread_id})`
   );
 
+  // Discord refuses edits in an archived thread.
+  if (thread.isThread() && thread.archived) await thread.setArchived(false);
+
   for (let i = 0; i < messages.length - 2; i++) {
     const msg = messages[i];
     const leaderboardMsg = getLeaderboardMessage(
@@ -202,7 +205,7 @@ async function updateLeaderboard(
   await printRankings(messages[messages.length - 2]);
 
   const incomingTs = toUnixSeconds(leaderboardRanking.last_updated);
-  await messages[messages.length - 1].edit(`Last updated: <t:${incomingTs}:F>`).catch(() => undefined);
+  await messages[messages.length - 1].edit(`Last updated: <t:${incomingTs}:F>`);
   await sleep(4000);
 }
 
