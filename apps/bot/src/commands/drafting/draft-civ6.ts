@@ -159,9 +159,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply();
 
     await executeDraftCommand(interaction, {
-      source: 'command',
       edition: 'CIV6',
-      draftMode: 'standard',
       gameType,
       numberPlayers,
       numberTeams,

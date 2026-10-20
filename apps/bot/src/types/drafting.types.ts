@@ -1,13 +1,10 @@
-import type { EmbedBuilder, Message, SendableChannels, User } from 'discord.js';
+import type { EmbedBuilder } from 'discord.js';
 
 import type { CivEdition } from '../config/types.js';
 import type { Civ7StartingAge } from '../data/types.js';
 
 export const DRAFT_GAME_TYPES = ['FFA', 'Teamer', 'Duel'] as const;
 export type DraftGameType = (typeof DRAFT_GAME_TYPES)[number];
-
-export const DRAFT_MODES = ['standard', 'random', 'blind'] as const;
-export type DraftMode = (typeof DRAFT_MODES)[number];
 
 export type Civ6DraftRequest = Readonly<{
   gameType: DraftGameType;
@@ -62,33 +59,13 @@ export type Civ7DraftResult = Readonly<{
 }>;
 
 export type DraftCommandRequest = Readonly<{
-  source: 'command';
   edition: CivEdition;
-  draftMode: 'standard';
   gameType: DraftGameType;
   startingAge?: Civ7StartingAge;
   numberPlayers?: number;
   numberTeams?: number;
   leaderBansRaw?: string;
   civBansRaw?: string;
-}>;
-
-export type VoteDraftRequest = Readonly<{
-  source: 'vote';
-  edition: CivEdition;
-  draftMode: DraftMode;
-  gameType: DraftGameType;
-  startingAge?: Civ7StartingAge;
-  numberPlayers?: number;
-  numberTeams?: number;
-  voterIds: readonly string[];
-  voteUuid: string;
-  commandChannel: SendableChannels;
-  hostId: string;
-  bannedLeaderKeys: readonly string[];
-  bannedCivKeys: readonly string[];
-  voterUsersById?: ReadonlyMap<string, User>;
-  publicMessage?: Message<true>;
 }>;
 
 export type DraftMessagePayload = Readonly<{
@@ -101,49 +78,3 @@ export type DraftModeOutput = DraftMessagePayload &
   Readonly<{
     followUps?: readonly DraftMessagePayload[];
   }>;
-
-export type BlindDraftPools = Readonly<{
-  civs?: readonly string[];
-  leaders: readonly string[];
-}>;
-
-export type BlindDraftPick = {
-  civKey?: string;
-  leaderKey?: string;
-  defaulted?: boolean;
-};
-
-export type BlindDraftPageState = Readonly<{
-  civPage: number;
-  leaderPage: number;
-}>;
-
-export type BlindDraftAssignment = Readonly<{
-  voterId: string;
-  leaders: readonly string[];
-  civs?: readonly string[];
-}>;
-
-export type BlindDraftLaunch =
-  | Readonly<{ ok: true; assignments: readonly BlindDraftAssignment[] }>
-  | Readonly<{ ok: false; message: string }>;
-
-export type BlindDraftSession = {
-  sessionId: string;
-  edition: CivEdition;
-  voterIds: readonly string[];
-  commandChannel: SendableChannels;
-  voterUsersById: ReadonlyMap<string, User>;
-  voteMessage?: Message<true>;
-  trackingMessage: Message | null;
-  dmMessages: Map<string, Message<false>>;
-  endsAtMs: number;
-  timeout: NodeJS.Timeout | null;
-  pools: Map<string, BlindDraftPools>;
-  picks: Map<string, BlindDraftPick>;
-  stagedPicks: Map<string, BlindDraftPick>;
-  voteUuid?: string;
-  pages: Map<string, BlindDraftPageState>;
-  phase: 'collecting' | 'finalizing' | 'closed';
-  trackingRenderChain: Promise<void> | null;
-};

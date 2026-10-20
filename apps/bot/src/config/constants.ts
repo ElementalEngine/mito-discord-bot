@@ -13,28 +13,7 @@ export const EMOJI_ROOM_RANKINGS = '📊' as const;
 export const EMOJI_STATS = '📈' as const;
 export const EMOJI_QUITTER = '🏳️' as const;
 export const EMOJI_REPORT = '🧾' as const;
-export const EMOJI_LOCK = '🔒' as const;
 export const EMOJI_SECRET_VOTE = '🔎' as const;
-export const EMOJI_VOTE_PANEL = '🗳️' as const;
-export const EMOJI_RANDOM = '🎲' as const;
-
-// - Game vote specific 
-export const GAMEVOTE_CPL_STANDARD_RULES = [
-  'Gold Trading: Not Allowed',
-  'Luxuries Trading: Allowed',
-  'Strategics Trading: Not Allowed',
-  'Military Alliance: Not Allowed',
-  'Timer: Competitive',
-  'Resources: Abundant',
-  'Strategics: Abundant',
-  'Ridges Definition: Classic',
-  'Wonders: Standard',
-] as const;
-
-export const GAMEVOTE_CPL_STANDARD_RULES_CIV7 = [
-  'Awaiting update',
-] as const;
-
 
 // ─ Rank defs 
 export const RANK_DEFS_CIV6 = [

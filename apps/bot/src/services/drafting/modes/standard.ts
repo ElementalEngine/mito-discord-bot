@@ -1,37 +1,18 @@
-import { userMention } from 'discord.js';
-
 import type {
   Civ6DraftResult,
   Civ7DraftResult,
   DraftCommandRequest,
-  VoteDraftRequest,
 } from '../../../types/drafting.types.js';
 import type { DraftModeOutput } from '../../../types/drafting.types.js';
 import {
   buildCiv6DirectDraftSummaryEmbed,
-  buildCiv6VoteDraftSummaryEmbed,
   buildCiv7DirectDraftSummaryEmbed,
-  buildCiv7VoteDraftSummaryEmbed,
 } from '../../../ui/embeds/standard-draft.js';
 import {
   buildCiv6DirectDraftMessages,
-  buildCiv6VoteDraftMessages,
   buildCiv7DirectDraftMessages,
-  buildCiv7VoteDraftMessages,
 } from '../../../ui/layouts/standard-draft.js';
-import {
-  buildCommandStandardDraftResult,
-  buildVoteStandardDraftResult,
-} from '../draft.service.js';
-
-
-function draftGroupTeamLabels(draft: Civ6DraftResult | Civ7DraftResult): string[] {
-  return draft.groups.map((_, index) => `Team ${index + 1} Draft`);
-}
-
-function voteDraftAllowedMentions(request: VoteDraftRequest): Readonly<{ parse: readonly []; users: readonly string[] }> {
-  return { parse: [] as const, users: request.voterIds };
-}
+import { buildCommandStandardDraftResult } from '../draft.service.js';
 
 function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftModeOutput {
   const messages = draft.gameVersion === 'civ6'
@@ -58,24 +39,6 @@ function buildCommandOutput(draft: Civ6DraftResult | Civ7DraftResult): DraftMode
   };
 }
 
-export async function runStandardDraftMode(
-  request: DraftCommandRequest | VoteDraftRequest,
-): Promise<DraftModeOutput> {
-  if (request.source === 'command') {
-    return buildCommandOutput(buildCommandStandardDraftResult(request));
-  }
-
-  const draft = buildVoteStandardDraftResult(request);
-  const groupLabels = request.gameType === 'Teamer'
-    ? draftGroupTeamLabels(draft)
-    : request.voterIds.map((voterId) => userMention(voterId));
-  const allowedMentions = voteDraftAllowedMentions(request);
-
-  if (draft.gameVersion === 'civ6') {
-    const followUps = buildCiv6VoteDraftMessages(draft, groupLabels).map((content) => ({ content, allowedMentions }));
-    return { embeds: [buildCiv6VoteDraftSummaryEmbed(draft)], followUps };
-  }
-
-  const followUps = buildCiv7VoteDraftMessages(draft, groupLabels).map((content) => ({ content, allowedMentions }));
-  return { embeds: [buildCiv7VoteDraftSummaryEmbed(draft)], followUps };
+export function runStandardDraftMode(request: DraftCommandRequest): DraftModeOutput {
+  return buildCommandOutput(buildCommandStandardDraftResult(request));
 }

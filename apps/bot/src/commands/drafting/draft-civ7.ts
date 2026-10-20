@@ -186,9 +186,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply();
 
     await executeDraftCommand(interaction, {
-      source: 'command',
       edition: 'CIV7',
-      draftMode: 'standard',
       gameType,
       startingAge: startingAgeRaw as Civ7StartingAge,
       numberPlayers,

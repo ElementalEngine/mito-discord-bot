@@ -58,21 +58,3 @@ export function renderEmojiHumanizedLine(
 
   return `<:${sanitizeEmojiName(meta.gameId)}:${emojiId}> ${label}`;
 }
-
-export function renderMentionHumanizedSingleLine(
-  userId: string,
-  meta: Readonly<{ gameId: string; emojiId?: string }> | undefined,
-  fallbackKey: string,
-): string {
-  return `• <@${userId}> — ${renderEmojiHumanizedLine(meta, fallbackKey)}`;
-}
-
-export function renderMentionHumanizedPairLine(
-  userId: string,
-  first: Readonly<{ gameId: string; emojiId?: string }> | undefined,
-  firstKey: string,
-  second: Readonly<{ gameId: string; emojiId?: string }> | undefined,
-  secondKey: string,
-): string {
-  return `• <@${userId}> — ${renderEmojiHumanizedLine(first, firstKey)} + ${renderEmojiHumanizedLine(second, secondKey)}`;
-}

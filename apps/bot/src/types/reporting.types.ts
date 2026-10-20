@@ -20,15 +20,6 @@ export type BaseReport = {
   }[];
 };
 
-export type Civ6Player = ParsedPlayer & {
-  civ: string; // key into CIV6_LEADERS
-};
-
-export type Civ7Player = ParsedPlayer & {
-  civ: string;    // key into CIV7_CIVS
-  leader: string; // key into CIV7_LEADERS
-};
-
 export type Civ6Report = BaseReport & {
 };
 

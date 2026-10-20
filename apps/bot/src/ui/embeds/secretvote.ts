@@ -4,7 +4,7 @@ import { EMOJI_SECRET_VOTE } from '../../config/constants.js';
 import {
   formatDeadlineLine,
   formatDiscordTimestamp,
-} from '../../services/drafting/runtime/deadline.service.js';
+} from '../../utils/discord-timestamp.js';
 
 import type { SecretVoteStatus } from '../../types/secretvote.types.js';
 
