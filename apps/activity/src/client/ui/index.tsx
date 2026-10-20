@@ -77,7 +77,7 @@ export function Tile({ emojiId, label, sub, selected, struck, disabled, onClick 
       ) : (
         <span className="grid h-12 w-12 place-items-center rounded bg-line text-xs text-muted">?</span>
       )}
-      <span className={`line-clamp-2 text-center text-[11px] leading-tight ${struck ? 'line-through' : ''}`}>
+      <span className={`line-clamp-3 text-center text-[11px] leading-tight ${struck ? 'line-through' : ''}`}>
         {label}
       </span>
       {sub && <span className="text-[10px] text-muted">{sub}</span>}
