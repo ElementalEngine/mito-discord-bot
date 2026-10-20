@@ -134,7 +134,9 @@ export type LobbyDocument = {
   game_type: string;
   seat_count: number;
   min_seats: number;
-  seats: { seat_index: number; discord_id: string; pick?: string | null }[];
+  seats: { seat_index: number; discord_id: string; pick?: string | null; civ_pick?: string | null }[];
+  // cwc only: captains pick for their teams; leaders[i] and civs[i] came together.
+  teams?: { team_index: number; leaders: string[]; civs: string[] }[];
   host_rules?: string | null;
   settings?: Record<string, string>;
   bans?: { leader?: string[]; civ?: string[] };

@@ -63,8 +63,14 @@ export function buildLobbyCompleteEmbed(lobby: LobbyDocument, names: CivNames = 
       .map(([id, value]) => `${id.replace(/_/g, ' ')}: ${value.replace(/_/g, ' ')}`),
   ].join('\n') || '\u2014';
   const banned = [...(lobby.bans?.leader ?? []), ...(lobby.bans?.civ ?? [])].map(plain).join(', ') || 'none';
-  const picks = [...lobby.seats].sort((a, b) => a.seat_index - b.seat_index)
-    .map((s) => `${s.seat_index + 1}. <@${s.discord_id}> \u2014 ${s.pick ? nameOf(String(s.pick)) : '\u2014'}`).join('\n') || '\u2014';
+  // A civ7 pick carries its civ; a cwc draft's picks live on the teams.
+  const withCiv = (leader: string, civ?: string | null): string => (civ ? `${nameOf(leader)} \u00b7 ${plain(civ)}` : nameOf(leader));
+  const teams = lobby.teams ?? [];
+  const picks = (teams.length
+    ? teams.map((t) => `**Team ${t.team_index + 1}**: ${t.leaders.map((l, i) => withCiv(l, t.civs[i])).join(', ') || '\u2014'}`)
+    : [...lobby.seats].sort((a, b) => a.seat_index - b.seat_index)
+      .map((s) => `${s.seat_index + 1}. <@${s.discord_id}> \u2014 ${s.pick ? withCiv(String(s.pick), s.civ_pick) : '\u2014'}`)
+  ).join('\n') || '\u2014';
   return embed
     .setDescription(fit(picks, 4096))
     .addFields({ name: 'Settings', value: fit(settings) }, { name: 'Bans', value: fit(banned) });

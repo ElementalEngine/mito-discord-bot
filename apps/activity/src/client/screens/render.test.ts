@@ -200,11 +200,12 @@ test('the draft shows the pool it was dealt, with portraits', () => {
   const doc = lobby({ phase: 'draft' } as Partial<LobbyDoc>);
   doc.seats[0]!.pool = ['LEADER_SHAKA', 'LEADER_GANDHI'];
   const html = renderToString(
-    h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, mine: doc.seats[0], act: noop }),
+    h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }),
   );
   assert.match(html, /Shaka/);
   assert.match(html, /emojis\/111/);
-  assert.match(html, /choose one/i);
+  assert.match(html, /choose a leader/i);
+  assert.doesNotMatch(html, /and a civ/);
 });
 
 // The tile reads as the game: "Catherine de Medici (Black Queen)", not the
@@ -219,7 +220,7 @@ test('tiles show display names, with the token only as a fallback', () => {
   };
   const doc = lobby({ phase: 'draft' } as Partial<LobbyDoc>);
   doc.seats[0]!.pool = ['LEADER_CATHERINE_DE_MEDICI', 'LEADER_T_ROOSEVELT'];
-  const html = renderToString(h(DraftScreen, { civData: named as never, lobby: doc as never, mine: doc.seats[0], act: noop }));
+  const html = renderToString(h(DraftScreen, { civData: named as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }));
   assert.match(html, /Catherine de Medici \(Black Queen\)/);
   assert.match(html, /France/);
   assert.match(html, /T Roosevelt/);
@@ -231,7 +232,7 @@ test('the draft says who has locked in, not what they picked', () => {
   const doc = lobby({ phase: 'draft' } as Partial<LobbyDoc>);
   doc.seats[0]!.pool = ['LEADER_SHAKA'];
   doc.seats[1]!.ready = true;
-  const html = renderToString(h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, mine: doc.seats[0], act: noop }));
+  const html = renderToString(h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }));
   assert.match(html, /locked in/);
   assert.match(html, /1\/2 locked in/);
   assert.match(html, /choosing/);
@@ -271,4 +272,85 @@ test('a ballot starts on the default and a multi-choice keeps its cap', () => {
   assert.equal(choose('a|b', 'c', 2), 'b|c');
   assert.equal(choose('a|b', 'a', 2), 'b');
   assert.equal(choose('a', 'a', 2), 'a');
+});
+
+// civ7 deals a civ pool beside the leader pool. A leader alone would lock the
+// seat with no civ, so the button waits for both.
+test('a civ7 draft asks for a leader and a civ before it locks in', () => {
+  const doc = lobby({ phase: 'draft', edition: 'civ7' } as Partial<LobbyDoc>);
+  doc.seats[0]!.pool = ['LEADER_SHAKA'];
+  doc.seats[0]!.civ_pool = ['CIVILIZATION_ROME'];
+  const html = renderToString(h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }));
+  assert.match(html, /choose a leader and a civ/);
+  assert.match(html, /Civilizations/);
+  assert.match(html, /Rome/);
+  assert.match(html, /disabled="">Lock in/);
+});
+
+const CWC_DRAFT = {
+  phase: 'draft',
+  game_type: 'teamer',
+  settings: { draft_mode: 'cwc' },
+  pool: ['LEADER_SHAKA', 'LEADER_GANDHI'],
+  pick_order: ['u1', 'u2', 'u2', 'u1'],
+  turn_index: 1,
+  teams: [
+    { team_index: 0, leaders: ['LEADER_SHAKA'], civs: [] },
+    { team_index: 1, leaders: [], civs: [] },
+  ],
+} as Partial<LobbyDoc>;
+
+// Cwc deals one shared pool and the captains take turns: the screen read the
+// seat's own pool, which cwc never deals, so captains saw nothing to pick.
+test('a cwc captain on the clock picks from the shared pool, minus what is taken', () => {
+  const doc = lobby({
+    ...CWC_DRAFT,
+    turn_index: 0,
+    teams: [
+      { team_index: 0, leaders: [], civs: [] },
+      { team_index: 1, leaders: ['LEADER_SHAKA'], civs: [] },
+    ],
+  });
+  const html = renderToString(h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }));
+  assert.match(html, /Your pick/);
+  assert.match(html, /emojis\/222/);
+  assert.doesNotMatch(html, /emojis\/111/);
+  assert.match(html, /Pick 1 of 4/);
+});
+
+test('the other captain watches, and every team shows what it has taken', () => {
+  const doc = lobby(CWC_DRAFT);
+  const html = renderToString(h(DraftScreen, { civData: CIV_DATA as never, lobby: doc as never, me: ME, mine: doc.seats[0], act: noop }));
+  assert.match(html, /Waiting on (<!-- -->)?Brennan/);
+  assert.match(html, /Shaka/);
+  assert.match(html, /no picks yet/);
+  assert.doesNotMatch(html, />Lock in</);
+});
+
+test('a cwc summary lists picks by team, a civ7 one names each civ', () => {
+  const cwc = lobby({
+    ...CWC_DRAFT,
+    phase: 'complete',
+    teams: [
+      { team_index: 0, leaders: ['LEADER_SHAKA'], civs: [] },
+      { team_index: 1, leaders: ['LEADER_GANDHI'], civs: [] },
+    ],
+  });
+  const teams = renderToString(h(CompleteScreen, { civData: CIV_DATA as never, lobby: cwc as never }));
+  assert.match(teams, /Team (<!-- -->)?1/);
+  assert.match(teams, /Shaka/);
+  assert.match(teams, /Gandhi/);
+
+  const civ7 = lobby({ phase: 'complete', edition: 'civ7' } as Partial<LobbyDoc>);
+  civ7.seats[0]!.pick = 'LEADER_SHAKA';
+  civ7.seats[0]!.civ_pick = 'CIVILIZATION_ROME';
+  assert.match(renderToString(h(CompleteScreen, { civData: CIV_DATA as never, lobby: civ7 as never })), /Rome/);
+});
+
+test('settings list who is still voting', () => {
+  const doc = lobby({ phase: 'settings', questions: [] } as Partial<LobbyDoc>);
+  doc.seats[1]!.ready = true;
+  const html = renderToString(h(SettingsScreen, { lobby: doc as never, mine: doc.seats[0], act: noop }));
+  assert.match(html, /voting/);
+  assert.match(html, />ready</);
 });

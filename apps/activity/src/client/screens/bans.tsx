@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { type CivData, type CivRow, civOf, displayOf, type LobbyDoc, nameOf, rowsOf, type Seat } from '../model.js';
+import { type CivData, type CivRow, civOf, displayOf, type LobbyDoc, nameOf, rowsOf, type Seat, statusOf } from '../model.js';
 import type { Me } from '../whoami.js';
-import { Button, Countdown, Panel, Screen, Tile } from '../ui/index.js';
+import { Button, Countdown, Panel, Screen, SeatStatus, Tile } from '../ui/index.js';
 
 type Props = {
   civData: CivData;
@@ -123,6 +123,8 @@ export function BansScreen({ civData, lobby, me, mine, act }: Props) {
           )}
         </div>
       </Panel>
+
+      {!inTurns && <SeatStatus rows={statusOf(lobby, 'ready', 'banning\u2026')} />}
 
       {landed.length > 0 && (
         <p className="text-xs text-muted">Banned: {landed.map((t) => displayOf(rows, t)).join(' \u00b7 ')}</p>

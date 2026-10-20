@@ -74,7 +74,7 @@ export function LobbyScreen({ api, me, lobbyId, onBack }: Props) {
       ? <BansScreen civData={civData} lobby={lobby} me={me} mine={mine} act={act} />
       : <Screen title="Bans"><p className="text-sm text-muted">Loading civ data{'\u2026'}</p></Screen>;
   } else if (lobby.phase === 'draft') {
-    body = <DraftScreen civData={civData ?? NO_CIV_DATA} lobby={lobby} mine={mine} act={act} />;
+    body = <DraftScreen civData={civData ?? NO_CIV_DATA} lobby={lobby} me={me} mine={mine} act={act} />;
   } else if (lobby.phase === 'complete' || lobby.phase === 'cancelled') {
     body = <><CompleteScreen civData={civData ?? NO_CIV_DATA} lobby={lobby} /><div className="mx-auto max-w-3xl px-3 pb-4"><Button onClick={onBack}>Back</Button></div></>;
   } else if (lobby.phase === 'lobby') {

@@ -69,3 +69,24 @@ test('a cancelled lobby says why', () => {
   const json = buildLobbyCompleteEmbed(done({ phase: 'cancelled', cancel_reason: 'no_pick' })).toJSON();
   assert.equal(json.description, 'no_pick');
 });
+
+test('a cwc post lists picks by team, a civ7 post names each civ', () => {
+  const cwc = buildLobbyCompleteEmbed(
+    done({
+      game_type: 'teamer',
+      settings: { draft_mode: 'cwc' },
+      teams: [
+        { team_index: 0, leaders: ['LEADER_CATHERINE_DE_MEDICI_ALT'], civs: [] },
+        { team_index: 1, leaders: ['LEADER_SHAKA'], civs: [] },
+      ],
+    }),
+    civNamesOf(civData),
+  ).toJSON();
+  assert.match(cwc.description ?? '', /\*\*Team 1\*\*: .*Catherine de Medici \(Magnificence\)/);
+  assert.match(cwc.description ?? '', /\*\*Team 2\*\*: Shaka/);
+
+  const civ7 = buildLobbyCompleteEmbed(
+    done({ edition: 'civ7', seats: [{ seat_index: 0, discord_id: 'u1', pick: 'LEADER_AMINA', civ_pick: 'CIVILIZATION_AKSUM' }] }),
+  ).toJSON();
+  assert.match(civ7.description ?? '', /Amina \u00b7 Aksum/);
+});

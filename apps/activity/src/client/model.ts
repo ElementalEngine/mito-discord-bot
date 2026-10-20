@@ -1,7 +1,10 @@
 import type { Lobby } from './transport/poll.js';
 
 // Seats are sparse: only occupied ones are stored.
-export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; civ_pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[]; name?: string };
+export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; civ_pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[]; civ_pool?: string[]; name?: string };
+
+// A cwc team's picks, in turn order: leaders[i] and civs[i] came together.
+export type Team = { team_index: number; leaders: string[]; civs: string[] };
 
 export type LobbyDoc = Lobby & {
   host_discord_id: string;
@@ -17,6 +20,13 @@ export type LobbyDoc = Lobby & {
   // When the current phase or turn runs out. The server enforces it; the
   // client only shows it.
   turn_expires_at?: string | null;
+  settings?: Record<string, string>;
+  // cwc only: one shared pool, captains pick in turn, picks land on teams.
+  pool?: string[];
+  civ_pool?: string[];
+  pick_order?: string[];
+  turn_index?: number;
+  teams?: Team[];
 };
 
 export const nameOf = (seat: { discord_id: string; name?: string } | undefined): string =>
@@ -30,6 +40,12 @@ export const firstEmptySeat = (lobby: LobbyDoc): number | null => {
   for (let i = 0; i < lobby.seat_count; i += 1) if (!taken.has(i)) return i;
   return null;
 };
+
+// Who has finished the current phase, for the list under each screen.
+export const statusOf = (lobby: LobbyDoc, done: string, pending: string) =>
+  [...lobby.seats]
+    .sort((a, b) => a.seat_index - b.seat_index)
+    .map((s) => ({ key: s.seat_index, name: nameOf(s), done: s.ready === true, state: s.ready ? done : pending }));
 
 // `name` is the emoji's id name; `display` is what a player reads.
 export type CivRow = { token: string; name: string; display?: string | null; civ?: string | null; civ_display?: string | null; emoji_id?: string | null };

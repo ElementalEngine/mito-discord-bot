@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import type { LobbyDoc, Seat } from '../model.js';
-import { Button, Countdown, Panel, Screen } from '../ui/index.js';
+import { type LobbyDoc, type Seat, statusOf } from '../model.js';
+import { Button, Countdown, Panel, Screen, SeatStatus } from '../ui/index.js';
 
 export type Question = {
   id: string;
@@ -96,7 +96,7 @@ export function SettingsScreen({ lobby, mine, act }: Props) {
           </>
         )}
       </div>
-      {mine?.ready && <p className="text-sm text-muted">Waiting for the others{'\u2026'}</p>}
+      <SeatStatus rows={statusOf(lobby, 'ready', 'voting\u2026')} />
       {!mine && <p className="text-sm text-muted">You are not seated in this lobby.</p>}
     </Screen>
   );

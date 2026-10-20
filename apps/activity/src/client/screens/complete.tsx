@@ -49,15 +49,31 @@ export function CompleteScreen({ civData, lobby }: Props) {
       .map((id) => ({ id, asked: false, title: id.replace(/_/g, ' '), value: chosen[id]!.replace(/_/g, ' ') })),
   ];
   const banned = [...(lobby.bans?.leader ?? []), ...(lobby.bans?.civ ?? [])];
+  // Cwc captains pick for their teams, so the picks live there, not on seats.
+  const cwc = lobby.settings?.draft_mode === 'cwc';
+  const teams = lobby.teams ?? [];
 
   return (
     <Screen title={`COMPLETE \u2014 ${lobby.edition.toUpperCase()} ${lobby.game_type}`}>
       <Panel className="py-3">
         <h2 className="mb-2 text-xs uppercase tracking-wider text-muted">Picks</h2>
+        {cwc ? (
+          <ol className="space-y-1 text-sm">
+            {teams.map((t) => (
+              <li key={t.team_index} className="flex justify-between gap-3 border-b border-line/40 py-1 last:border-0">
+                <span>Team {t.team_index + 1}</span>
+                <span className="text-right font-medium text-accent">
+                  {t.leaders.map((l, i) => (t.civs[i] ? `${displayOf(rows, l)} (${displayOf(rows, t.civs[i])})` : displayOf(rows, l))).join(' \u00b7 ') || '\u2014'}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
         <ol className="space-y-1 text-sm">
           {[...lobby.seats].sort((a, b) => a.seat_index - b.seat_index).map((s) => {
             const pick = s.pick ? String(s.pick) : null;
-            const civ = pick ? civOf(rows, pick) : undefined;
+            // civ7 picks its civ; a civ6 leader carries its own.
+            const civ = typeof s.civ_pick === 'string' ? displayOf(rows, s.civ_pick) : pick ? civOf(rows, pick) : undefined;
 
             return (
               <li key={s.seat_index} className="flex justify-between border-b border-line/40 py-1 last:border-0">
@@ -70,6 +86,7 @@ export function CompleteScreen({ civData, lobby }: Props) {
             );
           })}
         </ol>
+        )}
       </Panel>
 
       {settings.length > 0 && (

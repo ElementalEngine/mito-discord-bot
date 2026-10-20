@@ -105,3 +105,17 @@ export function Countdown({ until }: { until?: string | null }) {
     <span className={`font-mono tabular-nums ${urgent ? 'text-danger' : 'text-ink'}`}>{timeLeft(until, now)}</span>
   );
 }
+
+// One line per seat: who has finished this phase and who is still on it.
+export function SeatStatus({ rows }: { rows: { key: number; name: string; done: boolean; state: string }[] }) {
+  return (
+    <ol className="mt-2 space-y-1 text-sm">
+      {rows.map((r) => (
+        <li key={r.key} className="flex justify-between border-b border-line/50 py-1">
+          <span>{r.name}</span>
+          <span className={r.done ? 'text-ink' : 'text-muted'}>{r.state}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
