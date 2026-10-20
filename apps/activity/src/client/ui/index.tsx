@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode, useEffect, useState } from 'react';
 
 // A Discord application emoji is an image; 128 is the CDN's ceiling.
 export const portraitUrl = (emojiId: string, size: 64 | 96 | 128 = 96): string =>
@@ -82,5 +82,26 @@ export function Tile({ emojiId, label, sub, selected, struck, disabled, onClick 
       </span>
       {sub && <span className="text-[10px] text-muted">{sub}</span>}
     </button>
+  );
+}
+
+// m:ss until `until`. The server ends the phase; this only says when.
+export const timeLeft = (until: string, now: number): string => {
+  const seconds = Math.max(0, Math.ceil((Date.parse(until) - now) / 1000));
+  return seconds === 0 ? 'time up' : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} left`;
+};
+
+export function Countdown({ until }: { until?: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!until) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [until]);
+  if (!until || Number.isNaN(Date.parse(until))) return null;
+  const urgent = Date.parse(until) - now <= 30_000;
+
+  return (
+    <span className={`font-mono tabular-nums ${urgent ? 'text-danger' : 'text-ink'}`}>{timeLeft(until, now)}</span>
   );
 }

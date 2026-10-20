@@ -1,7 +1,7 @@
 import type { Lobby } from './transport/poll.js';
 
 // Seats are sparse: only occupied ones are stored.
-export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[]; name?: string };
+export type Seat = { seat_index: number; discord_id: string; team: number | null; ready?: boolean; pick?: unknown; civ_pick?: unknown; ballot?: Record<string, string>; bans?: { leader_keys: string[]; civ_keys: string[] }; pool?: string[]; name?: string };
 
 export type LobbyDoc = Lobby & {
   host_discord_id: string;
@@ -14,6 +14,9 @@ export type LobbyDoc = Lobby & {
   host_rules?: string;
   number_teams?: number | null;
   team_size?: number | null;
+  // When the current phase or turn runs out. The server enforces it; the
+  // client only shows it.
+  turn_expires_at?: string | null;
 };
 
 export const nameOf = (seat: { discord_id: string; name?: string } | undefined): string =>
@@ -28,5 +31,23 @@ export const firstEmptySeat = (lobby: LobbyDoc): number | null => {
   return null;
 };
 
-export type CivRow = { token: string; name: string; civ?: string | null; emoji_id?: string | null };
+// `name` is the emoji's id name; `display` is what a player reads.
+export type CivRow = { token: string; name: string; display?: string | null; civ?: string | null; civ_display?: string | null; emoji_id?: string | null };
 export type CivData = { leaders: CivRow[]; civs: CivRow[] };
+
+// The last resort when a token has no row: LEADER_T_ROOSEVELT -> T Roosevelt.
+export const pretty = (token: string) =>
+  token.replace(/^(LEADER|CIVILIZATION)_/, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+export const rowsOf = (civData: CivData): Map<string, CivRow> =>
+  new Map([...civData.leaders, ...civData.civs].map((row) => [row.token, row]));
+
+export const displayOf = (rows: Map<string, CivRow>, token: string): string =>
+  rows.get(token)?.display ?? pretty(token);
+
+// civ6 only: the leader's civ, named. civ7 leaders carry none.
+export const civOf = (rows: Map<string, CivRow>, token: string): string | undefined => {
+  const row = rows.get(token);
+  if (row?.civ_display) return row.civ_display;
+  return row?.civ ? pretty(row.civ) : undefined;
+};

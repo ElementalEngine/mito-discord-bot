@@ -11,6 +11,7 @@ import type {
   CivVersion,
   StatsGameType,
   LobbyDocument,
+  CivDataResponse,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -341,6 +342,14 @@ export class ApiClient {
     if (res.status === 204) return null;
 
     return (await this.parseJson(res)) as LobbyDocument;
+  }
+
+  // Display names and portraits for one edition. A read, so a transport
+  // failure is retried like any other.
+  async getCivData(edition: LobbyDocument['edition']): Promise<CivDataResponse> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/civ-data/${edition}`, { method: "GET" });
+
+    return (await this.parseJson(res)) as CivDataResponse;
   }
 
   // Closes every lobby untouched past the stale cutoff. Returns how many.

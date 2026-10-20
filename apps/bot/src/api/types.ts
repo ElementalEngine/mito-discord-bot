@@ -1,3 +1,4 @@
+import type { components } from '@cpl/contracts';
 import type { CivEdition } from '../config/types.js';
 export type GameMode = 'realtime' | 'cloud';
 export type Edition = CivEdition;
@@ -138,4 +139,10 @@ export type LobbyDocument = {
   settings?: Record<string, string>;
   bans?: { leader?: string[]; civ?: string[] };
   cancel_reason?: string | null;
+  // Carried by the settings and complete phases, so a summary names each
+  // setting the way the ballot did.
+  questions?: { id: string; title: string; options: { id: string; label: string }[] }[];
 };
+
+// One edition's leaders and civs, as core-api serves them.
+export type CivDataResponse = components['schemas']['CivDataResponse'];

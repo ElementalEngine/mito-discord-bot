@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 284bb07
-source-date: 2026-10-19
+source-sha: db72918
+source-date: 2026-10-20
 
 generated-by: npm run gen:contracts
 
@@ -11,3 +11,6 @@ CI asserts gen:contracts --check produces no diff against src/.
 
 Bumped at Phase 3 S11: 9739b2b -> 284bb07. Adds emoji_id to CivRow and
 LeaderRow (civ_data v2, schema ledger Entry 11).
+
+Bumped at S11.6 (D235): civ-data rows carry `display`, and civ6
+leaders `civ_display`. Lobby routes unchanged.

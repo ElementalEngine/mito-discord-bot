@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
-import type { LobbyDocument } from '../../api/types.js';
+import type { CivDataResponse, LobbyDocument } from '../../api/types.js';
 
 export const openLobbyId = (lobby: LobbyDocument): string => `lobby:open:${lobby._id}`;
 export const BROWSE_LOBBIES_ID = 'lobby:browse';
@@ -15,9 +15,9 @@ export function buildLobbyOpenEmbed(lobby: LobbyDocument): EmbedBuilder {
     return `${i + 1}. ${who ? `<@${who}>${who === lobby.host_discord_id ? ' (host)' : ''}` : '[empty]'}`;
   });
   return new EmbedBuilder()
-    .setTitle(`LOBBY OPEN — ${lobby.edition.toUpperCase()} ${lobby.game_type.toUpperCase()}`)
+    .setTitle(`LOBBY OPEN \u2014 ${lobby.edition.toUpperCase()} ${lobby.game_type.toUpperCase()}`)
     .setDescription([lobby.host_rules?.trim() || null, rows.join('\n')].filter(Boolean).join('\n\n'))
-    .setFooter({ text: `Voice: the host's channel · needs ${lobby.min_seats} to start` });
+    .setFooter({ text: `Voice: the host's channel \u00b7 needs ${lobby.min_seats} to start` });
 }
 
 export function buildLobbyButtons(lobby: LobbyDocument): ActionRowBuilder<ButtonBuilder> {
@@ -27,13 +27,45 @@ export function buildLobbyButtons(lobby: LobbyDocument): ActionRowBuilder<Button
   );
 }
 
-// Outcomes only: settings, bans, and every seat's pick. No vote counts.
-export function buildLobbyCompleteEmbed(lobby: LobbyDocument): EmbedBuilder {
-  const embed = new EmbedBuilder().setTitle(`${lobby.edition.toUpperCase()} ${lobby.game_type.toUpperCase()} — ${lobby.phase.toUpperCase()}`);
+// Token -> what a player reads, with the portrait where the row has one.
+export type CivNames = ReadonlyMap<string, string>;
+
+export function civNamesOf(data: CivDataResponse): CivNames {
+  return new Map(
+    [...data.leaders, ...data.civs].map((row): [string, string] => {
+      const shown = row.display ?? pretty(row.token);
+      return [row.token, row.emoji_id ? `<:${row.name}:${row.emoji_id}> ${shown}` : shown];
+    })
+  );
+}
+
+// A field holds 1024 characters; a twelve-seat lobby with portraits passes it.
+const fit = (text: string, limit = 1024): string => (text.length <= limit ? text : `${text.slice(0, limit - 1)}\u2026`);
+
+// Outcomes only: every seat's pick, the settings by their ballot titles, and
+// the bans. No vote counts. Names come from core-api's civ data; a token with
+// no row falls back to its own spelling.
+export function buildLobbyCompleteEmbed(lobby: LobbyDocument, names: CivNames = new Map()): EmbedBuilder {
+  const embed = new EmbedBuilder().setTitle(`${lobby.edition.toUpperCase()} ${lobby.game_type.toUpperCase()} \u2014 ${lobby.phase.toUpperCase()}`);
   if (lobby.phase === 'cancelled') return embed.setDescription(lobby.cancel_reason ?? 'no reason recorded');
-  const settings = Object.entries(lobby.settings ?? {}).map(([k, v]) => `${k}: ${v}`).join('\n') || '—';
-  const banned = [...(lobby.bans?.leader ?? []), ...(lobby.bans?.civ ?? [])].map(pretty).join(', ') || 'none';
+  const nameOf = (token: string): string => names.get(token) ?? pretty(token);
+  // The plain name, for a list where a portrait per entry would not fit.
+  const plain = (token: string): string => nameOf(token).replace(/^<:[^>]+>\s*/, '');
+
+  const chosen = lobby.settings ?? {};
+  const asked = lobby.questions ?? [];
+  const settings = [
+    ...asked
+      .filter((q) => q.id in chosen)
+      .map((q) => `${q.title}: ${q.options.find((o) => o.id === chosen[q.id])?.label ?? chosen[q.id]}`),
+    ...Object.entries(chosen)
+      .filter(([id]) => !asked.some((q) => q.id === id))
+      .map(([id, value]) => `${id.replace(/_/g, ' ')}: ${value.replace(/_/g, ' ')}`),
+  ].join('\n') || '\u2014';
+  const banned = [...(lobby.bans?.leader ?? []), ...(lobby.bans?.civ ?? [])].map(plain).join(', ') || 'none';
   const picks = [...lobby.seats].sort((a, b) => a.seat_index - b.seat_index)
-    .map((s) => `${s.seat_index + 1}. <@${s.discord_id}> — ${s.pick ? pretty(String(s.pick)) : '—'}`).join('\n') || '—';
-  return embed.addFields({ name: 'Settings', value: settings }, { name: 'Bans', value: banned }, { name: 'Picks', value: picks });
+    .map((s) => `${s.seat_index + 1}. <@${s.discord_id}> \u2014 ${s.pick ? nameOf(String(s.pick)) : '\u2014'}`).join('\n') || '\u2014';
+  return embed
+    .setDescription(fit(picks, 4096))
+    .addFields({ name: 'Settings', value: fit(settings) }, { name: 'Bans', value: fit(banned) });
 }
