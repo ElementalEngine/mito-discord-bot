@@ -4,7 +4,8 @@ import { ApiClient } from '../api/index.js';
 import type { Match, SubQuota } from '../api/types.js';
 import { config } from '../config.js';
 import type { Panel } from '../ui/kit/index.js';
-import { isAssigned, seatsOf, type ReportView } from '../ui/panels/report.js';
+import { editorPanel } from '../ui/panels/report-edit.js';
+import { isAssigned, playerIds, seatsOf, type ReportView } from '../ui/panels/report.js';
 import { editPanelById } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, editionOf } from './civ-names.js';
@@ -69,9 +70,17 @@ export async function refreshReport(client: Client, match: Match, panel: Panel):
 
 // Bring the members of a match into the cache, so the forms opened from the
 // editor can name them without a fetch inside Discord's 3 second window.
-export async function loadMembers(guild: Guild | null, ids: readonly string[]): Promise<void> {
+async function loadMembers(guild: Guild | null, ids: readonly string[]): Promise<void> {
   const missing = ids.filter((id) => !guild?.members.cache.has(id));
   if (guild && missing.length) await guild.members.fetch({ user: missing, time: 1_500 }).catch(() => undefined);
+}
+
+// The private editor for a report, with its players' server names loaded so
+// the forms it opens can name them at once.
+export async function editorOf(guild: Guild | null, match: Match, staff: boolean, api: ApiClient): Promise<Panel> {
+  const ids = playerIds(match);
+  const [names] = await Promise.all([civNames(editionOf(match.game), api), loadMembers(guild, ids)]);
+  return editorPanel(match, names, memberNames(guild, ids), staff);
 }
 
 // Server names for the edit forms, where mentions do not render, from the

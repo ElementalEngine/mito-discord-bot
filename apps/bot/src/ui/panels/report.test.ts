@@ -61,7 +61,8 @@ test('standings run in placement order with signed deltas', () => {
   const panel = reportPanel({ match: match(), names: new Map() });
   const body = bodyOf(panel);
   assert.ok(body.indexOf(`<@${A}>`) < body.indexOf(`<@${B}>`));
-  assert.match(body, /^\*\*1\.\*\* <@100000000000000001> \u2014 Shaka\n-# \+14 lifetime \u00b7 \+9 season$/m);
+  assert.match(body, /^\u{1f947} <@100000000000000001> \u2014 Shaka\n-# \+14 lifetime \u00b7 \+9 season$/mu);
+  assert.match(body, /^\u{1f948} <@100000000000000002> /mu);
   assert.match(body, /-# \u22126 lifetime \u00b7 \u22124 season/);
   assert.equal(panel.tone, 'info');
   assert.equal(panel.title, 'Civ6 FFA report');
@@ -111,7 +112,13 @@ test('teamers are grouped by team, best team first', () => {
     ],
   });
   const body = bodyOf(reportPanel({ match: m, names: new Map() }));
-  assert.ok(body.indexOf('**Team 2** \u00b7 1st') < body.indexOf('**Team 1** \u00b7 2nd'));
+  assert.ok(body.startsWith('\u{1f947} **Team 2**\n'));
+  assert.match(body, /\n\n\*\*Team 1\*\* \u00b7 2nd\n/);
+});
+
+test('a row shows the portrait alone, and the name only where there is no portrait', () => {
+  const names = new Map([['LEADER_SHAKA', '<:Shaka:9> Shaka']]);
+  assert.match(bodyOf(reportPanel({ match: match(), names })), /<@100000000000000001> \u2014 <:Shaka:9>\n/);
 });
 
 test('civ7 rows name the leader and the civ; the age is a word', () => {

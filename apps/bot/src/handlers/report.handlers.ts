@@ -15,23 +15,25 @@ import { updateRankRolesForApprovedMatch } from '../services/rank-role.service.j
 import { civNames, editionOf } from '../services/civ-names.js';
 import {
   deleteReportMessages,
+  editorOf,
   historyChannelId,
-  loadMembers,
   memberNames,
   refreshReport,
   viewOf,
 } from '../services/report.service.js';
-import { channel as channelMention, customId, parseId, type Panel } from '../ui/kit/index.js';
+import { channel as channelMention, customId, parseId, type CivNames } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
   assignEdits,
   assignForm,
-  editorPanel,
+  orderEdits,
   orderForm,
-  parseOrder,
   seatEdits,
   seatForm,
+  tieEdits,
+  tieForm,
+  type Members,
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
 import { defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
@@ -58,6 +60,8 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.orderForm]: 'save the order',
   [EDIT.assign]: 'open the assign form',
   [EDIT.assignForm]: 'save the players',
+  [EDIT.tie]: 'open the tie form',
+  [EDIT.tieForm]: 'save the tie',
 };
 
 // Approve is staff only. Once core-api has rated the match, posting to history
@@ -124,37 +128,25 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
 
 // The editor is the reporter's or staff's; core-api checks the reporter
 // again on every save, and only staff may set a tie.
-async function editorOf(interaction: Interaction, match: Match, staff: boolean): Promise<Panel> {
-  const [names] = await Promise.all([civNames(editionOf(match.game), api), loadMembers(interaction.guild, playerIds(match))]);
-  return editorPanel(match, names, memberNames(interaction.guild, playerIds(match)), staff);
-}
-
 async function openEditor(interaction: ButtonInteraction, matchId: string): Promise<void> {
   await defer(interaction, 'private');
   const match = await api.match(matchId);
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
-  await respond(interaction, await editorOf(interaction, match, staff), 'private');
+  await respond(interaction, await editorOf(interaction.guild, match, staff, api), 'private');
 }
 
-async function openSeatForm(interaction: StringSelectMenuInteraction, matchId: string): Promise<void> {
+// A form from the editor, built from the report as it is now. The members
+// were loaded with the editor, so naming them costs no fetch.
+async function openForm(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  matchId: string,
+  build: (match: Match, names: CivNames, members: Members) => ModalBuilder | null,
+): Promise<void> {
   const match = await api.match(matchId);
-  const form = seatForm(match, Number(interaction.values[0]), memberNames(interaction.guild, playerIds(match)));
-  if (!form) refuse('That seat is no longer on the report. Open the editor again.');
+  const form = build(match, await civNames(editionOf(match.game), api), memberNames(interaction.guild, playerIds(match)));
+  if (!form) refuse('The report has changed. Open the editor again.');
   await interaction.showModal(form);
-}
-
-async function openAssignForm(interaction: ButtonInteraction, matchId: string, page: number): Promise<void> {
-  const match = await api.match(matchId);
-  const form = assignForm(match, await civNames(editionOf(match.game), api), page);
-  if (!form) refuse('Those seats are no longer on the report. Open the editor again.');
-  await interaction.showModal(form);
-}
-
-async function openOrderForm(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  const match = await api.match(matchId);
-  const names = await civNames(editionOf(match.game), api);
-  await interaction.showModal(orderForm(match, names, memberNames(interaction.guild, playerIds(match))));
 }
 
 // Save, then rewrite the public report and the private editor together, from
@@ -162,7 +154,7 @@ async function openOrderForm(interaction: ButtonInteraction, matchId: string): P
 async function saveSeats(interaction: ModalSubmitInteraction, matchId: string, action: string, seats: readonly SeatEdit[]): Promise<void> {
   const staff = isStaff(interaction);
   const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: staff });
-  const [view, editor] = await Promise.all([viewOf(match, api), editorOf(interaction, match, staff)]);
+  const [view, editor] = await Promise.all([viewOf(match, api), editorOf(interaction.guild, match, staff, api)]);
   const [published] = await Promise.all([
     refreshReport(interaction.client, match, reportPanel(view)),
     replacePanel(interaction, editor),
@@ -171,54 +163,71 @@ async function saveSeats(interaction: ModalSubmitInteraction, matchId: string, a
   await logAction(interaction, action, { matchId, seats });
 }
 
-async function submitSeat(interaction: ModalSubmitInteraction, matchId: string, n: number): Promise<void> {
+// Hold the editor, work out the edits from the report as it is now, and save
+// them; an empty result is said, not sent.
+async function submit(
+  interaction: ModalSubmitInteraction,
+  matchId: string,
+  action: string,
+  unchanged: string,
+  editsOf: (match: Match) => SeatEdit[],
+): Promise<void> {
   await holdPanel(interaction);
-  const edits = seatEdits(await api.match(matchId), n, {
-    player: picked(interaction, FIELD.player),
-    quit: interaction.fields.getCheckbox(FIELD.quit),
-    left: picked(interaction, FIELD.left),
-  });
+  const edits = editsOf(await api.match(matchId));
   if (!edits.length) {
-    await say(interaction, 'muted', 'Nothing changed on that seat.');
+    await say(interaction, 'muted', unchanged);
     return;
   }
-  await saveSeats(interaction, matchId, 'edit-seat', edits);
+  await saveSeats(interaction, matchId, action, edits);
 }
 
-async function submitAssign(interaction: ModalSubmitInteraction, matchId: string, page: number): Promise<void> {
-  await holdPanel(interaction);
-  const edits = assignEdits(await api.match(matchId), page, (field) => picked(interaction, field));
-  if (!edits.length) {
-    await say(interaction, 'muted', 'No seat changed.');
-    return;
-  }
-  await saveSeats(interaction, matchId, 'assign-players', edits);
-}
-
-async function submitOrder(interaction: ModalSubmitInteraction, matchId: string): Promise<void> {
-  await holdPanel(interaction);
-  const order = parseOrder(await api.match(matchId), interaction.fields.getTextInputValue(FIELD.order));
-  if (!order.ok) refuse(order.reason);
-  await saveSeats(interaction, matchId, 'set-order', order.seats);
-}
+const selected = (interaction: ModalSubmitInteraction, field: string): readonly string[] =>
+  interaction.fields.getStringSelectValues(field);
 
 export async function handleReportInteraction(interaction: Interaction): Promise<boolean> {
   if (!interaction.isButton() && !interaction.isModalSubmit() && !interaction.isStringSelectMenu()) return false;
   const id = parseId(interaction.customId);
   if (id?.surface !== 'report') return false;
   const matchId = id.args[0] ?? '';
+  // A form's page, or for a seat form, the seat number.
+  const at = Number(id.args[1] ?? 0);
   try {
     if (interaction.isButton() && id.verb === 'approve') await approve(interaction, matchId);
     else if (interaction.isButton() && id.verb === 'contest') await openContest(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === CONTEST_FORM) await submitContest(interaction, matchId);
     else if (interaction.isButton() && id.verb === 'edit') await openEditor(interaction, matchId);
-    else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) await openSeatForm(interaction, matchId);
-    else if (interaction.isButton() && id.verb === EDIT.order) await openOrderForm(interaction, matchId);
-    else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) await submitSeat(interaction, matchId, Number(id.args[1]));
-    else if (interaction.isModalSubmit() && id.verb === EDIT.orderForm) await submitOrder(interaction, matchId);
-    else if (interaction.isButton() && id.verb === EDIT.assign) await openAssignForm(interaction, matchId, Number(id.args[1]));
-    else if (interaction.isModalSubmit() && id.verb === EDIT.assignForm) await submitAssign(interaction, matchId, Number(id.args[1]));
-    else await say(interaction, 'refused', 'That control is out of date. Open the report again.');
+    else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
+      await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));
+    } else if (interaction.isButton() && id.verb === EDIT.assign) {
+      await openForm(interaction, matchId, (m, names) => assignForm(m, names, at));
+    } else if (interaction.isButton() && id.verb === EDIT.order) {
+      await openForm(interaction, matchId, (m, names, members) => orderForm(m, names, members, at));
+    } else if (interaction.isButton() && id.verb === EDIT.tie) {
+      if (!isStaff(interaction)) refuse('Only staff can set a tie.');
+      await openForm(interaction, matchId, tieForm);
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) {
+      const choice = {
+        player: picked(interaction, FIELD.player),
+        quit: interaction.fields.getCheckbox(FIELD.quit),
+        left: picked(interaction, FIELD.left),
+      };
+      await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => seatEdits(m, at, choice));
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.assignForm) {
+      await submit(interaction, matchId, 'assign-players', 'No seat changed.', (m) =>
+        assignEdits(m, at, (field) => picked(interaction, field)),
+      );
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.orderForm) {
+      await submit(interaction, matchId, 'set-order', 'The order is unchanged.', (m) => {
+        const order = orderEdits(m, at, (field) => selected(interaction, field)[0] ?? null);
+        return order.ok ? order.seats : refuse(order.reason);
+      });
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
+      const place = Number(selected(interaction, FIELD.place)[0]);
+      const tied = selected(interaction, FIELD.tied).map(Number);
+      await submit(interaction, matchId, 'set-tie', 'Those are already tied there.', (m) => tieEdits(m, place, tied));
+    } else {
+      await say(interaction, 'refused', 'That control is out of date. Open the report again.');
+    }
   } catch (error) {
     await fail(interaction, error, ACTION[id.verb] ?? 'complete that action', { matchId });
   }

@@ -43,7 +43,20 @@ export function nameOf(names: CivNames, token: string): string {
   return names.get(token) ?? pretty(token);
 }
 
-// The name without its portrait, for lists where one per entry would crowd.
+const PORTRAIT = /^<:(\w+):(\d+)>\s*/;
+
+// The name without its portrait, where a portrait cannot show.
 export function plainNameOf(names: CivNames, token: string): string {
-  return nameOf(names, token).replace(/^<:[^>]+>\s*/, '');
+  return nameOf(names, token).replace(PORTRAIT, '');
+}
+
+// The portrait alone, or the name where there is none.
+export function iconOf(names: CivNames, token: string): string {
+  return nameOf(names, token).match(PORTRAIT)?.[0].trim() ?? nameOf(names, token);
+}
+
+// The portrait as a menu option's emoji.
+export function portraitOf(names: CivNames, token: string): { id: string; name: string } | undefined {
+  const [, name, id] = nameOf(names, token).match(PORTRAIT) ?? [];
+  return name && id ? { id, name } : undefined;
 }

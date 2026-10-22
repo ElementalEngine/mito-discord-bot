@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { Match } from '../../api/types.js';
 import { container } from '../kit/index.js';
-import { assignEdits, assignForm, editorPanel, orderForm, orderOf, parseOrder, seatEdits, seatForm } from './report-edit.js';
+import { assignEdits, assignForm, editorPanel, orderEdits, orderForm, seatEdits, seatForm, tieEdits, tieForm } from './report-edit.js';
 
 /**
  * The report editor. What should break this file: an order that skips or
@@ -56,54 +56,66 @@ const ffa = match([
   player({ discord_id: '-7656', user_name: 'Gandhi fan', placement: 1, team: 2 }),
 ]);
 
-test('the order reads best first, ties joined, the leaver row not a seat', () => {
-  assert.equal(orderOf(ffa), '1 2=3');
-});
+const picks =
+  (chosen: Record<string, string>) =>
+  (field: string): string | null =>
+    chosen[field] ?? null;
 
-test('a written order becomes one placement per seat', () => {
-  const parsed = parseOrder(ffa, ' 3 1   2 ');
-  assert.deepEqual(parsed, {
+test('only changed places count, and each trades places with the holder', () => {
+  // Seats 2 and 3 are tied for 2nd; untouched, nothing is sent.
+  assert.deepEqual(orderEdits(ffa, 0, picks({ place1: '1', place2: '2', place3: '3' })), { ok: true, seats: [] });
+  // Seat 3 to 1st: seat 1 takes its 2nd place, so the tie for 2nd stands.
+  assert.deepEqual(orderEdits(ffa, 0, picks({ place1: '3', place2: '2', place3: '3' })), {
     ok: true,
     seats: [
       { seat: 0, placement: 1 },
-      { seat: 2, placement: 2 },
       { seat: 3, placement: 0 },
     ],
   });
-  assert.deepEqual(parseOrder(ffa, '2=3 1'), {
-    ok: true,
-    seats: [
-      { seat: 0, placement: 1 },
-      { seat: 2, placement: 0 },
-      { seat: 3, placement: 0 },
-    ],
+  assert.deepEqual(orderEdits(ffa, 0, picks({ place1: '2', place2: '1', place3: '2' })), {
+    ok: false,
+    reason: 'Seat 2 is picked for two places.',
   });
 });
 
-test('an order that misses, repeats or invents a seat is refused with what is wrong', () => {
-  const bad = parseOrder(ffa, '1 1 4');
-  assert.equal(bad.ok, false);
-  assert.match(bad.ok ? '' : bad.reason, /missing 2, 3; repeated 1; no seat 4/);
-  assert.match((parseOrder(ffa, '1 two 3') as { reason: string }).reason, /seat numbers/);
-});
+const teamer = match(
+  [
+    player({ discord_id: A, team: 0, placement: 1 }),
+    player({ discord_id: B, team: 0, placement: 1 }),
+    player({ discord_id: C, team: 1, placement: 0 }),
+    player({ discord_id: D, team: 1, placement: 0 }),
+  ],
+  'Teamer',
+);
 
-test('a teamer is ordered by team number', () => {
-  const teamer = match(
-    [
-      player({ discord_id: A, team: 0, placement: 1 }),
-      player({ discord_id: B, team: 0, placement: 1 }),
-      player({ discord_id: C, team: 1, placement: 0 }),
-      player({ discord_id: D, team: 1, placement: 0 }),
-    ],
-    'Teamer',
-  );
-  assert.equal(orderOf(teamer), '2 1');
-  const parsed = parseOrder(teamer, '1 2');
-  assert.ok(parsed.ok);
+test('a teamer is ordered by team, and every member moves with it', () => {
+  const order = orderEdits(teamer, 0, picks({ place1: '1' }));
+  assert.ok(order.ok);
   assert.deepEqual(
-    parsed.seats.map((s) => s.placement),
-    [0, 0, 1, 1],
+    order.seats.map((s) => [s.seat, s.placement]),
+    [[2, 1], [3, 1], [0, 0], [1, 0]],
   );
+});
+
+test('a page leaves places and ties on other pages alone, and labels places as they stand', () => {
+  const seven = match(Array.from({ length: 7 }, (_, i) => player({ discord_id: `-${i + 1}`, placement: Math.min(i, 5), team: i })));
+  const order = orderEdits(seven, 0, picks({ place1: '2' }));
+  assert.deepEqual(order, {
+    ok: true,
+    seats: [
+      { seat: 0, placement: 1 },
+      { seat: 1, placement: 0 },
+    ],
+  });
+  const second = JSON.stringify(orderForm(seven, new Map(), new Map(), 1)?.toJSON());
+  assert.match(second, /"label":"6th place".*"label":"6th place"/);
+});
+
+test('a tie puts the chosen seats level at the place; the rest keep their order', () => {
+  assert.deepEqual(tieEdits(ffa, 1, [1, 3]), [{ seat: 3, placement: 0 }]);
+  assert.deepEqual(tieEdits(ffa, 2, [2, 3]), []);
+  // Two teams tied leave one place, so only 1st is offered.
+  assert.match(JSON.stringify(tieForm(teamer, new Map(), new Map()).toJSON()), /"custom_id":"place","required":true,"options":\[\{"label":"1st","value":"1"\}\]/);
 });
 
 test('a seat form, named by seat number, sends only what changed', () => {
@@ -138,7 +150,17 @@ const cloud = match(Array.from({ length: 12 }, (_, i) => player({ discord_id: `-
 test('players are assigned five seats per form, with every page a button', () => {
   const panel = editorPanel(cloud, new Map(), new Map(), true);
   const labels = (panel.actions ?? []).flatMap((row) => row.toJSON().components.map((c) => ('label' in c ? c.label : null)));
-  assert.deepEqual(labels.filter(Boolean), ['Set order', 'Assign 1\u20135', 'Assign 6\u201310', 'Assign 11\u201312']);
+  assert.deepEqual(labels.filter(Boolean), [
+    'Order 1\u20135',
+    'Order 6\u201310',
+    'Order 11\u201312',
+    'Assign 1\u20135',
+    'Assign 6\u201310',
+    'Assign 11\u201312',
+    'Set a tie',
+  ]);
+  const reporter = editorPanel(ffa, new Map(), new Map(), false).actions ?? [];
+  assert.doesNotMatch(JSON.stringify(reporter.map((r) => r.toJSON())), /Set a tie/);
   const last = assignForm(cloud, new Map(), 2)?.toJSON();
   assert.equal(last?.title, 'Assign players: seats 11\u201312');
   assert.equal(last?.components.length, 2);
@@ -156,9 +178,14 @@ test('an assign form saves only the seats whose player changed', () => {
   assert.deepEqual(assignEdits(cloud, 1, () => null), []);
 });
 
-test('the forms name players by their server name, and say who is unassigned', () => {
+test('the forms name players by server name, with portraits, and say who is unassigned', () => {
   const members = new Map([[A, 'Calcifer']]);
   assert.equal(seatForm(ffa, 1, members)?.toJSON().title, 'Seat 1: Calcifer');
-  const key = JSON.stringify(orderForm(ffa, new Map(), members).toJSON());
-  assert.match(key, /`1` Calcifer \u2014 Shaka\\n`2` steam \u2014 Shaka\\n`3` Gandhi fan \(unassigned\) \u2014 Shaka/);
+  const form = orderForm(ffa, new Map([['LEADER_SHAKA', '<:Shaka:9> Shaka']]), members, 0)?.toJSON();
+  assert.equal(form?.title, 'Set the finishing order');
+  const json = JSON.stringify(form);
+  assert.match(json, /"label":"1st place"/);
+  assert.match(json, /"label":"1\. Calcifer","value":"1","description":"Shaka","emoji":\{"id":"9","name":"Shaka"\},"default":true/);
+  assert.match(json, /"label":"3\. Gandhi fan \(unassigned\)"/);
+  assert.equal(orderForm(ffa, new Map(), members, 1), null);
 });

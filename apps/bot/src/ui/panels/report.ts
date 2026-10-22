@@ -4,9 +4,8 @@ import type { Match, MatchUpload, SubQuota } from '../../api/types.js';
 import {
   customId,
   divider,
+  iconOf,
   mention,
-  nameOf,
-  plainNameOf,
   pretty,
   signed,
   text,
@@ -26,7 +25,7 @@ export const reportId = (verb: ReportVerb, matchId: string): string => customId(
 export const MARK = {
   quit: '\u{1f3f3}\ufe0f',
   sub: '\u{1f501}',
-  unassigned: '\u2754',
+  unassigned: '\u{1f464}',
   contest: '\u26a0\ufe0f',
   oversub: '\u203c\ufe0f',
 } as const;
@@ -65,10 +64,11 @@ function who(p: Player): string {
   return isAssigned(p) ? mention(p.discord_id ?? '') : `\`${p.user_name ?? 'unknown'}\` ${MARK.unassigned}`;
 }
 
+// The leader's portrait (civ7: and the civ's), or its name where there is none.
 function civOf(match: Match, p: Player, names: CivNames): string {
-  const leader = p.leader ?? p.civ;
-  if (match.game.toLowerCase() !== 'civ7') return nameOf(names, leader);
-  return p.leader ? `${nameOf(names, p.leader)} \u00b7 ${plainNameOf(names, p.civ)}` : nameOf(names, p.civ);
+  if (match.game.toLowerCase() !== 'civ7' || !p.leader) return iconOf(names, p.leader ?? p.civ);
+  const [leader, civ] = [iconOf(names, p.leader), iconOf(names, p.civ)];
+  return leader.startsWith('<:') && civ.startsWith('<:') ? `${leader} ${civ}` : `${leader} \u00b7 ${civ}`;
 }
 
 // Each seat that played, with the player it replaced when it came in as a sub.
@@ -83,29 +83,32 @@ export function seatsOf(match: Match): Seat[] {
 }
 
 const placeOf = (s: Seat): number => (s.player.placement ?? 99) + 1;
+const MEDALS = ['\u{1f947}', '\u{1f948}', '\u{1f949}'];
+const rankOf = (place: number): string => MEDALS[place - 1] ?? `**${place}.**`;
 const ranked = (match: Match): Seat[] => seatsOf(match).sort((a, b) => placeOf(a) - placeOf(b) || a.index - b.index);
 
 // The player and civ, marked for a quit or a sub-in; then the rating moves.
-function seatLines(match: Match, s: Seat, names: CivNames): string {
+function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string {
   const p = s.player;
   const second = match.is_cloud ? p.combined_delta : p.season_delta;
   const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
   const deltas = [`${signed(p.delta)} lifetime`];
   if (typeof second === 'number') deltas.push(`${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
-  return `**${placeOf(s)}.** ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
+  return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }
 
 function standings(match: Match, names: CivNames): string {
   const seats = ranked(match);
-  if (!isTeamer(match)) return seats.map((s) => seatLines(match, s, names)).join('\n');
+  if (!isTeamer(match)) return seats.map((s) => seatLines(match, s, names, rankOf(placeOf(s)))).join('\n');
   const teams = new Map<number, Seat[]>();
   for (const s of seats) teams.set(s.player.team, [...(teams.get(s.player.team) ?? []), s]);
   return [...teams.entries()]
     .sort(([, a], [, b]) => placeOf(a[0]!) - placeOf(b[0]!))
-    .map(([team, members]) => [
-      `**Team ${team + 1}** \u00b7 ${ordinal(placeOf(members[0]!))}`,
-      ...members.map((s) => seatLines(match, s, names)),
-    ].join('\n'))
+    .map(([team, members]) => {
+      const place = placeOf(members[0]!);
+      const head = place === 1 ? `${MEDALS[0]} **Team ${team + 1}**` : `**Team ${team + 1}** \u00b7 ${ordinal(place)}`;
+      return [head, ...members.map((s) => seatLines(match, s, names, '\u2022'))].join('\n');
+    })
     .join('\n\n');
 }
 
@@ -114,7 +117,7 @@ export type Quotas = ReadonlyMap<string, SubQuota>;
 
 // One line a reader should not miss; `holds` lines keep the report orange
 // until staff deal with them.
-export type Note = Readonly<{ line: string; holds: boolean }>;
+type Note = Readonly<{ line: string; holds: boolean }>;
 
 function subNote(player: Player, leaver: Player, quota: SubQuota | undefined): Note {
   const sub = `${who(player)} subbed in for ${who(leaver)}`;
@@ -129,7 +132,7 @@ function subNote(player: Player, leaver: Player, quota: SubQuota | undefined): N
 
 // Quits and subs in standing order and, while pending, what staff must settle:
 // unassigned seats, oversubs and contests.
-export function notesOf(match: Match, quotas: Quotas = new Map()): Note[] {
+function notesOf(match: Match, quotas: Quotas = new Map()): Note[] {
   const pending = !match.approved_at;
   const seats = ranked(match);
   const notes: Note[] = [];

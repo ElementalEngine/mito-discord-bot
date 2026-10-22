@@ -23,11 +23,22 @@ export async function loadAppEmojis(client: Client): Promise<void> {
   }
 }
 
-// What players call each leader and civ, from core-api's civ data. A failed
-// fetch never throws: it keeps the last good names, or none.
+// What players call each leader and civ, from core-api's civ data. Names past
+// their time are served at once and refreshed behind; a failure keeps them.
 export async function civNames(edition: CivEditionKey, api = new ApiClient(), now = Date.now()): Promise<CivNames> {
   const held = cache.get(edition);
-  if (held && held.emojis === emojis && now - held.at < TTL_MS) return held.names;
+  if (held && held.emojis === emojis) {
+    if (now - held.at >= TTL_MS) {
+      cache.set(edition, { ...held, at: now });
+      void fetchNames(edition, api, now);
+    }
+    return held.names;
+  }
+  return fetchNames(edition, api, now);
+}
+
+async function fetchNames(edition: CivEditionKey, api: ApiClient, now: number): Promise<CivNames> {
+  const held = cache.get(edition);
   try {
     const own = emojis;
     const names = civNamesOf(await api.getCivData(edition), own);
