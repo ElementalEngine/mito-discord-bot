@@ -1044,6 +1044,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/matches/sub-quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sub Quota */
+        get: operations["get_sub_quota_api_v2_matches_sub_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/matches/{match_id}": {
         parameters: {
             query?: never;
@@ -2084,6 +2101,17 @@ export interface components {
             ffa?: components["schemas"]["StatRowV2"] | null;
             teamer?: components["schemas"]["StatRowV2"] | null;
         };
+        /** SubQuotaResponse */
+        SubQuotaResponse: {
+            /** Count */
+            count: number;
+            /** Discord Id */
+            discord_id: string;
+            /** Limit */
+            limit: number;
+            /** Window Days */
+            window_days: number;
+        };
         /**
          * SubmitBallotRequest
          * @description One seat's settings ballot.
@@ -2190,6 +2218,60 @@ export interface components {
             match_id: string;
             /** Quitter Discord Id */
             quitter_discord_id: string;
+        };
+        /**
+         * UploadResponse
+         * @description A response model drops undeclared keys, so the duplicate flags are declared.
+         */
+        UploadResponse: {
+            /** Affected Players */
+            affected_players?: components["schemas"]["AffectedPlayerRating"][] | null;
+            /** Age */
+            age?: string | null;
+            /** Approved At */
+            approved_at?: string | null;
+            /** Approver Discord Id */
+            approver_discord_id?: string | null;
+            /** Contest Report List */
+            contest_report_list: components["schemas"]["ContestReport"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Discord Messages Id List */
+            discord_messages_id_list: string[];
+            /** Flagged */
+            flagged: boolean;
+            /** Flagged By */
+            flagged_by?: string | null;
+            /** Game */
+            game: string;
+            /** Game Mode */
+            game_mode: string;
+            /** Is Cloud */
+            is_cloud: boolean;
+            /** Map Type */
+            map_type: string;
+            /** Match Id */
+            match_id: string;
+            /** Parser Version */
+            parser_version: string;
+            /** Players */
+            players: components["schemas"]["PlayerSchema"][];
+            /**
+             * Repeated
+             * @default false
+             */
+            repeated: boolean;
+            /** Repeated By */
+            repeated_by?: ("file" | "composition") | null;
+            /** Reporter Discord Id */
+            reporter_discord_id: string;
+            /** Save File Hash */
+            save_file_hash: string;
+            /** Turn */
+            turn: number;
         };
         /** UserStatsResponse */
         UserStatsResponse: {
@@ -4328,7 +4410,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MatchResponse"];
+                    "application/json": components["schemas"]["UploadResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4366,6 +4448,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaderboardRankingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sub_quota_api_v2_matches_sub_quota_get: {
+        parameters: {
+            query: {
+                discord_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubQuotaResponse"];
                 };
             };
             /** @description Validation Error */

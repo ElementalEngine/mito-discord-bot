@@ -148,3 +148,12 @@ export type LobbyDocument = {
 
 // One edition's leaders and civs, as core-api serves them.
 export type CivDataResponse = components['schemas']['CivDataResponse'];
+
+// C1, the v2 match surface, as core-api declares it.
+export type Match = components['schemas']['MatchResponse'];
+export type MatchUpload = components['schemas']['UploadResponse'];
+export type SeatEdit = components['schemas']['SeatPatchIn'];
+export type SubQuota = components['schemas']['SubQuotaResponse'];
+
+// Who is acting. Staff is the bot's assertion, sent only when true.
+export type Actor = Readonly<{ id: string; isStaff?: boolean }>;

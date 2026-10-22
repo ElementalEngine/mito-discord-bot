@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: db72918
-source-date: 2026-10-20
+source-sha: c3aebd3
+source-date: 2026-10-22
 
 generated-by: npm run gen:contracts
 
@@ -14,3 +14,6 @@ LeaderRow (civ_data v2, schema ledger Entry 11).
 
 Bumped at S11.6 (D235): civ-data rows carry `display`, and civ6
 leaders `civ_display`. Lobby routes unchanged.
+
+Bumped at S13.2 (db72918 -> c3aebd3): GET /api/v2/matches/sub-quota, and
+UploadResponse with repeated and repeated_by on POST /api/v2/matches.

@@ -12,6 +12,11 @@ import type {
   StatsGameType,
   LobbyDocument,
   CivDataResponse,
+  Actor,
+  Match,
+  MatchUpload,
+  SeatEdit,
+  SubQuota,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -23,6 +28,13 @@ const RETRY_BASE_MS = 250;
 const TIMEOUT_MS = 10_000;
 // Multipart carries a save file. Everything else is a form post or a query.
 const UPLOAD_TIMEOUT_MS = 30_000;
+
+const actorHeaders = (actor: Actor): Record<string, string> => ({
+  "x-actor-discord-id": actor.id,
+  ...(actor.isStaff ? { "x-actor-is-staff": "true" } : {}),
+});
+
+const json = { "content-type": "application/json" };
 
 export class ApiClient {
   private readonly base: string;
@@ -395,6 +407,70 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as LobbyDocument;
+  }
+
+  // C1. The reporter rules live in core-api; staff is asserted from here.
+  async uploadMatch(file: Buffer, filename: string, actorId: string, isCloud: boolean, messageId: string): Promise<MatchUpload> {
+    const form = new FormData();
+    form.append("file", new File([new Uint8Array(file)], filename));
+    form.append("is_cloud", isCloud ? "1" : "0");
+    form.append("discord_message_id", messageId);
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches`, {
+      method: "POST",
+      headers: { "x-actor-discord-id": actorId },
+      body: form,
+    });
+    return (await this.parseJson(res)) as MatchUpload;
+  }
+
+  async match(matchId: string): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}`, { method: "GET" });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async editSeats(matchId: string, seats: readonly SeatEdit[], actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/players`, {
+      method: "PATCH",
+      headers: { ...json, ...actorHeaders(actor) },
+      body: JSON.stringify({ players: seats }),
+    });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async approve(matchId: string, actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/approve`, {
+      method: "POST",
+      headers: actorHeaders(actor),
+    });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async contest(matchId: string, reason: string, actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/contest`, {
+      method: "POST",
+      headers: { ...json, ...actorHeaders(actor) },
+      body: JSON.stringify({ reason }),
+    });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async revert(matchId: string): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/revert`, { method: "POST" });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async removeMatch(matchId: string, actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}`, {
+      method: "DELETE",
+      headers: actorHeaders(actor),
+    });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  async subQuota(discordId: string): Promise<SubQuota> {
+    const query = new URLSearchParams({ discord_id: discordId });
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/sub-quota?${query}`, { method: "GET" });
+    return (await this.parseJson(res)) as SubQuota;
   }
 
   private shouldRetry(err: unknown, method: string): boolean {
