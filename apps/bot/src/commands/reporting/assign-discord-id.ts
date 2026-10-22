@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder, MessageFlags } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
 import { config } from "../../config.js";
@@ -46,6 +46,7 @@ async function safeDefer(interaction: ChatInputCommandInteraction): Promise<bool
 }
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("assign-discord-id")
   .setDescription("Set a player's discord id.")
   .addStringOption((option) =>

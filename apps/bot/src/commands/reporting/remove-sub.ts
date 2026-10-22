@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -16,6 +17,7 @@ import { logCommand } from "../../utils/log-command.js";
 import type { BaseReport } from "../../types/reporting.types.js";
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("remove-sub")
   .setDescription("Remove a substitute.")
   .addStringOption(option =>

@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -17,6 +18,7 @@ import { logCommand } from "../../utils/log-command.js";
 import type { BaseReport } from "../../types/reporting.types.js";
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("trigger-quit")
   .setDescription("Set/Unset a player to be marked for quit.")
   .addStringOption(option =>

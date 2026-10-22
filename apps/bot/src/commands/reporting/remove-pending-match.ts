@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -13,6 +14,7 @@ import { logCommand } from "../../utils/log-command.js";
 import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("remove-match")
   .setDescription("Removes a match report from the database.")
   .addStringOption(option =>

@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   EmbedBuilder,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
@@ -45,6 +46,7 @@ function getInfo(p: ParsedPlayer) {
 }
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("report-game")
   .setDescription("Validate the channel & save, then upload to the reporter backend.")
   .addAttachmentOption((option) =>

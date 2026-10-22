@@ -63,6 +63,7 @@ async function loadCommands(): Promise<number> {
         client.commands.set(maybe.data.name, {
           data: maybe.data as Command['data'],
           execute: maybe.execute as Command['execute'],
+          visibility: maybe.visibility,
         });
         loaded++;
       } catch (err) {

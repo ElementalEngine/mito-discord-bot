@@ -1,4 +1,4 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
+import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
 
 import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
@@ -42,6 +42,7 @@ const MODES: readonly ModeChoice[] = [
 // nesting and the verbs need them. The combinations are checked here, where
 // a refusal can say why.
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName('lobby')
   .setDescription('Open and manage Activity lobbies.')
   .addSubcommand((sub) =>

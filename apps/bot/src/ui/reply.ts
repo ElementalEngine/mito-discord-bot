@@ -1,6 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
-import { MessageFlags, type MessageMentionOptions, type RepliableInteraction } from 'discord.js';
+import {
+  MessageFlags,
+  type Message,
+  type MessageMentionOptions,
+  type RepliableInteraction,
+  type SendableChannels,
+} from 'discord.js';
 
 import { ApiError, parseApiError } from '../api/errors.js';
 import { log } from '../utils/log.js';
@@ -66,6 +72,30 @@ export async function respond(
   }
   visibilityOf.set(interaction, visibility);
   await interaction.reply({ flags, components, allowedMentions });
+}
+
+// A panel posted to a channel, or an earlier message rewritten as one, rather
+// than an answer to an interaction.
+export async function postPanel(
+  channel: SendableChannels,
+  panel: Panel,
+  allowedMentions: MessageMentionOptions = NO_PINGS,
+): Promise<Message> {
+  return channel.send({ flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions });
+}
+
+export async function editPanel(
+  message: Message,
+  panel: Panel,
+  allowedMentions: MessageMentionOptions = NO_PINGS,
+): Promise<Message> {
+  return message.edit({
+    content: null,
+    embeds: [],
+    flags: MessageFlags.IsComponentsV2,
+    components: [container(panel)],
+    allowedMentions,
+  });
 }
 
 // A one-line private answer. Never throws: the interaction may have expired.

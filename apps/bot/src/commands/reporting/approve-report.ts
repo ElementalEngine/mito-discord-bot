@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder, MessageFlags } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
 import { config } from "../../config.js";
@@ -13,6 +13,7 @@ import type { BaseReport } from "../../types/reporting.types.js";
 import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("approve-report")
   .setDescription("Finalizes reporting a game.")
   .addStringOption((option) =>

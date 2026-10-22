@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChannelType,
   ChatInputCommandInteraction,
   EmbedBuilder,
@@ -23,6 +24,7 @@ function truncate(input: string, max: number): string {
 }
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName('mapseed')
   .setDescription('Generate a random Civilization map seed.')
   .addStringOption((opt: SlashCommandStringOption) =>

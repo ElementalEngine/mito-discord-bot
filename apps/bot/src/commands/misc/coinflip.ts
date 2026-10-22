@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
@@ -10,6 +11,7 @@ import { EMOJI_QUESTION } from '../../config/constants.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName('coinflip')
   .setDescription('Flip a coin.');
 

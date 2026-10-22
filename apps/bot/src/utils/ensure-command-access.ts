@@ -1,7 +1,7 @@
-import { ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
 
 import { config } from '../config.js';
-import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
+import { say } from '../ui/reply.js';
 import type { CommandAccessPolicy } from './types.js';
 
 
@@ -20,30 +20,6 @@ function getEffectiveChannelId(interaction: ChatInputCommandInteraction): string
   const ch = interaction.channel;
   if (ch?.isThread?.()) return ch.parentId ?? interaction.channelId;
   return interaction.channelId;
-}
-
-async function safeReplyEphemeral(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // Ignore: interaction may already be acknowledged/expired.
-  }
 }
 
 function getMemberRoleIds(
@@ -78,27 +54,30 @@ export async function ensureCommandAccess(
   policy: CommandAccessPolicy
 ): Promise<boolean> {
   if (!interaction.inGuild()) {
-    await safeReplyEphemeral(
+    await say(
       interaction,
-      `${EMOJI_FAIL} This command must be used in a server.`
+      'refused',
+      `This command must be used in a server.`
     );
     return false;
   }
 
   const allowedChannels = uniqSnowflakes(policy.allowedChannelIds);
   if (allowedChannels.length === 0) {
-    await safeReplyEphemeral(
+    await say(
       interaction,
-      `${EMOJI_ERROR} Command access is not configured (no valid allowed channels).`
+      'failed',
+      `Command access is not configured (no valid allowed channels).`
     );
     return false;
   }
 
   const channelId = getEffectiveChannelId(interaction);
   if (!allowedChannels.includes(channelId)) {
-    await safeReplyEphemeral(
+    await say(
       interaction,
-      `${EMOJI_FAIL} Use this command in: ${mentionChannels(allowedChannels)}`
+      'refused',
+      `Use this command in: ${mentionChannels(allowedChannels)}`
     );
     return false;
   }
@@ -107,18 +86,20 @@ export async function ensureCommandAccess(
 
   const requiredRoles = uniqSnowflakes(policy.requiredRoleIds);
   if (requiredRoles.length === 0) {
-    await safeReplyEphemeral(
+    await say(
       interaction,
-      `${EMOJI_ERROR} Command access is not configured (no valid required roles).`
+      'failed',
+      `Command access is not configured (no valid required roles).`
     );
     return false;
   }
 
   const roleIds = getMemberRoleIds(interaction);
   if (!roleIds) {
-    await safeReplyEphemeral(
+    await say(
       interaction,
-      `${EMOJI_ERROR} Unable to verify your roles. Try again.`
+      'failed',
+      `Unable to verify your roles. Try again.`
     );
     return false;
   }
@@ -136,9 +117,10 @@ export async function ensureCommandAccess(
   const displayed = uniqSnowflakes(
     [moderatorId, developerId, ...requiredRoles].filter(Boolean)
   );
-  await safeReplyEphemeral(
-    interaction,
-    `${EMOJI_FAIL} Missing required role. Need one of: ${mentionRoles(displayed)}`
+  await say(
+      interaction,
+      'refused',
+      `Missing required role. Need one of: ${mentionRoles(displayed)}`
   );
   return false;
 }

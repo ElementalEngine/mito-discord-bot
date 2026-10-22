@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   GuildMember,
   MessageFlags,
@@ -57,6 +58,7 @@ async function replyError(
 }
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName('teamgen')
   .setDescription('Create two balanced teams to compete.')
   .addStringOption((opt) =>

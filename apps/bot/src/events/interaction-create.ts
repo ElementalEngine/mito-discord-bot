@@ -1,14 +1,8 @@
-import {
-  Events,
-  MessageFlags,
-  type ChatInputCommandInteraction,
-  type Interaction,
-} from 'discord.js';
+import { Events, type Interaction } from 'discord.js';
 
-import { EMOJI_ERROR, EMOJI_FAIL } from '../config/constants.js';
 import { handleLobbyInteraction } from '../handlers/lobby.handlers.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
-import { log } from '../utils/log.js';
+import { defer, fail, say } from '../ui/reply.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -34,81 +28,33 @@ function shouldHandle(interactionId: string): boolean {
   return true;
 }
 
-async function safeEphemeral(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-
-    await interaction.reply(payload);
-  } catch {
-    // swallow: interaction may already be acknowledged/expired
-  }
-}
-
+// Every failure, from a command or a component, is answered the same way:
+// logged once, and told privately to the person who acted.
 export async function execute(interaction: Interaction): Promise<void> {
   if (!shouldHandle(interaction.id)) return;
 
-  // Components (buttons / selects / modals)
   if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
-    const customId = 'customId' in interaction ? interaction.customId : '';
-
     try {
       if (await handleLobbyInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;
-    } catch (err) {
-      log.error('Interaction handler failed', {
-        err,
-        customId,
-        interactionId: interaction.id,
-        guildId: interaction.guildId,
-        channelId: interaction.channelId,
-        userId: interaction.user.id,
-      });
+    } catch (error) {
+      await fail(interaction, error, 'complete that action', { customId: interaction.customId });
     }
     return;
   }
 
-  // Slash commands
   if (!interaction.isChatInputCommand()) return;
 
   const command = interaction.client.commands.get(interaction.commandName);
   if (!command) {
-    await safeEphemeral(
-      interaction,
-      `${EMOJI_FAIL} Command not found. The bot may be updating — try again in a moment.`
-    );
+    await say(interaction, 'refused', 'That command is not available right now. Try again in a moment.');
     return;
   }
 
   try {
+    if (command.visibility) await defer(interaction, command.visibility);
     await command.execute(interaction);
-  } catch (err) {
-    log.error('Command execution failed', {
-      err,
-      commandName: interaction.commandName,
-      interactionId: interaction.id,
-      guildId: interaction.guildId,
-      channelId: interaction.channelId,
-      userId: interaction.user.id,
-    });
-
-    await safeEphemeral(
-      interaction,
-      `${EMOJI_ERROR} Something went wrong while running that command.`
-    );
+  } catch (error) {
+    await fail(interaction, error, `run /${interaction.commandName}`, { command: interaction.commandName });
   }
 }

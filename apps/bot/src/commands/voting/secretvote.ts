@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -67,7 +68,7 @@ function clampLine(text: string, max: number): string {
 export const data = new SlashCommandBuilder()
   .setName('secretvote')
   .setDescription('Start a private YES/NO vote for your voice channel.')
-  .setDMPermission(false)
+  .setContexts(InteractionContextType.Guild)
   .addStringOption((opt) =>
     opt
       .setName('action')

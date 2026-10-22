@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   MessageFlags,
   SlashCommandBuilder,
@@ -56,7 +57,7 @@ function isStatsMode(v: string): v is StatsGameType {
 export const data = new SlashCommandBuilder()
   .setName('resetstats')
   .setDescription('Reset stats of a player.')
-  .setDMPermission(false)
+  .setContexts(InteractionContextType.Guild)
   .addStringOption((opt) =>
     opt
       .setName('game')

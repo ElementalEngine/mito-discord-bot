@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   MessageFlags,
   SlashCommandBuilder,
@@ -61,7 +62,7 @@ function isStatsMode(v: string): v is StatsGameType {
 export const data = new SlashCommandBuilder()
   .setName('stats')
   .setDescription('View stats for yourself or another user.')
-  .setDMPermission(false)
+  .setContexts(InteractionContextType.Guild)
   .addSubcommand((sc) =>
     sc
       .setName('civ6')

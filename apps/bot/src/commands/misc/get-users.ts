@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   EmbedBuilder,
   SlashCommandBuilder,
@@ -10,6 +11,7 @@ import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName('get-users')
   .setDescription('Get information about all users in the server.');
 

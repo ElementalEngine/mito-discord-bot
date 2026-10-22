@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder, MessageFlags } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 
 import { config } from "../../config.js";
@@ -10,6 +10,7 @@ import { ApiError } from "../../api/errors.js";
 import { log } from '../../utils/log.js';
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("revert-report")
   .setDescription("Revert reporting a game.")
   .addStringOption((option) =>

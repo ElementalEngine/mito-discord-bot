@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -15,6 +16,7 @@ import type { BaseReport } from "../../types/reporting.types.js";
 import { isOnlyLatinCharacters } from "../../utils/only-latin.js";
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("contest-report")
   .setDescription("Contest a report with a reason.")
   .addStringOption(option =>

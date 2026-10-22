@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   MessageFlags,
@@ -15,6 +16,7 @@ import type { BaseReport } from "../../types/reporting.types.js";
 import { logCommand } from "../../utils/log-command.js";
 
 export const data = new SlashCommandBuilder()
+  .setContexts(InteractionContextType.Guild)
   .setName("assign-order")
   .setDescription("Assign the order of players in a game.")
   .addStringOption(option =>

@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   GuildMember,
   MessageFlags,
@@ -142,7 +143,7 @@ function hasAnyLifetimeStats(row: RoomRanksLifetimeRow): boolean {
 export const data = new SlashCommandBuilder()
   .setName('roomranks')
   .setDescription('Show stats for everyone currently in your voice channel.')
-  .setDMPermission(false)
+  .setContexts(InteractionContextType.Guild)
   .addStringOption((opt) =>
     opt
       .setName('version')

@@ -1,4 +1,5 @@
 import {
+  InteractionContextType,
   ChatInputCommandInteraction,
   MessageFlags,
   SlashCommandBuilder,
@@ -100,7 +101,7 @@ function validateDraftCommand(args: Readonly<{
 export const data = new SlashCommandBuilder()
   .setName('draft-civ6')
   .setDescription('Generate a Civ 6 standard draft (leaders only).')
-  .setDMPermission(false)
+  .setContexts(InteractionContextType.Guild)
   .addStringOption((opt) =>
     opt
       .setName('game-type')
