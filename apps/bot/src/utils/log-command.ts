@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction, RepliableInteraction } from 'discord.js';
+import type { RepliableInteraction } from 'discord.js';
 
 import { config } from '../config.js';
 import { channel as channelMention, fit, mention, text } from '../ui/kit/index.js';
@@ -25,12 +25,3 @@ export async function logAction(
   });
 }
 
-// The reporting commands not yet on the panel call this shape.
-export async function logCommand(
-  interaction: ChatInputCommandInteraction,
-  _logChannelId: string,
-  commandName: string,
-  additionalInfo: Record<string, unknown> = {},
-): Promise<void> {
-  await logAction(interaction, commandName, additionalInfo);
-}

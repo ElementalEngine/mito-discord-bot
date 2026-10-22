@@ -2,9 +2,12 @@ import { randomBytes } from 'node:crypto';
 
 import {
   MessageFlags,
+  type AnySelectMenuInteraction,
   type AttachmentBuilder,
+  type ButtonInteraction,
   type Message,
   type MessageMentionOptions,
+  type ModalSubmitInteraction,
   type RepliableInteraction,
   type SendableChannels,
 } from 'discord.js';
@@ -31,6 +34,7 @@ export function refuse(message: string): never {
 }
 
 const visibilityOf = new WeakMap<RepliableInteraction, Visibility>();
+const holding = new WeakSet<RepliableInteraction>();
 const NO_PINGS: MessageMentionOptions = { parse: [] };
 
 export async function defer(interaction: RepliableInteraction, visibility: Visibility): Promise<void> {
@@ -57,6 +61,11 @@ export async function respond(
       ? ([MessageFlags.IsComponentsV2, MessageFlags.Ephemeral] as const)
       : ([MessageFlags.IsComponentsV2] as const);
 
+  // A held panel stays as it is; anything said arrives beside it.
+  if (holding.has(interaction)) {
+    await interaction.followUp({ flags, components, allowedMentions, files });
+    return;
+  }
   if (interaction.deferred && !interaction.replied) {
     const deferredAs = visibilityOf.get(interaction) ?? (interaction.ephemeral ? 'private' : 'public');
     if (deferredAs === visibility) {
@@ -79,6 +88,25 @@ export async function respond(
   }
   visibilityOf.set(interaction, visibility);
   await interaction.reply({ flags, components, allowedMentions, files });
+}
+
+type PanelPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
+
+// Acknowledge a press on a private panel without answering it yet; the panel
+// is then rewritten with replacePanel.
+export async function holdPanel(interaction: PanelPress): Promise<void> {
+  holding.add(interaction);
+  await interaction.deferUpdate();
+}
+
+export async function replacePanel(interaction: PanelPress, panel: Panel): Promise<void> {
+  await interaction.editReply({
+    content: null,
+    embeds: [],
+    flags: MessageFlags.IsComponentsV2,
+    components: [container(panel)],
+    allowedMentions: NO_PINGS,
+  });
 }
 
 // A panel posted to a channel, or an earlier message rewritten as one, rather

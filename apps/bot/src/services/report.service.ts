@@ -3,7 +3,8 @@ import type { Client } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import type { Match, SubQuota } from '../api/types.js';
 import { config } from '../config.js';
-import { isAssigned, seatsOf, type ReportView } from '../ui/panels/report.js';
+import { isAssigned, reportPanel, seatsOf, type ReportView } from '../ui/panels/report.js';
+import { editPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, editionOf } from './civ-names.js';
 
@@ -49,4 +50,17 @@ export async function deleteReportMessages(client: Client, match: Match): Promis
   for (const id of match.discord_messages_id_list) {
     await channel.messages.delete(id).catch(() => undefined);
   }
+}
+
+// Rewrite the public report after an edit. Best effort: a report message
+// that has gone is not a reason to fail the edit that already landed.
+export async function refreshReport(client: Client, match: Match, api = new ApiClient()): Promise<void> {
+  const id = match.discord_messages_id_list[0];
+  const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
+  if (!id || !channel?.isTextBased()) return;
+  const message = await channel.messages.fetch(id).catch(() => null);
+  if (!message) return;
+  await editPanel(message, reportPanel(await viewOf(match, api))).catch((error: unknown) => {
+    log.warn('report not refreshed', match.match_id, error instanceof Error ? error.message : error);
+  });
 }
