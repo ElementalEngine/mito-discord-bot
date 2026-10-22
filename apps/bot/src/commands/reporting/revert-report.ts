@@ -1,102 +1,35 @@
-import { InteractionContextType, SlashCommandBuilder, MessageFlags } from "discord.js";
-import type { ChatInputCommandInteraction } from "discord.js";
+import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import { config } from "../../config.js";
-import { EMOJI_FAIL } from "../../config/constants.js";
-import { revertMatch } from "../../services/reporting.service.js";
-import { getPlayerListMessage } from "../../utils/convert-match-to-str.js";
-import { logCommand } from "../../utils/log-command.js";
-import { ApiError } from "../../api/errors.js";
-import { log } from '../../utils/log.js';
+import { ApiClient } from '../../api/index.js';
+import { config } from '../../config.js';
+import { revertedPanel } from '../../ui/panels/report.js';
+import { defer, fail, refuse, respond } from '../../ui/reply.js';
+import { holdsAny, roleIdsOf } from '../../utils/access.js';
+import { logAction } from '../../utils/log-command.js';
+
+const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
-  .setName("revert-report")
-  .setDescription("Revert reporting a game.")
+  .setName('revert-report')
+  .setDescription('Revert reporting a game.')
   .addStringOption((option) =>
-    option
-      .setName("match-id")
-      .setDescription("ID of the match to finalize")
-      .setRequired(true),
+    option.setName('match-id').setDescription('ID of the match to revert').setRequired(true),
   );
 
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message + (err instanceof ApiError ? `: ${JSON.stringify(err.body)}` : "");
-  return typeof err === "string" ? err : "Unknown error";
-}
-
-function memberHasRole(interaction: ChatInputCommandInteraction, roleId: string): boolean {
-  const member = interaction.member;
-  if (!member || typeof member !== "object") return false;
-
-  if ("roles" in member && Array.isArray((member as { roles: unknown }).roles)) {
-    return (member as { roles: string[] }).roles.includes(roleId);
-  }
-
-  if ("roles" in member) {
-    const roles = (member as { roles: unknown }).roles;
-    if (roles && typeof roles === "object" && "cache" in roles) {
-      const cache = (roles as { cache: { has: (id: string) => boolean } }).cache;
-      return cache.has(roleId);
-    }
-  }
-
-  return false;
-}
-
-async function safeDefer(interaction: ChatInputCommandInteraction): Promise<boolean> {
-  if (interaction.deferred || interaction.replied) return true;
+// Reverting rolls ratings back, so it stays with admins and developers.
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    return true;
-  } catch (e: unknown) {
-    log.error("/approve-report deferReply failed:", e);
-    return false;
-  }
-}
-
-export async function execute(interaction: ChatInputCommandInteraction) {
-  if (!interaction.inGuild()) {
-    await interaction.reply({
-      content: `${EMOJI_FAIL} This command must be used in a server.`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (!(await safeDefer(interaction))) return;
-
-  const matchId = interaction.options.getString("match-id", true);
-  await logCommand(interaction, 
-    config.discord.channels.reportLogChannel,
-    data.name,
-    {
-      matchId: matchId,
+    const roles = config.discord.roles;
+    if (!holdsAny(roleIdsOf(interaction), [roles.admin, roles.developer])) {
+      refuse('Only an admin or a developer can revert a report.');
     }
-  );
-
-  try {
-    if (!memberHasRole(interaction, config.discord.roles.admin) && !memberHasRole(interaction, config.discord.roles.developer)) {
-      await interaction.editReply(`${EMOJI_FAIL} Only user with admin or developer role can revert a report`);
-      return;
-    }
-
-    const res = (await revertMatch(matchId));
-    const playerList = getPlayerListMessage(res, "", "\t");
-
-    await interaction.editReply(`Report is reverted successfully!`);
-    await interaction.followUp({
-      content: `Match reverted!\n**Match ID:** ${matchId}\n**Players:**\n${playerList}`,
-    });
-
-  } catch (err: unknown) {
-    const msg = errorMessage(err);
-
-    await interaction
-      .editReply(`${EMOJI_FAIL} Match revert failed: ${msg}`)
-      .then((repliedMessage) => {
-        setTimeout(() => void repliedMessage.delete().catch(() => {}), 60_000);
-      })
-      .catch(() => {});
+    await defer(interaction, 'public');
+    const matchId = interaction.options.getString('match-id', true).trim();
+    const match = await api.revert(matchId);
+    await respond(interaction, revertedPanel(match), 'public');
+    await logAction(interaction, 'revert-report', { matchId });
+  } catch (error) {
+    await fail(interaction, error, 'revert the report');
   }
 }

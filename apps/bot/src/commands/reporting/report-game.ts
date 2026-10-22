@@ -1,166 +1,61 @@
-import {
-  InteractionContextType,
-  EmbedBuilder,
-  SlashCommandBuilder,
-  ChatInputCommandInteraction,
-} from "discord.js";
-import { config } from "../../config.js";
-import { validateSaveAttachment } from "../../utils/save-attachment.js";
-import {
-  EMOJI_CONFIRM,
-  EMOJI_FAIL,
-  EMOJI_REPORT,
-  MAX_DISCORD_LEN,
-} from "../../config/constants.js";
-import type { CivEdition } from '../../config/types.js';
-import {
-  submitSaveForReport,
-  appendMessageIdList,
-} from "../../services/reporting.service.js";
-import { buildReportEmbed } from "../../ui/embeds/reporting.js";
-import { chunkByLength } from "../../utils/chunk-by-length.js";
-import { convertMatchToStr } from "../../utils/convert-match-to-str.js";
-import { ensureCommandAccess } from "../../utils/ensure-command-access.js";
-import { deleteLater } from "../../utils/discord-safe.js";
-import { errorMessage } from "../../utils/error-message.js";
-import { logCommand } from "../../utils/log-command.js";
+import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import type { BaseReport } from "../../types/reporting.types.js";
-import type { UploadSaveResponse, ParsedPlayer } from "../../api/types.js";
-import { log } from '../../utils/log.js';
+import { ApiClient } from '../../api/index.js';
+import { config } from '../../config.js';
+import type { CivEdition } from '../../config/types.js';
+import { viewOf } from '../../services/report.service.js';
+import { duplicateText, isAssigned, reportPanel } from '../../ui/panels/report.js';
+import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
+import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { logAction } from '../../utils/log-command.js';
+import { downloadAttachment, validateSaveAttachment } from '../../utils/save-attachment.js';
+
+const api = new ApiClient();
+const uploads = config.discord.channels;
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
-    config.discord.channels.civ6realtimeUploads,
-    config.discord.channels.civ7realtimeUploads,
-    config.discord.channels.civ6cloudUploads,
-    config.discord.channels.civ7cloudUploads,
+    uploads.civ6realtimeUploads,
+    uploads.civ7realtimeUploads,
+    uploads.civ6cloudUploads,
+    uploads.civ7cloudUploads,
   ],
 } as const;
 
-function getInfo(p: ParsedPlayer) {
-  return {
-    user_name: p.user_name,
-    discord_id: p.discord_id
-  }
-}
-
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
-  .setName("report-game")
-  .setDescription("Validate the channel & save, then upload to the reporter backend.")
+  .setName('report-game')
+  .setDescription('Validate the channel & save, then upload to the reporter backend.')
   .addAttachmentOption((option) =>
-    option
-      .setName("game-save")
-      .setDescription("Upload the .Civ6Save or .Civ7Save file (≤12MB)")
-      .setRequired(true),
+    option.setName('game-save').setDescription('Upload the .Civ6Save or .Civ7Save file (\u226412MB)').setRequired(true),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+// The channel decides the edition and the mode. The report is the deferred
+// reply itself, so its message id is known before the upload is stored.
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
-
-  if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferReply();
-  }
-
-  const save = interaction.options.getAttachment("game-save", true);
-
-  const civ6realtimeChannelId = config.discord.channels.civ6realtimeUploads;
-  const civ7realtimeChannelId = config.discord.channels.civ7realtimeUploads;
-  const civ6cloudChannelId = config.discord.channels.civ6cloudUploads;
-
-  const edition: CivEdition =
-    interaction.channelId === civ6realtimeChannelId ||
-    interaction.channelId === civ6cloudChannelId
-      ? "CIV6"
-      : "CIV7";
-
-  const mode =
-    interaction.channelId === civ6realtimeChannelId ||
-    interaction.channelId === civ7realtimeChannelId
-      ? "realtime"
-      : "cloud";
-
-  const errors: string[] = [];
+  const save = interaction.options.getAttachment('game-save', true);
+  const civ6 = interaction.channelId === uploads.civ6realtimeUploads || interaction.channelId === uploads.civ6cloudUploads;
+  const cloud = interaction.channelId === uploads.civ6cloudUploads || interaction.channelId === uploads.civ7cloudUploads;
+  const edition: CivEdition = civ6 ? 'CIV6' : 'CIV7';
   try {
-    validateSaveAttachment(save, edition);
-  } catch (e: unknown) {
-    errors.push(errorMessage(e) || "Invalid save attachment.");
-  }
-
-  if (errors.length > 0) {
-    const msg = await interaction
-      .editReply({
-        content: `${EMOJI_FAIL} FAIL\n${errors.map((e) => `• ${e}`).join("\n")}`,
-      })
-      .catch(() => null);
-    if (msg) deleteLater(msg, 60_000);
-    return;
-  }
-
-  try {
-    const pendingEmbed = new EmbedBuilder().setDescription(
-      `${EMOJI_REPORT} Uploading and processing your save file, please wait...`,
-    );
-
-    const pendingMsg = await interaction.editReply({ embeds: [pendingEmbed] });
-
-    const res: UploadSaveResponse = await submitSaveForReport(
-      save.url,
-      save.name ?? (edition === "CIV6" ? "game.Civ6Save" : "game.Civ7Save"),
-      interaction.user.id,
-      mode === "cloud",
-      pendingMsg.id,
-    );
-
-    await logCommand(interaction, 
-      config.discord.channels.reportLogChannel,
-      data.name,
-      {
-        edition: interaction.channelId === config.discord.channels.civ6realtimeUploads || interaction.channelId === config.discord.channels.civ6cloudUploads ? "CIV6" : "CIV7",
-        missingSteamIds: res.players.filter(p => p.discord_id?.startsWith("-")).map(p => getInfo(p)),
-      }
-    );
-
-    if (res?.repeated === true) {
-      const duplicateReportEmbed = new EmbedBuilder().setDescription(
-        `${EMOJI_FAIL} Match already reported! Match ID: **${res.match_id}**`,
-      );
-
-      const msg = await pendingMsg
-        .edit({ embeds: [duplicateReportEmbed] })
-        .catch(() => null);
-      if (msg) deleteLater(msg, 60_000);
+    try {
+      validateSaveAttachment(save, edition);
+    } catch (error) {
+      refuse(error instanceof Error ? error.message : 'That file is not a save.');
+    }
+    await defer(interaction, 'public');
+    const reply = await interaction.fetchReply();
+    const file = await downloadAttachment(save.url);
+    const upload = await api.uploadMatch(file, save.name, interaction.user.id, cloud, reply.id);
+    if (upload.repeated) {
+      await say(interaction, 'refused', duplicateText(upload));
       return;
     }
-
-    const embed = buildReportEmbed(res, { reporterId: interaction.user.id });
-    await interaction.editReply({ embeds: [embed] });
-
-    const header =
-      `${EMOJI_CONFIRM} Match reported by <@${interaction.user.id}>\n` +
-      `Match ID: **${res.match_id}**\n`;
-
-    const full = header + convertMatchToStr(res as BaseReport, true);
-
-    const messageIdsList: string[] = [];
-    for (const chunk of chunkByLength(full, MAX_DISCORD_LEN)) {
-      const followUp = await interaction.followUp({ content: chunk });
-      messageIdsList.push(followUp.id);
-    }
-
-    const appendRes: UploadSaveResponse = await appendMessageIdList(
-      res.match_id,
-      messageIdsList,
-    );
-
-    if (!appendRes) {
-      log.error("Failed to append message ID list for match:", res.match_id);
-    }
-  } catch (err: unknown) {
-    const msg = await interaction
-      .editReply(`${EMOJI_FAIL} Upload failed: ${errorMessage(err)}`)
-      .catch(() => null);
-    if (msg) deleteLater(msg, 60_000);
+    await respond(interaction, reportPanel(await viewOf(upload, api)), 'public');
+    const unassigned = upload.players.filter((p) => !isAssigned(p)).map((p) => p.user_name ?? 'unknown');
+    await logAction(interaction, 'report-game', { matchId: upload.match_id, edition, unassigned });
+  } catch (error) {
+    await fail(interaction, error, 'report the game');
   }
 }

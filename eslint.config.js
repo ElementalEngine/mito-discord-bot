@@ -32,10 +32,7 @@ const LEGACY_UI = [
   'apps/bot/src/commands/reporting/assign-order.ts',
   'apps/bot/src/commands/reporting/assign-sub.ts',
   'apps/bot/src/commands/reporting/contest-report.ts',
-  'apps/bot/src/commands/reporting/remove-pending-match.ts',
   'apps/bot/src/commands/reporting/remove-sub.ts',
-  'apps/bot/src/commands/reporting/report-game.ts',
-  'apps/bot/src/commands/reporting/revert-report.ts',
   'apps/bot/src/commands/reporting/trigger-quit.ts',
   'apps/bot/src/commands/stats/resetstats.ts',
   'apps/bot/src/commands/stats/roomranking.ts',
@@ -49,7 +46,6 @@ const LEGACY_UI = [
   'apps/bot/src/ui/embeds/secretvote.ts',
   'apps/bot/src/ui/embeds/standard-draft.ts',
   'apps/bot/src/ui/embeds/stats.ts',
-  'apps/bot/src/utils/log-command.ts',
 ];
 
 export default [

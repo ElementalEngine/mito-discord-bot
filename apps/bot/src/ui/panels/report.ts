@@ -158,6 +158,18 @@ export function duplicateText(upload: MatchUpload): string {
   return `This save is already reported, as match ${id}, and is waiting for approval.`;
 }
 
+// What a revert leaves behind: whose ratings were restored.
+export function revertedPanel(match: Match): Panel {
+  const players = seatsOf(match).map((s) => who(s.player)).join(' \u00b7 ');
+  return {
+    tone: 'muted',
+    surface: 'report',
+    title: `${reportLabel(match)} result reverted`,
+    subtitle: `Match \`${match.match_id}\``,
+    body: [text(`Ratings are restored for ${players}.`)],
+  };
+}
+
 // The players an approved result pings, as v1's history post did.
 export function playerIds(match: Match): string[] {
   return [...new Set(match.players.filter(isAssigned).map((p) => p.discord_id ?? ''))];

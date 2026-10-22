@@ -27,7 +27,7 @@ export function validateSaveAttachment(
 }
 
 export async function downloadAttachment(url: string): Promise<Buffer> {
-  const res = await fetch(url, { method: 'GET' });
+  const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`Failed to download attachment: HTTP ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }

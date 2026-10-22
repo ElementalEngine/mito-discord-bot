@@ -1,6 +1,7 @@
 import { Events, type Interaction } from 'discord.js';
 
 import { handleLobbyInteraction } from '../handlers/lobby.handlers.js';
+import { handleReportInteraction } from '../handlers/report.handlers.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
 import { defer, fail, say } from '../ui/reply.js';
 
@@ -36,6 +37,7 @@ export async function execute(interaction: Interaction): Promise<void> {
   if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
     try {
       if (await handleLobbyInteraction(interaction)) return;
+      if (await handleReportInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;
     } catch (error) {
       await fail(interaction, error, 'complete that action', { customId: interaction.customId });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { Match, MatchUpload } from '../../api/types.js';
 import { container, type Panel } from '../kit/index.js';
-import { ageLabel, duplicateText, ordinal, playerIds, reportId, reportLabel, reportPanel } from './report.js';
+import { ageLabel, duplicateText, ordinal, playerIds, reportId, reportLabel, reportPanel, revertedPanel } from './report.js';
 
 /**
  * The report panel: one message, edited in place. What should break this
@@ -146,4 +146,10 @@ test('ids and words', () => {
   assert.equal(reportId('approve', ID), `report:approve:${ID}`);
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd']);
   assert.equal(reportLabel(match({ game: 'civ7', game_mode: 'Duel' })), 'Civ7 Duel');
+});
+
+test('a revert names whose ratings came back', () => {
+  const panel = revertedPanel(match());
+  assert.equal(panel.title, 'Civ6 FFA result reverted');
+  assert.match(bodyOf(panel), /restored for <@100000000000000002> \u00b7 <@100000000000000001>\./);
 });
