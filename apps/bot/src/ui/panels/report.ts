@@ -22,6 +22,15 @@ type Player = Match['players'][number];
 export type ReportVerb = 'edit' | 'contest' | 'approve';
 export const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
 
+// The marks a seat carries beside its player, and that the staff notes use.
+export const MARK = {
+  quit: '\u{1f3f3}\ufe0f',
+  sub: '\u{1f501}',
+  unassigned: '\u2754',
+  contest: '\u26a0\ufe0f',
+  oversub: '\u203c\ufe0f',
+} as const;
+
 const SNOWFLAKE = /^\d{15,20}$/;
 export const isAssigned = (p: Player): boolean => SNOWFLAKE.test(p.discord_id ?? '');
 
@@ -36,6 +45,11 @@ export function reportLabel(match: Match): string {
   return `${match.game.toLowerCase() === 'civ7' ? 'Civ7' : 'Civ6'} ${match.is_cloud ? 'PBC ' : ''}${shown}`;
 }
 
+// Saves store a map file name such as Seven_Seas, or a name already.
+export function mapLabel(map: string): string {
+  return /_/.test(map) && !/\s/.test(map) ? pretty(map) : map;
+}
+
 // Saves store an age token; older documents hold a display name.
 export function ageLabel(age: string): string {
   return /^AGE_/.test(age) ? pretty(age.replace(/^AGE_/, '')) : age;
@@ -48,7 +62,7 @@ export function ordinal(n: number): string {
 }
 
 function who(p: Player): string {
-  return isAssigned(p) ? mention(p.discord_id ?? '') : `\`${p.user_name ?? 'unknown'}\``;
+  return isAssigned(p) ? mention(p.discord_id ?? '') : `\`${p.user_name ?? 'unknown'}\` ${MARK.unassigned}`;
 }
 
 function civOf(match: Match, p: Player, names: CivNames): string {
@@ -69,22 +83,20 @@ export function seatsOf(match: Match): Seat[] {
 }
 
 const placeOf = (s: Seat): number => (s.player.placement ?? 99) + 1;
+const ranked = (match: Match): Seat[] => seatsOf(match).sort((a, b) => placeOf(a) - placeOf(b) || a.index - b.index);
 
+// The player and civ, marked for a quit or a sub-in; then the rating moves.
 function seatLines(match: Match, s: Seat, names: CivNames): string {
   const p = s.player;
   const second = match.is_cloud ? p.combined_delta : p.season_delta;
-  const meta = [
-    `${signed(p.delta)} lifetime`,
-    typeof second === 'number' ? `${signed(second)} ${match.is_cloud ? 'combined' : 'season'}` : null,
-    isAssigned(p) ? null : 'unassigned',
-    p.quit ? 'quit' : null,
-    s.leaver ? `sub for ${who(s.leaver)}` : null,
-  ].filter((x): x is string => x !== null);
-  return `**${placeOf(s)}.** ${who(p)} \u2014 ${civOf(match, p, names)}\n-# ${meta.join(' \u00b7 ')}`;
+  const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
+  const deltas = [`${signed(p.delta)} lifetime`];
+  if (typeof second === 'number') deltas.push(`${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
+  return `**${placeOf(s)}.** ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }
 
 function standings(match: Match, names: CivNames): string {
-  const seats = seatsOf(match).sort((a, b) => placeOf(a) - placeOf(b) || a.index - b.index);
+  const seats = ranked(match);
   if (!isTeamer(match)) return seats.map((s) => seatLines(match, s, names)).join('\n');
   const teams = new Map<number, Seat[]>();
   for (const s of seats) teams.set(s.player.team, [...(teams.get(s.player.team) ?? []), s]);
@@ -100,19 +112,42 @@ function standings(match: Match, names: CivNames): string {
 // Sub-ins already approved in the window, keyed by the sub's discord id.
 export type Quotas = ReadonlyMap<string, SubQuota>;
 
-// What staff should look at before approving. Empty when nothing needs it.
-export function attentionOf(match: Match, quotas: Quotas = new Map()): string[] {
-  const out: string[] = [];
-  const unassigned = seatsOf(match).filter((s) => !isAssigned(s.player)).length;
-  if (unassigned) out.push(`${unassigned} seat${unassigned === 1 ? '' : 's'} unassigned. Use Edit to assign ${unassigned === 1 ? 'it' : 'them'}.`);
-  for (const s of seatsOf(match)) {
-    const quota = s.leaver ? quotas.get(s.player.discord_id ?? '') : undefined;
-    if (quota && quota.count + 1 > quota.limit) {
-      out.push(`${who(s.player)}: ${ordinal(quota.count + 1)} sub-in in ${quota.window_days} days (limit ${quota.limit}). Oversub applies.`);
+// One line a reader should not miss; `holds` lines keep the report orange
+// until staff deal with them.
+export type Note = Readonly<{ line: string; holds: boolean }>;
+
+function subNote(player: Player, leaver: Player, quota: SubQuota | undefined): Note {
+  const sub = `${who(player)} subbed in for ${who(leaver)}`;
+  if (!quota) return { line: `${MARK.sub} ${sub}.`, holds: false };
+  const nth = quota.count + 1;
+  if (nth > quota.limit) {
+    const over = `${ordinal(nth)} sub-in in ${quota.window_days} days (limit ${quota.limit}). Oversub applies.`;
+    return { line: `${MARK.oversub} ${sub}: ${over}`, holds: true };
+  }
+  return { line: `${MARK.sub} ${sub} \u00b7 sub-in ${nth} of ${quota.limit} in ${quota.window_days} days.`, holds: false };
+}
+
+// Quits and subs in standing order and, while pending, what staff must settle:
+// unassigned seats, oversubs and contests.
+export function notesOf(match: Match, quotas: Quotas = new Map()): Note[] {
+  const pending = !match.approved_at;
+  const seats = ranked(match);
+  const notes: Note[] = [];
+  const unassigned = seats.filter((s) => !isAssigned(s.player)).length;
+  if (pending && unassigned) {
+    const them = unassigned === 1 ? 'seat is unassigned. Use Edit to assign it.' : 'seats are unassigned. Use Edit to assign them.';
+    notes.push({ line: `${MARK.unassigned} ${unassigned} ${them}`, holds: true });
+  }
+  for (const s of seats) {
+    if (s.player.quit) notes.push({ line: `${MARK.quit} ${who(s.player)} quit.`, holds: false });
+    if (s.leaver) notes.push(subNote(s.player, s.leaver, pending ? quotas.get(s.player.discord_id ?? '') : undefined));
+  }
+  if (pending) {
+    for (const c of match.contest_report_list) {
+      notes.push({ line: `${MARK.contest} Contested by ${mention(c.contestor_discord_id)}: ${c.reason}`, holds: true });
     }
   }
-  for (const c of match.contest_report_list) out.push(`Contested by ${mention(c.contestor_discord_id)}: ${c.reason}`);
-  return out;
+  return notes;
 }
 
 export function reportButtons(matchId: string): ButtonRow {
@@ -126,15 +161,19 @@ export function reportButtons(matchId: string): ButtonRow {
 export type ReportView = Readonly<{ match: Match; names: CivNames; quotas?: Quotas }>;
 
 // One message per report: pending with its buttons, then approved without.
+// Times are fixed stamps, shown in each reader's own time zone.
 export function reportPanel({ match, names, quotas }: ReportView): Panel {
   const approved = Boolean(match.approved_at);
-  const facts = [`Match \`${match.match_id}\``, `turn ${match.turn}`, match.map_type, match.age ? ageLabel(match.age) : null];
-  const attention = approved ? [] : attentionOf(match, quotas);
+  const facts = [`Match \`${match.match_id}\``, `turn ${match.turn}`, mapLabel(match.map_type), match.age ? ageLabel(match.age) : null];
+  const notes = notesOf(match, quotas);
   const body: Block[] = [text(standings(match, names))];
-  if (attention.length) body.push(divider(), text(attention.map((line) => `\u26a0\ufe0f ${line}`).join('\n')));
-  const reported = `Reported by ${mention(match.reporter_discord_id)} ${when(new Date(match.created_at), 'R')}`;
+  if (notes.length) {
+    const heading = approved ? [] : ['**For staff**'];
+    body.push(divider(), text([...heading, ...notes.map((n) => n.line)].join('\n')));
+  }
+  const reported = `Reported by ${mention(match.reporter_discord_id)} \u00b7 ${when(new Date(match.created_at), 'f')}`;
   return {
-    tone: approved ? 'success' : attention.length ? 'refused' : 'info',
+    tone: approved ? 'success' : notes.some((n) => n.holds) ? 'refused' : 'info',
     surface: 'report',
     title: `${reportLabel(match)} ${approved ? 'result' : 'report'}`,
     subtitle: facts.filter((x): x is string => Boolean(x)).join(' \u00b7 '),
@@ -142,7 +181,7 @@ export function reportPanel({ match, names, quotas }: ReportView): Panel {
     ...(approved ? {} : { actions: [reportButtons(match.match_id)] }),
     footer:
       approved && match.approver_discord_id && match.approved_at
-        ? `${reported} \u00b7 approved by ${mention(match.approver_discord_id)} ${when(new Date(match.approved_at), 'R')}`
+        ? `${reported} \u00b7 approved by ${mention(match.approver_discord_id)} \u00b7 ${when(new Date(match.approved_at), 'f')}`
         : reported,
   };
 }

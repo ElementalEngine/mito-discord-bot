@@ -6,10 +6,12 @@ import {
   type AttachmentBuilder,
   type ButtonInteraction,
   type Message,
+  type MessageEditOptions,
   type MessageMentionOptions,
   type ModalSubmitInteraction,
   type RepliableInteraction,
   type SendableChannels,
+  type TextBasedChannel,
 } from 'discord.js';
 
 import { ApiError, parseApiError } from '../api/errors.js';
@@ -99,14 +101,13 @@ export async function holdPanel(interaction: PanelPress): Promise<void> {
   await interaction.deferUpdate();
 }
 
+// A message rewritten as a panel, clearing whatever it showed before.
+function asPanel(panel: Panel, allowedMentions: MessageMentionOptions = NO_PINGS): MessageEditOptions {
+  return { content: null, embeds: [], flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions };
+}
+
 export async function replacePanel(interaction: PanelPress, panel: Panel): Promise<void> {
-  await interaction.editReply({
-    content: null,
-    embeds: [],
-    flags: MessageFlags.IsComponentsV2,
-    components: [container(panel)],
-    allowedMentions: NO_PINGS,
-  });
+  await interaction.editReply(asPanel(panel));
 }
 
 // A panel posted to a channel, or an earlier message rewritten as one, rather
@@ -124,13 +125,12 @@ export async function editPanel(
   panel: Panel,
   allowedMentions: MessageMentionOptions = NO_PINGS,
 ): Promise<Message> {
-  return message.edit({
-    content: null,
-    embeds: [],
-    flags: MessageFlags.IsComponentsV2,
-    components: [container(panel)],
-    allowedMentions,
-  });
+  return message.edit(asPanel(panel, allowedMentions));
+}
+
+// The same for a message known only by its id: one call, with no fetch first.
+export async function editPanelById(channel: TextBasedChannel, id: string, panel: Panel): Promise<Message> {
+  return channel.messages.edit(id, asPanel(panel));
 }
 
 // A one-line private answer. Never throws: the interaction may have expired.

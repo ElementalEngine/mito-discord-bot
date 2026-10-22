@@ -25,14 +25,16 @@ export function pretty(token: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Token -> what a player reads, with the portrait where the row has one.
+// Token -> what a player reads, with its portrait from the bot's own emoji:
+// Discord renders an application's emoji only for that application.
 export type CivNames = ReadonlyMap<string, string>;
 
-export function civNamesOf(data: CivDataResponse): CivNames {
+export function civNamesOf(data: CivDataResponse, emojis: ReadonlyMap<string, string> = new Map()): CivNames {
   return new Map(
     [...data.leaders, ...data.civs].map((row): [string, string] => {
       const shown = row.display ?? pretty(row.token);
-      return [row.token, row.emoji_id ? `<:${row.name}:${row.emoji_id}> ${shown}` : shown];
+      const id = emojis.get(row.name);
+      return [row.token, id ? `<:${row.name}:${id}> ${shown}` : shown];
     }),
   );
 }

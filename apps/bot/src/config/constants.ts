@@ -11,8 +11,6 @@ export const EMOJI_ERROR = '⚠️' as const;
 export const EMOJI_FAIL = '‼️' as const;
 export const EMOJI_ROOM_RANKINGS = '📊' as const;
 export const EMOJI_STATS = '📈' as const;
-export const EMOJI_QUITTER = '🏳️' as const;
-export const EMOJI_REPORT = '🧾' as const;
 export const EMOJI_SECRET_VOTE = '🔎' as const;
 
 // ─ Rank defs 

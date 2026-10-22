@@ -10,12 +10,29 @@ import {
 } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { SeatEdit } from '../api/types.js';
+import type { Match, SeatEdit } from '../api/types.js';
 import { updateRankRolesForApprovedMatch } from '../services/rank-role.service.js';
 import { civNames, editionOf } from '../services/civ-names.js';
-import { deleteReportMessages, historyChannelId, refreshReport, viewOf } from '../services/report.service.js';
-import { channel as channelMention, customId, parseId } from '../ui/kit/index.js';
-import { EDIT, FIELD, editorPanel, orderForm, parseOrder, seatEdit, seatForm } from '../ui/panels/report-edit.js';
+import {
+  deleteReportMessages,
+  historyChannelId,
+  loadMembers,
+  memberNames,
+  refreshReport,
+  viewOf,
+} from '../services/report.service.js';
+import { channel as channelMention, customId, parseId, type Panel } from '../ui/kit/index.js';
+import {
+  EDIT,
+  FIELD,
+  assignEdits,
+  assignForm,
+  editorPanel,
+  orderForm,
+  parseOrder,
+  seatEdits,
+  seatForm,
+} from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
 import { defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isStaff } from '../utils/access.js';
@@ -26,6 +43,10 @@ const api = new ApiClient();
 const CONTEST_FORM = 'contestform';
 const REASON = 'reason';
 
+// The member picked in a form's user field, if any.
+const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
+  interaction.fields.getSelectedUsers(field)?.first()?.id ?? null;
+
 const ACTION: Readonly<Record<string, string>> = {
   approve: 'approve the report',
   contest: 'open the contest form',
@@ -35,6 +56,8 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.seatForm]: 'save the seat',
   [EDIT.order]: 'open the order form',
   [EDIT.orderForm]: 'save the order',
+  [EDIT.assign]: 'open the assign form',
+  [EDIT.assignForm]: 'save the players',
 };
 
 // Approve is staff only. Once core-api has rated the match, posting to history
@@ -101,48 +124,75 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
 
 // The editor is the reporter's or staff's; core-api checks the reporter
 // again on every save, and only staff may set a tie.
+async function editorOf(interaction: Interaction, match: Match, staff: boolean): Promise<Panel> {
+  const [names] = await Promise.all([civNames(editionOf(match.game), api), loadMembers(interaction.guild, playerIds(match))]);
+  return editorPanel(match, names, memberNames(interaction.guild, playerIds(match)), staff);
+}
+
 async function openEditor(interaction: ButtonInteraction, matchId: string): Promise<void> {
   await defer(interaction, 'private');
   const match = await api.match(matchId);
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
-  const names = await civNames(editionOf(match.game), api);
-  await respond(interaction, editorPanel(match, names, staff), 'private');
+  await respond(interaction, await editorOf(interaction, match, staff), 'private');
 }
 
 async function openSeatForm(interaction: StringSelectMenuInteraction, matchId: string): Promise<void> {
-  const form = seatForm(await api.match(matchId), Number(interaction.values[0]));
+  const match = await api.match(matchId);
+  const form = seatForm(match, Number(interaction.values[0]), memberNames(interaction.guild, playerIds(match)));
   if (!form) refuse('That seat is no longer on the report. Open the editor again.');
+  await interaction.showModal(form);
+}
+
+async function openAssignForm(interaction: ButtonInteraction, matchId: string, page: number): Promise<void> {
+  const match = await api.match(matchId);
+  const form = assignForm(match, await civNames(editionOf(match.game), api), page);
+  if (!form) refuse('Those seats are no longer on the report. Open the editor again.');
   await interaction.showModal(form);
 }
 
 async function openOrderForm(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await api.match(matchId);
-  await interaction.showModal(orderForm(match, await civNames(editionOf(match.game), api)));
+  const names = await civNames(editionOf(match.game), api);
+  await interaction.showModal(orderForm(match, names, memberNames(interaction.guild, playerIds(match))));
 }
 
-// Save, then rewrite the public report and the private editor together.
+// Save, then rewrite the public report and the private editor together, from
+// the one saved match, so neither shows anything the other does not.
 async function saveSeats(interaction: ModalSubmitInteraction, matchId: string, action: string, seats: readonly SeatEdit[]): Promise<void> {
   const staff = isStaff(interaction);
   const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: staff });
-  await refreshReport(interaction.client, match, api);
-  await replacePanel(interaction, editorPanel(match, await civNames(editionOf(match.game), api), staff));
+  const [view, editor] = await Promise.all([viewOf(match, api), editorOf(interaction, match, staff)]);
+  const [published] = await Promise.all([
+    refreshReport(interaction.client, match, reportPanel(view)),
+    replacePanel(interaction, editor),
+  ]);
+  if (!published) await say(interaction, 'failed', 'Saved, but the public report could not be updated.');
   await logAction(interaction, action, { matchId, seats });
 }
 
-async function submitSeat(interaction: ModalSubmitInteraction, matchId: string, index: number): Promise<void> {
+async function submitSeat(interaction: ModalSubmitInteraction, matchId: string, n: number): Promise<void> {
   await holdPanel(interaction);
-  const users = (field: string): string | null => interaction.fields.getSelectedUsers(field)?.first()?.id ?? null;
-  const edit = seatEdit(await api.match(matchId), index, {
-    player: users(FIELD.player),
+  const edits = seatEdits(await api.match(matchId), n, {
+    player: picked(interaction, FIELD.player),
     quit: interaction.fields.getCheckbox(FIELD.quit),
-    left: users(FIELD.left),
+    left: picked(interaction, FIELD.left),
   });
-  if (!edit) {
+  if (!edits.length) {
     await say(interaction, 'muted', 'Nothing changed on that seat.');
     return;
   }
-  await saveSeats(interaction, matchId, 'edit-seat', [edit]);
+  await saveSeats(interaction, matchId, 'edit-seat', edits);
+}
+
+async function submitAssign(interaction: ModalSubmitInteraction, matchId: string, page: number): Promise<void> {
+  await holdPanel(interaction);
+  const edits = assignEdits(await api.match(matchId), page, (field) => picked(interaction, field));
+  if (!edits.length) {
+    await say(interaction, 'muted', 'No seat changed.');
+    return;
+  }
+  await saveSeats(interaction, matchId, 'assign-players', edits);
 }
 
 async function submitOrder(interaction: ModalSubmitInteraction, matchId: string): Promise<void> {
@@ -166,6 +216,8 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     else if (interaction.isButton() && id.verb === EDIT.order) await openOrderForm(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) await submitSeat(interaction, matchId, Number(id.args[1]));
     else if (interaction.isModalSubmit() && id.verb === EDIT.orderForm) await submitOrder(interaction, matchId);
+    else if (interaction.isButton() && id.verb === EDIT.assign) await openAssignForm(interaction, matchId, Number(id.args[1]));
+    else if (interaction.isModalSubmit() && id.verb === EDIT.assignForm) await submitAssign(interaction, matchId, Number(id.args[1]));
     else await say(interaction, 'refused', 'That control is out of date. Open the report again.');
   } catch (error) {
     await fail(interaction, error, ACTION[id.verb] ?? 'complete that action', { matchId });

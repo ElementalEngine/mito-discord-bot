@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { Match, MatchUpload } from '../../api/types.js';
 import { container, type Panel } from '../kit/index.js';
-import { ageLabel, duplicateText, ordinal, playerIds, reportId, reportLabel, reportPanel, revertedPanel } from './report.js';
+import { MARK, ageLabel, duplicateText, mapLabel, ordinal, playerIds, reportId, reportLabel, reportPanel, revertedPanel } from './report.js';
 
 /**
  * The report panel: one message, edited in place. What should break this
@@ -67,29 +67,38 @@ test('standings run in placement order with signed deltas', () => {
   assert.equal(panel.title, 'Civ6 FFA report');
   assert.equal(panel.actions?.length, 1);
   assert.ok(container(panel).toJSON().components.length < 40);
+  assert.equal(panel.footer, 'Reported by <@100000000000000001> \u00b7 <t:1792670400:f>');
 });
 
-test('an unassigned seat turns the panel orange and says what to do', () => {
+test('an unassigned seat is marked, and turns the panel orange for staff', () => {
   const m = match({ players: [player({ discord_id: '-76561190000000001', user_name: 'Gandhi fan' }), player({ discord_id: B, placement: 1, team: 1 })] });
   const panel = reportPanel({ match: m, names: new Map() });
   assert.equal(panel.tone, 'refused');
-  assert.match(bodyOf(panel), /`Gandhi fan` \u2014 Shaka\n-# .*unassigned/);
-  assert.match(bodyOf(panel), /1 seat unassigned\. Use Edit to assign it\./);
+  assert.match(bodyOf(panel), new RegExp(`\`Gandhi fan\` ${MARK.unassigned} \u2014 Shaka\n-# \u00b10 lifetime`));
+  assert.match(bodyOf(panel), /\*\*For staff\*\*\n.*1 seat is unassigned\. Use Edit to assign it\./);
 });
 
-test('a sub is shown on the seat it filled, and a fourth sub-in is flagged', () => {
+test('a quit and a sub are marked on the name and spelled out for staff, not on the rating line', () => {
   const m = match({
     players: [
-      player({ discord_id: C, is_sub: true }),
+      player({ discord_id: C, is_sub: true, quit: true }),
       player({ discord_id: A, subbed_out: true }),
       player({ discord_id: B, placement: 1, team: 1 }),
     ],
   });
-  const quotas = new Map([[C, { discord_id: C, count: 3, limit: 3, window_days: 30 }]]);
-  const body = bodyOf(reportPanel({ match: m, names: new Map(), quotas }));
-  assert.match(body, /<@100000000000000003> \u2014 Shaka\n-# .*sub for <@100000000000000001>/);
+  const second = new Map([[C, { discord_id: C, count: 1, limit: 3, window_days: 30 }]]);
+  const panel = reportPanel({ match: m, names: new Map(), quotas: second });
+  const body = bodyOf(panel);
+  assert.match(body, new RegExp(`<@${C}> ${MARK.quit} ${MARK.sub} \u2014 Shaka\n-# \u00b10 lifetime \u00b7 \u00b10 season\n`));
   assert.doesNotMatch(body, /^\*\*\d+\.\*\* <@100000000000000001>/m);
-  assert.match(body, /<@100000000000000003>: 4th sub-in in 30 days \(limit 3\)\. Oversub applies\./);
+  assert.match(body, new RegExp(`${MARK.quit} <@${C}> quit\.`));
+  assert.match(body, new RegExp(`${MARK.sub} <@${C}> subbed in for <@${A}> \u00b7 sub-in 2 of 3 in 30 days\.`));
+  assert.equal(panel.tone, 'info');
+
+  const fourth = new Map([[C, { discord_id: C, count: 3, limit: 3, window_days: 30 }]]);
+  const over = reportPanel({ match: m, names: new Map(), quotas: fourth });
+  assert.match(bodyOf(over), new RegExp(`${MARK.oversub} <@${C}> subbed in for <@${A}>: 4th sub-in in 30 days \\(limit 3\\)\\. Oversub applies\\.`));
+  assert.equal(over.tone, 'refused');
 });
 
 test('teamers are grouped by team, best team first', () => {
@@ -130,8 +139,9 @@ test('an approved result is green, says who approved it, and has no buttons', ()
   assert.equal(panel.tone, 'success');
   assert.equal(panel.title, 'Civ6 PBC FFA result');
   assert.equal(panel.actions, undefined);
-  assert.match(panel.footer ?? '', /approved by <@100000000000000003>/);
+  assert.match(panel.footer ?? '', /approved by <@100000000000000003> \u00b7 <t:1792674000:f>$/);
   assert.match(bodyOf(panel), /combined/);
+  assert.doesNotMatch(bodyOf(panel), /For staff/);
   assert.deepEqual(playerIds(m), [B, A]);
 });
 
@@ -146,6 +156,9 @@ test('ids and words', () => {
   assert.equal(reportId('approve', ID), `report:approve:${ID}`);
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd']);
   assert.equal(reportLabel(match({ game: 'civ7', game_mode: 'Duel' })), 'Civ7 Duel');
+  assert.equal(mapLabel('pangaea_ultima'), 'Pangaea Ultima');
+  assert.equal(mapLabel('Seven_Seas'), 'Seven Seas');
+  assert.equal(mapLabel('Seven Seas'), 'Seven Seas');
 });
 
 test('a revert names whose ratings came back', () => {

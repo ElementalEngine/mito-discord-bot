@@ -12,7 +12,7 @@ const api = new ApiClient();
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('revert-report')
-  .setDescription('Revert reporting a game.')
+  .setDescription('Undo an approved result and restore the ratings.')
   .addStringOption((option) =>
     option.setName('match-id').setDescription('ID of the match to revert').setRequired(true),
   );

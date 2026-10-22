@@ -48,6 +48,9 @@ const civData = {
   civs: [],
 } as unknown as CivDataResponse;
 
+// The bot's own emoji, by name.
+const EMOJIS = new Map([['FranceCatherineMagnificence', '1464719586304848032']]);
+
 const textOf = (panel: Panel): string =>
   (panel.body ?? []).map((b) => ('text' in b ? b.text : '')).join('\n');
 
@@ -79,7 +82,7 @@ test('the browse list names each lobby with its phase and host', () => {
 });
 
 test('a finished lobby names its settings and picks the way players read them', () => {
-  const panel = lobbyDonePanel(done(), civNamesOf(civData));
+  const panel = lobbyDonePanel(done(), civNamesOf(civData, EMOJIS));
   const body = textOf(panel);
   assert.equal(panel.tone, 'success');
   assert.match(body, /<:FranceCatherineMagnificence:1464719586304848032> Catherine de Medici \(Magnificence\)/);
@@ -88,6 +91,8 @@ test('a finished lobby names its settings and picks the way players read them', 
   assert.match(body, /draft mode: standard/);
   // Bans are a comma list: the name without its portrait.
   assert.match(body, /\*\*Bans\*\*\nCatherine de Medici \(Magnificence\)$/);
+  // A portrait the bot does not own would print as :name:, so it is left off.
+  assert.doesNotMatch(textOf(lobbyDonePanel(done(), civNamesOf(civData))), /<:|:France/);
 });
 
 test('without civ data the post still goes out, in token spelling', () => {

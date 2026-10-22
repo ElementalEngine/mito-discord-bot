@@ -11,7 +11,7 @@ const api = new ApiClient();
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('remove-match')
-  .setDescription('Removes a match report from the database.')
+  .setDescription('Remove a report that is still waiting for approval.')
   .addStringOption((option) =>
     option.setName('match-id').setDescription('ID of the match to remove').setRequired(true),
   );

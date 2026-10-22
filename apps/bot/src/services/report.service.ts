@@ -1,16 +1,16 @@
-import type { Client } from 'discord.js';
+import type { Client, Guild } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
 import type { Match, SubQuota } from '../api/types.js';
 import { config } from '../config.js';
-import { isAssigned, reportPanel, seatsOf, type ReportView } from '../ui/panels/report.js';
-import { editPanel } from '../ui/reply.js';
+import type { Panel } from '../ui/kit/index.js';
+import { isAssigned, seatsOf, type ReportView } from '../ui/panels/report.js';
+import { editPanelById } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, editionOf } from './civ-names.js';
 
-// Everything a report panel shows beside the match: display names, and the
-// quota of each player who came in as a sub. A quota that cannot be read is
-// left off rather than holding the panel back.
+// Everything a report panel shows beside the match: display names and each
+// sub's quota. A quota that cannot be read is left off, not waited for.
 export async function viewOf(match: Match, api = new ApiClient()): Promise<ReportView> {
   const subs = seatsOf(match)
     .filter((s) => s.leaver && isAssigned(s.player))
@@ -52,15 +52,36 @@ export async function deleteReportMessages(client: Client, match: Match): Promis
   }
 }
 
-// Rewrite the public report after an edit. Best effort: a report message
-// that has gone is not a reason to fail the edit that already landed.
-export async function refreshReport(client: Client, match: Match, api = new ApiClient()): Promise<void> {
+// Rewrite the public report after an edit. The edit has already landed, so
+// a failure here is reported, not thrown: false means the report is stale.
+export async function refreshReport(client: Client, match: Match, panel: Panel): Promise<boolean> {
   const id = match.discord_messages_id_list[0];
   const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
-  if (!id || !channel?.isTextBased()) return;
-  const message = await channel.messages.fetch(id).catch(() => null);
-  if (!message) return;
-  await editPanel(message, reportPanel(await viewOf(match, api))).catch((error: unknown) => {
-    log.warn('report not refreshed', match.match_id, error instanceof Error ? error.message : error);
-  });
+  if (!id || !channel?.isTextBased()) return false;
+  return editPanelById(channel, id, panel).then(
+    () => true,
+    (error: unknown) => {
+      log.warn('report not refreshed', match.match_id, error instanceof Error ? error.message : error);
+      return false;
+    },
+  );
+}
+
+// Bring the members of a match into the cache, so the forms opened from the
+// editor can name them without a fetch inside Discord's 3 second window.
+export async function loadMembers(guild: Guild | null, ids: readonly string[]): Promise<void> {
+  const missing = ids.filter((id) => !guild?.members.cache.has(id));
+  if (guild && missing.length) await guild.members.fetch({ user: missing, time: 1_500 }).catch(() => undefined);
+}
+
+// Server names for the edit forms, where mentions do not render, from the
+// cache only; anyone not in it keeps the name in the save.
+export function memberNames(guild: Guild | null, ids: readonly string[]): ReadonlyMap<string, string> {
+  if (!guild) return new Map();
+  return new Map(
+    ids.flatMap((id): [string, string][] => {
+      const member = guild.members.cache.get(id);
+      return member ? [[id, member.displayName]] : [];
+    }),
+  );
 }

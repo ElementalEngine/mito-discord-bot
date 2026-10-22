@@ -25,7 +25,7 @@ const ACCESS_POLICY = {
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('report-game')
-  .setDescription('Validate the channel & save, then upload to the reporter backend.')
+  .setDescription('Report a finished game from its save file.')
   .addAttachmentOption((option) =>
     option.setName('game-save').setDescription('Upload the .Civ6Save or .Civ7Save file (\u226412MB)').setRequired(true),
   );

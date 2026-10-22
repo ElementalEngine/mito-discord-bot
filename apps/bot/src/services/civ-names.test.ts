@@ -1,9 +1,11 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import type { Client } from 'discord.js';
+
 import type { ApiClient } from '../api/index.js';
 import type { CivDataResponse } from '../api/types.js';
-import { civNames, editionOf, forgetCivNames } from './civ-names.js';
+import { civNames, editionOf, forgetCivNames, loadAppEmojis } from './civ-names.js';
 
 /**
  * Display names, cached per edition. What should break this file: a fetch
@@ -48,6 +50,16 @@ test('an outage keeps the last good names, or none, and never throws', async () 
   assert.equal(stale.get('LEADER_SHAKA'), 'Shaka');
   forgetCivNames();
   assert.equal((await civNames('civ7', fakeApi(true).api, 0)).size, 0);
+});
+
+test('portraits come from the bot emoji by name, and refresh cached names', async () => {
+  const { api } = fakeApi();
+  assert.equal((await civNames('civ6', api, 0)).get('LEADER_SHAKA'), 'Shaka');
+  const client = {
+    application: { emojis: { fetch: async () => new Map([['9', { id: '9', name: 'Shaka' }]]) } },
+  } as unknown as Client;
+  await loadAppEmojis(client);
+  assert.equal((await civNames('civ6', api, 1)).get('LEADER_SHAKA'), '<:Shaka:9> Shaka');
 });
 
 test('the edition comes from the match game', () => {

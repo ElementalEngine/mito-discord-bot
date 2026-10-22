@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import type { Client } from 'discord.js';
 import { deployCommands } from '../deploy.js';
+import { loadAppEmojis } from '../services/civ-names.js';
 import { startJobs } from '../jobs/index.js';
 import { log } from '../utils/log.js';
 
@@ -14,5 +15,6 @@ export async function execute(client: Client): Promise<void> {
   } catch (err) {
     log.error('❌ Failed to deploy commands on startup:', err);
   }
+  await loadAppEmojis(client);
   startJobs(client);
 }
