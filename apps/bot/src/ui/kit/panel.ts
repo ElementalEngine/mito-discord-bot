@@ -1,5 +1,6 @@
 import {
   ContainerBuilder,
+  FileBuilder,
   MessageFlags,
   SectionBuilder,
   SeparatorBuilder,
@@ -21,13 +22,16 @@ export type Block =
   | Readonly<{ kind: 'text'; text: string }>
   | Readonly<{ kind: 'divider'; large: boolean }>
   | Readonly<{ kind: 'aside'; text: string; button: ButtonBuilder }>
-  | Readonly<{ kind: 'picture'; text: string; url: string; alt: string }>;
+  | Readonly<{ kind: 'picture'; text: string; url: string; alt: string }>
+  | Readonly<{ kind: 'file'; name: string }>;
 
 export const text = (body: string): Block => ({ kind: 'text', text: body });
 export const divider = (large = false): Block => ({ kind: 'divider', large });
 export const field = (name: string, value: string): Block => text(`**${name}**\n${value || '\u2014'}`);
 export const aside = (body: string, button: ButtonBuilder): Block => ({ kind: 'aside', text: body, button });
 export const picture = (body: string, url: string, alt = ''): Block => ({ kind: 'picture', text: body, url, alt });
+// An attachment sent with the message, shown where the block sits.
+export const file = (name: string): Block => ({ kind: 'file', name });
 
 export type ButtonRow = ActionRowBuilder<MessageActionRowComponentBuilder>;
 
@@ -142,6 +146,9 @@ export function container(panel: Panel): ContainerBuilder {
         );
         break;
       }
+      case 'file':
+        box.addFileComponents(new FileBuilder().setURL(`attachment://${block.name}`));
+        break;
     }
   }
   if (actions.length) box.addActionRowComponents(...actions);

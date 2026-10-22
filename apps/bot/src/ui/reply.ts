@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import {
   MessageFlags,
+  type AttachmentBuilder,
   type Message,
   type MessageMentionOptions,
   type RepliableInteraction,
@@ -39,13 +40,18 @@ export async function defer(interaction: RepliableInteraction, visibility: Visib
   else await interaction.deferReply();
 }
 
+// Files are shown where the panel's file blocks name them.
+export type Extras = Readonly<{ allowedMentions?: MessageMentionOptions; files?: readonly AttachmentBuilder[] }>;
+
 export async function respond(
   interaction: RepliableInteraction,
   panel: Panel,
   visibility: Visibility,
-  allowedMentions: MessageMentionOptions = NO_PINGS,
+  extras: Extras = {},
 ): Promise<void> {
   const components = [container(panel)];
+  const allowedMentions = extras.allowedMentions ?? NO_PINGS;
+  const files = [...(extras.files ?? [])];
   const flags =
     visibility === 'private'
       ? ([MessageFlags.IsComponentsV2, MessageFlags.Ephemeral] as const)
@@ -60,6 +66,7 @@ export async function respond(
         flags: MessageFlags.IsComponentsV2,
         components,
         allowedMentions,
+        files,
       });
       return;
     }
@@ -67,11 +74,11 @@ export async function respond(
     if (visibility === 'private') await interaction.deleteReply().catch(() => undefined);
   }
   if (interaction.deferred || interaction.replied) {
-    await interaction.followUp({ flags, components, allowedMentions });
+    await interaction.followUp({ flags, components, allowedMentions, files });
     return;
   }
   visibilityOf.set(interaction, visibility);
-  await interaction.reply({ flags, components, allowedMentions });
+  await interaction.reply({ flags, components, allowedMentions, files });
 }
 
 // A panel posted to a channel, or an earlier message rewritten as one, rather

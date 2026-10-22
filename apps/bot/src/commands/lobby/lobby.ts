@@ -1,13 +1,12 @@
-import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
+import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from 'discord.js';
 
-import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
 import type { LobbyDocument } from '../../api/types.js';
 import { config } from '../../config.js';
-import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
-import { buildLobbyButtons, buildLobbyOpenEmbed } from '../../ui/embeds/lobby.js';
+import { lobbyLabel, lobbyListPanel, lobbyOpenPanel } from '../../ui/panels/lobby.js';
+import { fail, postPanel, refuse, respond, say } from '../../ui/reply.js';
+import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { log } from '../../utils/log.js';
 
 const api = new ApiClient();
 const FFA_SIZES = [8, 10, 12] as const;
@@ -56,10 +55,10 @@ export const data = new SlashCommandBuilder()
         o.setName('mode').setDescription('Game mode').setRequired(true)
           .addChoices(...MODES.map((m) => ({ name: m.label, value: m.value }))))
       .addIntegerOption((o) =>
-        o.setName('size').setDescription('Seats — FFA only')
+        o.setName('size').setDescription('Seats \u2014 FFA only')
           .addChoices(...FFA_SIZES.map((n) => ({ name: String(n), value: n }))))
       .addStringOption((o) =>
-        o.setName('starting-age').setDescription('Starting age — Civ7 only')
+        o.setName('starting-age').setDescription('Starting age \u2014 Civ7 only')
           .addChoices({ name: 'Antiquity', value: AGES[0] }, { name: 'Exploration', value: AGES[1] }, { name: 'Modern', value: AGES[2] }))
       .addStringOption((o) => o.setName('rules').setDescription('Host rules, shown on the lobby').setMaxLength(500)))
   .addSubcommand((sub) => sub.setName('cancel').setDescription('Cancel the lobby you host. Staff may cancel any in this channel.'))
@@ -80,94 +79,61 @@ async function member(interaction: ChatInputCommandInteraction): Promise<GuildMe
   return interaction.guild.members.fetch(interaction.user.id).catch(() => null);
 }
 
-const PHASE_LABEL: Record<string, string> = {
-  lobby: 'filling',
-  settings: 'voting',
-  bans: 'banning',
-  draft: 'drafting',
-};
-
 // cancel and leave take no id: a player is in one lobby at a time, and a
 // host hosts one, so the channel's open lobbies are enough to find it.
 async function openInChannel(interaction: ChatInputCommandInteraction): Promise<LobbyDocument[]> {
   return api.browseLobbies(interaction.guildId ?? '', interaction.user.id, interaction.channelId);
 }
 
-async function runCancel(interaction: ChatInputCommandInteraction, say: (c: string) => Promise<unknown>): Promise<void> {
-  const isStaff = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
+async function runCancel(interaction: ChatInputCommandInteraction): Promise<void> {
+  const staff = isStaff(interaction);
   const open = await openInChannel(interaction);
-  const mine = open.filter((l) => isStaff || l.host_discord_id === interaction.user.id);
+  const mine = open.filter((l) => staff || l.host_discord_id === interaction.user.id);
   if (mine.length === 0) {
-    return void (await say(`${EMOJI_FAIL} ${isStaff ? 'No open lobby in this channel.' : 'You are not hosting an open lobby here.'}`));
+    refuse(staff ? 'There is no open lobby in this channel.' : 'You are not hosting an open lobby in this channel.');
   }
-  if (mine.length > 1) {
-    return void (await say(`${EMOJI_FAIL} ${mine.length} open lobbies here — cancel from the Activity instead.`));
-  }
+  if (mine.length > 1) refuse(`There are ${mine.length} open lobbies here. Cancel the one you mean from the Activity.`);
   const lobby = mine[0]!;
-  await api.cancelLobby(lobby._id, lobby.host_discord_id, lobby.revision, isStaff);
-  await say(`${EMOJI_CONFIRM} Cancelled.`);
+  await api.cancelLobby(lobby._id, lobby.host_discord_id, lobby.revision, staff);
+  await say(interaction, 'success', `${lobbyLabel(lobby)} lobby cancelled.`);
 }
 
-async function runLeave(interaction: ChatInputCommandInteraction, say: (c: string) => Promise<unknown>): Promise<void> {
-  const seated = (await openInChannel(interaction)).filter((l) =>
-    l.seats.some((s) => s.discord_id === interaction.user.id));
-  if (seated.length === 0) return void (await say(`${EMOJI_FAIL} You are not seated in an open lobby here.`));
+async function runLeave(interaction: ChatInputCommandInteraction): Promise<void> {
+  const seated = (await openInChannel(interaction)).filter((l) => l.seats.some((s) => s.discord_id === interaction.user.id));
+  if (seated.length === 0) refuse('You are not seated in an open lobby in this channel.');
   const lobby = seated[0]!;
-  if (lobby.host_discord_id === interaction.user.id) {
-    return void (await say(`${EMOJI_FAIL} You host this one — use /lobby cancel.`));
-  }
+  if (lobby.host_discord_id === interaction.user.id) refuse('You host this lobby. Use /lobby cancel to close it.');
   await api.leaveLobby(lobby._id, interaction.user.id, lobby.revision);
-  await say(`${EMOJI_CONFIRM} Left. You can join another lobby now.`);
+  await say(interaction, 'success', `You left the ${lobbyLabel(lobby)} lobby. You can join another now.`);
 }
 
-async function runBrowse(interaction: ChatInputCommandInteraction, say: (c: string) => Promise<unknown>): Promise<void> {
+async function runBrowse(interaction: ChatInputCommandInteraction): Promise<void> {
   const open = await api.browseLobbies(interaction.guildId ?? '', interaction.user.id);
-  if (open.length === 0) return void (await say('No open lobbies.'));
-  const lines = open.map((l) =>
-    `• **${l.edition.toUpperCase()} ${l.game_type}** — ${l.seats.length}/${l.seat_count} seated · ${PHASE_LABEL[l.phase] ?? l.phase} · host <@${l.host_discord_id}> · <#${l.channel_id}>`);
-  await say(lines.join('\n'));
+  if (open.length === 0) return say(interaction, 'muted', 'No lobbies are open right now. Start one with /lobby create.');
+  await respond(interaction, lobbyListPanel(open), 'private');
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const sub = interaction.options.getSubcommand(true);
-  if (sub !== 'create') {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const say = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
-    try {
-      if (sub === 'cancel') return await runCancel(interaction, say);
-      if (sub === 'leave') return await runLeave(interaction, say);
-      return await runBrowse(interaction, say);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        log.warn(`lobby ${sub} refused`, error.status, error.code);
-        return void (await say(`${EMOJI_FAIL} Refused (${error.code ?? error.status}).`));
-      }
-      log.error(`lobby ${sub} failed`, error);
-      return void (await say(`${EMOJI_ERROR} That did not work.`));
-    }
-  }
-
+async function runCreate(interaction: ChatInputCommandInteraction): Promise<void> {
   const game = interaction.options.getString('game', true) as Game;
   const chosen = MODES.find((m) => m.value === interaction.options.getString('mode', true));
-  if (!chosen) return void (await interaction.reply({ content: `${EMOJI_FAIL} Unknown mode.`, flags: MessageFlags.Ephemeral }));
+  if (!chosen) refuse('That mode is not offered. Pick one from the list.');
   if (!(await ensureCommandAccess(interaction, { allowedChannelIds: allowedChannels(game, chosen.gameType) }))) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const say = (content: string) => interaction.editReply({ content, allowedMentions: { parse: [] } });
 
   const size = interaction.options.getInteger('size');
-  if (size !== null && chosen.gameType !== 'ffa') return void (await say(`${EMOJI_FAIL} size is FFA only.`));
+  if (size !== null && chosen.gameType !== 'ffa') refuse('Size applies to FFA lobbies only.');
   const startingAge = interaction.options.getString('starting-age');
-  if (startingAge !== null && game !== 'civ7') return void (await say(`${EMOJI_FAIL} starting-age is Civ7 only.`));
+  if (startingAge !== null && game !== 'civ7') refuse('Starting age applies to Civ7 lobbies only.');
 
   const host = await member(interaction);
-  if (!host) return void (await say(`${EMOJI_ERROR} Unable to resolve your member info.`));
-  if (!host.voice.channel) return void (await say(`${EMOJI_FAIL} Join a voice channel first, then run /lobby create.`));
-  if (!interaction.guildId || !interaction.channel?.isSendable()) {
-    return void (await say(`${EMOJI_FAIL} I cannot post in this channel.`));
+  if (!host) throw new Error('lobby host is not a resolvable guild member');
+  if (!host.voice.channel) refuse('Join a voice channel first, then run /lobby create.');
+  const channel = interaction.channel;
+  if (!interaction.guildId || !channel?.isSendable()) {
+    refuse('I cannot post in this channel. Ask staff to check my permissions here.');
   }
 
-  try {
-    const lobby = await api.createLobby({
+  const lobby = await api.createLobby(
+    {
       guild_id: interaction.guildId,
       channel_id: interaction.channelId,
       voice_channel_id: host.voice.channel.id,
@@ -180,15 +146,31 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       draft_mode: chosen.draftMode ?? null,
       starting_age: startingAge as (typeof AGES)[number] | null,
       host_rules: interaction.options.getString('rules'),
-    }, host.displayName);
-    await interaction.channel.send({ embeds: [buildLobbyOpenEmbed(lobby)], components: [buildLobbyButtons(lobby)] });
-    await say(`${EMOJI_CONFIRM} Lobby posted. Open it from the message to take your seat.`);
+    },
+    host.displayName,
+  );
+  await postPanel(channel, lobbyOpenPanel(lobby));
+  await say(interaction, 'success', 'Lobby posted. Open it from the message to take your seat.');
+}
+
+const ACTION: Readonly<Record<string, string>> = {
+  create: 'open the lobby',
+  cancel: 'cancel the lobby',
+  leave: 'leave the lobby',
+  browse: 'list the open lobbies',
+};
+
+// Every answer is private; the lobby itself is posted to the channel.
+export const visibility = 'private';
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const sub = interaction.options.getSubcommand(true);
+  try {
+    if (sub === 'create') await runCreate(interaction);
+    else if (sub === 'cancel') await runCancel(interaction);
+    else if (sub === 'leave') await runLeave(interaction);
+    else await runBrowse(interaction);
   } catch (error) {
-    if (error instanceof ApiError) {
-      log.warn('lobby create refused', error.status, error.code);
-      return void (await say(`${EMOJI_FAIL} ${error.status === 409 ? 'You are already seated in another open lobby.' : `Could not open the lobby (${error.code ?? error.status}).`}`));
-    }
-    log.error('lobby create failed', error);
-    await say(`${EMOJI_ERROR} Could not open the lobby.`);
+    await fail(interaction, error, ACTION[sub] ?? `run /lobby ${sub}`, { sub });
   }
 }

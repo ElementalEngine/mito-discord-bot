@@ -3,7 +3,9 @@ import type { Client } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import type { LobbyDocument } from '../api/types.js';
 import { config } from '../config.js';
-import { buildLobbyCompleteEmbed, type CivNames, civNamesOf } from '../ui/embeds/lobby.js';
+import { civNamesOf, type CivNames } from '../ui/kit/index.js';
+import { lobbyDonePanel } from '../ui/panels/lobby.js';
+import { postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 15_000;
@@ -36,7 +38,7 @@ async function postFinishedLobbies(client: Client, api: ApiClient): Promise<void
       continue;
     }
     const names = lobby.phase === 'complete' ? await namesFor(api, lobby.edition, seen) : undefined;
-    await channel.send({ embeds: [buildLobbyCompleteEmbed(lobby, names)] });
+    await postPanel(channel, lobbyDonePanel(lobby, names));
     log.info('posted finished lobby', lobby._id, lobby.phase);
   }
 }

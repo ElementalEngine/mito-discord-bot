@@ -2,7 +2,6 @@ import {
   InteractionContextType,
   ChannelType,
   ChatInputCommandInteraction,
-  EmbedBuilder,
   SlashCommandBuilder,
   SlashCommandChannelOption,
   SlashCommandStringOption,
@@ -11,17 +10,12 @@ import {
 import { randomInt } from 'node:crypto';
 
 import { config } from '../../config.js';
-import { EMOJI_REPORT } from '../../config/constants.js';
+import { seedPanel } from '../../ui/panels/misc.js';
+import { respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const INT32_MIN = -(2 ** 31);
 const INT32_MAX_EXCLUSIVE = 2 ** 31;
-
-function truncate(input: string, max: number): string {
-  if (input.length <= max) return input;
-  if (max <= 3) return input.slice(0, max);
-  return `${input.slice(0, max - 3)}...`;
-}
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
@@ -71,29 +65,16 @@ const ACCESS_POLICY = {
   allowDeveloperOverride: true,
 } as const;
 
-export async function execute(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const ok = await ensureCommandAccess(interaction, ACCESS_POLICY);
-  if (!ok) return;
-
-  const forLabel = interaction.options.getString('for', false)?.trim() ?? '';
-  const user = interaction.options.getUser('tag', false);
-  const where = interaction.options.getChannel('where', false);
-
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
   const seed = String(randomInt(INT32_MIN, INT32_MAX_EXCLUSIVE));
-
-  const titleSuffix = forLabel ? ` for ${forLabel}` : '';
-  const title = truncate(`${EMOJI_REPORT} Random Map Seed${titleSuffix}`, 256);
-
-  const lines = [seed];
-  if (user) lines.push(`Tag: ${user.toString()}`);
-  if (where) lines.push(`Where: ${where.toString()}`);
-
-  const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(lines.join('\n'))
-    .setColor(0xf85252);
-
-  await interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+  await respond(
+    interaction,
+    seedPanel(seed, {
+      label: interaction.options.getString('for', false) ?? '',
+      userId: interaction.options.getUser('tag', false)?.id ?? null,
+      channelId: interaction.options.getChannel('where', false)?.id ?? null,
+    }),
+    'public',
+  );
 }

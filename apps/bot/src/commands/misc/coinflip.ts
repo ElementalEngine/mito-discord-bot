@@ -1,13 +1,9 @@
-import {
-  InteractionContextType,
-  ChatInputCommandInteraction,
-  EmbedBuilder,
-  SlashCommandBuilder,
-} from 'discord.js';
+import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { randomInt } from 'node:crypto';
 
 import { config } from '../../config.js';
-import { EMOJI_QUESTION } from '../../config/constants.js';
+import { coinPanel } from '../../ui/panels/misc.js';
+import { respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 export const data = new SlashCommandBuilder()
@@ -23,25 +19,11 @@ const ACCESS_POLICY = {
     config.discord.channels.cloudCommands,
     config.discord.channels.noviceCommands,
   ],
-  requiredRoleIds: [
-    config.discord.roles.civ6Rank,
-    config.discord.roles.civ7Rank,
-    config.discord.roles.civCloud,
-  ],
+  requiredRoleIds: [config.discord.roles.civ6Rank, config.discord.roles.civ7Rank, config.discord.roles.civCloud],
   allowDeveloperOverride: true,
 } as const;
 
-export async function execute(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const ok = await ensureCommandAccess(interaction, ACCESS_POLICY);
-  if (!ok) return;
-
-  const result = randomInt(0, 2) === 0 ? 'Heads' : 'Tails';
-  const embed = new EmbedBuilder()
-    .setTitle(`${EMOJI_QUESTION} Coin Flip`)
-    .setDescription(`The coin landed on **${result}**!`)
-    .setColor(0x00ff00);
-
-  await interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  await respond(interaction, coinPanel(randomInt(0, 2) === 0 ? 'heads' : 'tails'), 'public');
 }
