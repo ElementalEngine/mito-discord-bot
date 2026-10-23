@@ -1,14 +1,23 @@
 import { REST } from "@discordjs/rest";
-import { Routes } from "discord.js";
+import { Routes, type RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
 import type { Command } from "./types/global.js";
 import { config } from "./config.js";
+import { COMMAND_ACCESS } from "./config/command-access.js";
 import { log } from './utils/log.js';
+
+// Staff-only commands are hidden from everyone until Integrations grants a role.
+export function payloadOf(commands: ReadonlyMap<string, Command>): RESTPostAPIChatInputApplicationCommandsJSONBody[] {
+  return Array.from(commands.values()).map((cmd) => {
+    const json = cmd.data.toJSON();
+    return COMMAND_ACCESS[json.name]?.staffOnly ? { ...json, default_member_permissions: '0' } : json;
+  });
+}
 
 export async function deployCommands(
   commands: ReadonlyMap<string, Command>,
   guildId: string = config.discord.guildId
 ): Promise<void> {
-  const payload = Array.from(commands.values()).map((cmd) => cmd.data.toJSON());
+  const payload = payloadOf(commands);
   if (payload.length === 0) {
     log.info("ℹ️ No commands to deploy.");
     return;
