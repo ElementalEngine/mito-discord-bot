@@ -10,7 +10,7 @@ const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
-  .setName('revert-report')
+  .setName('report-revert')
   .setDescription('Undo an approved result and restore the ratings.')
   .addStringOption((option) =>
     option.setName('match-id').setDescription('ID of the match to revert').setRequired(true),
@@ -23,7 +23,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const matchId = interaction.options.getString('match-id', true).trim();
     const match = await api.revert(matchId);
     await respond(interaction, revertedPanel(match), 'public');
-    await logAction(interaction, 'revert-report', { matchId });
+    await logAction(interaction, 'report-revert', { matchId });
   } catch (error) {
     await fail(interaction, error, 'revert the report');
   }

@@ -4,6 +4,7 @@ import { config } from '../config.js';
 
 // Who may run each command, and where. Discord's Integrations settings hold the
 // live rules, set by an admin from this table; startup logs any difference.
+// Every command needs a ranked role: unverified members see only Auth's.
 type Channel = keyof typeof config.discord.channels;
 type Role = keyof typeof config.discord.roles;
 
@@ -19,9 +20,9 @@ const RANKED: readonly Role[] = ['civ6Rank', 'civ7Rank', 'civCloud', 'moderator'
 const COMMAND_CHANNELS: readonly Channel[] = ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'noviceCommands'];
 
 export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
-  'report-game': { roles: null, channels: ['civ6realtimeUploads', 'civ7realtimeUploads', 'civ6cloudUploads', 'civ7cloudUploads'] },
-  'remove-match': { roles: null, channels: null },
-  'revert-report': { roles: ['admin', 'developer'], channels: null, staffOnly: true },
+  'report-game': { roles: RANKED, channels: ['civ6realtimeUploads', 'civ7realtimeUploads', 'civ6cloudUploads', 'civ7cloudUploads'] },
+  'report-remove': { roles: RANKED, channels: null },
+  'report-revert': { roles: ['admin', 'developer'], channels: null, staffOnly: true },
   stats: { roles: RANKED, channels: COMMAND_CHANNELS },
   roomranks: { roles: RANKED, channels: COMMAND_CHANNELS },
   resetstats: { roles: ['noviceManager', 'moderator', 'developer'], channels: ['botTesting'], staffOnly: true },
@@ -35,8 +36,8 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   'draft-civ6': { roles: RANKED, channels: ['botTesting', 'civ6Commands', 'noviceCommands', 'cloudCommands'] },
   'draft-civ7': { roles: RANKED, channels: ['botTesting', 'civ7Commands'] },
   // Each subcommand checks its own channel, so the command is open everywhere.
-  lobby: { roles: null, channels: null },
-  secretvote: { roles: null, channels: COMMAND_CHANNELS },
+  lobby: { roles: RANKED, channels: null },
+  secretvote: { roles: RANKED, channels: COMMAND_CHANNELS },
 };
 
 // The ids a command's access resolves to; an unset id is left out.

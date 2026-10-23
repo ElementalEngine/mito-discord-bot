@@ -37,12 +37,16 @@ test('every command has one row in the table, and every row a command', async ()
   assert.deepEqual([...(await commands()).keys()].sort(), Object.keys(COMMAND_ACCESS).sort());
 });
 
+test('every command needs a role: unverified members see none of them', () => {
+  assert.deepEqual(Object.entries(COMMAND_ACCESS).filter(([, a]) => !a.roles?.length).map(([name]) => name), []);
+});
+
 test('staff commands deploy hidden; the rest keep their own defaults', async () => {
   const hidden = payloadOf(await commands())
     .filter((c) => c.default_member_permissions === '0')
     .map((c) => c.name)
     .sort();
-  assert.deepEqual(hidden, ['get-users', 'resetstats', 'revert-report']);
+  assert.deepEqual(hidden, ['get-users', 'report-revert', 'resetstats']);
 });
 
 const role = (id: string, permission = true) => ({ id, type: Type.Role, permission });

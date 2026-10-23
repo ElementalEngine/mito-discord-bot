@@ -10,7 +10,7 @@ const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
-  .setName('remove-match')
+  .setName('report-remove')
   .setDescription('Remove a report that is still waiting for approval.')
   .addStringOption((option) =>
     option.setName('match-id').setDescription('ID of the match to remove').setRequired(true),
@@ -25,7 +25,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const match = await api.removeMatch(matchId, { id: interaction.user.id, isStaff: isStaff(interaction) });
     await deleteReportMessages(interaction.client, match);
     await say(interaction, 'success', `Match \`${matchId}\` is removed, with its report.`);
-    await logAction(interaction, 'remove-match', { matchId });
+    await logAction(interaction, 'report-remove', { matchId });
   } catch (error) {
     await fail(interaction, error, 'remove the match');
   }
