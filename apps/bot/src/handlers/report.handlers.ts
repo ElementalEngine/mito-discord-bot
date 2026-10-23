@@ -3,6 +3,7 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  type AnySelectMenuInteraction,
   type ButtonInteraction,
   type Interaction,
   type ModalSubmitInteraction,
@@ -25,22 +26,22 @@ import { channel as channelMention, customId, mention, parseId, type CivNames, t
 import {
   EDIT,
   FIELD,
-  assignEdits,
-  assignForm,
+  assignPanel,
   civFocus,
   civPickEdit,
   civsPanel,
   closedEditor,
+  draftEdits,
   EDITOR_CLOSED,
-  orderEdits,
-  orderForm,
+  orderPanel,
   quitEdits,
   quitsForm,
   seatEdits,
   seatForm,
   tieEdits,
   tieForm,
-  type EditResult,
+  withAssignPick,
+  withOrderPick,
   type Members,
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
@@ -63,11 +64,23 @@ const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
 // Saves on one report take turns, so a quick second pick reads the first.
 const inTurn = serial();
-type EditorPress = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
-const closerFor = (interaction: EditorPress): Closer => ({
-  close: () => replacePanel(interaction, closedEditor()),
+type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
+// Closing waits its turn behind any pick in progress, so the closed notice is
+// the last thing the editor shows and no draft outlives it.
+const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
+  close: () =>
+    inTurn(matchId, async () => {
+      drafts.delete(matchId);
+      await replacePanel(interaction, closedEditor());
+    }),
   until: interaction.createdTimestamp + TOKEN_MS,
 });
+
+// A set-order or assign draft: the match as its panel opened on it, and as
+// the picks since have changed it. Save sends the difference.
+type DraftKind = 'order' | 'assign';
+type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match }>;
+const drafts = new Map<string, Draft>();
 
 // A read before a form opens must beat Discord's 3 second window, so a slow
 // league server is said plainly rather than left to time out.
@@ -94,10 +107,11 @@ const ACTION: Readonly<Record<string, string>> = {
   edit: 'open the editor',
   [EDIT.seat]: 'open the seat form',
   [EDIT.seatForm]: 'save the seat',
-  [EDIT.order]: 'open the order form',
-  [EDIT.orderForm]: 'save the order',
-  [EDIT.assign]: 'open the assign form',
-  [EDIT.assignForm]: 'save the players',
+  [EDIT.order]: 'open the order panel',
+  [EDIT.orderPick]: 'move that place',
+  [EDIT.assign]: 'open the assign panel',
+  [EDIT.assignPick]: 'set that seat',
+  [EDIT.save]: 'save the changes',
   [EDIT.tie]: 'open the tie form',
   [EDIT.tieForm]: 'save the tie',
   [EDIT.quits]: 'open the quits form',
@@ -177,7 +191,7 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
 
 // Done closes the editor at once, rather than waiting for it to go idle.
 async function done(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction))) refuse(EDITOR_CLOSED);
+  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
   await holdPanel(interaction);
   editors.close(matchId);
 }
@@ -194,9 +208,9 @@ async function openEditor(interaction: ButtonInteraction, matchId: string): Prom
   if (holder && holder !== interaction.user.id) {
     refuse(`${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`);
   }
-  await respond(interaction, panel, 'private');
-  const editor = await interaction.fetchReply();
-  editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction), IDLE_MS);
+  // The deferred reply is edited, so the editor's message comes straight back.
+  const editor = await respond(interaction, panel, 'private');
+  if (editor) editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction, matchId), IDLE_MS);
 }
 
 // A form from the editor, built from the report as it is now. The members
@@ -219,7 +233,7 @@ async function openForm(
 // Save, then rewrite the public report and the private panel together, from
 // the one saved match, so neither shows anything the other does not.
 async function saveSeats(
-  interaction: ModalSubmitInteraction | StringSelectMenuInteraction,
+  interaction: EditorPress,
   matchId: string,
   action: string,
   seats: readonly SeatEdit[],
@@ -245,7 +259,7 @@ async function submit(
   editsOf: (match: Match) => SeatEdit[],
 ): Promise<void> {
   await holdPanel(interaction);
-  const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction));
+  const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction, matchId));
   if (!open) refuse(EDITOR_CLOSED);
   await inTurn(matchId, async () => {
     const edits = editsOf(await api.match(matchId));
@@ -255,9 +269,9 @@ async function submit(
 }
 
 // A press on the editor's own message holds it and keeps it open.
-async function hold(interaction: ButtonInteraction | StringSelectMenuInteraction, matchId: string): Promise<void> {
+async function hold(interaction: ButtonInteraction | AnySelectMenuInteraction, matchId: string): Promise<void> {
   await holdPanel(interaction);
-  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction))) refuse(EDITOR_CLOSED);
+  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
 }
 
 // The civ picker, in place of the editor, on the seat `focus` chooses.
@@ -291,21 +305,70 @@ async function pickCiv(interaction: StringSelectMenuInteraction, matchId: string
 
 async function back(interaction: ButtonInteraction, matchId: string): Promise<void> {
   await hold(interaction, matchId);
-  const match = await api.match(matchId);
-  await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
+  await inTurn(matchId, async () => {
+    drafts.delete(matchId);
+    const match = await api.match(matchId);
+    await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
+  });
+}
+
+// Opens a draft panel, or applies one pick to its draft and redraws it. A
+// pick the bot holds no draft for starts again from the report as it is.
+async function draft(
+  interaction: ButtonInteraction | AnySelectMenuInteraction,
+  matchId: string,
+  kind: DraftKind,
+  pick?: (match: Match) => Match | string,
+): Promise<void> {
+  await hold(interaction, matchId);
+  await inTurn(matchId, async () => {
+    let held = drafts.get(matchId);
+    if (!held || !pick || held.kind !== kind) {
+      const match = await api.match(matchId);
+      held = { kind, base: match, now: match };
+    }
+    const next = pick ? pick(held.now) : held.now;
+    if (typeof next === 'string') await say(interaction, 'refused', next);
+    else held = { ...held, now: next };
+    drafts.set(matchId, held);
+    const names = await civNames(editionOf(held.now.game), api);
+    const members = memberNames(interaction.guild, playerIds(held.now));
+    const changed = draftEdits(held.base, held.now).length;
+    const panel = kind === 'order' ? orderPanel(held.now, names, members, changed) : assignPanel(held.now, names, members, changed);
+    await replacePanel(interaction, panel);
+  });
+}
+
+// Save sends the whole draft as one edit; a refused one keeps the draft.
+async function saveDraft(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  await hold(interaction, matchId);
+  await inTurn(matchId, async () => {
+    const held = drafts.get(matchId);
+    const edits = held ? draftEdits(held.base, held.now) : [];
+    if (!held || !edits.length) {
+      drafts.delete(matchId);
+      const match = await api.match(matchId);
+      await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
+      return;
+    }
+    await saveSeats(interaction, matchId, held.kind === 'order' ? 'set-order' : 'assign-players', edits);
+    drafts.delete(matchId);
+  });
 }
 
 const selected = (interaction: ModalSubmitInteraction, field: string): readonly string[] =>
   interaction.fields.getStringSelectValues(field);
 
-const unless = (result: EditResult): SeatEdit[] => (result.ok ? result.seats : refuse(result.reason));
 
 export async function handleReportInteraction(interaction: Interaction): Promise<boolean> {
-  if (!interaction.isButton() && !interaction.isModalSubmit() && !interaction.isStringSelectMenu()) return false;
+  if (!interaction.isButton() && !interaction.isModalSubmit() && !interaction.isStringSelectMenu() && !interaction.isUserSelectMenu()) {
+    return false;
+  }
   const id = parseId(interaction.customId);
   if (id?.surface !== 'report') return false;
   const matchId = id.args[0] ?? '';
-  // A form's page, or for a seat form or a civ pick, the seat number.
+  // The seat number of a seat form, civ pick or assign pick; for an order
+  // pick, the place it sets (0 is 1st).
   const at = Number(id.args[1] ?? 0);
   try {
     if (interaction.isButton() && id.verb === 'approve') await approve(interaction, matchId);
@@ -316,9 +379,16 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
       await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));
     } else if (interaction.isButton() && id.verb === EDIT.assign) {
-      await openForm(interaction, matchId, assignForm);
+      await draft(interaction, matchId, 'assign');
+    } else if (interaction.isUserSelectMenu() && id.verb === EDIT.assignPick) {
+      await draft(interaction, matchId, 'assign', (m) => withAssignPick(m, at, interaction.values[0] ?? ''));
     } else if (interaction.isButton() && id.verb === EDIT.order) {
-      await openForm(interaction, matchId, (m, names, members) => orderForm(m, names, members, at));
+      await draft(interaction, matchId, 'order');
+    } else if (interaction.isStringSelectMenu() && id.verb === EDIT.orderPick) {
+      const holder = Number(id.args[2]);
+      await draft(interaction, matchId, 'order', (m) => withOrderPick(m, at, holder, Number(interaction.values[0])));
+    } else if (interaction.isButton() && id.verb === EDIT.save) {
+      await saveDraft(interaction, matchId);
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
       await openForm(interaction, matchId, quitsForm, 'Assign players before marking who quit.');
     } else if (interaction.isButton() && id.verb === EDIT.tie) {
@@ -341,14 +411,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         left: picked(interaction, FIELD.left),
       };
       await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => seatEdits(m, at, choice));
-    } else if (interaction.isModalSubmit() && id.verb === EDIT.assignForm) {
-      await submit(interaction, matchId, 'assign-players', 'No seat changed.', (m) =>
-        assignEdits(m, (field) => (interaction.fields.fields.has(field) ? picked(interaction, field) : null)),
-      );
-    } else if (interaction.isModalSubmit() && id.verb === EDIT.orderForm) {
-      await submit(interaction, matchId, 'set-order', 'The order is unchanged.', (m) =>
-        unless(orderEdits(m, at, (field) => selected(interaction, field)[0] ?? null)),
-      );
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {

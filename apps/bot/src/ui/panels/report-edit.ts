@@ -34,9 +34,10 @@ export const EDIT = {
   seat: 'seat',
   seatForm: 'seatform',
   assign: 'assign',
-  assignForm: 'assignform',
+  assignPick: 'assignpick',
   order: 'order',
-  orderForm: 'orderform',
+  orderPick: 'orderpick',
+  save: 'save',
   tie: 'tie',
   tieForm: 'tieform',
   quits: 'quits',
@@ -57,7 +58,7 @@ export const FIELD = {
   quits: 'quits',
 } as const;
 
-// A form holds five fields, so seats and places come five to a form.
+// A row holds five buttons.
 const PAGE = 5;
 
 // Discord id -> the member's server name, for forms, where mentions do not
@@ -77,7 +78,6 @@ const isCiv7 = (match: Match): boolean => match.game.toLowerCase() === 'civ7';
 const saveName = (p: Seat['player']): string => p.user_name ?? 'unknown';
 const pagesOf = <T>(items: readonly T[]): T[][] =>
   Array.from({ length: Math.ceil(items.length / PAGE) }, (_, i) => items.slice(i * PAGE, i * PAGE + PAGE));
-const rangeOf = (first: number, count: number): string => (count === 1 ? String(first) : `${first}\u2013${first + count - 1}`);
 
 // A seat's player as a form shows it: the member's server name, else the
 // name in the save, marked unassigned.
@@ -174,11 +174,8 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
     .setCustomId(customId('report', EDIT.seat, id))
     .setPlaceholder('Edit one seat: player, place, quit or sub\u2026')
     .addOptions(seats.map((s) => seatOption(s, names, members)));
-  const places = pagesOf(unitsOf(match));
   const main = [
-    ...places.map((page, i) =>
-      button(id, EDIT.order, places.length === 1 ? 'Set order' : `Order ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Primary, String(i)),
-    ),
+    button(id, EDIT.order, 'Set order', ButtonStyle.Primary),
     button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
     button(id, EDIT.quits, 'Quits', ButtonStyle.Secondary),
   ];
@@ -210,44 +207,109 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
 export const EDITOR_CLOSED = 'This editor has closed. Press Edit on the report to open it again.';
 export const closedEditor = (): Panel => notice('muted', EDITOR_CLOSED);
 
-// The field that holds a seat's player in the assign form.
-const seatField = (n: number): string => `seat${n}`;
+// The set-order and assign panels stand in for the editor and change only a
+// draft of the match; Save sends the draft as one edit.
+const MENUS_MAX = 15;
+const pastMenus = (count: number): Block[] =>
+  count > MENUS_MAX ? [text(`Seats past ${MENUS_MAX} are set from **Edit one seat**.`)] : [];
 
-// Five seats at most, unassigned ones first, each named by its civ and the
-// name in the save, with the player who holds it now already picked.
-export function assignForm(match: Match, names: CivNames): ModalBuilder {
-  const all = numbered(match);
-  const open = all.filter((s) => !idOf(s.player));
-  const seats = [...open, ...all.filter((s) => idOf(s.player))].slice(0, PAGE).sort((a, b) => a.n - b.n);
-  const labels = seats.map((s) => {
-    const pickPlayer = new UserSelectMenuBuilder()
-      .setCustomId(seatField(s.n))
-      .setMinValues(0)
-      .setMaxValues(1)
-      .setRequired(false);
-    const id = idOf(s.player);
-    if (id) pickPlayer.setDefaultUsers(id);
-    return new LabelBuilder()
-      .setLabel(fit(`Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))}`, 45))
-      .setDescription(fit(s.player.user_name ? `In the save: ${s.player.user_name}` : 'No player name in the save', 100))
-      .setUserSelectMenuComponent(pickPlayer);
-  });
-  return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.assignForm, match.match_id))
-    .setTitle(open.length > PAGE ? `Assign players: first ${PAGE} of ${open.length} unassigned` : 'Assign players')
-    .addLabelComponents(...labels);
+function draftPanel(match: Match, title: string, hint: string, menus: readonly Block[], save: ButtonBuilder): Panel {
+  const id = match.match_id;
+  return {
+    tone: 'info',
+    surface: 'report',
+    title: `${title}: ${reportLabel(match)} report`,
+    subtitle: `Match \`${id}\` \u00b7 nothing is saved until you press Save`,
+    body: [text(hint), ...menus, divider(), ...rowsOf([save, button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)])],
+  };
 }
 
-// One edit per seat whose player changed; a seat not on the form, or an
-// emptied field, leaves the seat as it is.
-export function assignEdits(match: Match, picked: (field: string) => string | null): SeatEdit[] {
+const saveButton = (match: Match, changed: number): ButtonBuilder =>
+  button(match.match_id, EDIT.save, changed ? `Save ${changed} change${changed === 1 ? '' : 's'}` : 'Nothing to save', ButtonStyle.Success)
+    .setDisabled(!changed);
+
+// Every place in one panel, best first. A pick puts that seat (or team) in the
+// place and the one there takes its old place, so the menus always read true.
+export function orderPanel(match: Match, names: CivNames, members: Members, changed: number): Panel {
+  const units = unitsOf(match);
+  const menus = units.slice(0, MENUS_MAX).map((holder) => {
+    const at = holder.seats[0]?.player.placement ?? 0;
+    const place = ordinal(at + 1);
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(customId('report', EDIT.orderPick, match.match_id, String(at), String(holder.id)))
+      .addOptions(
+        units.map((u) => {
+          const option = unitOption(match, u, names, members);
+          return { ...option, label: fit(`${place} \u00b7 ${option.label}`, 100), default: u.id === holder.id };
+        }),
+      );
+    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+  });
+  const hint = 'Pick who finished in each place; whoever was there takes their old place.';
+  return draftPanel(match, 'Set order', hint, [...menus, ...pastMenus(units.length)], saveButton(match, changed));
+}
+
+// The draft with `unit` moved into place `at`, trading with the one there: the
+// menu's own holder while it still holds the place, else whoever does now.
+export function withOrderPick(match: Match, at: number, holder: number, unit: number): Match {
+  const units = unitsOf(match);
+  const places = placesOf(units);
+  if (!places.has(unit) || places.get(unit) === at) return match;
+  const there = places.get(holder) === at ? holder : units.find((u) => places.get(u.id) === at)?.id;
+  if (there === undefined) return match;
+  trade(places, unit, there);
+  const players = [...match.players];
+  for (const u of units) {
+    for (const s of u.seats) players[s.index] = { ...s.player, placement: places.get(u.id) ?? s.player.placement };
+  }
+  return { ...match, players };
+}
+
+// One menu per seat, labelled with who has it now, so a cloud game's twelve
+// players are named in one panel.
+export function assignPanel(match: Match, names: CivNames, members: Members, changed: number): Panel {
   const seats = numbered(match);
-  return seats.flatMap((s) => {
-    const id = picked(seatField(s.n));
-    if (!id || id === idOf(s.player)) return [];
-    // A player moved here from another seat brings their quit mark.
-    const from = seats.find((o) => idOf(o.player) === id);
-    return [{ seat: s.index, discord_id: id, ...(from && from.player.quit !== s.player.quit ? { quit: from.player.quit } : {}) }];
+  const menus = seats.slice(0, MENUS_MAX).map((s) => {
+    const id = idOf(s.player);
+    const save = s.player.user_name ? ` (save: ${s.player.user_name})` : '';
+    const name = id ? members.get(id) : undefined;
+    const now = id ? (name ? `now ${name}` : 'assigned') : `unassigned${save}`;
+    const menu = new UserSelectMenuBuilder()
+      .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n)))
+      .setPlaceholder(fit(`Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))} \u00b7 ${now}`, 150));
+    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+  });
+  const hint = 'Pick the player for each seat. Someone already in another seat swaps with this seat\'s player.';
+  return draftPanel(match, 'Assign players', hint, [...menus, ...pastMenus(seats.length)], saveButton(match, changed));
+}
+
+// The draft with `id` in seat n. Someone in another seat swaps with this
+// seat's player, quit marks and all; an empty seat has no one to swap back.
+export function withAssignPick(match: Match, n: number, id: string): Match | string {
+  const seats = numbered(match);
+  const seat = seats.find((s) => s.n === n);
+  const current = seat ? idOf(seat.player) : null;
+  if (!seat || !id || id === current) return match;
+  const players = [...match.players];
+  const other = seats.find((s) => s !== seat && idOf(s.player) === id);
+  if (other) {
+    if (!current) return `${mention(id)} is in seat ${other.n}. Give seat ${other.n} its player first.`;
+    players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
+  }
+  players[seat.index] = { ...seat.player, discord_id: id, quit: other ? other.player.quit : seat.player.quit };
+  return { ...match, players };
+}
+
+// What Save sends: each seat whose player, place or quit mark the draft changed.
+export function draftEdits(base: Match, draft: Match): SeatEdit[] {
+  return seatsOf(base).flatMap(({ index, player: was }) => {
+    const now = draft.players[index];
+    if (!now) return [];
+    const edit: SeatEdit = { seat: index };
+    if (now.placement !== was.placement && typeof now.placement === 'number') edit.placement = now.placement;
+    if (now.discord_id !== was.discord_id && now.discord_id) edit.discord_id = now.discord_id;
+    if (now.quit !== was.quit) edit.quit = now.quit;
+    return Object.keys(edit).length > 1 ? [edit] : [];
   });
 }
 
@@ -332,59 +394,6 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   const holder = units.find((u) => u.id !== mine && places.get(u.id) === chosen.place);
   if (holder && chosen.place !== chosen.shown) trade(places, mine, holder.id);
   return merged([...(Object.keys(edit).length > 1 ? [edit] : []), ...swap, ...placeEdits(units, places)]);
-}
-
-// The field that holds who finished in a place.
-const placeField = (place: number): string => `place${place}`;
-
-// Up to five places, each prefilled with who holds it now; options are seats,
-// or teams in a teamer, so unassigned seats can be ordered too.
-export function orderForm(match: Match, names: CivNames, members: Members, page: number): ModalBuilder | null {
-  const units = unitsOf(match);
-  const pages = pagesOf(units);
-  const shown = pages[page];
-  if (!shown) return null;
-  const first = page * PAGE + 1;
-  const labels = shown.map((holder, k) => {
-    const label = new LabelBuilder()
-      .setLabel(`${ordinal((holder.seats[0]?.player.placement ?? 0) + 1)} place`)
-      .setStringSelectMenuComponent(
-        new StringSelectMenuBuilder()
-          .setCustomId(placeField(first + k))
-          .setRequired(true)
-          .addOptions(units.map((u) => ({ ...unitOption(match, u, names, members), default: u.id === holder.id }))),
-      );
-    return k === 0 ? label.setDescription('Pick who finished here; whoever held it takes their old place.') : label;
-  });
-  return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.orderForm, match.match_id, String(page)))
-    .setTitle(pages.length === 1 ? 'Set the finishing order' : `Finishing order: places ${rangeOf(first, shown.length)}`)
-    .addLabelComponents(...labels);
-}
-
-export type EditResult = Readonly<{ ok: true; seats: SeatEdit[] }> | Readonly<{ ok: false; reason: string }>;
-
-// Changed picks only: each moves its seat (or team) in by trading places with
-// the holder, so every other place, and any tie, stays as it is.
-export function orderEdits(match: Match, page: number, picked: (field: string) => string | null): EditResult {
-  const units = unitsOf(match);
-  const list = units.map((u) => u.id);
-  const places = placesOf(units);
-  const first = page * PAGE;
-  const moves = list
-    .slice(first, first + PAGE)
-    .map((held, k) => ({ at: first + k, unit: Number(picked(placeField(first + k + 1)) ?? held) }))
-    .filter((m, k) => m.unit !== list[first + k]);
-  const twice = moves.find((m, k) => moves.findIndex((o) => o.unit === m.unit) !== k);
-  if (twice) return { ok: false, reason: `${isTeamer(match) ? 'Team' : 'Seat'} ${twice.unit} is picked for two places.` };
-  for (const { at, unit } of moves) {
-    const from = list.indexOf(unit);
-    const holder = list[at]!;
-    if (from < 0) continue;
-    [list[at], list[from]] = [unit, holder];
-    trade(places, unit, holder);
-  }
-  return { ok: true, seats: placeEdits(units, places) };
 }
 
 // Staff put two or more seats (or teams) level at one place; a tie of two

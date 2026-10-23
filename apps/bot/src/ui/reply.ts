@@ -49,12 +49,13 @@ export async function defer(interaction: RepliableInteraction, visibility: Visib
 // Files are shown where the panel's file blocks name them.
 export type Extras = Readonly<{ allowedMentions?: MessageMentionOptions; files?: readonly AttachmentBuilder[] }>;
 
+// The message written, where Discord gives one back.
 export async function respond(
   interaction: RepliableInteraction,
   panel: Panel,
   visibility: Visibility,
   extras: Extras = {},
-): Promise<void> {
+): Promise<Message | undefined> {
   const components = [container(panel)];
   const allowedMentions = extras.allowedMentions ?? NO_PINGS;
   const files = [...(extras.files ?? [])];
@@ -64,14 +65,11 @@ export async function respond(
       : ([MessageFlags.IsComponentsV2] as const);
 
   // A held panel stays as it is; anything said arrives beside it.
-  if (holding.has(interaction)) {
-    await interaction.followUp({ flags, components, allowedMentions, files });
-    return;
-  }
+  if (holding.has(interaction)) return interaction.followUp({ flags, components, allowedMentions, files });
   if (interaction.deferred && !interaction.replied) {
     const deferredAs = visibilityOf.get(interaction) ?? (interaction.ephemeral ? 'private' : 'public');
     if (deferredAs === visibility) {
-      await interaction.editReply({
+      return interaction.editReply({
         content: null,
         embeds: [],
         flags: MessageFlags.IsComponentsV2,
@@ -79,17 +77,14 @@ export async function respond(
         allowedMentions,
         files,
       });
-      return;
     }
     // A private answer to a public deferral must not land in the channel.
     if (visibility === 'private') await interaction.deleteReply().catch(() => undefined);
   }
-  if (interaction.deferred || interaction.replied) {
-    await interaction.followUp({ flags, components, allowedMentions, files });
-    return;
-  }
+  if (interaction.deferred || interaction.replied) return interaction.followUp({ flags, components, allowedMentions, files });
   visibilityOf.set(interaction, visibility);
   await interaction.reply({ flags, components, allowedMentions, files });
+  return undefined;
 }
 
 type PanelPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;

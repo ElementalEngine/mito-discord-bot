@@ -34,7 +34,7 @@ function shouldHandle(interactionId: string): boolean {
 export async function execute(interaction: Interaction): Promise<void> {
   if (!shouldHandle(interaction.id)) return;
 
-  if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+  if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isModalSubmit()) {
     try {
       if (await handleLobbyInteraction(interaction)) return;
       if (await handleReportInteraction(interaction)) return;
