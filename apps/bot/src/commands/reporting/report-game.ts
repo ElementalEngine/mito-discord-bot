@@ -1,6 +1,8 @@
 import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
+import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
+import type { MatchUpload } from '../../api/types.js';
 import { config } from '../../config.js';
 import type { CivEdition } from '../../config/types.js';
 import { inTurn, refreshReport, viewOf } from '../../services/report.service.js';
@@ -57,7 +59,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     download.catch(() => undefined);
     await defer(interaction, 'public');
     const [reply, file] = await Promise.all([interaction.fetchReply(), download]);
-    const upload = await api.uploadMatch(file, save.name, interaction.user.id, cloud, reply.id);
+    let upload: MatchUpload;
+    try {
+      upload = await api.uploadMatch(file, save.name, interaction.user.id, cloud, reply.id);
+    } catch (error) {
+      // A refusal stored nothing. Any other failure may have stored the game with
+      // this reply as its report, so the reply stays and says how to recover.
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) throw error;
+      log.warn('upload not confirmed', save.name, error instanceof Error ? error.message : error);
+      const unsure = 'Could not confirm the game was stored. Run /report-game again with the same save: the report then shows here, or the game is reported now.';
+      await respond(interaction, notice('failed', unsure), 'public').catch(() => undefined);
+      return;
+    }
     if (upload.repeated) {
       // A pending report is drawn again where it stands, so one whose first
       // showing was lost gets its buttons back. It is read afresh in its turn.
