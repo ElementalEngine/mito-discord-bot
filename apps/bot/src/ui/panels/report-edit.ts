@@ -6,8 +6,6 @@ import {
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   UserSelectMenuBuilder,
   type APISelectMenuOption,
   type MessageActionRowComponentBuilder,
@@ -44,7 +42,9 @@ export const EDIT = {
   quits: 'quits',
   quitsForm: 'quitsform',
   civs: 'civs',
-  civsForm: 'civsform',
+  civSeat: 'civseat',
+  civPick: 'civpick',
+  back: 'back',
   done: 'done',
 } as const;
 export const FIELD = {
@@ -195,9 +195,7 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
   if (asStaff) {
     const staff = [
       ...(unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
-      ...players.map((page, i) =>
-        button(id, EDIT.civs, players.length === 1 ? 'Set civs' : `Civs ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Secondary, String(i)),
-      ),
+      button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary),
     ];
     body.push(divider(), text('**Staff actions**'), ...rowsOf(staff));
   }
@@ -467,79 +465,79 @@ export function quitEdits(match: Match, picked: readonly string[]): SeatEdit[] {
     });
 }
 
-// The field that holds a seat's leader, typed by staff.
-const civField = (n: number): string => `civ${n}`;
-
-// A seat's leader (civ7: and civ) as the civs form writes it, or blank where
-// the civ data does not know it.
-const civEntry = (match: Match, names: CivNames, s: Seat): string => {
-  if (unknownCiv(match, names, s.player)) return '';
-  const leader = plainNameOf(names, leaderOf(s));
-  return isCiv7(match) && s.player.leader ? `${leader} / ${plainNameOf(names, s.player.civ)}` : leader;
-};
-
-// Staff set the leader (civ7: and civ) of any seat, five at a time. Known ones
-// are filled in; an unknown one is blank, with the token the save holds.
-export function civsForm(match: Match, names: CivNames, members: Members, page: number): ModalBuilder | null {
-  const pages = pagesOf(numbered(match));
-  const seats = pages[page];
-  if (!seats) return null;
-  const civ7 = isCiv7(match);
-  return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.civsForm, match.match_id, String(page)))
-    .setTitle(pages.length === 1 ? 'Set civs' : `Set civs: seats ${rangeOf(seats[0]!.n, seats.length)}`)
-    .addLabelComponents(
-      ...seats.map((s) => {
-        const unknown = unknownCiv(match, names, s.player);
-        const input = new TextInputBuilder()
-          .setCustomId(civField(s.n))
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false)
-          .setMaxLength(80)
-          .setPlaceholder(civ7 ? 'Leader / civ, as in Amina / Aksum' : 'Leader, as in Sejong');
-        const entry = civEntry(match, names, s);
-        if (entry) input.setValue(entry);
-        return new LabelBuilder()
-          .setLabel(fit(`Seat ${s.n} \u00b7 ${nameIn(s.player, members)}`, 45))
-          .setDescription(fit(unknown ? `Not in the civ data: ${unknown}` : 'Type another name to change it.', 100))
-          .setTextInputComponent(input);
-      }),
-    );
+// A menu holds 25 options, so a longer list is split A-Z across even menus.
+const MENU = 25;
+function menusOf<T>(items: readonly T[]): T[][] {
+  const size = Math.ceil(items.length / Math.ceil(items.length / MENU));
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, i * size + size));
 }
 
-// A typed name to its token: an exact name first, else the one name holding it.
-function tokenOf(names: CivNames, prefix: string, typed: string): Readonly<{ token: string }> | Readonly<{ reason: string }> {
-  const want = typed.trim().toLowerCase();
-  const tokens = [...names.keys()].filter((t) => t.startsWith(prefix));
-  const shown = (t: string): string => plainNameOf(names, t).toLowerCase();
-  const exact = tokens.filter((t) => shown(t) === want || t.toLowerCase() === want);
-  const hits = exact.length ? exact : tokens.filter((t) => want && shown(t).includes(want));
-  if (hits.length === 1) return { token: hits[0]! };
-  const kind = prefix === 'LEADER_' ? 'leader' : 'civ';
-  if (!hits.length) return { reason: `no ${kind} is called "${typed.trim()}".` };
-  const options = hits.slice(0, 5).map((t) => `${plainNameOf(names, t)} (${t})`);
-  return { reason: `"${typed.trim()}" could be ${options.join(', ')}. Type the one in brackets.` };
+const initialOf = (names: CivNames, token: string): string => plainNameOf(names, token).charAt(0).toUpperCase();
+
+// Every leader (or civ) the civ data knows, as menus, the seat's own one picked.
+function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'leader' | 'civ'): Block[] {
+  const prefix = kind === 'leader' ? 'LEADER_' : 'CIVILIZATION_';
+  const current = kind === 'leader' ? leaderOf(seat) : seat.player.civ;
+  const tokens = [...names.keys()]
+    .filter((t) => t.startsWith(prefix))
+    .sort((a, b) => plainNameOf(names, a).localeCompare(plainNameOf(names, b)));
+  return menusOf(tokens).map((part, k) => {
+    const [from, to] = [initialOf(names, part[0]!), initialOf(names, part.at(-1)!)];
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(customId('report', EDIT.civPick, matchId, String(seat.n), `${kind}${k}`))
+      .setPlaceholder(`${kind === 'leader' ? 'Leaders' : 'Civs'} ${from === to ? from : `${from}\u2013${to}`}`)
+      .addOptions(
+        part.map((t) => {
+          const emoji = portraitOf(names, t);
+          return { label: fit(plainNameOf(names, t), 100), value: t, default: t === current, ...(emoji ? { emoji } : {}) };
+        }),
+      );
+    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+  });
 }
 
-// Every seat whose name was changed; a blank one, or a seat not on the form,
-// is left as it is.
-export function civEdits(match: Match, names: CivNames, typed: (field: string) => string): EditResult {
-  const civ7 = isCiv7(match);
-  const seats: SeatEdit[] = [];
-  for (const s of numbered(match)) {
-    const entry = typed(civField(s.n)).trim();
-    if (!entry || entry === civEntry(match, names, s)) continue;
-    const [leaderText = '', civText] = civ7 ? entry.split('/') : [entry];
-    if (civ7 && civText === undefined) return { ok: false, reason: `Seat ${s.n}: write the leader and the civ, as in Amina / Aksum.` };
-    const leader = tokenOf(names, 'LEADER_', leaderText);
-    if ('reason' in leader) return { ok: false, reason: `Seat ${s.n}: ${leader.reason}` };
-    const edit: SeatEdit = { seat: s.index, leader: leader.token };
-    if (civ7) {
-      const civ = tokenOf(names, 'CIVILIZATION_', civText ?? '');
-      if ('reason' in civ) return { ok: false, reason: `Seat ${s.n}: ${civ.reason}` };
-      edit.civ = civ.token;
-    }
-    seats.push(edit);
-  }
-  return { ok: true, seats };
+// Staff pick a seat, then its leader (civ7: and civ) from the civ data's own
+// list, so nothing is typed. The panel stands in for the editor until Back.
+export function civsPanel(match: Match, names: CivNames, members: Members, n: number): Panel {
+  const seats = numbered(match);
+  const seat = seats.find((s) => s.n === n) ?? seats[0]!;
+  const id = match.match_id;
+  const pickSeat = new StringSelectMenuBuilder()
+    .setCustomId(customId('report', EDIT.civSeat, id))
+    .addOptions(seats.map((s) => ({ ...seatOption(s, names, members), default: s.n === seat.n })));
+  const unknown = unknownCiv(match, names, seat.player);
+  const menus = [...choiceRows(id, names, seat, 'leader'), ...(isCiv7(match) ? choiceRows(id, names, seat, 'civ') : [])];
+  return {
+    tone: 'info',
+    surface: 'report',
+    title: `Set civs: ${reportLabel(match)} report`,
+    subtitle: `Match \`${id}\` \u00b7 a pick saves at once`,
+    body: [
+      text(seats.map((s) => seatLine(match, s, names)).join('\n')),
+      divider(),
+      text(`**Seat ${seat.n}** \u00b7 ${unknown ? `${MARK.civ} not in the civ data: \`${unknown}\`` : 'pick another to change it'}`),
+      row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pickSeat)),
+      ...(menus.length ? menus : [text('The civ data is unavailable right now. Try again in a moment.')]),
+      divider(),
+      ...rowsOf([button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)]),
+    ],
+  };
+}
+
+// The seat the picker shows: the one asked for while its civ is still unknown,
+// else the next unknown one, else the one asked for.
+export function civFocus(match: Match, names: CivNames, asked = 0): number {
+  const seats = numbered(match);
+  const unknown = seats.filter((s) => unknownCiv(match, names, s.player));
+  if (unknown.some((s) => s.n === asked)) return asked;
+  return (unknown.find((s) => s.n > asked) ?? unknown[0] ?? seats.find((s) => s.n === asked) ?? seats[0])?.n ?? 1;
+}
+
+// A picked leader sets the seat's leader, a picked civ its civ; the one the
+// seat already has changes nothing.
+export function civPickEdit(match: Match, n: number, token: string): SeatEdit | null {
+  const seat = numbered(match).find((s) => s.n === n);
+  if (!seat || !token) return null;
+  if (token.startsWith('CIVILIZATION_')) return token === seat.player.civ ? null : { seat: seat.index, civ: token };
+  return token === leaderOf(seat) ? null : { seat: seat.index, leader: token };
 }

@@ -6,8 +6,9 @@ import { container, type Panel } from '../kit/index.js';
 import {
   assignEdits,
   assignForm,
-  civEdits,
-  civsForm,
+  civFocus,
+  civPickEdit,
+  civsPanel,
   editorPanel,
   orderEdits,
   orderForm,
@@ -179,9 +180,7 @@ test('players are assigned five seats per form, with every page a button', () =>
     'Assign 11\u201312',
     'Quits',
     'Set a tie',
-    'Civs 1\u20135',
-    'Civs 6\u201310',
-    'Civs 11\u201312',
+    'Set civs',
     'Done',
   ]);
   const json = JSON.stringify(container(panel).toJSON());
@@ -237,34 +236,61 @@ test('quits are marked in one form, for seats with a player', () => {
   assert.doesNotMatch(JSON.stringify(quitsForm(ffa, new Map(), new Map())?.toJSON()), /Gandhi fan/);
 });
 
-test('staff set any seat\'s civ by name; an unchanged name is not sent', () => {
+// Ninety leaders, as civ6 has, so the picker needs more than one menu.
+const leaders = new Map(
+  Array.from({ length: 90 }, (_, i): [string, string] => [`LEADER_X${i}`, `${String.fromCharCode(65 + (i % 26))}${i}`]),
+);
+leaders.set('LEADER_SHAKA', '<:Shaka:9> Shaka');
+
+test('staff pick civs from menus of every known leader, 25 at most each', () => {
+  const panel = civsPanel(ffa, leaders, new Map(), 1);
+  const json = JSON.stringify(container(panel).toJSON());
+  const menus = [...json.matchAll(/"custom_id":"report:civpick:[^"]*:1:leader(\d)"[^\]]*?"options":\[(.*?)\]/g)];
+  assert.equal(menus.length, 4);
+  for (const [, , options] of menus) assert.ok((options!.match(/"value":/g) ?? []).length <= 25);
+  assert.match(json, /"placeholder":"Leaders A\u2013/);
+  // The seat's own leader is the one picked, with its portrait.
+  assert.match(json, /"label":"Shaka","value":"LEADER_SHAKA","default":true,"emoji":\{"id":"9","name":"Shaka"\}/);
+  assert.match(json, /"label":"1\. [^"]*","value":"1","description":"Shaka","emoji":\{[^}]*\},"default":true/);
+  assert.ok(container(panel).toJSON().components.length < 40);
+  assert.match(json, /"label":"Back to the editor"/);
+});
+
+test('a civ7 seat gets a leader and a civ menu; an unknown one says so', () => {
+  const civ7: Match = { ...match([player({ leader: 'LEADER_AMINA', civ: 'CIVILIZATION_AKSUM' })]), game: 'civ7' };
   const names = new Map([
-    ['LEADER_SHAKA', 'Shaka'],
-    ['LEADER_SEJONG', 'Sejong'],
-    ['LEADER_CATHERINE_DE_MEDICI', 'Catherine de Medici (Black Queen)'],
-    ['LEADER_CATHERINE_DE_MEDICI_ALT', 'Catherine de Medici (Magnificence)'],
+    ['LEADER_AMINA', 'Amina'],
+    ['CIVILIZATION_ROME', 'Rome'],
   ]);
-  const form = JSON.stringify(civsForm(ffa, names, new Map(), 0)?.toJSON());
-  assert.match(form, /"title":"Set civs"/);
-  assert.match(form, /"custom_id":"civ1"[^}]*"value":"Shaka"/);
-  const typed = (entries: Record<string, string>) => (field: string) => entries[field] ?? '';
-  assert.deepEqual(civEdits(ffa, names, typed({ civ1: 'sejong', civ2: 'Shaka', civ3: ' ' })), {
-    ok: true,
-    seats: [{ seat: 0, leader: 'LEADER_SEJONG' }],
-  });
-  assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'catherine' })), {
-    ok: false,
-    reason:
-      'Seat 2: "catherine" could be Catherine de Medici (Black Queen) (LEADER_CATHERINE_DE_MEDICI), ' +
-      'Catherine de Medici (Magnificence) (LEADER_CATHERINE_DE_MEDICI_ALT). Type the one in brackets.',
-  });
-  assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'Gandhi' })), { ok: false, reason: 'Seat 2: no leader is called "Gandhi".' });
-  // A leader the civ data lacks is left blank, with the save's token beside it.
-  const unknown = JSON.stringify(civsForm(ffa, new Map([['LEADER_SEJONG', 'Sejong']]), new Map(), 0)?.toJSON());
-  assert.match(unknown, /"description":"Not in the civ data: LEADER_SHAKA"/);
-  assert.doesNotMatch(unknown, /"value":/);
-  assert.equal(civsForm(cloud, names, new Map(), 2)?.toJSON().components.length, 2);
-  assert.equal(civsForm(cloud, names, new Map(), 3), null);
+  const json = JSON.stringify(container(civsPanel(civ7, names, new Map(), 1)).toJSON());
+  assert.match(json, /"placeholder":"Leaders A"/);
+  assert.match(json, /"placeholder":"Civs R"/);
+  assert.match(json, /not in the civ data: `CIVILIZATION_AKSUM`/);
+  // Without civ data there is nothing to pick from, and it says so.
+  assert.match(JSON.stringify(container(civsPanel(ffa, new Map(), new Map(), 1)).toJSON()), /civ data is unavailable/);
+});
+
+test('the picker opens on an unknown seat and moves on once it is known', () => {
+  const names = new Map([['LEADER_SEJONG', 'Sejong']]);
+  const m = match([
+    player({ leader: 'LEADER_SEJONG' }),
+    player({ discord_id: B, leader: 'LEADER_SHAKA', placement: 1, team: 1 }),
+    player({ discord_id: C, leader: 'LEADER_GANDHI', placement: 2, team: 2 }),
+  ]);
+  assert.equal(civFocus(m, names), 2);
+  assert.equal(civFocus(m, names, 2), 2);
+  assert.equal(civFocus(m, names, 1), 2);
+  assert.equal(civFocus(m, names, 3), 3);
+  const known = match([player({ leader: 'LEADER_SEJONG' }), player({ discord_id: B, leader: 'LEADER_SEJONG', placement: 1, team: 1 })]);
+  assert.equal(civFocus(known, names), 1);
+  assert.equal(civFocus(known, names, 2), 2);
+});
+
+test('a pick sets the leader or the civ, and the one already there is not sent', () => {
+  assert.deepEqual(civPickEdit(ffa, 1, 'LEADER_SEJONG'), { seat: 0, leader: 'LEADER_SEJONG' });
+  assert.deepEqual(civPickEdit(ffa, 2, 'CIVILIZATION_ROME'), { seat: 2, civ: 'CIVILIZATION_ROME' });
+  assert.equal(civPickEdit(ffa, 1, 'LEADER_SHAKA'), null);
+  assert.equal(civPickEdit(ffa, 9, 'LEADER_SEJONG'), null);
 });
 
 test('players trade seats with their own quit marks', () => {

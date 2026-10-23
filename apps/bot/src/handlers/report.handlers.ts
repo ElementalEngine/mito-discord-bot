@@ -21,14 +21,15 @@ import {
   refreshReport,
   viewOf,
 } from '../services/report.service.js';
-import { channel as channelMention, customId, mention, parseId, type CivNames } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mention, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
   assignEdits,
   assignForm,
-  civEdits,
-  civsForm,
+  civFocus,
+  civPickEdit,
+  civsPanel,
   closedEditor,
   EDITOR_CLOSED,
   orderEdits,
@@ -46,6 +47,7 @@ import { playerIds, reportPanel } from '../ui/panels/report.js';
 import { Refusal, defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
+import { serial } from '../utils/serial.js';
 import { log } from '../utils/log.js';
 import { logAction } from '../utils/log-command.js';
 
@@ -59,7 +61,10 @@ const editors = idleCloser();
 const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
-const closerFor = (interaction: ButtonInteraction | ModalSubmitInteraction): Closer => ({
+// Saves on one report take turns, so a quick second pick reads the first.
+const inTurn = serial();
+type EditorPress = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+const closerFor = (interaction: EditorPress): Closer => ({
   close: () => replacePanel(interaction, closedEditor()),
   until: interaction.createdTimestamp + TOKEN_MS,
 });
@@ -97,8 +102,10 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.tieForm]: 'save the tie',
   [EDIT.quits]: 'open the quits form',
   [EDIT.quitsForm]: 'save who quit',
-  [EDIT.civs]: 'open the civs form',
-  [EDIT.civsForm]: 'save the civs',
+  [EDIT.civs]: 'open the civ picker',
+  [EDIT.civSeat]: 'show that seat',
+  [EDIT.civPick]: 'save the civ',
+  [EDIT.back]: 'go back to the editor',
   [EDIT.done]: 'close the editor',
 };
 
@@ -209,15 +216,20 @@ async function openForm(
   await interaction.showModal(form);
 }
 
-// Save, then rewrite the public report and the private editor together, from
+// Save, then rewrite the public report and the private panel together, from
 // the one saved match, so neither shows anything the other does not.
-async function saveSeats(interaction: ModalSubmitInteraction, matchId: string, action: string, seats: readonly SeatEdit[]): Promise<void> {
-  const staff = isStaff(interaction);
-  const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: staff });
-  const [view, editor] = await Promise.all([viewOf(match, api), editorOf(interaction.guild, match, staff, api)]);
+async function saveSeats(
+  interaction: ModalSubmitInteraction | StringSelectMenuInteraction,
+  matchId: string,
+  action: string,
+  seats: readonly SeatEdit[],
+  next: (match: Match) => Promise<Panel> = (m) => editorOf(interaction.guild, m, isStaff(interaction), api),
+): Promise<void> {
+  const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: isStaff(interaction) });
+  const [view, panel] = await Promise.all([viewOf(match, api), next(match)]);
   const [published] = await Promise.all([
     refreshReport(interaction.client, match, reportPanel(view)),
-    replacePanel(interaction, editor),
+    replacePanel(interaction, panel),
   ]);
   if (!published) await say(interaction, 'failed', 'Saved, but the public report could not be updated.');
   await logAction(interaction, action, { matchId, seats });
@@ -230,18 +242,57 @@ async function submit(
   matchId: string,
   action: string,
   unchanged: string,
-  editsOf: (match: Match, names: CivNames) => SeatEdit[],
+  editsOf: (match: Match) => SeatEdit[],
 ): Promise<void> {
   await holdPanel(interaction);
   const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction));
   if (!open) refuse(EDITOR_CLOSED);
+  await inTurn(matchId, async () => {
+    const edits = editsOf(await api.match(matchId));
+    if (!edits.length) await say(interaction, 'muted', unchanged);
+    else await saveSeats(interaction, matchId, action, edits);
+  });
+}
+
+// A press on the editor's own message holds it and keeps it open.
+async function hold(interaction: ButtonInteraction | StringSelectMenuInteraction, matchId: string): Promise<void> {
+  await holdPanel(interaction);
+  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction))) refuse(EDITOR_CLOSED);
+}
+
+// The civ picker, in place of the editor, on the seat `focus` chooses.
+async function showCivs(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  matchId: string,
+  focus: (match: Match, names: CivNames) => number,
+): Promise<void> {
+  if (!isStaff(interaction)) refuse('Only staff can set civs.');
+  await hold(interaction, matchId);
   const match = await api.match(matchId);
-  const edits = editsOf(match, await civNames(editionOf(match.game), api));
-  if (!edits.length) {
-    await say(interaction, 'muted', unchanged);
-    return;
-  }
-  await saveSeats(interaction, matchId, action, edits);
+  const names = await civNames(editionOf(match.game), api);
+  const members = memberNames(interaction.guild, playerIds(match));
+  await replacePanel(interaction, civsPanel(match, names, members, focus(match, names)));
+}
+
+// A pick saves at once, and the picker moves on to the next unknown seat.
+async function pickCiv(interaction: StringSelectMenuInteraction, matchId: string, n: number): Promise<void> {
+  if (!isStaff(interaction)) refuse('Only staff can set civs.');
+  await hold(interaction, matchId);
+  await inTurn(matchId, async () => {
+    const match = await api.match(matchId);
+    const edit = civPickEdit(match, n, interaction.values[0] ?? '');
+    if (!edit) return say(interaction, 'muted', `Seat ${n} already has that one.`);
+    const names = await civNames(editionOf(match.game), api);
+    return saveSeats(interaction, matchId, 'set-civ', [edit], async (m) =>
+      civsPanel(m, names, memberNames(interaction.guild, playerIds(m)), civFocus(m, names, n)),
+    );
+  });
+}
+
+async function back(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  await hold(interaction, matchId);
+  const match = await api.match(matchId);
+  await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
 }
 
 const selected = (interaction: ModalSubmitInteraction, field: string): readonly string[] =>
@@ -254,7 +305,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
   const id = parseId(interaction.customId);
   if (id?.surface !== 'report') return false;
   const matchId = id.args[0] ?? '';
-  // A form's page, or for a seat form, the seat number.
+  // A form's page, or for a seat form or a civ pick, the seat number.
   const at = Number(id.args[1] ?? 0);
   try {
     if (interaction.isButton() && id.verb === 'approve') await approve(interaction, matchId);
@@ -274,8 +325,13 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
-      if (!isStaff(interaction)) refuse('Only staff can set civs.');
-      await openForm(interaction, matchId, (m, names, members) => civsForm(m, names, members, at));
+      await showCivs(interaction, matchId, (m, names) => civFocus(m, names));
+    } else if (interaction.isStringSelectMenu() && id.verb === EDIT.civSeat) {
+      await showCivs(interaction, matchId, () => Number(interaction.values[0]));
+    } else if (interaction.isStringSelectMenu() && id.verb === EDIT.civPick) {
+      await pickCiv(interaction, matchId, at);
+    } else if (interaction.isButton() && id.verb === EDIT.back) {
+      await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) {
       const choice = {
         player: picked(interaction, FIELD.player),
@@ -295,10 +351,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       );
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
-    } else if (interaction.isModalSubmit() && id.verb === EDIT.civsForm) {
-      await submit(interaction, matchId, 'set-civs', 'No civ changed.', (m, names) =>
-        unless(civEdits(m, names, (field) => (interaction.fields.fields.has(field) ? interaction.fields.getTextInputValue(field) : ''))),
-      );
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
       const place = Number(selected(interaction, FIELD.place)[0]);
       const tied = selected(interaction, FIELD.tied).map(Number);
