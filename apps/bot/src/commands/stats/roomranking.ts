@@ -1,21 +1,15 @@
-import {
-  InteractionContextType,
-  ChatInputCommandInteraction,
-  GuildMember,
-  MessageFlags,
-  SlashCommandBuilder,
-} from 'discord.js';
+import { GuildMember, InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
+import { ApiClient } from '../../api/index.js';
+import type { CivVersion, StatSet, UserStatsResponse } from '../../api/types.js';
 import { config } from '../../config.js';
-import { EMOJI_ROOM_RANKINGS } from '../../config/constants.js';
-import { ApiError } from '../../api/errors.js';
-import { StatsService } from '../../services/stats.service.js';
-import {
-  formatRoomRanksPages,
-  type RoomRanksLifetimeRow,
-  type RoomRanksRow,
-} from '../../ui/layouts/roomranks.js';
+import { LIMITS } from '../../ui/kit/index.js';
+import { formatRoomRanksPages, type RoomRanksLifetimeRow, type RoomRanksRow } from '../../ui/layouts/roomranks.js';
+import { roomPanel } from '../../ui/panels/stats.js';
+import { refuse, respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+
+const api = new ApiClient();
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -33,112 +27,16 @@ const ACCESS_POLICY = {
   allowDeveloperOverride: true,
 } as const;
 
-const VERSIONS = ['civ6', 'civ7'] as const;
-type CivVersion = (typeof VERSIONS)[number];
+// Room for the panel's heading and subtitle within Discord's text limit.
+const PAGE_LIMIT = LIMITS.text - 300;
 
-type ModeKey = 'ffa' | 'teamer' | 'duel';
-type StatModeLike = { mu?: unknown };
+const nameOf = (m: GuildMember): string => (m.displayName || m.user.username || 'Unknown').replace(/\s+/g, ' ').trim();
 
-const statsService = new StatsService();
-
-async function replyError(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // ignore
-  }
-}
-
-function safeDisplayName(m: GuildMember): string {
-  const name = m.displayName || m.user.username || 'Unknown';
-  return name.replace(/\s+/g, ' ').trim();
-}
-
-function extractMu(mode: unknown): number | null {
-  if (!mode || typeof mode !== 'object') return null;
-  const mu = (mode as StatModeLike).mu;
-  return typeof mu === 'number' && Number.isFinite(mu) ? mu : null;
-}
-
-function readMode(set: unknown, key: ModeKey): unknown {
-  if (!set || typeof set !== 'object') return undefined;
-  const obj = set as Record<string, unknown>;
-  return obj[key];
-}
-
-function muOf(set: unknown, key: ModeKey): number | null {
-  return extractMu(readMode(set, key));
-}
-
-type UserStatsLike = Readonly<{
-  discord_id: string;
-  lifetime?: unknown;
-  season?: unknown;
-}>;
-
-type BatchLike = Readonly<{
-  results: readonly UserStatsLike[];
-}>;
-
-function isBatchLike(v: unknown): v is BatchLike {
-  if (!v || typeof v !== 'object') return false;
-  const res = (v as { results?: unknown }).results;
-  return Array.isArray(res);
-}
-
-function toRealtimeRow(member: GuildMember, stats?: UserStatsLike): RoomRanksRow {
-  return {
-    name: safeDisplayName(member),
-    lifetime: {
-      ffa: stats ? muOf(stats.lifetime, 'ffa') : null,
-      teamer: stats ? muOf(stats.lifetime, 'teamer') : null,
-      duel: stats ? muOf(stats.lifetime, 'duel') : null,
-    },
-    season: {
-      ffa: stats ? muOf(stats.season, 'ffa') : null,
-      teamer: stats ? muOf(stats.season, 'teamer') : null,
-      duel: stats ? muOf(stats.season, 'duel') : null,
-    },
-  };
-}
-
-function toCloudLifetimeRow(
-  member: GuildMember,
-  stats?: UserStatsLike
-): RoomRanksLifetimeRow {
-  return {
-    name: safeDisplayName(member),
-    lifetime: {
-      ffa: stats ? muOf(stats.lifetime, 'ffa') : null,
-      teamer: stats ? muOf(stats.lifetime, 'teamer') : null,
-      duel: stats ? muOf(stats.lifetime, 'duel') : null,
-    },
-  };
-}
-
-function hasAnyLifetimeStats(row: RoomRanksLifetimeRow): boolean {
-  const { ffa, teamer, duel } = row.lifetime;
-  return (
-    (typeof ffa === 'number' && Number.isFinite(ffa)) ||
-    (typeof teamer === 'number' && Number.isFinite(teamer)) ||
-    (typeof duel === 'number' && Number.isFinite(duel))
-  );
-}
+const ratings = (set: StatSet | undefined) => ({
+  ffa: set?.ffa?.mu ?? null,
+  teamer: set?.teamer?.mu ?? null,
+  duel: set?.duel?.mu ?? null,
+});
 
 export const data = new SlashCommandBuilder()
   .setName('roomranks')
@@ -149,118 +47,45 @@ export const data = new SlashCommandBuilder()
       .setName('version')
       .setDescription('civ6 or civ7')
       .setRequired(true)
-      .addChoices(
-        { name: 'civ6', value: 'civ6' },
-        { name: 'civ7', value: 'civ7' }
-      )
+      .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
   );
+
+export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  const civVersion: CivVersion = interaction.options.getString('version', true) === 'civ7' ? 'civ7' : 'civ6';
+  if (!(interaction.member instanceof GuildMember)) refuse('Run /roomranks in the server, not in a DM.');
+  const voice = interaction.member.voice.channel;
+  if (!voice) refuse('Join a voice channel first, then run /roomranks.');
+  const members = [...voice.members.values()].filter((m) => !m.user.bot);
+  if (members.length === 0) refuse('Nobody but bots is in your voice channel.');
 
-  if (!interaction.inGuild()) {
-    await replyError(interaction, 'This command must be used in a server.');
-    return;
-  }
+  const ids = members.map((m) => m.user.id);
+  const [realtime, cloud] = await Promise.all([
+    api.getUsersStatsBatch(civVersion, 'realtime', ids),
+    api.getUsersStatsBatch(civVersion, 'cloud', ids),
+  ]);
+  const byId = (results: readonly UserStatsResponse[]) => new Map(results.map((r) => [r.discord_id, r]));
+  const [realtimeById, cloudById] = [byId(realtime.results), byId(cloud.results)];
 
-  const versionRaw = interaction.options.getString('version', true);
-  if (!VERSIONS.includes(versionRaw as CivVersion)) {
-    await replyError(interaction, 'Invalid version.');
-    return;
-  }
+  // Highest lifetime FFA rating first; players with none last.
+  const ranked = [...members].sort(
+    (a, b) =>
+      (realtimeById.get(b.user.id)?.lifetime.ffa?.mu ?? -1) - (realtimeById.get(a.user.id)?.lifetime.ffa?.mu ?? -1),
+  );
+  const realtimeRows: RoomRanksRow[] = ranked.map((m) => {
+    const s = realtimeById.get(m.user.id);
+    return { name: nameOf(m), lifetime: ratings(s?.lifetime), season: ratings(s?.season) };
+  });
+  const cloudRows: RoomRanksLifetimeRow[] = ranked.map((m) => ({
+    name: nameOf(m),
+    lifetime: ratings(cloudById.get(m.user.id)?.lifetime),
+  }));
+  const anyCloud = cloudRows.some((r) => Object.values(r.lifetime).some((mu) => mu !== null));
 
-  if (!(interaction.member instanceof GuildMember)) {
-    await replyError(interaction, 'Member context is missing for this interaction.');
-    return;
-  }
-
-  const voiceChannel = interaction.member.voice.channel;
-  if (!voiceChannel || !('members' in voiceChannel)) {
-    await replyError(interaction, 'Join a voice channel first, then run /roomranks.');
-    return;
-  }
-
-  const members = [...voiceChannel.members.values()].filter((m) => !m.user.bot);
-  if (members.length === 0) {
-    await replyError(interaction, 'No non-bot users found in your voice channel.');
-    return;
-  }
-
-  await interaction.deferReply();
-
-  try {
-    const discordIds = members.map((m) => m.user.id);
-
-    const [realtimeRaw, cloudRaw] = await Promise.all([
-      statsService.getUsersStatsBatch({
-        civVersion: versionRaw as CivVersion,
-        gameType: 'realtime',
-        discordIds,
-      }),
-      statsService.getUsersStatsBatch({
-        civVersion: versionRaw as CivVersion,
-        gameType: 'cloud',
-        discordIds,
-      }),
-    ]);
-
-    if (!isBatchLike(realtimeRaw) || !isBatchLike(cloudRaw)) {
-      await interaction.editReply({
-        content: 'Backend returned an unexpected response shape for room rankings.',
-        allowedMentions: { parse: [] },
-      });
-      return;
-    }
-
-    const realtimeById = new Map(realtimeRaw.results.map((r) => [r.discord_id, r] as const));
-    const cloudById = new Map(cloudRaw.results.map((r) => [r.discord_id, r] as const));
-
-    const ranked = members
-      .map((m) => ({
-        member: m,
-        realtime: realtimeById.get(m.user.id),
-        cloud: cloudById.get(m.user.id),
-      }))
-      .sort(
-        (a, b) =>
-          (muOf(b.realtime?.lifetime, 'ffa') ?? -1) -
-          (muOf(a.realtime?.lifetime, 'ffa') ?? -1)
-      );
-
-    const realtimeRows = ranked.map((r) => toRealtimeRow(r.member, r.realtime));
-    const cloudLifetimeRows = ranked.map((r) => toCloudLifetimeRow(r.member, r.cloud));
-    const showCloud = cloudLifetimeRows.some(hasAnyLifetimeStats);
-    const subtitle = `Voice: <#${voiceChannel.id}> • Users: ${members.length}`;
-    const pages = formatRoomRanksPages({
-      titleEmoji: EMOJI_ROOM_RANKINGS, 
-      subtitle,
-      realtimeRows,
-      cloudLifetimeRows: showCloud ? cloudLifetimeRows : null,
-    });
-
-    await interaction.editReply({ content: pages[0]!, allowedMentions: { parse: [] } });
-    for (let i = 1; i < pages.length; i += 1) {
-      await interaction.followUp({ content: pages[i]!, allowedMentions: { parse: [] } });
-    }
-  } catch (err: unknown) {
-    if (err instanceof ApiError) {
-      const detail =
-        typeof err.body === 'string'
-          ? err.body
-          : err.body
-            ? JSON.stringify(err.body)
-            : '';
-      await interaction.editReply({
-        content: `Backend error (${err.status}). ${detail}`.trim(),
-        allowedMentions: { parse: [] },
-      });
-      return;
-    }
-
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await interaction.editReply({
-      content: `Failed to fetch room rankings: ${msg}`,
-      allowedMentions: { parse: [] },
-    });
+  const pages = formatRoomRanksPages({ realtimeRows, cloudLifetimeRows: anyCloud ? cloudRows : null }, PAGE_LIMIT);
+  for (const [i, page] of pages.entries()) {
+    await respond(interaction, roomPanel(page, voice.id, members.length, { n: i + 1, of: pages.length }), 'public');
   }
 }

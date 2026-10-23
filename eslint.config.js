@@ -24,10 +24,6 @@ const KIT_ONLY = [
 const LEGACY_UI = [
   'apps/bot/src/commands/drafting/draft-civ6.ts',
   'apps/bot/src/commands/drafting/draft-civ7.ts',
-  'apps/bot/src/commands/misc/teamgen.ts',
-  'apps/bot/src/commands/stats/resetstats.ts',
-  'apps/bot/src/commands/stats/roomranking.ts',
-  'apps/bot/src/commands/stats/stats.ts',
   'apps/bot/src/commands/voting/secretvote.ts',
   'apps/bot/src/interactions/secretvote.interactions.ts',
   'apps/bot/src/jobs/update-leaderboard.ts',
@@ -35,7 +31,6 @@ const LEGACY_UI = [
   'apps/bot/src/services/secretvote/runtime/message-ops.service.ts',
   'apps/bot/src/ui/embeds/secretvote.ts',
   'apps/bot/src/ui/embeds/standard-draft.ts',
-  'apps/bot/src/ui/embeds/stats.ts',
 ];
 
 export default [

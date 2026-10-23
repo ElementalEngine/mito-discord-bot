@@ -1,17 +1,14 @@
-import {
-  InteractionContextType,
-  ChatInputCommandInteraction,
-  GuildMember,
-  MessageFlags,
-  SlashCommandBuilder,
-} from 'discord.js';
+import { GuildMember, InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
+import { ApiClient } from '../../api/index.js';
+import type { CivVersion } from '../../api/types.js';
 import { config } from '../../config.js';
-import { EMOJI_ROOM_RANKINGS } from '../../config/constants.js';
-import { ApiError } from '../../api/errors.js';
-import { TeamGenService } from '../../services/teamgen.service.js';
+import { teamsPanel } from '../../ui/panels/stats.js';
+import { refuse, respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { normalizePlayerList } from "../../utils/player-list.js";
+import { normalizePlayerList } from '../../utils/player-list.js';
+
+const api = new ApiClient();
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -29,33 +26,7 @@ const ACCESS_POLICY = {
   allowDeveloperOverride: true,
 } as const;
 
-const VERSIONS = ['civ6', 'civ7'] as const;
-type CivVersion = (typeof VERSIONS)[number];
-
-const teamgenService = new TeamGenService();
-
-async function replyError(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // ignore
-  }
-}
+const SNOWFLAKE = /^\d{17,20}$/;
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
@@ -66,95 +37,40 @@ export const data = new SlashCommandBuilder()
       .setName('version')
       .setDescription('civ6 or civ7')
       .setRequired(true)
-      .addChoices(
-        { name: 'civ6', value: 'civ6' },
-        { name: 'civ7', value: 'civ7' }
-      )
+      .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
   )
   .addStringOption((opt) =>
     opt
       .setName('discord-ids')
       .setDescription('list of player discord ids (only needed if running in cloud-commands channel)')
-      .setRequired(false)
+      .setRequired(false),
   );
+
+export const visibility = 'public';
+
+// Realtime players are whoever is in the caller's voice channel; a cloud game
+// has no voice channel, so its players are listed.
+function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): string[] {
+  if (cloud) {
+    const listed = normalizePlayerList(interaction.options.getString('discord-ids') ?? '')
+      .split(' ')
+      .filter((id) => SNOWFLAKE.test(id));
+    if (listed.length < 2) refuse('List at least two players in discord-ids, as mentions or ids.');
+    return [...new Set(listed)];
+  }
+  if (!(interaction.member instanceof GuildMember)) refuse('Run /teamgen in the server, not in a DM.');
+  const voice = interaction.member.voice.channel;
+  if (!voice) refuse('Join a voice channel first, then run /teamgen.');
+  const ids = [...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.user.id);
+  if (ids.length < 2) refuse('At least two players need to be in your voice channel.');
+  return ids;
+}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
-
-  if (!interaction.inGuild()) {
-    await replyError(interaction, 'This command must be used in a server.');
-    return;
-  }
-
-  const versionRaw = interaction.options.getString('version', true);
-  if (!VERSIONS.includes(versionRaw as CivVersion)) {
-    await replyError(interaction, 'Invalid version.');
-    return;
-  }
-
-  if (!(interaction.member instanceof GuildMember)) {
-    await replyError(interaction, 'Member context is missing for this interaction.');
-    return;
-  }
-
-  const channelId = interaction.channelId;
-  const isCloudChannel = channelId === config.discord.channels.cloudCommands;
-  const gameType = isCloudChannel ? 'cloud' : 'realtime';
-
-  var members: GuildMember[] | string[];
-  if (!isCloudChannel) {
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel || !('members' in voiceChannel)) {
-      await replyError(interaction, 'Join a voice channel first, then run /teamgen.');
-      return;
-    }
-
-    members = [...voiceChannel.members.values()].filter((m) => !m.user.bot);
-    if (members.length === 0) {
-      await replyError(interaction, 'No non-bot users found in your voice channel.');
-      return;
-    }
-  } else {
-    const discord_ids = interaction.options.getString('discord-ids', true);
-    members = normalizePlayerList(discord_ids).split(/\s+/);
-    if (members.length === 0) {
-      await replyError(interaction, 'Please provide at least one Discord ID.');
-      return;
-    }
-  }
-
-  await interaction.deferReply();
-
-  try {
-    const discordIds = members.map((m) => m instanceof GuildMember ? m.user.id : m);
-    const teamGenResult = await teamgenService.getTeamGen({
-        civVersion: versionRaw as CivVersion,
-        gameType: gameType,
-        discordIds,
-    });
-    interaction.editReply({
-      content: `${EMOJI_ROOM_RANKINGS} **Team Generator Result** (Match Quality: ${teamGenResult.game_quality.toFixed(2)})\n\n` +
-        teamGenResult.teams.map((team, i) => `**Team ${i + 1}:**\n${team.map(id => `<@${id}>`).join('\n')}`).join('\n\n`'),
-    });
-  } catch (err: unknown) {
-    if (err instanceof ApiError) {
-      const detail =
-        typeof err.body === 'string'
-          ? err.body
-          : err.body
-            ? JSON.stringify(err.body)
-            : '';
-      await interaction.editReply({
-        content: `Backend error (${err.status}). ${detail}`.trim(),
-        allowedMentions: { parse: [] },
-      });
-      return;
-    }
-
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await interaction.editReply({
-      content: `Failed to generate teams: ${msg}`,
-      allowedMentions: { parse: [] },
-    });
-  }
+  const civVersion: CivVersion = interaction.options.getString('version', true) === 'civ7' ? 'civ7' : 'civ6';
+  const cloud = interaction.channelId === config.discord.channels.cloudCommands;
+  const ids = playersOf(interaction, cloud);
+  const result = await api.getTeamGen(civVersion, cloud ? 'cloud' : 'realtime', ids);
+  await respond(interaction, teamsPanel(result), 'public');
 }

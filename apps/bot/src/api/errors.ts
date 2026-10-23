@@ -8,10 +8,9 @@ import type { ApiErrorPayload } from "@cpl/core";
  * Matching that here costs one `??` and keeps both clients reading the wire
  * the same way.
  *
- * Null is the common case today, and deliberately so: Mite calls /api/v1,
- * where matches and stats raise HTTPException(400, str(exc)) with no
- * envelope at all. A caller that gets null has learned nothing about
- * retryability and must fall back to the transport rule (D93).
+ * Null means no envelope: a proxy's error page, or a v1 route, which raises
+ * HTTPException(400, str(exc)) with none. A caller that gets null has learned
+ * nothing about retryability and must fall back to the transport rule.
  *
  * Both `code` and `retryable` are required. A half-envelope is treated as
  * no envelope rather than guessed at -- `retryable` drives a real decision

@@ -16,41 +16,15 @@ export type LeaderboardRanking = {
   last_updated: number;
 }
 
-// ── Stats API (v1)
+// ── Stats (C2, /api/v2/stats)
 
 export type CivVersion = Lowercase<Edition>;
 export type StatsGameType = GameMode;
-
-export type StatRow = {
-  mu: number;
-  sigma: number;
-  games: number;
-  wins: number;
-  first: number;
-  subbedIn: number;
-  subbedOut: number;
-  lastModified?: string | null;
-};
-
-export type StatSet = {
-  ffa?: StatRow | null;
-  teamer?: StatRow | null;
-  duel?: StatRow | null;
-};
-
-export type UserStatsResponse = {
-  discord_id: string;
-  civ_version: CivVersion;
-  game_type: StatsGameType;
-  lifetime: StatSet;
-  season: StatSet;
-};
-
-export type BatchStatsResponse = {
-  civ_version: CivVersion;
-  game_type: StatsGameType;
-  results: UserStatsResponse[];
-};
+export type StatRow = components['schemas']['StatRowV2'];
+export type StatSet = components['schemas']['StatSetV2'];
+export type UserStatsResponse = components['schemas']['UserStatsResponseV2'];
+export type BatchStatsResponse = components['schemas']['BatchStatsResponseV2'];
+export type TeamGenResponse = components['schemas']['TeamGenResponse'];
 
 // The fields Mite reads from a lobby document. The read route is untyped
 // upstream, so this is the bot's own view of it, kept to what the embeds use.

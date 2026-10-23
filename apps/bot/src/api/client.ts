@@ -1,6 +1,5 @@
 import type { components } from '@cpl/contracts';
 import { config } from "../config.js";
-import type { TeamGenResponse } from "../types/teamgen.types.js";
 import { ApiError } from "./errors.js";
 import type {
   LeaderboardRanking,
@@ -15,6 +14,7 @@ import type {
   MatchUpload,
   SeatEdit,
   SubQuota,
+  TeamGenResponse,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -68,7 +68,7 @@ export class ApiClient {
       discord_id: discordId,
     });
 
-    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/user?${params.toString()}`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/user?${params.toString()}`, {
       method: "GET",
     });
 
@@ -80,7 +80,7 @@ export class ApiClient {
     gameType: StatsGameType,
     discordIds: string[]
   ): Promise<BatchStatsResponse> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/batch`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/batch`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -102,7 +102,7 @@ export class ApiClient {
       discord_id: discordId,
     });
 
-    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/reset/user?${params.toString()}`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/reset/user?${params.toString()}`, {
       method: "PUT",
     });
 
@@ -114,7 +114,7 @@ export class ApiClient {
     gameType: StatsGameType,
     discordIds: string[]
   ): Promise<TeamGenResponse> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v1/stats/team-gen`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/team-gen`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

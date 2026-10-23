@@ -1,4 +1,3 @@
-import { EMOJI_ROOM_RANKINGS, MAX_DISCORD_LEN } from '../../config/constants.js';
 
 type ModeCols = Readonly<{
   ffa?: number | null;
@@ -127,79 +126,49 @@ function renderTable<T extends { name: string }>(
   return wrapAnsi(lines);
 }
 
-function renderAll(args: Readonly<{
-  titleEmoji?: string;
-  subtitle?: string;
+type Rows = Readonly<{
   realtimeRows: readonly RoomRanksRow[];
   cloudLifetimeRows: readonly RoomRanksLifetimeRow[] | null;
-}>): string {
-  const { titleEmoji, subtitle, realtimeRows, cloudLifetimeRows } = args;
+}>;
 
-  const emoji = titleEmoji ?? EMOJI_ROOM_RANKINGS;
-
+function renderAll({ realtimeRows, cloudLifetimeRows }: Rows): string {
   const out: string[] = [];
-  out.push(`**${emoji} Room Rankings**`);
-  if (subtitle) out.push(subtitle);
-
-  out.push('**Realtime — Lifetime ELO**');
+  out.push('**Realtime \u00b7 lifetime**');
   out.push(renderTable(realtimeRows, (r) => r.lifetime));
-
-  out.push('**Realtime — Season ELO**');
+  out.push('**Realtime \u00b7 season**');
   out.push(renderTable(realtimeRows, (r) => r.season));
-
   if (cloudLifetimeRows && cloudLifetimeRows.length > 0) {
-    out.push('**Cloud — Lifetime ELO**');
+    out.push('**Cloud \u00b7 lifetime**');
     out.push(renderTable(cloudLifetimeRows, (r) => r.lifetime));
   }
-
   return out.join('\n');
 }
 
-export function formatRoomRanksPages(args: Readonly<{
-  titleEmoji?: string;
-  subtitle?: string;
-  realtimeRows: readonly RoomRanksRow[];
-  cloudLifetimeRows: readonly RoomRanksLifetimeRow[] | null;
-}>): string[] {
-  const { realtimeRows } = args;
-
-  if (realtimeRows.length === 0) {
-    const emoji = args.titleEmoji ?? EMOJI_ROOM_RANKINGS;
-    return [`**${emoji} Room Rankings**\nNo users.`];
-  }
-
-  const full = renderAll(args);
-  if (full.length <= MAX_DISCORD_LEN) return [full];
+// The tables as pages of at most `limit` characters, each page a slice of the
+// same players across every table.
+export function formatRoomRanksPages(rows: Rows, limit: number): string[] {
+  const { realtimeRows, cloudLifetimeRows } = rows;
+  const full = renderAll(rows);
+  if (full.length <= limit) return [full];
 
   const pages: string[] = [];
   let start = 0;
-
   while (start < realtimeRows.length) {
     let end = Math.min(realtimeRows.length, start + 25);
     let page = '';
-
     for (; end > start; end -= 1) {
-      const rtChunk = realtimeRows.slice(start, end);
-      const cloudChunk = args.cloudLifetimeRows ? args.cloudLifetimeRows.slice(start, end) : null;
-
       page = renderAll({
-        titleEmoji: args.titleEmoji,
-        subtitle: args.subtitle,
-        realtimeRows: rtChunk,
-        cloudLifetimeRows: cloudChunk,
+        realtimeRows: realtimeRows.slice(start, end),
+        cloudLifetimeRows: cloudLifetimeRows ? cloudLifetimeRows.slice(start, end) : null,
       });
-
-      if (page.length <= MAX_DISCORD_LEN) break;
+      if (page.length <= limit) break;
     }
-
-    if (!page || page.length > MAX_DISCORD_LEN) {
-      pages.push(full.slice(0, MAX_DISCORD_LEN));
+    if (end === start) {
+      pages.push(full.slice(0, limit));
       break;
     }
-
     pages.push(page);
     start = end;
   }
-
   return pages;
 }
