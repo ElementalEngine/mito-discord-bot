@@ -3,12 +3,10 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 import { ApiClient } from '../../api/index.js';
 import { config } from '../../config.js';
 import type { CivEdition } from '../../config/types.js';
-import { editorOf, viewOf } from '../../services/report.service.js';
+import { viewOf } from '../../services/report.service.js';
 import { duplicateText, isAssigned, reportPanel, seatsOf } from '../../ui/panels/report.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
-import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { log } from '../../utils/log.js';
 import { logAction } from '../../utils/log-command.js';
 import { downloadAttachment, validateSaveAttachment } from '../../utils/save-attachment.js';
 
@@ -33,7 +31,7 @@ export const data = new SlashCommandBuilder()
   );
 
 // The channel decides the edition and the mode. The report is the deferred
-// reply itself; a report with seats to fill opens its editor for the reporter.
+// reply itself, so its message id is known before the upload is stored.
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
   const save = interaction.options.getAttachment('game-save', true);
@@ -57,13 +55,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await respond(interaction, reportPanel(await viewOf(upload, api)), 'public');
     const unassigned = seatsOf(upload).filter((s) => !isAssigned(s.player)).map((s) => s.player.user_name ?? 'unknown');
     await logAction(interaction, 'report-game', { matchId: upload.match_id, edition, unassigned });
-    if (!unassigned.length) return;
-    // The report stands either way; the editor is a shortcut to Edit.
-    await editorOf(interaction.guild, upload, isStaff(interaction), api)
-      .then((editor) => respond(interaction, editor, 'private'))
-      .catch((error: unknown) => {
-        log.warn('editor not opened after upload', upload.match_id, error instanceof Error ? error.message : error);
-      });
   } catch (error) {
     await fail(interaction, error, 'report the game');
   }

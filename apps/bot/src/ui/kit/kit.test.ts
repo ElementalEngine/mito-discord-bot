@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { ButtonBuilder, ButtonStyle, ComponentType, type APIContainerComponent } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, type APIContainerComponent } from 'discord.js';
 
 import {
   LIMITS,
@@ -18,6 +18,7 @@ import {
   notice,
   parseId,
   pretty,
+  row,
   signed,
   text,
   when,
@@ -116,5 +117,15 @@ test('a divider renders as a separator', () => {
   assert.deepEqual(
     c.components.map((x) => x.type),
     [ComponentType.TextDisplay, ComponentType.Separator, ComponentType.TextDisplay],
+  );
+});
+
+test('a row of buttons sits among the blocks, where it is placed, and counts its buttons', () => {
+  const button = new ButtonBuilder().setCustomId(customId('t', 'x')).setLabel('x').setStyle(ButtonStyle.Secondary);
+  const body = [text('a'), row(new ActionRowBuilder<ButtonBuilder>().addComponents(button)), text('b')];
+  assert.equal(componentCount(body), 1 + 1 + 2 + 1);
+  assert.deepEqual(
+    json({ tone: 'info', body }).components.map((x) => x.type),
+    [ComponentType.TextDisplay, ComponentType.ActionRow, ComponentType.TextDisplay],
   );
 });

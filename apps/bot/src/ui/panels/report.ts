@@ -28,10 +28,20 @@ export const MARK = {
   unassigned: '\u{1f464}',
   contest: '\u26a0\ufe0f',
   oversub: '\u203c\ufe0f',
+  civ: '\u{1f3db}\ufe0f',
 } as const;
 
 const SNOWFLAKE = /^\d{15,20}$/;
 export const isAssigned = (p: Player): boolean => SNOWFLAKE.test(p.discord_id ?? '');
+
+// The seat's token the civ data does not know: the leader, or for civ7 the
+// civ. Without civ data nothing is known, so nothing is called missing.
+export function unknownCiv(match: Match, names: CivNames, p: Player): string | null {
+  if (!names.size) return null;
+  const leader = p.leader ?? p.civ;
+  if (!names.has(leader)) return leader;
+  return match.game.toLowerCase() === 'civ7' && !names.has(p.civ) ? p.civ : null;
+}
 
 export function isTeamer(match: Match): boolean {
   return match.game_mode.toLowerCase().includes('team');
@@ -131,8 +141,8 @@ function subNote(player: Player, leaver: Player, quota: SubQuota | undefined): N
 }
 
 // Quits and subs in standing order and, while pending, what staff must settle:
-// unassigned seats, oversubs and contests.
-function notesOf(match: Match, quotas: Quotas = new Map()): Note[] {
+// unassigned seats, unknown civs, oversubs and contests.
+function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Note[] {
   const pending = !match.approved_at;
   const seats = ranked(match);
   const notes: Note[] = [];
@@ -142,6 +152,8 @@ function notesOf(match: Match, quotas: Quotas = new Map()): Note[] {
     notes.push({ line: `${MARK.unassigned} ${unassigned} ${them}`, holds: true });
   }
   for (const s of seats) {
+    const unknown = pending ? unknownCiv(match, names, s.player) : null;
+    if (unknown) notes.push({ line: `${MARK.civ} ${who(s.player)}: the civ data does not know \`${unknown}\`.`, holds: false });
     if (s.player.quit) notes.push({ line: `${MARK.quit} ${who(s.player)} quit.`, holds: false });
     if (s.leaver) notes.push(subNote(s.player, s.leaver, pending ? quotas.get(s.player.discord_id ?? '') : undefined));
   }
@@ -168,7 +180,7 @@ export type ReportView = Readonly<{ match: Match; names: CivNames; quotas?: Quot
 export function reportPanel({ match, names, quotas }: ReportView): Panel {
   const approved = Boolean(match.approved_at);
   const facts = [`Match \`${match.match_id}\``, `turn ${match.turn}`, mapLabel(match.map_type), match.age ? ageLabel(match.age) : null];
-  const notes = notesOf(match, quotas);
+  const notes = notesOf(match, names, quotas);
   const body: Block[] = [text(standings(match, names))];
   if (notes.length) {
     const heading = approved ? [] : ['**For staff**'];

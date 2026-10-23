@@ -173,3 +173,16 @@ test('a revert names whose ratings came back', () => {
   assert.equal(panel.title, 'Civ6 FFA result reverted');
   assert.match(bodyOf(panel), /restored for <@100000000000000002> \u00b7 <@100000000000000001>\./);
 });
+
+test('staff are told of a leader the civ data does not know, and only while pending', () => {
+  const names = new Map([['LEADER_SEJONG', 'Sejong']]);
+  const body = bodyOf(reportPanel({ match: match(), names }));
+  assert.match(body, new RegExp(`${MARK.civ} <@${A}>: the civ data does not know \`LEADER_SHAKA\`\\.`));
+  assert.doesNotMatch(bodyOf(reportPanel({ match: match(), names: new Map() })), /civ data/);
+  const approved = match({ approved_at: '2026-10-22T13:00:00Z', approver_discord_id: C });
+  assert.doesNotMatch(bodyOf(reportPanel({ match: approved, names })), /civ data/);
+  // A civ7 seat whose leader is known but civ is not names the civ.
+  const civ7 = match({ game: 'civ7', players: [player({ leader: 'LEADER_AMINA', civ: 'CIVILIZATION_X' }), player({ discord_id: B, leader: 'LEADER_AMINA', civ: 'CIVILIZATION_AKSUM', placement: 1, team: 1 })] });
+  const known = new Map([['LEADER_AMINA', 'Amina'], ['CIVILIZATION_AKSUM', 'Aksum']]);
+  assert.match(bodyOf(reportPanel({ match: civ7, names: known })), /does not know `CIVILIZATION_X`/);
+});

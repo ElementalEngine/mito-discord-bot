@@ -1993,8 +1993,12 @@ export interface components {
          * @description One seat's requested changes. Absent means unchanged.
          */
         SeatPatchIn: {
+            /** Civ */
+            civ?: string | null;
             /** Discord Id */
             discord_id?: string | null;
+            /** Leader */
+            leader?: string | null;
             /** Placement */
             placement?: number | null;
             /** Quit */

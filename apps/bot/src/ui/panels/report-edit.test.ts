@@ -2,8 +2,22 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { Match } from '../../api/types.js';
-import { container } from '../kit/index.js';
-import { assignEdits, assignForm, editorPanel, orderEdits, orderForm, seatEdits, seatForm, tieEdits, tieForm } from './report-edit.js';
+import { container, type Panel } from '../kit/index.js';
+import {
+  assignEdits,
+  assignForm,
+  civEdits,
+  civsForm,
+  editorPanel,
+  orderEdits,
+  orderForm,
+  quitEdits,
+  quitsForm,
+  seatEdits,
+  seatForm,
+  tieEdits,
+  tieForm,
+} from './report-edit.js';
 
 /**
  * The report editor. What should break this file: an order that skips or
@@ -119,48 +133,55 @@ test('a tie puts the chosen seats level at the place; the rest keep their order'
 });
 
 test('a seat form, named by seat number, sends only what changed', () => {
-  assert.deepEqual(seatEdits(ffa, 2, { player: B, quit: false, left: null }), []);
-  assert.deepEqual(seatEdits(ffa, 3, { player: C, quit: true, left: null }), [{ seat: 3, discord_id: C, quit: true }]);
+  assert.deepEqual(seatEdits(ffa, 2, { player: B, place: 1, shown: 1, quit: false, left: null }), []);
+  assert.deepEqual(seatEdits(ffa, 3, { player: C, place: 1, shown: 1, quit: true, left: null }), [{ seat: 3, discord_id: C, quit: true }]);
   // Clearing a registered leaver removes the sub; naming another replaces it.
-  assert.deepEqual(seatEdits(ffa, 1, { player: A, quit: false, left: null }), [{ seat: 0, sub_out: null }]);
-  assert.deepEqual(seatEdits(ffa, 1, { player: A, quit: false, left: C }), [{ seat: 0, sub_out: C }]);
-  assert.deepEqual(seatEdits(ffa, 9, { player: A, quit: false, left: null }), []);
+  assert.deepEqual(seatEdits(ffa, 1, { player: A, place: 0, shown: 0, quit: false, left: null }), [{ seat: 0, sub_out: null }]);
+  assert.deepEqual(seatEdits(ffa, 1, { player: A, place: 0, shown: 0, quit: false, left: C }), [{ seat: 0, sub_out: C }]);
+  assert.deepEqual(seatEdits(ffa, 9, { player: A, place: 0, shown: 0, quit: false, left: null }), []);
 });
 
 test('picking a player who holds another seat swaps the two in one save', () => {
-  assert.deepEqual(seatEdits(ffa, 1, { player: B, quit: false, left: D }), [
+  assert.deepEqual(seatEdits(ffa, 1, { player: B, place: 0, shown: 0, quit: false, left: D }), [
     { seat: 0, discord_id: B },
     { seat: 2, discord_id: A },
   ]);
   // An unassigned seat has no player to give back, so core-api decides.
-  assert.deepEqual(seatEdits(ffa, 3, { player: A, quit: false, left: null }), [{ seat: 3, discord_id: A }]);
+  assert.deepEqual(seatEdits(ffa, 3, { player: A, place: 1, shown: 1, quit: false, left: null }), [{ seat: 3, discord_id: A }]);
 });
 
 test('the editor fits Discord and only real seats get a form', () => {
   const panel = editorPanel(ffa, new Map(), new Map(), false);
   assert.ok(container(panel).toJSON().components.length < 40);
-  assert.equal(panel.footer, 'Ties are set by staff.');
+  assert.equal(panel.footer, undefined);
+  assert.doesNotMatch(JSON.stringify(container(panel).toJSON()), /Staff actions|Set a tie/);
   assert.ok(seatForm(ffa, 1, new Map()));
   assert.equal(seatForm(ffa, 4, new Map()), null);
 });
+
+// The buttons a panel shows, in order, wherever its rows sit.
+const buttonsOf = (panel: Panel): string[] =>
+  JSON.stringify(container(panel).toJSON())
+    .match(/"label":"[^"]+"/g)
+    ?.map((l) => l.slice(9, -1)) ?? [];
 
 // A cloud game: twelve seats, none of them known to the save.
 const cloud = match(Array.from({ length: 12 }, (_, i) => player({ discord_id: `-${i + 1}`, user_name: null, placement: i, team: i })));
 
 test('players are assigned five seats per form, with every page a button', () => {
-  const panel = editorPanel(cloud, new Map(), new Map(), true);
-  const labels = (panel.actions ?? []).flatMap((row) => row.toJSON().components.map((c) => ('label' in c ? c.label : null)));
-  assert.deepEqual(labels.filter(Boolean), [
+  const panel = editorPanel(cloud, new Map([['LEADER_SHAKA', 'Shaka']]), new Map(), true);
+  assert.deepEqual(buttonsOf(panel).filter((l) => !/^\d+\. /.test(l)), [
     'Order 1\u20135',
     'Order 6\u201310',
     'Order 11\u201312',
     'Assign 1\u20135',
     'Assign 6\u201310',
     'Assign 11\u201312',
+    'Quits',
     'Set a tie',
   ]);
-  const reporter = editorPanel(ffa, new Map(), new Map(), false).actions ?? [];
-  assert.doesNotMatch(JSON.stringify(reporter.map((r) => r.toJSON())), /Set a tie/);
+  assert.match(JSON.stringify(container(panel).toJSON()), /"content":"\*\*Staff actions\*\*"/);
+  assert.ok(container(panel).toJSON().components.length < 40);
   const last = assignForm(cloud, new Map(), 2)?.toJSON();
   assert.equal(last?.title, 'Assign players: seats 11\u201312');
   assert.equal(last?.components.length, 2);
@@ -188,4 +209,54 @@ test('the forms name players by server name, with portraits, and say who is unas
   assert.match(json, /"label":"1\. Calcifer","value":"1","description":"Shaka","emoji":\{"id":"9","name":"Shaka"\},"default":true/);
   assert.match(json, /"label":"3\. Gandhi fan \(unassigned\)"/);
   assert.equal(orderForm(ffa, new Map(), members, 1), null);
+});
+
+test('a seat moved to another place trades with the seat there, merged with its other edits', () => {
+  // Seat 1 (1st) to 2nd: seat 2 holds 2nd first, so it takes 1st.
+  assert.deepEqual(seatEdits(ffa, 1, { player: A, place: 1, shown: 0, quit: true, left: D }), [
+    { seat: 0, quit: true, placement: 1 },
+    { seat: 2, placement: 0 },
+  ]);
+  // A form still showing the place it opened with moves nothing, even if
+  // someone else has moved the seat since.
+  assert.deepEqual(seatEdits(ffa, 1, { player: A, place: 1, shown: 1, quit: true, left: D }), [{ seat: 0, quit: true }]);
+  const form = JSON.stringify(seatForm(ffa, 3, new Map([[A, 'Calcifer']]))?.toJSON());
+  assert.match(form, /"label":"1st","value":"0","description":"Now: Calcifer","default":false/);
+  assert.match(form, /"label":"2nd","value":"1","description":"Now: steam, Gandhi fan \(unassigned\)","default":true/);
+});
+
+test('quits are marked in one form, for seats with a player', () => {
+  assert.deepEqual(quitEdits(ffa, ['2']), [{ seat: 2, quit: true }]);
+  assert.deepEqual(quitEdits(ffa, []), []);
+  assert.equal(quitsForm(cloud, new Map(), new Map()), null);
+  assert.doesNotMatch(JSON.stringify(quitsForm(ffa, new Map(), new Map())?.toJSON()), /Gandhi fan/);
+});
+
+test('staff add a leader the civ data lacks by typing its name', () => {
+  const names = new Map([
+    ['LEADER_SEJONG', 'Sejong'],
+    ['LEADER_CATHERINE_DE_MEDICI', 'Catherine de Medici (Black Queen)'],
+    ['LEADER_CATHERINE_DE_MEDICI_ALT', 'Catherine de Medici (Magnificence)'],
+    ['CIVILIZATION_KOREA', 'Korea'],
+  ]);
+  // Every seat holds LEADER_SHAKA, which these names do not know.
+  const panel = editorPanel(ffa, names, new Map(), true);
+  assert.ok(buttonsOf(panel).includes('Add missing civs'));
+  assert.equal(civsForm(ffa, names, new Map(), 0)?.toJSON().components.length, 3);
+  const typed = (entries: Record<string, string>) => (field: string) => entries[field] ?? '';
+  assert.deepEqual(civEdits(ffa, names, typed({ civ1: 'sejong', civ3: ' ' })), { ok: true, seats: [{ seat: 0, leader: 'LEADER_SEJONG' }] });
+  assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'catherine' })), {
+    ok: false,
+    reason:
+      'Seat 2: "catherine" could be Catherine de Medici (Black Queen) (LEADER_CATHERINE_DE_MEDICI), ' +
+      'Catherine de Medici (Magnificence) (LEADER_CATHERINE_DE_MEDICI_ALT). Type the one in brackets.',
+  });
+  assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'Gandhi' })), { ok: false, reason: 'Seat 2: no leader is called "Gandhi".' });
+  // Known civs, or no civ data at all, leave nothing to add.
+  assert.equal(civsForm(ffa, new Map([['LEADER_SHAKA', 'Shaka']]), new Map(), 0), null);
+  assert.equal(civsForm(ffa, new Map(), new Map(), 0), null);
+  // Twelve unknown seats come five to a form, and the last page is reachable.
+  const known = new Map([['LEADER_SEJONG', 'Sejong']]);
+  assert.ok(buttonsOf(editorPanel(cloud, known, new Map(), true)).includes('Missing civs 3/3'));
+  assert.equal(civsForm(cloud, known, new Map(), 2)?.toJSON().components.length, 2);
 });

@@ -6,14 +6,30 @@ import {
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   UserSelectMenuBuilder,
   type APISelectMenuOption,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 
 import type { Match, SeatEdit } from '../../api/types.js';
-import { customId, fit, iconOf, mention, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
-import { MARK, isAssigned, isTeamer, ordinal, reportLabel, seatsOf } from './report.js';
+import {
+  customId,
+  divider,
+  fit,
+  iconOf,
+  mention,
+  notice,
+  plainNameOf,
+  portraitOf,
+  row,
+  text,
+  type Block,
+  type CivNames,
+  type Panel,
+} from '../kit/index.js';
+import { MARK, isAssigned, isTeamer, ordinal, reportLabel, seatsOf, unknownCiv } from './report.js';
 
 // The editor's verbs and the form fields they read.
 export const EDIT = {
@@ -25,8 +41,20 @@ export const EDIT = {
   orderForm: 'orderform',
   tie: 'tie',
   tieForm: 'tieform',
+  quits: 'quits',
+  quitsForm: 'quitsform',
+  civs: 'civs',
+  civsForm: 'civsform',
 } as const;
-export const FIELD = { player: 'player', quit: 'quit', left: 'left', place: 'place', tied: 'tied' } as const;
+export const FIELD = {
+  player: 'player',
+  finished: 'finished',
+  quit: 'quit',
+  left: 'left',
+  place: 'place',
+  tied: 'tied',
+  quits: 'quits',
+} as const;
 
 // A form holds five fields, so seats and places come five to a form.
 const PAGE = 5;
@@ -44,6 +72,7 @@ const numbered = (match: Match): Numbered[] => seatsOf(match).map((s, i) => ({ .
 
 const idOf = (p: Seat['player'] | null): string | null => (p && isAssigned(p) ? (p.discord_id ?? null) : null);
 const leaderOf = (s: Seat): string => s.player.leader ?? s.player.civ;
+const isCiv7 = (match: Match): boolean => match.game.toLowerCase() === 'civ7';
 const saveName = (p: Seat['player']): string => p.user_name ?? 'unknown';
 const pagesOf = <T>(items: readonly T[]): T[][] =>
   Array.from({ length: Math.ceil(items.length / PAGE) }, (_, i) => items.slice(i * PAGE, i * PAGE + PAGE));
@@ -69,6 +98,33 @@ function unitsOf(match: Match): Unit[] {
   return units.sort((a, b) => place(a) - place(b) || a.id - b.id);
 }
 
+const unitIdOf = (match: Match, s: Numbered): number => (isTeamer(match) ? s.player.team + 1 : s.n);
+
+// Each unit's place, as edits move units around.
+type Places = Map<number, number>;
+const placesOf = (units: readonly Unit[]): Places => new Map(units.map((u) => [u.id, u.seats[0]?.player.placement ?? 0]));
+
+// Two units trade places and nobody else moves, so ties elsewhere stand.
+function trade(places: Places, a: number, b: number): void {
+  const held = places.get(a)!;
+  places.set(a, places.get(b)!);
+  places.set(b, held);
+}
+
+// One edit per seat whose placement differs from where its unit now stands.
+function placeEdits(units: readonly Unit[], places: Places): SeatEdit[] {
+  return units.flatMap((u) =>
+    u.seats.filter((s) => s.player.placement !== places.get(u.id)).map((s) => ({ seat: s.index, placement: places.get(u.id)! })),
+  );
+}
+
+// Edits for one seat, gathered into one, as core-api takes a seat once.
+function merged(edits: readonly SeatEdit[]): SeatEdit[] {
+  const bySeat = new Map<number, SeatEdit>();
+  for (const e of edits) bySeat.set(e.seat, { ...bySeat.get(e.seat), ...e });
+  return [...bySeat.values()];
+}
+
 function seatOption(s: Numbered, names: CivNames, members: Members): APISelectMenuOption {
   const emoji = portraitOf(names, leaderOf(s));
   return {
@@ -85,13 +141,8 @@ function unitOption(match: Match, u: Unit, names: CivNames, members: Members): A
   return { label: `Team ${u.id}`, description: fit(players, 100), value: String(u.id) };
 }
 
-// The placement each seat gets from units listed best first, sent only where
-// it changes. Units in one group share a place.
-function placementEdits(groups: readonly (readonly Unit[])[]): SeatEdit[] {
-  return groups.flatMap((group, place) =>
-    group.flatMap((u) => u.seats.filter((s) => s.player.placement !== place).map((s) => ({ seat: s.index, placement: place }))),
-  );
-}
+const unitName = (match: Match, u: Unit, members: Members): string =>
+  isTeamer(match) ? `Team ${u.id}` : nameIn(u.seats[0]!.player, members);
 
 function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const p = s.player;
@@ -110,40 +161,56 @@ function seatLine(match: Match, s: Numbered, names: CivNames): string {
 const button = (matchId: string, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
   new ButtonBuilder().setCustomId(customId('report', verb, matchId, ...args)).setLabel(label).setStyle(style);
 
+const rowsOf = (buttons: readonly ButtonBuilder[]): Block[] =>
+  pagesOf(buttons).map((five) => row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(five)));
+
 // The private panel a report is fixed from: one seat at a time from the menu,
-// players or places five at a time, and for staff, a tie.
+// places, players and quits in bulk, and below, what only staff may do.
 export function editorPanel(match: Match, names: CivNames, members: Members, asStaff: boolean): Panel {
   const seats = numbered(match);
   const id = match.match_id;
   const pick = new StringSelectMenuBuilder()
     .setCustomId(customId('report', EDIT.seat, id))
-    .setPlaceholder('Edit one seat: player, quit or sub\u2026')
+    .setPlaceholder('Edit one seat: player, place, quit or sub\u2026')
     .addOptions(seats.map((s) => seatOption(s, names, members)));
   const places = pagesOf(unitsOf(match));
   const players = pagesOf(seats);
-  const buttons = [
+  const main = [
     ...places.map((page, i) =>
       button(id, EDIT.order, places.length === 1 ? 'Set order' : `Order ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Primary, String(i)),
     ),
     ...players.map((page, i) =>
       button(id, EDIT.assign, players.length === 1 ? 'Assign players' : `Assign ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Secondary, String(i)),
     ),
-    ...(asStaff ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
+    button(id, EDIT.quits, 'Quits', ButtonStyle.Secondary),
   ];
-  const rows = [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pick)];
-  for (let i = 0; i < buttons.length; i += 5) {
-    rows.push(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(buttons.slice(i, i + 5)));
+  const body: Block[] = [
+    text(seats.map((s) => seatLine(match, s, names)).join('\n')),
+    row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pick)),
+    ...rowsOf(main),
+  ];
+  if (asStaff) {
+    const staff = [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)];
+    const missing = pagesOf(missingSeats(match, names));
+    staff.push(
+      ...missing.map((_, i) =>
+        button(id, EDIT.civs, missing.length === 1 ? 'Add missing civs' : `Missing civs ${i + 1}/${missing.length}`, ButtonStyle.Secondary, String(i)),
+      ),
+    );
+    body.push(divider(), text('**Staff actions**'), ...rowsOf(staff));
   }
   return {
     tone: 'info',
     surface: 'report',
     title: `Edit ${reportLabel(match)} report`,
     subtitle: `Match \`${id}\` \u00b7 editing as ${asStaff ? 'staff' : 'the reporter'}`,
-    body: [text(seats.map((s) => seatLine(match, s, names)).join('\n'))],
-    actions: rows,
-    footer: asStaff ? 'Set order gives a straight order; Set a tie puts players level.' : 'Ties are set by staff.',
+    body,
   };
 }
+
+// What an editor becomes when it closes, idle or replaced by a newer one.
+export const EDITOR_CLOSED = 'This editor has closed. Press Edit on the report to open it again.';
+export const closedEditor = (): Panel => notice('muted', EDITOR_CLOSED);
 
 // The field that holds a seat's player in the assign form.
 const seatField = (n: number): string => `seat${n}`;
@@ -182,11 +249,25 @@ export function assignEdits(match: Match, page: number, picked: (field: string) 
   });
 }
 
-// One seat's whole state in one form: who played it, whether they quit, and
-// who they replaced if they came in as a sub.
+// One seat's whole state in one form: who played it, where it finished,
+// whether they quit, and who they replaced if they came in as a sub.
 export function seatForm(match: Match, n: number, members: Members): ModalBuilder | null {
   const seat = numbered(match).find((s) => s.n === n);
   if (!seat) return null;
+  const units = unitsOf(match);
+  const places = placesOf(units);
+  const mine = places.get(unitIdOf(match, seat));
+  const finished = new StringSelectMenuBuilder()
+    .setCustomId(FIELD.finished)
+    .setRequired(true)
+    .addOptions(
+      [...new Set(places.values())].map((place) => ({
+        label: ordinal(place + 1),
+        description: fit(`Now: ${units.filter((u) => places.get(u.id) === place).map((u) => unitName(match, u, members)).join(', ')}`, 100),
+        value: String(place),
+        default: place === mine,
+      })),
+    );
   const player = new UserSelectMenuBuilder().setCustomId(FIELD.player).setMinValues(1).setMaxValues(1).setRequired(true);
   const playerId = idOf(seat.player);
   if (playerId) player.setDefaultUsers(playerId);
@@ -194,13 +275,17 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
   const leftId = idOf(seat.leaver);
   if (leftId) left.setDefaultUsers(leftId);
   return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.seatForm, match.match_id, String(n)))
+    .setCustomId(customId('report', EDIT.seatForm, match.match_id, String(n), String(mine ?? 0)))
     .setTitle(fit(`Seat ${seat.n}: ${nameIn(seat.player, members)}`, 45))
     .addLabelComponents(
       new LabelBuilder()
         .setLabel('Player')
         .setDescription('Who played this seat to the end.')
         .setUserSelectMenuComponent(player),
+      new LabelBuilder()
+        .setLabel('Finished')
+        .setDescription(isTeamer(match) ? 'Moves the whole team; the team there takes its place.' : 'Whoever finished there takes this seat\'s place.')
+        .setStringSelectMenuComponent(finished),
       new LabelBuilder()
         .setLabel('Quit')
         .setDescription('Tick if this player quit the game.')
@@ -212,10 +297,12 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
     );
 }
 
-export type SeatChoice = Readonly<{ player: string | null; quit: boolean; left: string | null }>;
+// `shown` is the place the form opened with: only a change from it moves the
+// seat, so a form open while others edit does not undo their moves.
+export type SeatChoice = Readonly<{ player: string | null; place: number; shown: number; quit: boolean; left: string | null }>;
 
 // Only what changed is sent; an empty "came in for" leaves an unregistered
-// leaver as it is. A player picked from another seat swaps with this one.
+// leaver as it is. A player or a place taken from another seat is swapped.
 export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit[] {
   const seats = numbered(match);
   const seat = seats.find((s) => s.n === n);
@@ -232,7 +319,12 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   const before = idOf(seat.leaver);
   if (chosen.left && chosen.left !== before) edit.sub_out = chosen.left;
   else if (!chosen.left && before) edit.sub_out = null;
-  return Object.keys(edit).length > 1 ? [edit, ...swap] : [];
+  const units = unitsOf(match);
+  const places = placesOf(units);
+  const mine = unitIdOf(match, seat);
+  const holder = units.find((u) => u.id !== mine && places.get(u.id) === chosen.place);
+  if (holder && chosen.place !== chosen.shown) trade(places, mine, holder.id);
+  return merged([...(Object.keys(edit).length > 1 ? [edit] : []), ...swap, ...placeEdits(units, places)]);
 }
 
 // The field that holds who finished in a place.
@@ -263,14 +355,14 @@ export function orderForm(match: Match, names: CivNames, members: Members, page:
     .addLabelComponents(...labels);
 }
 
-export type OrderResult = Readonly<{ ok: true; seats: SeatEdit[] }> | Readonly<{ ok: false; reason: string }>;
+export type EditResult = Readonly<{ ok: true; seats: SeatEdit[] }> | Readonly<{ ok: false; reason: string }>;
 
 // Changed picks only: each moves its seat (or team) in by trading places with
 // the holder, so every other place, and any tie, stays as it is.
-export function orderEdits(match: Match, page: number, picked: (field: string) => string | null): OrderResult {
+export function orderEdits(match: Match, page: number, picked: (field: string) => string | null): EditResult {
   const units = unitsOf(match);
   const list = units.map((u) => u.id);
-  const place = new Map(units.map((u) => [u.id, u.seats[0]?.player.placement ?? 0]));
+  const places = placesOf(units);
   const first = page * PAGE;
   const moves = list
     .slice(first, first + PAGE)
@@ -283,16 +375,9 @@ export function orderEdits(match: Match, page: number, picked: (field: string) =
     const holder = list[at]!;
     if (from < 0) continue;
     [list[at], list[from]] = [unit, holder];
-    const held = place.get(holder)!;
-    place.set(holder, place.get(unit)!);
-    place.set(unit, held);
+    trade(places, unit, holder);
   }
-  return {
-    ok: true,
-    seats: units.flatMap((u) =>
-      u.seats.filter((s) => s.player.placement !== place.get(u.id)).map((s) => ({ seat: s.index, placement: place.get(u.id)! })),
-    ),
-  };
+  return { ok: true, seats: placeEdits(units, places) };
 }
 
 // Staff put two or more seats (or teams) level at one place; a tie of two
@@ -335,5 +420,105 @@ export function tieEdits(match: Match, place: number, tied: readonly number[]): 
     else groups.push([u]);
   }
   groups.splice(Math.min(place - 1, groups.length), 0, level);
-  return placementEdits(groups);
+  return placeEdits(units, new Map(groups.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
+}
+
+// Everyone with a player, with who quit already ticked. A seat needs its
+// player before it can be marked.
+export function quitsForm(match: Match, names: CivNames, members: Members): ModalBuilder | null {
+  const seats = numbered(match).filter((s) => idOf(s.player));
+  if (!seats.length) return null;
+  return new ModalBuilder()
+    .setCustomId(customId('report', EDIT.quitsForm, match.match_id))
+    .setTitle('Who quit?')
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel('Players who quit')
+        .setDescription('Pick everyone who quit; clear anyone who did not.')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.quits)
+            .setMinValues(0)
+            .setMaxValues(seats.length)
+            .setRequired(false)
+            .addOptions(seats.map((s) => ({ ...seatOption(s, names, members), default: s.player.quit }))),
+        ),
+    );
+}
+
+export function quitEdits(match: Match, picked: readonly string[]): SeatEdit[] {
+  return numbered(match)
+    .filter((s) => idOf(s.player))
+    .flatMap((s) => {
+      const quit = picked.includes(String(s.n));
+      return quit === s.player.quit ? [] : [{ seat: s.index, quit }];
+    });
+}
+
+// The field that holds a seat's leader, typed by staff.
+const civField = (n: number): string => `civ${n}`;
+const missingSeats = (match: Match, names: CivNames): Numbered[] =>
+  numbered(match).filter((s) => unknownCiv(match, names, s.player));
+
+// Staff name the leader (civ7: and civ) for seats the civ data does not know,
+// five at a time; the token the save holds is shown to go by.
+export function civsForm(match: Match, names: CivNames, members: Members, page: number): ModalBuilder | null {
+  const seats = pagesOf(missingSeats(match, names))[page];
+  if (!seats) return null;
+  const civ7 = isCiv7(match);
+  return new ModalBuilder()
+    .setCustomId(customId('report', EDIT.civsForm, match.match_id, String(page)))
+    .setTitle('Add missing civs')
+    .addLabelComponents(
+      ...seats.map((s) =>
+        new LabelBuilder()
+          .setLabel(fit(`Seat ${s.n} \u00b7 ${nameIn(s.player, members)}`, 45))
+          .setDescription(fit(`The save says ${civ7 ? `${s.player.leader ?? 'no leader'} / ${s.player.civ}` : leaderOf(s)}`, 100))
+          .setTextInputComponent(
+            new TextInputBuilder()
+              .setCustomId(civField(s.n))
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMaxLength(80)
+              .setPlaceholder(civ7 ? 'Leader / civ, as in Amina / Aksum' : 'Leader, as in Sejong'),
+          ),
+      ),
+    );
+}
+
+// A typed name to its token: an exact name first, else the one name holding it.
+function tokenOf(names: CivNames, prefix: string, typed: string): Readonly<{ token: string }> | Readonly<{ reason: string }> {
+  const want = typed.trim().toLowerCase();
+  const tokens = [...names.keys()].filter((t) => t.startsWith(prefix));
+  const shown = (t: string): string => plainNameOf(names, t).toLowerCase();
+  const exact = tokens.filter((t) => shown(t) === want || t.toLowerCase() === want);
+  const hits = exact.length ? exact : tokens.filter((t) => want && shown(t).includes(want));
+  if (hits.length === 1) return { token: hits[0]! };
+  const kind = prefix === 'LEADER_' ? 'leader' : 'civ';
+  if (!hits.length) return { reason: `no ${kind} is called "${typed.trim()}".` };
+  const options = hits.slice(0, 5).map((t) => `${plainNameOf(names, t)} (${t})`);
+  return { reason: `"${typed.trim()}" could be ${options.join(', ')}. Type the one in brackets.` };
+}
+
+// Every missing seat whose field was filled in; a seat not on the form reads
+// as blank and is left as it is.
+export function civEdits(match: Match, names: CivNames, typed: (field: string) => string): EditResult {
+  const civ7 = isCiv7(match);
+  const seats: SeatEdit[] = [];
+  for (const s of missingSeats(match, names)) {
+    const entry = typed(civField(s.n)).trim();
+    if (!entry) continue;
+    const [leaderText = '', civText] = civ7 ? entry.split('/') : [entry];
+    if (civ7 && civText === undefined) return { ok: false, reason: `Seat ${s.n}: write the leader and the civ, as in Amina / Aksum.` };
+    const leader = tokenOf(names, 'LEADER_', leaderText);
+    if ('reason' in leader) return { ok: false, reason: `Seat ${s.n}: ${leader.reason}` };
+    const edit: SeatEdit = { seat: s.index, leader: leader.token };
+    if (civ7) {
+      const civ = tokenOf(names, 'CIVILIZATION_', civText ?? '');
+      if ('reason' in civ) return { ok: false, reason: `Seat ${s.n}: ${civ.reason}` };
+      edit.civ = civ.token;
+    }
+    seats.push(edit);
+  }
+  return { ok: true, seats };
 }
