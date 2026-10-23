@@ -179,8 +179,13 @@ test('players are assigned five seats per form, with every page a button', () =>
     'Assign 11\u201312',
     'Quits',
     'Set a tie',
+    'Civs 1\u20135',
+    'Civs 6\u201310',
+    'Civs 11\u201312',
+    'Done',
   ]);
-  assert.match(JSON.stringify(container(panel).toJSON()), /"content":"\*\*Staff actions\*\*"/);
+  const json = JSON.stringify(container(panel).toJSON());
+  assert.match(json, /"content":"\*\*Bulk edits\*\*".*"content":"\*\*Staff actions\*\*"/);
   assert.ok(container(panel).toJSON().components.length < 40);
   const last = assignForm(cloud, new Map(), 2)?.toJSON();
   assert.equal(last?.title, 'Assign players: seats 11\u201312');
@@ -232,19 +237,21 @@ test('quits are marked in one form, for seats with a player', () => {
   assert.doesNotMatch(JSON.stringify(quitsForm(ffa, new Map(), new Map())?.toJSON()), /Gandhi fan/);
 });
 
-test('staff add a leader the civ data lacks by typing its name', () => {
+test('staff set any seat\'s civ by name; an unchanged name is not sent', () => {
   const names = new Map([
+    ['LEADER_SHAKA', 'Shaka'],
     ['LEADER_SEJONG', 'Sejong'],
     ['LEADER_CATHERINE_DE_MEDICI', 'Catherine de Medici (Black Queen)'],
     ['LEADER_CATHERINE_DE_MEDICI_ALT', 'Catherine de Medici (Magnificence)'],
-    ['CIVILIZATION_KOREA', 'Korea'],
   ]);
-  // Every seat holds LEADER_SHAKA, which these names do not know.
-  const panel = editorPanel(ffa, names, new Map(), true);
-  assert.ok(buttonsOf(panel).includes('Add missing civs'));
-  assert.equal(civsForm(ffa, names, new Map(), 0)?.toJSON().components.length, 3);
+  const form = JSON.stringify(civsForm(ffa, names, new Map(), 0)?.toJSON());
+  assert.match(form, /"title":"Set civs"/);
+  assert.match(form, /"custom_id":"civ1"[^}]*"value":"Shaka"/);
   const typed = (entries: Record<string, string>) => (field: string) => entries[field] ?? '';
-  assert.deepEqual(civEdits(ffa, names, typed({ civ1: 'sejong', civ3: ' ' })), { ok: true, seats: [{ seat: 0, leader: 'LEADER_SEJONG' }] });
+  assert.deepEqual(civEdits(ffa, names, typed({ civ1: 'sejong', civ2: 'Shaka', civ3: ' ' })), {
+    ok: true,
+    seats: [{ seat: 0, leader: 'LEADER_SEJONG' }],
+  });
   assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'catherine' })), {
     ok: false,
     reason:
@@ -252,11 +259,10 @@ test('staff add a leader the civ data lacks by typing its name', () => {
       'Catherine de Medici (Magnificence) (LEADER_CATHERINE_DE_MEDICI_ALT). Type the one in brackets.',
   });
   assert.deepEqual(civEdits(ffa, names, typed({ civ2: 'Gandhi' })), { ok: false, reason: 'Seat 2: no leader is called "Gandhi".' });
-  // Known civs, or no civ data at all, leave nothing to add.
-  assert.equal(civsForm(ffa, new Map([['LEADER_SHAKA', 'Shaka']]), new Map(), 0), null);
-  assert.equal(civsForm(ffa, new Map(), new Map(), 0), null);
-  // Twelve unknown seats come five to a form, and the last page is reachable.
-  const known = new Map([['LEADER_SEJONG', 'Sejong']]);
-  assert.ok(buttonsOf(editorPanel(cloud, known, new Map(), true)).includes('Missing civs 3/3'));
-  assert.equal(civsForm(cloud, known, new Map(), 2)?.toJSON().components.length, 2);
+  // A leader the civ data lacks is left blank, with the save's token beside it.
+  const unknown = JSON.stringify(civsForm(ffa, new Map([['LEADER_SEJONG', 'Sejong']]), new Map(), 0)?.toJSON());
+  assert.match(unknown, /"description":"Not in the civ data: LEADER_SHAKA"/);
+  assert.doesNotMatch(unknown, /"value":/);
+  assert.equal(civsForm(cloud, names, new Map(), 2)?.toJSON().components.length, 2);
+  assert.equal(civsForm(cloud, names, new Map(), 3), null);
 });

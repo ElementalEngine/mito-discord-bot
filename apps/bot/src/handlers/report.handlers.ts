@@ -44,7 +44,7 @@ import {
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
 import { defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
-import { isStaff } from '../utils/access.js';
+import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
 import { logAction } from '../utils/log-command.js';
@@ -53,9 +53,8 @@ const api = new ApiClient();
 const CONTEST_FORM = 'contestform';
 const REASON = 'reason';
 
-// One open editor per report, so two people never edit it at once. It closes
-// after two minutes idle, or ten while a form from it is out, and always
-// before its token expires.
+// One open editor per report, so two never edit at once. It closes after two
+// minutes idle (ten with a form out), and always before its token expires.
 const editors = idleCloser();
 const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
@@ -86,12 +85,13 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.quitsForm]: 'save who quit',
   [EDIT.civs]: 'open the civs form',
   [EDIT.civsForm]: 'save the civs',
+  [EDIT.done]: 'close the editor',
 };
 
-// Approve is staff only. Once core-api has rated the match, posting to history
-// and clearing the uploads queue are best effort; without history it stays.
+// Approve is for admins and developers. Once the match is rated, posting to
+// history and clearing the uploads queue are best effort; without history it stays.
 async function approve(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  if (!isStaff(interaction)) refuse('Only staff can approve a report.');
+  if (!isAdminOrDeveloper(interaction)) refuse('Only an admin or a developer can approve a report.');
   await defer(interaction, 'private');
   const match = await api.approve(matchId, { id: interaction.user.id, isStaff: true });
   editors.close(matchId);
@@ -149,6 +149,13 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
   if (interaction.message) await editPanel(interaction.message, reportPanel(await viewOf(match, api)));
   await say(interaction, 'success', 'Your contest is on the report. Staff see it before they approve.');
   await logAction(interaction, 'contest', { matchId, reason });
+}
+
+// Done closes the editor at once, rather than waiting for it to go idle.
+async function done(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction))) refuse(EDITOR_CLOSED);
+  await holdPanel(interaction);
+  editors.close(matchId);
 }
 
 // The editor is the reporter's or staff's; core-api checks the reporter
@@ -234,6 +241,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     else if (interaction.isButton() && id.verb === 'contest') await openContest(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === CONTEST_FORM) await submitContest(interaction, matchId);
     else if (interaction.isButton() && id.verb === 'edit') await openEditor(interaction, matchId);
+    else if (interaction.isButton() && id.verb === EDIT.done) await done(interaction, matchId);
     else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
       await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));
     } else if (interaction.isButton() && id.verb === EDIT.assign) {
@@ -246,8 +254,8 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
-      if (!isStaff(interaction)) refuse('Only staff can add missing civs.');
-      await openForm(interaction, matchId, (m, names, members) => civsForm(m, names, members, at), "Every seat's civ is already known.");
+      if (!isStaff(interaction)) refuse('Only staff can set civs.');
+      await openForm(interaction, matchId, (m, names, members) => civsForm(m, names, members, at));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) {
       const choice = {
         player: picked(interaction, FIELD.player),
@@ -268,7 +276,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.civsForm) {
-      await submit(interaction, matchId, 'add-civs', 'No civ was named.', (m, names) =>
+      await submit(interaction, matchId, 'set-civs', 'No civ changed.', (m, names) =>
         unless(civEdits(m, names, (field) => (interaction.fields.fields.has(field) ? interaction.fields.getTextInputValue(field) : ''))),
       );
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {

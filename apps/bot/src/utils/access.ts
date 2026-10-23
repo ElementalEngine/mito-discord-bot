@@ -15,6 +15,12 @@ export function holdsAny(held: ReadonlySet<string>, wanted: readonly string[]): 
   return wanted.some((id) => id.trim() !== '' && held.has(id.trim()));
 }
 
+// Approving and reverting move ratings, so they stay with admins and developers.
+export function isAdminOrDeveloper(interaction: Interaction): boolean {
+  const { admin, developer } = config.discord.roles;
+  return holdsAny(roleIdsOf(interaction), [admin, developer]);
+}
+
 // Staff is a moderator or a developer, as the Activity has it.
 export const staffRoleIds = (): string[] => [config.discord.roles.moderator, config.discord.roles.developer];
 

@@ -45,6 +45,7 @@ export const EDIT = {
   quitsForm: 'quitsform',
   civs: 'civs',
   civsForm: 'civsform',
+  done: 'done',
 } as const;
 export const FIELD = {
   player: 'player',
@@ -187,18 +188,20 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
   const body: Block[] = [
     text(seats.map((s) => seatLine(match, s, names)).join('\n')),
     row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pick)),
+    divider(),
+    text('**Bulk edits**'),
     ...rowsOf(main),
   ];
   if (asStaff) {
-    const staff = [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)];
-    const missing = pagesOf(missingSeats(match, names));
-    staff.push(
-      ...missing.map((_, i) =>
-        button(id, EDIT.civs, missing.length === 1 ? 'Add missing civs' : `Missing civs ${i + 1}/${missing.length}`, ButtonStyle.Secondary, String(i)),
+    const staff = [
+      button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary),
+      ...players.map((page, i) =>
+        button(id, EDIT.civs, players.length === 1 ? 'Set civs' : `Civs ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Secondary, String(i)),
       ),
-    );
+    ];
     body.push(divider(), text('**Staff actions**'), ...rowsOf(staff));
   }
+  body.push(divider(), ...rowsOf([button(id, EDIT.done, 'Done', ButtonStyle.Success)]));
   return {
     tone: 'info',
     surface: 'report',
@@ -457,32 +460,41 @@ export function quitEdits(match: Match, picked: readonly string[]): SeatEdit[] {
 
 // The field that holds a seat's leader, typed by staff.
 const civField = (n: number): string => `civ${n}`;
-const missingSeats = (match: Match, names: CivNames): Numbered[] =>
-  numbered(match).filter((s) => unknownCiv(match, names, s.player));
 
-// Staff name the leader (civ7: and civ) for seats the civ data does not know,
-// five at a time; the token the save holds is shown to go by.
+// A seat's leader (civ7: and civ) as the civs form writes it, or blank where
+// the civ data does not know it.
+const civEntry = (match: Match, names: CivNames, s: Seat): string => {
+  if (unknownCiv(match, names, s.player)) return '';
+  const leader = plainNameOf(names, leaderOf(s));
+  return isCiv7(match) && s.player.leader ? `${leader} / ${plainNameOf(names, s.player.civ)}` : leader;
+};
+
+// Staff set the leader (civ7: and civ) of any seat, five at a time. Known ones
+// are filled in; an unknown one is blank, with the token the save holds.
 export function civsForm(match: Match, names: CivNames, members: Members, page: number): ModalBuilder | null {
-  const seats = pagesOf(missingSeats(match, names))[page];
+  const pages = pagesOf(numbered(match));
+  const seats = pages[page];
   if (!seats) return null;
   const civ7 = isCiv7(match);
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.civsForm, match.match_id, String(page)))
-    .setTitle('Add missing civs')
+    .setTitle(pages.length === 1 ? 'Set civs' : `Set civs: seats ${rangeOf(seats[0]!.n, seats.length)}`)
     .addLabelComponents(
-      ...seats.map((s) =>
-        new LabelBuilder()
+      ...seats.map((s) => {
+        const unknown = unknownCiv(match, names, s.player);
+        const input = new TextInputBuilder()
+          .setCustomId(civField(s.n))
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setMaxLength(80)
+          .setPlaceholder(civ7 ? 'Leader / civ, as in Amina / Aksum' : 'Leader, as in Sejong');
+        const entry = civEntry(match, names, s);
+        if (entry) input.setValue(entry);
+        return new LabelBuilder()
           .setLabel(fit(`Seat ${s.n} \u00b7 ${nameIn(s.player, members)}`, 45))
-          .setDescription(fit(`The save says ${civ7 ? `${s.player.leader ?? 'no leader'} / ${s.player.civ}` : leaderOf(s)}`, 100))
-          .setTextInputComponent(
-            new TextInputBuilder()
-              .setCustomId(civField(s.n))
-              .setStyle(TextInputStyle.Short)
-              .setRequired(false)
-              .setMaxLength(80)
-              .setPlaceholder(civ7 ? 'Leader / civ, as in Amina / Aksum' : 'Leader, as in Sejong'),
-          ),
-      ),
+          .setDescription(fit(unknown ? `Not in the civ data: ${unknown}` : 'Type another name to change it.', 100))
+          .setTextInputComponent(input);
+      }),
     );
 }
 
@@ -500,14 +512,14 @@ function tokenOf(names: CivNames, prefix: string, typed: string): Readonly<{ tok
   return { reason: `"${typed.trim()}" could be ${options.join(', ')}. Type the one in brackets.` };
 }
 
-// Every missing seat whose field was filled in; a seat not on the form reads
-// as blank and is left as it is.
+// Every seat whose name was changed; a blank one, or a seat not on the form,
+// is left as it is.
 export function civEdits(match: Match, names: CivNames, typed: (field: string) => string): EditResult {
   const civ7 = isCiv7(match);
   const seats: SeatEdit[] = [];
-  for (const s of missingSeats(match, names)) {
+  for (const s of numbered(match)) {
     const entry = typed(civField(s.n)).trim();
-    if (!entry) continue;
+    if (!entry || entry === civEntry(match, names, s)) continue;
     const [leaderText = '', civText] = civ7 ? entry.split('/') : [entry];
     if (civ7 && civText === undefined) return { ok: false, reason: `Seat ${s.n}: write the leader and the civ, as in Amina / Aksum.` };
     const leader = tokenOf(names, 'LEADER_', leaderText);
