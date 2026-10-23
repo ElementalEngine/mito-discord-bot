@@ -77,7 +77,7 @@ const isCiv7 = (match: Match): boolean => match.game.toLowerCase() === 'civ7';
 const saveName = (p: Seat['player']): string => p.user_name ?? 'unknown';
 const pagesOf = <T>(items: readonly T[]): T[][] =>
   Array.from({ length: Math.ceil(items.length / PAGE) }, (_, i) => items.slice(i * PAGE, i * PAGE + PAGE));
-const rangeOf = (first: number, count: number): string => `${first}\u2013${first + count - 1}`;
+const rangeOf = (first: number, count: number): string => (count === 1 ? String(first) : `${first}\u2013${first + count - 1}`);
 
 // A seat's player as a form shows it: the member's server name, else the
 // name in the save, marked unassigned.
@@ -194,7 +194,7 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
   ];
   if (asStaff) {
     const staff = [
-      button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary),
+      ...(unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
       ...players.map((page, i) =>
         button(id, EDIT.civs, players.length === 1 ? 'Set civs' : `Civs ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Secondary, String(i)),
       ),
@@ -246,9 +246,13 @@ export function assignForm(match: Match, names: CivNames, page: number): ModalBu
 // One edit per seat whose player changed. An emptied field leaves the seat
 // as it is: a seat is never unassigned.
 export function assignEdits(match: Match, page: number, picked: (field: string) => string | null): SeatEdit[] {
-  return (pagesOf(numbered(match))[page] ?? []).flatMap((s) => {
+  const seats = numbered(match);
+  return (pagesOf(seats)[page] ?? []).flatMap((s) => {
     const id = picked(seatField(s.n));
-    return id && id !== idOf(s.player) ? [{ seat: s.index, discord_id: id }] : [];
+    if (!id || id === idOf(s.player)) return [];
+    // A player moved here from another seat brings their quit mark.
+    const from = seats.find((o) => idOf(o.player) === id);
+    return [{ seat: s.index, discord_id: id, ...(from && from.player.quit !== s.player.quit ? { quit: from.player.quit } : {}) }];
   });
 }
 
@@ -313,12 +317,17 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   const edit: SeatEdit = { seat: seat.index };
   const swap: SeatEdit[] = [];
   const current = idOf(seat.player);
+  let quit = chosen.quit;
   if (chosen.player && chosen.player !== current) {
     edit.discord_id = chosen.player;
     const other = seats.find((s) => s !== seat && idOf(s.player) === chosen.player);
-    if (other && current) swap.push({ seat: other.index, discord_id: current });
+    if (other && current) {
+      // Players trade seats with their own quit marks, unless one was ticked.
+      swap.push({ seat: other.index, discord_id: current, ...(other.player.quit !== seat.player.quit ? { quit: seat.player.quit } : {}) });
+      if (chosen.quit === seat.player.quit) quit = other.player.quit;
+    }
   }
-  if (chosen.quit !== seat.player.quit) edit.quit = chosen.quit;
+  if (quit !== seat.player.quit) edit.quit = quit;
   const before = idOf(seat.leaver);
   if (chosen.left && chosen.left !== before) edit.sub_out = chosen.left;
   else if (!chosen.left && before) edit.sub_out = null;

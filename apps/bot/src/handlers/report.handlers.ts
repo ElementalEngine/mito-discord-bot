@@ -43,7 +43,7 @@ import {
   type Members,
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
-import { defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
+import { Refusal, defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -63,6 +63,20 @@ const closerFor = (interaction: ButtonInteraction | ModalSubmitInteraction): Clo
   close: () => replacePanel(interaction, closedEditor()),
   until: interaction.createdTimestamp + TOKEN_MS,
 });
+
+// A read before a form opens must beat Discord's 3 second window, so a slow
+// league server is said plainly rather than left to time out.
+async function beforeForm<T>(read: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Refusal('The league server is slow right now. Try again in a moment.')), 2_500);
+  });
+  try {
+    return await Promise.race([read, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // The member picked in a form's user field, if any.
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
@@ -121,7 +135,7 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
 // Contest is for the match's own players. The form opens only for them, so
 // nobody writes a reason that is then refused.
 async function openContest(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  const match = await api.match(matchId);
+  const match = await beforeForm(api.match(matchId));
   if (!playerIds(match).includes(interaction.user.id)) refuse('Only players in this match can contest it.');
   const reason = new TextInputBuilder()
     .setCustomId(REASON)
@@ -146,8 +160,11 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
   await defer(interaction, 'private');
   const reason = interaction.fields.getTextInputValue(REASON).trim();
   const match = await api.contest(matchId, reason, { id: interaction.user.id });
-  if (interaction.message) await editPanel(interaction.message, reportPanel(await viewOf(match, api)));
-  await say(interaction, 'success', 'Your contest is on the report. Staff see it before they approve.');
+  if (await refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)))) {
+    await say(interaction, 'success', 'Your contest is on the report. Staff see it before they approve.');
+  } else {
+    await say(interaction, 'failed', 'Your contest is recorded, but the report could not be updated.');
+  }
   await logAction(interaction, 'contest', { matchId, reason });
 }
 
@@ -165,11 +182,12 @@ async function openEditor(interaction: ButtonInteraction, matchId: string): Prom
   const match = await api.match(matchId);
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
+  const panel = await editorOf(interaction.guild, match, staff, api);
   const holder = editors.holder(matchId);
   if (holder && holder !== interaction.user.id) {
-    refuse(`${mention(holder)} is editing this report. It frees up when they finish, or after two minutes idle.`);
+    refuse(`${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`);
   }
-  await respond(interaction, await editorOf(interaction.guild, match, staff, api), 'private');
+  await respond(interaction, panel, 'private');
   const editor = await interaction.fetchReply();
   editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction), IDLE_MS);
 }
@@ -183,8 +201,10 @@ async function openForm(
   nothing = 'The report has changed. Open the editor again.',
 ): Promise<void> {
   if (!editors.touch(matchId, interaction.message.id, FORM_MS)) refuse(EDITOR_CLOSED);
-  const match = await api.match(matchId);
-  const form = build(match, await civNames(editionOf(match.game), api), memberNames(interaction.guild, playerIds(match)));
+  const [match, names] = await beforeForm(
+    api.match(matchId).then(async (m) => [m, await civNames(editionOf(m.game), api)] as const),
+  );
+  const form = build(match, names, memberNames(interaction.guild, playerIds(match)));
   if (!form) refuse(nothing);
   await interaction.showModal(form);
 }

@@ -10,11 +10,11 @@ import { editPanelById } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, editionOf } from './civ-names.js';
 
-// Everything a report panel shows beside the match: display names and each
-// sub's quota. A quota that cannot be read is left off, not waited for.
+// Everything a report panel shows beside the match: display names and, while
+// pending, each sub's quota. A quota that cannot be read is left off.
 export async function viewOf(match: Match, api = new ApiClient()): Promise<ReportView> {
   const subs = seatsOf(match)
-    .filter((s) => s.leaver && isAssigned(s.player))
+    .filter((s) => !match.approved_at && s.leaver && isAssigned(s.player))
     .map((s) => s.player.discord_id ?? '');
   const read = await Promise.all(
     subs.map((id) =>

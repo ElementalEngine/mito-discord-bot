@@ -11,7 +11,7 @@ import { EMOJI_ROOM_RANKINGS } from '../../config/constants.js';
 import { ApiError } from '../../api/errors.js';
 import { TeamGenService } from '../../services/teamgen.service.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { normalizePlayerList } from "../../utils/convert-match-to-str.js";
+import { normalizePlayerList } from "../../utils/player-list.js";
 
 const ACCESS_POLICY = {
   allowedChannelIds: [

@@ -165,7 +165,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
   return notes;
 }
 
-export function reportButtons(matchId: string): ButtonRow {
+function reportButtons(matchId: string): ButtonRow {
   return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     new ButtonBuilder().setCustomId(reportId('edit', matchId)).setLabel('Edit').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest').setStyle(ButtonStyle.Danger),
@@ -214,7 +214,7 @@ export function duplicateText(upload: MatchUpload): string {
 
 // What a revert leaves behind: whose ratings were restored.
 export function revertedPanel(match: Match): Panel {
-  const players = seatsOf(match).map((s) => who(s.player)).join(' \u00b7 ');
+  const players = playerIds(match).map(mention).join(' \u00b7 ');
   return {
     tone: 'muted',
     surface: 'report',

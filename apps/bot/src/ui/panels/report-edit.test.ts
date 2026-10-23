@@ -266,3 +266,31 @@ test('staff set any seat\'s civ by name; an unchanged name is not sent', () => {
   assert.equal(civsForm(cloud, names, new Map(), 2)?.toJSON().components.length, 2);
   assert.equal(civsForm(cloud, names, new Map(), 3), null);
 });
+
+test('players trade seats with their own quit marks', () => {
+  const m = match([
+    player({ discord_id: A, placement: 0, team: 0, quit: true }),
+    player({ discord_id: B, placement: 1, team: 1 }),
+    player({ discord_id: C, placement: 2, team: 2 }),
+    player({ discord_id: D, placement: 3, team: 3 }),
+    player({ discord_id: '100000000000000005', placement: 4, team: 4 }),
+    player({ discord_id: '100000000000000006', placement: 5, team: 5 }),
+  ]);
+  // Seat 2 takes A from seat 1: A keeps the quit, B leaves it behind.
+  assert.deepEqual(seatEdits(m, 2, { player: A, place: 1, shown: 1, quit: false, left: null }), [
+    { seat: 1, discord_id: A, quit: true },
+    { seat: 0, discord_id: B, quit: false },
+  ]);
+  const picks: Record<string, string> = { seat1: B, seat2: A };
+  assert.deepEqual(
+    assignEdits(m, 0, (field) => picks[field] ?? null),
+    [
+      { seat: 0, discord_id: B, quit: false },
+      { seat: 1, discord_id: A, quit: true },
+    ],
+  );
+  // A page of one seat is named by that seat alone; one team cannot tie.
+  assert.ok(buttonsOf(editorPanel(m, new Map(), new Map(), true)).includes('Assign 6'));
+  const lone = match([player({ discord_id: A, team: 0 }), player({ discord_id: B, team: 0 })], 'Teamer');
+  assert.ok(!buttonsOf(editorPanel(lone, new Map(), new Map(), true)).includes('Set a tie'));
+});
