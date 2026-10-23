@@ -316,7 +316,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
       await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));
     } else if (interaction.isButton() && id.verb === EDIT.assign) {
-      await openForm(interaction, matchId, (m, names) => assignForm(m, names, at));
+      await openForm(interaction, matchId, assignForm);
     } else if (interaction.isButton() && id.verb === EDIT.order) {
       await openForm(interaction, matchId, (m, names, members) => orderForm(m, names, members, at));
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
@@ -343,7 +343,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => seatEdits(m, at, choice));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.assignForm) {
       await submit(interaction, matchId, 'assign-players', 'No seat changed.', (m) =>
-        assignEdits(m, at, (field) => picked(interaction, field)),
+        assignEdits(m, (field) => (interaction.fields.fields.has(field) ? picked(interaction, field) : null)),
       );
     } else if (interaction.isModalSubmit() && id.verb === EDIT.orderForm) {
       await submit(interaction, matchId, 'set-order', 'The order is unchanged.', (m) =>

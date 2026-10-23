@@ -169,15 +169,13 @@ const buttonsOf = (panel: Panel): string[] =>
 // A cloud game: twelve seats, none of them known to the save.
 const cloud = match(Array.from({ length: 12 }, (_, i) => player({ discord_id: `-${i + 1}`, user_name: null, placement: i, team: i })));
 
-test('players are assigned five seats per form, with every page a button', () => {
+test('one assign button, whose form takes unassigned seats first, five at a time', () => {
   const panel = editorPanel(cloud, new Map([['LEADER_SHAKA', 'Shaka']]), new Map(), true);
   assert.deepEqual(buttonsOf(panel).filter((l) => !/^\d+\. /.test(l)), [
     'Order 1\u20135',
     'Order 6\u201310',
     'Order 11\u201312',
-    'Assign 1\u20135',
-    'Assign 6\u201310',
-    'Assign 11\u201312',
+    'Assign players',
     'Quits',
     'Set a tie',
     'Set civs',
@@ -186,21 +184,24 @@ test('players are assigned five seats per form, with every page a button', () =>
   const json = JSON.stringify(container(panel).toJSON());
   assert.match(json, /"content":"\*\*Bulk edits\*\*".*"content":"\*\*Staff actions\*\*"/);
   assert.ok(container(panel).toJSON().components.length < 40);
-  const last = assignForm(cloud, new Map(), 2)?.toJSON();
-  assert.equal(last?.title, 'Assign players: seats 11\u201312');
-  assert.equal(last?.components.length, 2);
-  assert.match(JSON.stringify(last), /Seat 11 \u00b7 Shaka.*No player name in the save/);
-  assert.equal(assignForm(cloud, new Map(), 3), null);
-  assert.equal(assignForm(ffa, new Map(), 0)?.toJSON().title, 'Assign players');
+  const first = assignForm(cloud, new Map([['LEADER_SHAKA', 'Shaka']])).toJSON();
+  assert.equal(first.title, 'Assign players: first 5 of 12 unassigned');
+  assert.equal(first.components.length, 5);
+  assert.match(JSON.stringify(first), /Seat 1 \u00b7 Shaka.*No player name in the save/);
+  assert.equal(assignForm(ffa, new Map()).toJSON().title, 'Assign players');
+  // Six seats, two open: the open ones come first, then seats in order.
+  const six = match(Array.from({ length: 6 }, (_, i) => player({ discord_id: i >= 4 ? `-${i}` : `10000000000000000${i}`, placement: i, team: i })));
+  const labels = [...JSON.stringify(assignForm(six, new Map()).toJSON()).matchAll(/"label":"Seat (\d)/g)].map((m) => m[1]);
+  assert.deepEqual(labels, ['1', '2', '3', '5', '6']);
 });
 
 test('an assign form saves only the seats whose player changed', () => {
   const picks: Record<string, string> = { seat1: A, seat2: C };
   assert.deepEqual(
-    assignEdits(ffa, 0, (field) => picks[field] ?? null),
+    assignEdits(ffa, (field) => picks[field] ?? null),
     [{ seat: 2, discord_id: C }],
   );
-  assert.deepEqual(assignEdits(cloud, 1, () => null), []);
+  assert.deepEqual(assignEdits(cloud, () => null), []);
 });
 
 test('the forms name players by server name, with portraits, and say who is unassigned', () => {
@@ -309,14 +310,14 @@ test('players trade seats with their own quit marks', () => {
   ]);
   const picks: Record<string, string> = { seat1: B, seat2: A };
   assert.deepEqual(
-    assignEdits(m, 0, (field) => picks[field] ?? null),
+    assignEdits(m, (field) => picks[field] ?? null),
     [
       { seat: 0, discord_id: B, quit: false },
       { seat: 1, discord_id: A, quit: true },
     ],
   );
-  // A page of one seat is named by that seat alone; one team cannot tie.
-  assert.ok(buttonsOf(editorPanel(m, new Map(), new Map(), true)).includes('Assign 6'));
+  // A page of one place is named by that place alone; one team cannot tie.
+  assert.ok(buttonsOf(editorPanel(m, new Map(), new Map(), true)).includes('Order 6'));
   const lone = match([player({ discord_id: A, team: 0 }), player({ discord_id: B, team: 0 })], 'Teamer');
   assert.ok(!buttonsOf(editorPanel(lone, new Map(), new Map(), true)).includes('Set a tie'));
 });

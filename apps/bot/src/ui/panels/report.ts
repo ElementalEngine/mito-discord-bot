@@ -148,7 +148,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
   const notes: Note[] = [];
   const unassigned = seats.filter((s) => !isAssigned(s.player)).length;
   if (pending && unassigned) {
-    const them = unassigned === 1 ? 'seat is unassigned. Use Edit to assign it.' : 'seats are unassigned. Use Edit to assign them.';
+    const them = unassigned === 1 ? 'seat is unassigned. Use Edit to assign it before approving.' : 'seats are unassigned. Use Edit to assign them before approving.';
     notes.push({ line: `${MARK.unassigned} ${unassigned} ${them}`, holds: true });
   }
   for (const s of seats) {

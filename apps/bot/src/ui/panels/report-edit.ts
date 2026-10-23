@@ -175,14 +175,11 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
     .setPlaceholder('Edit one seat: player, place, quit or sub\u2026')
     .addOptions(seats.map((s) => seatOption(s, names, members)));
   const places = pagesOf(unitsOf(match));
-  const players = pagesOf(seats);
   const main = [
     ...places.map((page, i) =>
       button(id, EDIT.order, places.length === 1 ? 'Set order' : `Order ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Primary, String(i)),
     ),
-    ...players.map((page, i) =>
-      button(id, EDIT.assign, players.length === 1 ? 'Assign players' : `Assign ${rangeOf(i * PAGE + 1, page.length)}`, ButtonStyle.Secondary, String(i)),
-    ),
+    button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
     button(id, EDIT.quits, 'Quits', ButtonStyle.Secondary),
   ];
   const body: Block[] = [
@@ -216,12 +213,12 @@ export const closedEditor = (): Panel => notice('muted', EDITOR_CLOSED);
 // The field that holds a seat's player in the assign form.
 const seatField = (n: number): string => `seat${n}`;
 
-// Up to five seats, each named by its civ and the name in the save, with the
-// player who holds it now already picked.
-export function assignForm(match: Match, names: CivNames, page: number): ModalBuilder | null {
-  const pages = pagesOf(numbered(match));
-  const seats = pages[page];
-  if (!seats) return null;
+// Five seats at most, unassigned ones first, each named by its civ and the
+// name in the save, with the player who holds it now already picked.
+export function assignForm(match: Match, names: CivNames): ModalBuilder {
+  const all = numbered(match);
+  const open = all.filter((s) => !idOf(s.player));
+  const seats = [...open, ...all.filter((s) => idOf(s.player))].slice(0, PAGE).sort((a, b) => a.n - b.n);
   const labels = seats.map((s) => {
     const pickPlayer = new UserSelectMenuBuilder()
       .setCustomId(seatField(s.n))
@@ -236,16 +233,16 @@ export function assignForm(match: Match, names: CivNames, page: number): ModalBu
       .setUserSelectMenuComponent(pickPlayer);
   });
   return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.assignForm, match.match_id, String(page)))
-    .setTitle(pages.length === 1 ? 'Assign players' : `Assign players: seats ${rangeOf(seats[0]!.n, seats.length)}`)
+    .setCustomId(customId('report', EDIT.assignForm, match.match_id))
+    .setTitle(open.length > PAGE ? `Assign players: first ${PAGE} of ${open.length} unassigned` : 'Assign players')
     .addLabelComponents(...labels);
 }
 
-// One edit per seat whose player changed. An emptied field leaves the seat
-// as it is: a seat is never unassigned.
-export function assignEdits(match: Match, page: number, picked: (field: string) => string | null): SeatEdit[] {
+// One edit per seat whose player changed; a seat not on the form, or an
+// emptied field, leaves the seat as it is.
+export function assignEdits(match: Match, picked: (field: string) => string | null): SeatEdit[] {
   const seats = numbered(match);
-  return (pagesOf(seats)[page] ?? []).flatMap((s) => {
+  return seats.flatMap((s) => {
     const id = picked(seatField(s.n));
     if (!id || id === idOf(s.player)) return [];
     // A player moved here from another seat brings their quit mark.
