@@ -26,14 +26,11 @@ import { channel as channelMention, customId, mention, parseId, type CivNames, t
 import {
   EDIT,
   FIELD,
-  assignPanel,
   civFocus,
-  civPickEdit,
-  civsPanel,
   closedEditor,
   draftEdits,
+  draftPanel,
   EDITOR_CLOSED,
-  orderPanel,
   quitEdits,
   quitsForm,
   seatEdits,
@@ -41,7 +38,10 @@ import {
   tieEdits,
   tieForm,
   withAssignPick,
+  withCivPick,
   withOrderPick,
+  type Draft,
+  type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
@@ -76,10 +76,8 @@ const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
   until: interaction.createdTimestamp + TOKEN_MS,
 });
 
-// A set-order or assign draft: the match as its panel opened on it, and as
-// the picks since have changed it. Save sends the difference.
-type DraftKind = 'order' | 'assign';
-type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match }>;
+// Each report's open draft: the match as its panel opened on it, and as the
+// picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 
 // A read before a form opens must beat Discord's 3 second window, so a slow
@@ -118,7 +116,7 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.quitsForm]: 'save who quit',
   [EDIT.civs]: 'open the civ picker',
   [EDIT.civSeat]: 'show that seat',
-  [EDIT.civPick]: 'save the civ',
+  [EDIT.civPick]: 'pick that civ',
   [EDIT.back]: 'go back to the editor',
   [EDIT.done]: 'close the editor',
 };
@@ -274,35 +272,6 @@ async function hold(interaction: ButtonInteraction | AnySelectMenuInteraction, m
   if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
 }
 
-// The civ picker, in place of the editor, on the seat `focus` chooses.
-async function showCivs(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
-  matchId: string,
-  focus: (match: Match, names: CivNames) => number,
-): Promise<void> {
-  if (!isStaff(interaction)) refuse('Only staff can set civs.');
-  await hold(interaction, matchId);
-  const match = await api.match(matchId);
-  const names = await civNames(editionOf(match.game), api);
-  const members = memberNames(interaction.guild, playerIds(match));
-  await replacePanel(interaction, civsPanel(match, names, members, focus(match, names)));
-}
-
-// A pick saves at once, and the picker moves on to the next unknown seat.
-async function pickCiv(interaction: StringSelectMenuInteraction, matchId: string, n: number): Promise<void> {
-  if (!isStaff(interaction)) refuse('Only staff can set civs.');
-  await hold(interaction, matchId);
-  await inTurn(matchId, async () => {
-    const match = await api.match(matchId);
-    const edit = civPickEdit(match, n, interaction.values[0] ?? '');
-    if (!edit) return say(interaction, 'muted', `Seat ${n} already has that one.`);
-    const names = await civNames(editionOf(match.game), api);
-    return saveSeats(interaction, matchId, 'set-civ', [edit], async (m) =>
-      civsPanel(m, names, memberNames(interaction.guild, playerIds(m)), civFocus(m, names, n)),
-    );
-  });
-}
-
 async function back(interaction: ButtonInteraction, matchId: string): Promise<void> {
   await hold(interaction, matchId);
   await inTurn(matchId, async () => {
@@ -312,30 +281,31 @@ async function back(interaction: ButtonInteraction, matchId: string): Promise<vo
   });
 }
 
-// Opens a draft panel, or applies one pick to its draft and redraws it. A
-// pick the bot holds no draft for starts again from the report as it is.
+// Opens a draft panel, or applies one step to its draft and redraws it. A
+// step the bot holds no draft for starts again from the report as it is.
+type Step = (draft: Draft, names: CivNames) => Draft | string;
 async function draft(
   interaction: ButtonInteraction | AnySelectMenuInteraction,
   matchId: string,
   kind: DraftKind,
-  pick?: (match: Match) => Match | string,
+  step?: Step,
 ): Promise<void> {
+  if (kind === 'civs' && !isStaff(interaction)) refuse('Only staff can set civs.');
   await hold(interaction, matchId);
   await inTurn(matchId, async () => {
     let held = drafts.get(matchId);
-    if (!held || !pick || held.kind !== kind) {
+    if (!held || !step || held.kind !== kind) {
       const match = await api.match(matchId);
-      held = { kind, base: match, now: match };
+      held = { kind, base: match, now: match, rev: held?.rev ?? 0, focus: 0 };
     }
-    const next = pick ? pick(held.now) : held.now;
-    if (typeof next === 'string') await say(interaction, 'refused', next);
-    else held = { ...held, now: next };
-    drafts.set(matchId, held);
     const names = await civNames(editionOf(held.now.game), api);
-    const members = memberNames(interaction.guild, playerIds(held.now));
-    const changed = draftEdits(held.base, held.now).length;
-    const panel = kind === 'order' ? orderPanel(held.now, names, members, changed) : assignPanel(held.now, names, members, changed);
-    await replacePanel(interaction, panel);
+    if (!step && kind === 'civs') held = { ...held, focus: civFocus(held.now, names) };
+    const next = step ? step(held, names) : held;
+    if (typeof next === 'string') await say(interaction, 'refused', next);
+    else held = next;
+    held = { ...held, rev: held.rev + 1 };
+    drafts.set(matchId, held);
+    await replacePanel(interaction, draftPanel(held, names, memberNames(interaction.guild, playerIds(held.now))));
   });
 }
 
@@ -351,7 +321,8 @@ async function saveDraft(interaction: ButtonInteraction, matchId: string): Promi
       await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
       return;
     }
-    await saveSeats(interaction, matchId, held.kind === 'order' ? 'set-order' : 'assign-players', edits);
+    const action = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' }[held.kind];
+    await saveSeats(interaction, matchId, action, edits);
     drafts.delete(matchId);
   });
 }
@@ -381,12 +352,15 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isButton() && id.verb === EDIT.assign) {
       await draft(interaction, matchId, 'assign');
     } else if (interaction.isUserSelectMenu() && id.verb === EDIT.assignPick) {
-      await draft(interaction, matchId, 'assign', (m) => withAssignPick(m, at, interaction.values[0] ?? ''));
+      await draft(interaction, matchId, 'assign', (d) => {
+        const now = withAssignPick(d.base, d.now, at, interaction.values[0] ?? '');
+        return typeof now === 'string' ? now : { ...d, now };
+      });
     } else if (interaction.isButton() && id.verb === EDIT.order) {
       await draft(interaction, matchId, 'order');
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.orderPick) {
       const holder = Number(id.args[2]);
-      await draft(interaction, matchId, 'order', (m) => withOrderPick(m, at, holder, Number(interaction.values[0])));
+      await draft(interaction, matchId, 'order', (d) => ({ ...d, now: withOrderPick(d.now, at, holder, Number(interaction.values[0])) }));
     } else if (interaction.isButton() && id.verb === EDIT.save) {
       await saveDraft(interaction, matchId);
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
@@ -395,11 +369,14 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
-      await showCivs(interaction, matchId, (m, names) => civFocus(m, names));
+      await draft(interaction, matchId, 'civs');
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.civSeat) {
-      await showCivs(interaction, matchId, () => Number(interaction.values[0]));
+      await draft(interaction, matchId, 'civs', (d) => ({ ...d, focus: Number(interaction.values[0]) }));
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.civPick) {
-      await pickCiv(interaction, matchId, at);
+      await draft(interaction, matchId, 'civs', (d, names) => {
+        const now = withCivPick(d.now, at, interaction.values[0] ?? '');
+        return { ...d, now, focus: civFocus(now, names, at) };
+      });
     } else if (interaction.isButton() && id.verb === EDIT.back) {
       await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) {

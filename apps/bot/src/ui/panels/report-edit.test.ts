@@ -2,15 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { Match } from '../../api/types.js';
-import { container, type Panel } from '../kit/index.js';
+import { container, type CivNames, type Panel } from '../kit/index.js';
 import {
-  assignPanel,
   civFocus,
-  civPickEdit,
-  civsPanel,
   draftEdits,
+  draftPanel,
   editorPanel,
-  orderPanel,
   quitEdits,
   quitsForm,
   seatEdits,
@@ -18,7 +15,10 @@ import {
   tieEdits,
   tieForm,
   withAssignPick,
+  withCivPick,
   withOrderPick,
+  type DraftKind,
+  type Members,
 } from './report-edit.js';
 
 /**
@@ -72,6 +72,10 @@ const ffa = match([
   player({ discord_id: '-7656', user_name: 'Gandhi fan', placement: 1, team: 2 }),
 ]);
 
+// A draft panel as the handler draws it, `base` being the match it opened on.
+const panelOf = (kind: DraftKind, now: Match, names: CivNames = new Map(), members: Members = new Map(), base = now, focus = 1): Panel =>
+  draftPanel({ kind, base, now, rev: 1, focus }, names, members);
+
 test('a pick trades places with the holder, and only changed seats are sent', () => {
   // Seats 2 and 3 are tied for 2nd; untouched, nothing is sent.
   assert.deepEqual(draftEdits(ffa, ffa), []);
@@ -114,7 +118,7 @@ test('a teamer is ordered by team, and every member moves with it', () => {
     draftEdits(teamer, withOrderPick(teamer, 0, 2, 1)).map((s) => [s.seat, s.placement]),
     [[0, 0], [1, 0], [2, 1], [3, 1]],
   );
-  assert.match(JSON.stringify(container(orderPanel(teamer, new Map(), new Map(), 0)).toJSON()), /"label":"1st \u00b7 Team 2"/);
+  assert.match(JSON.stringify(container(panelOf('order', teamer)).toJSON()), /"label":"1st \u00b7 Team 2"/);
 });
 
 test('every place is one menu, ties labelled as they stand', () => {
@@ -123,7 +127,7 @@ test('every place is one menu, ties labelled as they stand', () => {
     { seat: 0, placement: 1 },
     { seat: 1, placement: 0 },
   ]);
-  const json = JSON.stringify(container(orderPanel(seven, new Map(), new Map(), 0)).toJSON());
+  const json = JSON.stringify(container(panelOf('order', seven)).toJSON());
   assert.equal((json.match(/"custom_id":"report:orderpick:/g) ?? []).length, 7);
   assert.match(json, /"label":"6th \u00b7 6\. steam \(unassigned\)","value":"6"[^}]*"default":true.*"label":"6th \u00b7 7\. steam \(unassigned\)","value":"7"[^}]*"default":true/);
 });
@@ -188,24 +192,31 @@ test('one button each for order and assign, however many seats', () => {
 
 test('a cloud game\'s twelve seats are assigned in one panel, then saved at once', () => {
   const names = new Map([['LEADER_SHAKA', 'Shaka']]);
-  const json = JSON.stringify(container(assignPanel(cloud, names, new Map(), 0)).toJSON());
+  const json = JSON.stringify(container(panelOf('assign', cloud, names)).toJSON());
   assert.equal((json.match(/"custom_id":"report:assignpick:/g) ?? []).length, 12);
   assert.match(json, /"placeholder":"Seat 1 \u00b7 Shaka \u00b7 unassigned"/);
   assert.match(json, /"label":"Nothing to save","style":3,"disabled":true/);
-  const draft = withAssignPick(withAssignPick(cloud, 1, A) as typeof cloud, 2, B) as typeof cloud;
+  const draft = withAssignPick(cloud, withAssignPick(cloud, cloud, 1, A) as Match, 2, B) as Match;
   assert.deepEqual(draftEdits(cloud, draft), [
     { seat: 0, discord_id: A },
     { seat: 1, discord_id: B },
   ]);
-  assert.match(JSON.stringify(container(assignPanel(draft, names, new Map([[A, 'Calcifer']]), 2)).toJSON()), /Seat 1 \u00b7 Shaka \u00b7 now Calcifer.*"label":"Save 2 changes"/);
-  // Someone in another seat cannot leave it empty.
-  assert.equal(withAssignPick(draft, 3, A), `<@${A}> is in seat 1. Give seat 1 its player first.`);
-  assert.equal(withAssignPick(draft, 1, A), draft);
+  const shown = JSON.stringify(container(panelOf('assign', draft, names, new Map([[A, 'Calcifer']]), cloud)).toJSON());
+  assert.match(shown, /Seat 1 \u00b7 Shaka \u00b7 now Calcifer/);
+  assert.match(shown, new RegExp(`Not saved yet:\\*\\* Seat 1 \u2192 <@${A}> \u00b7 Seat 2 \u2192 <@${B}>.*"label":"Save 2 changes"`));
+  // Moved to another empty seat, the seat left goes back to empty.
+  assert.deepEqual(draftEdits(cloud, withAssignPick(cloud, draft, 3, A) as Match), [
+    { seat: 1, discord_id: B },
+    { seat: 2, discord_id: A },
+  ]);
+  assert.equal(withAssignPick(cloud, draft, 1, A), draft);
+  // A seat the save filled cannot be left empty.
+  assert.equal(withAssignPick(ffa, ffa, 3, A), `<@${A}> has seat 1. Give seat 1 another player first.`);
 });
 
 test('a game past fifteen seats still fits, the rest set one seat at a time', () => {
   const big = match(Array.from({ length: 17 }, (_, i) => player({ discord_id: `-${i + 1}`, placement: i, team: i })));
-  for (const panel of [assignPanel(big, new Map(), new Map(), 0), orderPanel(big, new Map(), new Map(), 0)]) {
+  for (const panel of [panelOf('assign', big), panelOf('order', big)]) {
     const json = JSON.stringify(container(panel).toJSON());
     assert.match(json, /Seats past 15 are set from \*\*Edit one seat\*\*/);
   }
@@ -214,7 +225,7 @@ test('a game past fifteen seats still fits, the rest set one seat at a time', ()
 test('the panels name players by server name, with portraits, and say who is unassigned', () => {
   const members = new Map([[A, 'Calcifer']]);
   assert.equal(seatForm(ffa, 1, members)?.toJSON().title, 'Seat 1: Calcifer');
-  const panel = orderPanel(ffa, new Map([['LEADER_SHAKA', '<:Shaka:9> Shaka']]), members, 0);
+  const panel = panelOf('order', ffa, new Map([['LEADER_SHAKA', '<:Shaka:9> Shaka']]), members);
   assert.equal(panel.title, 'Set order: Civ6 FFA report');
   const json = JSON.stringify(container(panel).toJSON());
   assert.match(json, /"label":"1st \u00b7 1\. Calcifer","value":"1","description":"Shaka","emoji":\{"id":"9","name":"Shaka"\},"default":true/);
@@ -249,9 +260,9 @@ const leaders = new Map(
 leaders.set('LEADER_SHAKA', '<:Shaka:9> Shaka');
 
 test('staff pick civs from menus of every known leader, 25 at most each', () => {
-  const panel = civsPanel(ffa, leaders, new Map(), 1);
+  const panel = panelOf('civs', ffa, leaders);
   const json = JSON.stringify(container(panel).toJSON());
-  const menus = [...json.matchAll(/"custom_id":"report:civpick:[^"]*:1:leader(\d)"[^\]]*?"options":\[(.*?)\]/g)];
+  const menus = [...json.matchAll(/"custom_id":"report:civpick:[^"]*:1:leader(\d):1"[^\]]*?"options":\[(.*?)\]/g)];
   assert.equal(menus.length, 4);
   for (const [, , options] of menus) assert.ok((options!.match(/"value":/g) ?? []).length <= 25);
   assert.match(json, /"placeholder":"Leaders A\u2013/);
@@ -259,7 +270,7 @@ test('staff pick civs from menus of every known leader, 25 at most each', () => 
   assert.match(json, /"label":"Shaka","value":"LEADER_SHAKA","default":true,"emoji":\{"id":"9","name":"Shaka"\}/);
   assert.match(json, /"label":"1\. [^"]*","value":"1","description":"Shaka","emoji":\{[^}]*\},"default":true/);
   assert.ok(container(panel).toJSON().components.length < 40);
-  assert.match(json, /"label":"Back to the editor"/);
+  assert.match(json, /"label":"Nothing to save","style":3,"disabled":true.*"label":"Back to the editor"/);
 });
 
 test('a civ7 seat gets a leader and a civ menu; an unknown one says so', () => {
@@ -268,12 +279,12 @@ test('a civ7 seat gets a leader and a civ menu; an unknown one says so', () => {
     ['LEADER_AMINA', 'Amina'],
     ['CIVILIZATION_ROME', 'Rome'],
   ]);
-  const json = JSON.stringify(container(civsPanel(civ7, names, new Map(), 1)).toJSON());
+  const json = JSON.stringify(container(panelOf('civs', civ7, names)).toJSON());
   assert.match(json, /"placeholder":"Leaders A"/);
   assert.match(json, /"placeholder":"Civs R"/);
   assert.match(json, /not in the civ data: `CIVILIZATION_AKSUM`/);
   // Without civ data there is nothing to pick from, and it says so.
-  assert.match(JSON.stringify(container(civsPanel(ffa, new Map(), new Map(), 1)).toJSON()), /civ data is unavailable/);
+  assert.match(JSON.stringify(container(panelOf('civs', ffa)).toJSON()), /civ data is unavailable/);
 });
 
 test('the picker opens on an unknown seat and moves on once it is known', () => {
@@ -292,11 +303,16 @@ test('the picker opens on an unknown seat and moves on once it is known', () => 
   assert.equal(civFocus(known, names, 2), 2);
 });
 
-test('a pick sets the leader or the civ, and the one already there is not sent', () => {
-  assert.deepEqual(civPickEdit(ffa, 1, 'LEADER_SEJONG'), { seat: 0, leader: 'LEADER_SEJONG' });
-  assert.deepEqual(civPickEdit(ffa, 2, 'CIVILIZATION_ROME'), { seat: 2, civ: 'CIVILIZATION_ROME' });
-  assert.equal(civPickEdit(ffa, 1, 'LEADER_SHAKA'), null);
-  assert.equal(civPickEdit(ffa, 9, 'LEADER_SEJONG'), null);
+test('a pick sets the leader or the civ in the draft, and Save sends them together', () => {
+  const draft = withCivPick(withCivPick(ffa, 1, 'LEADER_SEJONG'), 2, 'CIVILIZATION_ROME');
+  assert.deepEqual(draftEdits(ffa, draft), [
+    { seat: 0, leader: 'LEADER_SEJONG' },
+    { seat: 2, civ: 'CIVILIZATION_ROME' },
+  ]);
+  assert.equal(withCivPick(ffa, 1, 'LEADER_SHAKA'), ffa);
+  assert.equal(withCivPick(ffa, 9, 'LEADER_SEJONG'), ffa);
+  const json = JSON.stringify(container(panelOf('civs', draft, new Map([['LEADER_SEJONG', 'Sejong']]), new Map(), ffa)).toJSON());
+  assert.match(json, /Not saved yet:\*\* Seat 1 \u2192 Sejong.*"label":"Save 2 changes"/);
 });
 
 test('players trade seats with their own quit marks', () => {
@@ -313,7 +329,7 @@ test('players trade seats with their own quit marks', () => {
     { seat: 1, discord_id: A, quit: true },
     { seat: 0, discord_id: B, quit: false },
   ]);
-  assert.deepEqual(draftEdits(m, withAssignPick(m, 2, A) as typeof m), [
+  assert.deepEqual(draftEdits(m, withAssignPick(m, m, 2, A) as Match), [
     { seat: 0, discord_id: B, quit: false },
     { seat: 1, discord_id: A, quit: true },
   ]);

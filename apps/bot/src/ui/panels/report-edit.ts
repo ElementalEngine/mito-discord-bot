@@ -207,36 +207,81 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
 export const EDITOR_CLOSED = 'This editor has closed. Press Edit on the report to open it again.';
 export const closedEditor = (): Panel => notice('muted', EDITOR_CLOSED);
 
-// The set-order and assign panels stand in for the editor and change only a
-// draft of the match; Save sends the draft as one edit.
+// The order, assign and civ panels stand in for the editor and change only a
+// draft of the match; Save sends the whole draft as one edit.
+export type DraftKind = 'order' | 'assign' | 'civs';
+// `rev` goes into each menu's id, so Discord redraws every menu from the
+// draft rather than keeping a pick it was shown; `focus` is the civ seat.
+export type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match; rev: number; focus: number }>;
+
 const MENUS_MAX = 15;
 const pastMenus = (count: number): Block[] =>
   count > MENUS_MAX ? [text(`Seats past ${MENUS_MAX} are set from **Edit one seat**.`)] : [];
 
-function draftPanel(match: Match, title: string, hint: string, menus: readonly Block[], save: ButtonBuilder): Panel {
-  const id = match.match_id;
+// What Save sends: each seat whose player, place, quit mark, leader or civ the
+// draft changed.
+export function draftEdits(base: Match, draft: Match): SeatEdit[] {
+  return seatsOf(base).flatMap(({ index, player: was }) => {
+    const now = draft.players[index];
+    if (!now) return [];
+    const edit: SeatEdit = { seat: index };
+    if (now.placement !== was.placement && typeof now.placement === 'number') edit.placement = now.placement;
+    if (now.discord_id !== was.discord_id && now.discord_id) edit.discord_id = now.discord_id;
+    if (now.quit !== was.quit) edit.quit = now.quit;
+    if (now.leader !== was.leader && now.leader) edit.leader = now.leader;
+    if (now.civ !== was.civ) edit.civ = now.civ;
+    return Object.keys(edit).length > 1 ? [edit] : [];
+  });
+}
+
+// The unsaved changes, seat by seat, so nothing waits on Save unseen.
+function pendingLine(draft: Draft, names: CivNames): string | null {
+  const changes = numbered(draft.base).flatMap((s) => {
+    const was = s.player;
+    const now = draft.now.players[s.index];
+    if (!now) return [];
+    const what = [
+      now.discord_id !== was.discord_id ? (idOf(now) ? mention(idOf(now) ?? '') : 'unassigned') : null,
+      now.placement !== was.placement ? ordinal((now.placement ?? 0) + 1) : null,
+      now.leader !== was.leader && now.leader ? plainNameOf(names, now.leader) : null,
+      now.civ !== was.civ && isCiv7(draft.now) ? plainNameOf(names, now.civ) : null,
+      now.quit !== was.quit ? (now.quit ? 'quit' : 'did not quit') : null,
+    ].filter((x): x is string => x !== null);
+    return what.length ? [`Seat ${s.n} \u2192 ${what.join(', ')}`] : [];
+  });
+  return changes.length ? `**Not saved yet:** ${changes.join(' \u00b7 ')}` : null;
+}
+
+function draftFrame(draft: Draft, names: CivNames, title: string, body: readonly Block[]): Panel {
+  const id = draft.now.match_id;
+  const changed = draftEdits(draft.base, draft.now).length;
+  const save = button(id, EDIT.save, changed ? `Save ${changed} change${changed === 1 ? '' : 's'}` : 'Nothing to save', ButtonStyle.Success)
+    .setDisabled(!changed);
+  const pending = pendingLine(draft, names);
   return {
     tone: 'info',
     surface: 'report',
-    title: `${title}: ${reportLabel(match)} report`,
+    title: `${title}: ${reportLabel(draft.now)} report`,
     subtitle: `Match \`${id}\` \u00b7 nothing is saved until you press Save`,
-    body: [text(hint), ...menus, divider(), ...rowsOf([save, button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)])],
+    body: [...body, ...(pending ? [text(pending)] : []), divider(), ...rowsOf([save, button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)])],
   };
 }
 
-const saveButton = (match: Match, changed: number): ButtonBuilder =>
-  button(match.match_id, EDIT.save, changed ? `Save ${changed} change${changed === 1 ? '' : 's'}` : 'Nothing to save', ButtonStyle.Success)
-    .setDisabled(!changed);
+export function draftPanel(draft: Draft, names: CivNames, members: Members): Panel {
+  if (draft.kind === 'order') return orderPanel(draft, names, members);
+  if (draft.kind === 'assign') return assignPanel(draft, names, members);
+  return civsPanel(draft, names, members);
+}
 
-// Every place in one panel, best first. A pick puts that seat (or team) in the
-// place and the one there takes its old place, so the menus always read true.
-export function orderPanel(match: Match, names: CivNames, members: Members, changed: number): Panel {
+// Every place in one panel, best first, each menu labelled with its place.
+function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
+  const match = draft.now;
   const units = unitsOf(match);
   const menus = units.slice(0, MENUS_MAX).map((holder) => {
     const at = holder.seats[0]?.player.placement ?? 0;
     const place = ordinal(at + 1);
     const menu = new StringSelectMenuBuilder()
-      .setCustomId(customId('report', EDIT.orderPick, match.match_id, String(at), String(holder.id)))
+      .setCustomId(customId('report', EDIT.orderPick, match.match_id, String(at), String(holder.id), String(draft.rev)))
       .addOptions(
         units.map((u) => {
           const option = unitOption(match, u, names, members);
@@ -245,8 +290,8 @@ export function orderPanel(match: Match, names: CivNames, members: Members, chan
       );
     return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
   });
-  const hint = 'Pick who finished in each place; whoever was there takes their old place.';
-  return draftPanel(match, 'Set order', hint, [...menus, ...pastMenus(units.length)], saveButton(match, changed));
+  const hint = 'Pick who finished in each place. The one you pick swaps places with whoever was there.';
+  return draftFrame(draft, names, 'Set order', [text(hint), ...menus, ...pastMenus(units.length)]);
 }
 
 // The draft with `unit` moved into place `at`, trading with the one there: the
@@ -265,9 +310,10 @@ export function withOrderPick(match: Match, at: number, holder: number, unit: nu
   return { ...match, players };
 }
 
-// One menu per seat, labelled with who has it now, so a cloud game's twelve
-// players are named in one panel.
-export function assignPanel(match: Match, names: CivNames, members: Members, changed: number): Panel {
+// One menu per seat, labelled with the seat and who has it now. Discord's
+// member menu searches the whole server as a name is typed.
+function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
+  const match = draft.now;
   const seats = numbered(match);
   const menus = seats.slice(0, MENUS_MAX).map((s) => {
     const id = idOf(s.player);
@@ -275,17 +321,17 @@ export function assignPanel(match: Match, names: CivNames, members: Members, cha
     const name = id ? members.get(id) : undefined;
     const now = id ? (name ? `now ${name}` : 'assigned') : `unassigned${save}`;
     const menu = new UserSelectMenuBuilder()
-      .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n)))
+      .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n), String(draft.rev)))
       .setPlaceholder(fit(`Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))} \u00b7 ${now}`, 150));
     return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
   });
-  const hint = 'Pick the player for each seat. Someone already in another seat swaps with this seat\'s player.';
-  return draftPanel(match, 'Assign players', hint, [...menus, ...pastMenus(seats.length)], saveButton(match, changed));
+  const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
+  return draftFrame(draft, names, 'Assign players', [text(hint), ...menus, ...pastMenus(seats.length)]);
 }
 
-// The draft with `id` in seat n. Someone in another seat swaps with this
-// seat's player, quit marks and all; an empty seat has no one to swap back.
-export function withAssignPick(match: Match, n: number, id: string): Match | string {
+// The draft with `id` in seat n: someone with another seat swaps with this
+// seat's player, or moves here if this seat is empty and theirs was in the save.
+export function withAssignPick(base: Match, match: Match, n: number, id: string): Match | string {
   const seats = numbered(match);
   const seat = seats.find((s) => s.n === n);
   const current = seat ? idOf(seat.player) : null;
@@ -293,24 +339,13 @@ export function withAssignPick(match: Match, n: number, id: string): Match | str
   const players = [...match.players];
   const other = seats.find((s) => s !== seat && idOf(s.player) === id);
   if (other) {
-    if (!current) return `${mention(id)} is in seat ${other.n}. Give seat ${other.n} its player first.`;
-    players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
+    const before = base.players[other.index];
+    if (current) players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
+    else if (before && !idOf(before)) players[other.index] = { ...other.player, discord_id: before.discord_id, quit: before.quit };
+    else return `${mention(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
   }
   players[seat.index] = { ...seat.player, discord_id: id, quit: other ? other.player.quit : seat.player.quit };
   return { ...match, players };
-}
-
-// What Save sends: each seat whose player, place or quit mark the draft changed.
-export function draftEdits(base: Match, draft: Match): SeatEdit[] {
-  return seatsOf(base).flatMap(({ index, player: was }) => {
-    const now = draft.players[index];
-    if (!now) return [];
-    const edit: SeatEdit = { seat: index };
-    if (now.placement !== was.placement && typeof now.placement === 'number') edit.placement = now.placement;
-    if (now.discord_id !== was.discord_id && now.discord_id) edit.discord_id = now.discord_id;
-    if (now.quit !== was.quit) edit.quit = now.quit;
-    return Object.keys(edit).length > 1 ? [edit] : [];
-  });
 }
 
 // One seat's whole state in one form: who played it, where it finished,
@@ -481,7 +516,7 @@ function menusOf<T>(items: readonly T[]): T[][] {
 const initialOf = (names: CivNames, token: string): string => plainNameOf(names, token).charAt(0).toUpperCase();
 
 // Every leader (or civ) the civ data knows, as menus, the seat's own one picked.
-function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'leader' | 'civ'): Block[] {
+function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'leader' | 'civ', rev: number): Block[] {
   const prefix = kind === 'leader' ? 'LEADER_' : 'CIVILIZATION_';
   const current = kind === 'leader' ? leaderOf(seat) : seat.player.civ;
   const tokens = [...names.keys()]
@@ -490,7 +525,7 @@ function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'lea
   return menusOf(tokens).map((part, k) => {
     const [from, to] = [initialOf(names, part[0]!), initialOf(names, part.at(-1)!)];
     const menu = new StringSelectMenuBuilder()
-      .setCustomId(customId('report', EDIT.civPick, matchId, String(seat.n), `${kind}${k}`))
+      .setCustomId(customId('report', EDIT.civPick, matchId, String(seat.n), `${kind}${k}`, String(rev)))
       .setPlaceholder(`${kind === 'leader' ? 'Leaders' : 'Civs'} ${from === to ? from : `${from}\u2013${to}`}`)
       .addOptions(
         part.map((t) => {
@@ -503,31 +538,24 @@ function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'lea
 }
 
 // Staff pick a seat, then its leader (civ7: and civ) from the civ data's own
-// list, so nothing is typed. The panel stands in for the editor until Back.
-export function civsPanel(match: Match, names: CivNames, members: Members, n: number): Panel {
+// list, so nothing is typed.
+function civsPanel(draft: Draft, names: CivNames, members: Members): Panel {
+  const match = draft.now;
   const seats = numbered(match);
-  const seat = seats.find((s) => s.n === n) ?? seats[0]!;
+  const seat = seats.find((s) => s.n === draft.focus) ?? seats[0]!;
   const id = match.match_id;
   const pickSeat = new StringSelectMenuBuilder()
-    .setCustomId(customId('report', EDIT.civSeat, id))
+    .setCustomId(customId('report', EDIT.civSeat, id, String(draft.rev)))
     .addOptions(seats.map((s) => ({ ...seatOption(s, names, members), default: s.n === seat.n })));
   const unknown = unknownCiv(match, names, seat.player);
-  const menus = [...choiceRows(id, names, seat, 'leader'), ...(isCiv7(match) ? choiceRows(id, names, seat, 'civ') : [])];
-  return {
-    tone: 'info',
-    surface: 'report',
-    title: `Set civs: ${reportLabel(match)} report`,
-    subtitle: `Match \`${id}\` \u00b7 a pick saves at once`,
-    body: [
-      text(seats.map((s) => seatLine(match, s, names)).join('\n')),
-      divider(),
-      text(`**Seat ${seat.n}** \u00b7 ${unknown ? `${MARK.civ} not in the civ data: \`${unknown}\`` : 'pick another to change it'}`),
-      row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pickSeat)),
-      ...(menus.length ? menus : [text('The civ data is unavailable right now. Try again in a moment.')]),
-      divider(),
-      ...rowsOf([button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)]),
-    ],
-  };
+  const menus = [...choiceRows(id, names, seat, 'leader', draft.rev), ...(isCiv7(match) ? choiceRows(id, names, seat, 'civ', draft.rev) : [])];
+  return draftFrame(draft, names, 'Set civs', [
+    text(seats.map((s) => seatLine(match, s, names)).join('\n')),
+    divider(),
+    text(`**Seat ${seat.n}** \u00b7 ${unknown ? `${MARK.civ} not in the civ data: \`${unknown}\`` : 'pick another to change it'}`),
+    row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pickSeat)),
+    ...(menus.length ? menus : [text('The civ data is unavailable right now. Try again in a moment.')]),
+  ]);
 }
 
 // The seat the picker shows: the one asked for while its civ is still unknown,
@@ -539,11 +567,13 @@ export function civFocus(match: Match, names: CivNames, asked = 0): number {
   return (unknown.find((s) => s.n > asked) ?? unknown[0] ?? seats.find((s) => s.n === asked) ?? seats[0])?.n ?? 1;
 }
 
-// A picked leader sets the seat's leader, a picked civ its civ; the one the
-// seat already has changes nothing.
-export function civPickEdit(match: Match, n: number, token: string): SeatEdit | null {
+// The draft with a picked leader as the seat's leader, or a picked civ as its civ.
+export function withCivPick(match: Match, n: number, token: string): Match {
   const seat = numbered(match).find((s) => s.n === n);
-  if (!seat || !token) return null;
-  if (token.startsWith('CIVILIZATION_')) return token === seat.player.civ ? null : { seat: seat.index, civ: token };
-  return token === leaderOf(seat) ? null : { seat: seat.index, leader: token };
+  if (!seat || !token) return match;
+  const field = token.startsWith('CIVILIZATION_') ? 'civ' : 'leader';
+  if (seat.player[field] === token) return match;
+  const players = [...match.players];
+  players[seat.index] = { ...seat.player, [field]: token };
+  return { ...match, players };
 }
