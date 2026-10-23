@@ -3,14 +3,16 @@
 export type Closer = Readonly<{ close: () => Promise<unknown>; until: number }>;
 
 export type IdleCloser = Readonly<{
-  open: (key: string, id: string, closer: Closer, ms: number) => void;
+  open: (key: string, owner: string, id: string, closer: Closer, ms: number) => void;
+  holder: (key: string) => string | undefined;
   touch: (key: string, id: string, ms: number, closer?: Closer) => boolean;
+  close: (key: string) => void;
 }>;
 
-// One open panel per key, named by its message id. It closes once idle for
-// its time, or sooner if its token would run out first.
+// One open panel per key, held by one person and named by its message id. It
+// closes once idle for its time, or sooner if its token would run out first.
 export function idleCloser(now: () => number = Date.now): IdleCloser {
-  const held = new Map<string, { id: string; closer: Closer; timer: NodeJS.Timeout }>();
+  const held = new Map<string, { owner: string; id: string; closer: Closer; timer: NodeJS.Timeout }>();
   const close = (key: string): void => {
     const open = held.get(key);
     if (!open) return;
@@ -18,25 +20,27 @@ export function idleCloser(now: () => number = Date.now): IdleCloser {
     held.delete(key);
     void open.closer.close().catch(() => undefined);
   };
-  const arm = (key: string, id: string, closer: Closer, ms: number): void => {
+  const arm = (key: string, owner: string, id: string, closer: Closer, ms: number): void => {
     const timer = setTimeout(() => close(key), Math.max(0, Math.min(ms, closer.until - now())));
     timer.unref();
-    held.set(key, { id, closer, timer });
+    held.set(key, { owner, id, closer, timer });
   };
   return {
     // A new panel for the key closes the one before it at once.
-    open(key, id, closer, ms) {
+    open(key, owner, id, closer, ms) {
       close(key);
-      arm(key, id, closer, ms);
+      arm(key, owner, id, closer, ms);
     },
+    holder: (key) => held.get(key)?.owner,
     // Activity on the open panel restarts its clock, with a fresher closer
     // when given; false when this panel is not the open one.
     touch(key, id, ms, closer) {
       const open = held.get(key);
       if (open?.id !== id) return false;
       clearTimeout(open.timer);
-      arm(key, id, closer ?? open.closer, ms);
+      arm(key, open.owner, id, closer ?? open.closer, ms);
       return true;
     },
+    close,
   };
 }

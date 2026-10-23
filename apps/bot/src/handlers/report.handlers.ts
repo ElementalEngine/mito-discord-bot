@@ -21,7 +21,7 @@ import {
   refreshReport,
   viewOf,
 } from '../services/report.service.js';
-import { channel as channelMention, customId, parseId, type CivNames } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mention, parseId, type CivNames } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
@@ -53,13 +53,13 @@ const api = new ApiClient();
 const CONTEST_FORM = 'contestform';
 const REASON = 'reason';
 
-// One open editor per person and report. It closes after two minutes idle, or
-// ten while a form from it is out, and always before its token expires.
+// One open editor per report, so two people never edit it at once. It closes
+// after two minutes idle, or ten while a form from it is out, and always
+// before its token expires.
 const editors = idleCloser();
 const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
-const editorKey = (interaction: Interaction, matchId: string): string => `${interaction.user.id}:${matchId}`;
 const closerFor = (interaction: ButtonInteraction | ModalSubmitInteraction): Closer => ({
   close: () => replacePanel(interaction, closedEditor()),
   until: interaction.createdTimestamp + TOKEN_MS,
@@ -94,6 +94,7 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
   if (!isStaff(interaction)) refuse('Only staff can approve a report.');
   await defer(interaction, 'private');
   const match = await api.approve(matchId, { id: interaction.user.id, isStaff: true });
+  editors.close(matchId);
   const view = await viewOf(match, api);
   const history = await interaction.client.channels.fetch(historyChannelId(match)).catch(() => null);
   const posted = history?.isSendable()
@@ -157,9 +158,13 @@ async function openEditor(interaction: ButtonInteraction, matchId: string): Prom
   const match = await api.match(matchId);
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
+  const holder = editors.holder(matchId);
+  if (holder && holder !== interaction.user.id) {
+    refuse(`${mention(holder)} is editing this report. It frees up when they finish, or after two minutes idle.`);
+  }
   await respond(interaction, await editorOf(interaction.guild, match, staff, api), 'private');
   const editor = await interaction.fetchReply();
-  editors.open(editorKey(interaction, matchId), editor.id, closerFor(interaction), IDLE_MS);
+  editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction), IDLE_MS);
 }
 
 // A form from the editor, built from the report as it is now. The members
@@ -170,7 +175,7 @@ async function openForm(
   build: (match: Match, names: CivNames, members: Members) => ModalBuilder | null,
   nothing = 'The report has changed. Open the editor again.',
 ): Promise<void> {
-  if (!editors.touch(editorKey(interaction, matchId), interaction.message.id, FORM_MS)) refuse(EDITOR_CLOSED);
+  if (!editors.touch(matchId, interaction.message.id, FORM_MS)) refuse(EDITOR_CLOSED);
   const match = await api.match(matchId);
   const form = build(match, await civNames(editionOf(match.game), api), memberNames(interaction.guild, playerIds(match)));
   if (!form) refuse(nothing);
@@ -201,7 +206,7 @@ async function submit(
   editsOf: (match: Match, names: CivNames) => SeatEdit[],
 ): Promise<void> {
   await holdPanel(interaction);
-  const open = editors.touch(editorKey(interaction, matchId), interaction.message?.id ?? '', IDLE_MS, closerFor(interaction));
+  const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction));
   if (!open) refuse(EDITOR_CLOSED);
   const match = await api.match(matchId);
   const edits = editsOf(match, await civNames(editionOf(match.game), api));

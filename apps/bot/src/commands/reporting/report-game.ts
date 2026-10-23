@@ -4,7 +4,7 @@ import { ApiClient } from '../../api/index.js';
 import { config } from '../../config.js';
 import type { CivEdition } from '../../config/types.js';
 import { viewOf } from '../../services/report.service.js';
-import { duplicateText, isAssigned, reportPanel, seatsOf } from '../../ui/panels/report.js';
+import { duplicateText, isAssigned, playerIds, reportPanel, seatsOf } from '../../ui/panels/report.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { logAction } from '../../utils/log-command.js';
@@ -52,7 +52,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await say(interaction, 'refused', duplicateText(upload));
       return;
     }
-    await respond(interaction, reportPanel(await viewOf(upload, api)), 'public');
+    // The report pings its players, as the approved result does.
+    await respond(interaction, reportPanel(await viewOf(upload, api)), 'public', {
+      allowedMentions: { users: playerIds(upload) },
+    });
     const unassigned = seatsOf(upload).filter((s) => !isAssigned(s.player)).map((s) => s.player.user_name ?? 'unknown');
     await logAction(interaction, 'report-game', { matchId: upload.match_id, edition, unassigned });
   } catch (error) {
