@@ -141,17 +141,20 @@ async function approveInTurn(interaction: ButtonInteraction, matchId: string): P
   }
   const view = await viewOf(match, api);
   const history = await interaction.client.channels.fetch(historyChannelId(match)).catch(() => null);
-  const inHistory = history?.isSendable()
-    ? await postPanel(history, reportPanel(view), { users: playerIds(match) }).then(
-        () => true,
-        (error: unknown) => {
-          log.warn('approved result not posted', matchId, error instanceof Error ? error.message : error);
-          return false;
-        },
-      )
-    : false;
-  // Shown approved first, so a report that cannot be deleted has no buttons left.
-  await editPanel(interaction.message, reportPanel(view)).catch(() => undefined);
+  // Posted and shown approved at once; the report is deleted only after both,
+  // so one that cannot be deleted has no buttons left.
+  const [inHistory] = await Promise.all([
+    history?.isSendable()
+      ? postPanel(history, reportPanel(view), { users: playerIds(match) }).then(
+          () => true,
+          (error: unknown) => {
+            log.warn('approved result not posted', matchId, error instanceof Error ? error.message : error);
+            return false;
+          },
+        )
+      : false,
+    editPanel(interaction.message, reportPanel(view)).catch(() => undefined),
+  ]);
   if (inHistory) {
     posted.add(matchId);
     await deleteReportMessages(interaction.client, match);

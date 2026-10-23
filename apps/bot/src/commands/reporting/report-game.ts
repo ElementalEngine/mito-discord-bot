@@ -52,9 +52,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     } catch (error) {
       refuse(error instanceof Error ? error.message : 'That file is not a save.');
     }
+    // The save downloads while Discord takes the deferral, so neither waits on the other.
+    const download = downloadAttachment(save.url);
+    download.catch(() => undefined);
     await defer(interaction, 'public');
-    const reply = await interaction.fetchReply();
-    const file = await downloadAttachment(save.url);
+    const [reply, file] = await Promise.all([interaction.fetchReply(), download]);
     const upload = await api.uploadMatch(file, save.name, interaction.user.id, cloud, reply.id);
     if (upload.repeated) {
       // A pending report is drawn again where it stands, so one whose first

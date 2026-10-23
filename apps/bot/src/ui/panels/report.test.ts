@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import type { Match, MatchUpload } from '../../api/types.js';
 import { container, type Panel } from '../kit/index.js';
 import { MARK, ageLabel, duplicateText, mapLabel, ordinal, playerIds, reportId, reportLabel, reportPanel, revertedPanel } from './report.js';
+import { editorPanel } from './report-edit.js';
 
 /**
  * The report panel: one message, edited in place. What should break this
@@ -69,6 +70,20 @@ test('standings run in placement order with signed deltas', () => {
   assert.equal(panel.actions?.length, 1);
   assert.ok(container(panel).toJSON().components.length < 40);
   assert.equal(panel.footer, 'Reported by <@100000000000000001> \u00b7 <t:1792670400:f>');
+});
+
+test('a seat shows the in-game score the save recorded, and nothing where it has none', () => {
+  const scored = match({
+    players: [
+      player({ discord_id: A, placement: 0, delta: 14, season_delta: 9, score: 1274 }),
+      player({ discord_id: B, placement: 1, team: 1 }),
+    ],
+  });
+  const body = bodyOf(reportPanel({ match: scored, names: new Map() }));
+  assert.match(body, /-# \u0394 \+14 lifetime \u00b7 \u0394 \+9 season \u00b7 score 1274$/mu);
+  assert.doesNotMatch(body.split('\n').slice(2).join('\n'), /score/);
+  const editor = JSON.stringify(container(editorPanel(scored, new Map(), new Map(), true)).toJSON());
+  assert.match(editor, /\u2014 1st \u00b7 score 1274/);
 });
 
 test('an unassigned seat is marked, and turns the panel orange for staff', () => {

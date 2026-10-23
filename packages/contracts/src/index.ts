@@ -1819,6 +1819,8 @@ export interface components {
             player_alive?: boolean | null;
             /** Quit */
             quit: boolean;
+            /** Score */
+            score?: number | null;
             /** Season Delta */
             season_delta?: number | null;
             /** Steam Id */

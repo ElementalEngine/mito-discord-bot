@@ -75,7 +75,7 @@ function who(p: Player): string {
 }
 
 // The leader's portrait (civ7: and the civ's), or its name where there is none.
-function civOf(match: Match, p: Player, names: CivNames): string {
+export function civOf(match: Match, p: Player, names: CivNames): string {
   if (match.game.toLowerCase() !== 'civ7' || !p.leader) return iconOf(names, p.leader ?? p.civ);
   const [leader, civ] = [iconOf(names, p.leader), iconOf(names, p.civ)];
   return leader.startsWith('<:') && civ.startsWith('<:') ? `${leader} ${civ}` : `${leader} \u00b7 ${civ}`;
@@ -102,9 +102,11 @@ function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string
   const p = s.player;
   const second = match.is_cloud ? p.combined_delta : p.season_delta;
   const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
-  // Each rating change carries the delta sign players know from the Elo tables.
+  // Each rating change carries the delta sign players know from the Elo tables;
+  // the in-game score follows where the save recorded one.
   const deltas = [`\u0394 ${signed(p.delta)} lifetime`];
   if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
+  if (typeof p.score === 'number') deltas.push(`score ${p.score}`);
   return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }
 

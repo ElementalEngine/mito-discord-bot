@@ -16,7 +16,6 @@ import {
   customId,
   divider,
   fit,
-  iconOf,
   mention,
   notice,
   plainNameOf,
@@ -27,7 +26,7 @@ import {
   type CivNames,
   type Panel,
 } from '../kit/index.js';
-import { MARK, isAssigned, isTeamer, ordinal, reportLabel, seatsOf, unknownCiv } from './report.js';
+import { MARK, civOf, isAssigned, isTeamer, ordinal, reportLabel, seatsOf, unknownCiv } from './report.js';
 
 // The editor's verbs and the form fields they read.
 export const EDIT = {
@@ -153,10 +152,11 @@ function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const facts = [
     ordinal((p.placement ?? 0) + 1),
     isTeamer(match) ? `team ${p.team + 1}` : null,
+    typeof p.score === 'number' ? `score ${p.score}` : null,
     p.quit ? `${MARK.quit} quit` : null,
     left ? `${MARK.sub} for ${left}` : null,
   ].filter((x): x is string => x !== null);
-  return `\`${s.n}\` ${who} ${iconOf(names, leaderOf(s))} \u2014 ${facts.join(' \u00b7 ')}`;
+  return `\`${s.n}\` ${who} ${civOf(match, p, names)} \u2014 ${facts.join(' \u00b7 ')}`;
 }
 
 const button = (matchId: string, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
@@ -550,7 +550,9 @@ function civsPanel(draft: Draft, names: CivNames, members: Members): Panel {
     .setCustomId(customId('report', EDIT.civSeat, id, String(draft.rev)))
     .addOptions(seats.map((s) => ({ ...seatOption(s, names, members), default: s.n === seat.n })));
   const unknown = unknownCiv(match, names, seat.player);
-  const menus = [...choiceRows(id, names, seat, 'leader', draft.rev), ...(isCiv7(match) ? choiceRows(id, names, seat, 'civ', draft.rev) : [])];
+  const leaders = choiceRows(id, names, seat, 'leader', draft.rev);
+  const civs = isCiv7(match) ? choiceRows(id, names, seat, 'civ', draft.rev) : [];
+  const menus = [...(leaders.length ? [text('**Leader**'), ...leaders] : []), ...(civs.length ? [text('**Civ**'), ...civs] : [])];
   return draftFrame(draft, names, 'Set civs', [
     text(seats.map((s) => seatLine(match, s, names)).join('\n')),
     divider(),

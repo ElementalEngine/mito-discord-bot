@@ -283,6 +283,8 @@ test('a civ7 seat gets a leader and a civ menu; an unknown one says so', () => {
   assert.match(json, /"placeholder":"Leaders A"/);
   assert.match(json, /"placeholder":"Civs R"/);
   assert.match(json, /not in the civ data: `CIVILIZATION_AKSUM`/);
+  // Each kind of menu sits under its own heading.
+  assert.match(json, /\*\*Leader\*\*.*"placeholder":"Leaders A".*\*\*Civ\*\*.*"placeholder":"Civs R"/);
   // Without civ data there is nothing to pick from, and it says so.
   assert.match(JSON.stringify(container(panelOf('civs', ffa)).toJSON()), /civ data is unavailable/);
 });
@@ -336,4 +338,15 @@ test('players trade seats with their own quit marks', () => {
   // One team cannot tie.
   const lone = match([player({ discord_id: A, team: 0 }), player({ discord_id: B, team: 0 })], 'Teamer');
   assert.ok(!buttonsOf(editorPanel(lone, new Map(), new Map(), true)).includes('Set a tie'));
+});
+
+test('the editor and civ picker show a civ7 seat\'s leader and civ, as the report does', () => {
+  const civ7: Match = { ...match([player({ leader: 'LEADER_AMINA', civ: 'CIVILIZATION_ROME' })]), game: 'civ7' };
+  const names = new Map([
+    ['LEADER_AMINA', '<:Amina:1> Amina'],
+    ['CIVILIZATION_ROME', '<:Rome:2> Rome'],
+  ]);
+  for (const panel of [editorPanel(civ7, names, new Map(), true), panelOf('civs', civ7, names)]) {
+    assert.match(JSON.stringify(container(panel).toJSON()), /<:Amina:1> <:Rome:2> \u2014 1st/);
+  }
 });
