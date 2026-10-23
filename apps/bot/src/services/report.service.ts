@@ -8,7 +8,12 @@ import { editorPanel } from '../ui/panels/report-edit.js';
 import { isAssigned, playerIds, seatsOf, type ReportView } from '../ui/panels/report.js';
 import { editPanelById } from '../ui/reply.js';
 import { log } from '../utils/log.js';
+import { serial } from '../utils/serial.js';
 import { civNames, editionOf } from './civ-names.js';
+
+// Writes to one report take turns, from the editor, approve, contest or a
+// repeated upload, so none redraws it from an older copy than the last.
+export const inTurn = serial();
 
 // Everything a report panel shows beside the match: display names and, while
 // pending, each sub's quota. A quota that cannot be read is left off.

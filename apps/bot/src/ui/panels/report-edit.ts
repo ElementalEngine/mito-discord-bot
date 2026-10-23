@@ -204,7 +204,7 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
 }
 
 // What an editor becomes when it closes, idle or replaced by a newer one.
-export const EDITOR_CLOSED = 'This editor has closed. Press Edit on the report to open it again.';
+export const EDITOR_CLOSED = 'This editor has closed. If the report is still waiting, press Edit on it to open it again.';
 export const closedEditor = (): Panel => notice('muted', EDITOR_CLOSED);
 
 // The order, assign and civ panels stand in for the editor and change only a
@@ -330,7 +330,7 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
 }
 
 // The draft with `id` in seat n: someone with another seat swaps with this
-// seat's player, or moves here if this seat is empty and theirs was in the save.
+// seat's player, or moves here if this seat is empty and theirs was empty in the save.
 export function withAssignPick(base: Match, match: Match, n: number, id: string): Match | string {
   const seats = numbered(match);
   const seat = seats.find((s) => s.n === n);
@@ -401,8 +401,8 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
 export type SeatChoice = Readonly<{ player: string | null; place: number; shown: number; quit: boolean; left: string | null }>;
 
 // Only what changed is sent; an empty "came in for" leaves an unregistered
-// leaver as it is. A player or a place taken from another seat is swapped.
-export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit[] {
+// leaver as it is. A player or place taken from another seat is swapped.
+export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit[] | string {
   const seats = numbered(match);
   const seat = seats.find((s) => s.n === n);
   if (!seat) return [];
@@ -413,6 +413,8 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   if (chosen.player && chosen.player !== current) {
     edit.discord_id = chosen.player;
     const other = seats.find((s) => s !== seat && idOf(s.player) === chosen.player);
+    // An empty seat has no player to give back, and a seat is never emptied.
+    if (other && !current) return `${mention(chosen.player)} has seat ${other.n}. Give seat ${other.n} another player first.`;
     if (other && current) {
       // Players trade seats with their own quit marks, unless one was ticked.
       swap.push({ seat: other.index, discord_id: current, ...(other.player.quit !== seat.player.quit ? { quit: seat.player.quit } : {}) });

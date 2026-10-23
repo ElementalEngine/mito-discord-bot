@@ -1,16 +1,13 @@
 import {
   ContainerBuilder,
   FileBuilder,
-  MessageFlags,
   SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
-  ThumbnailBuilder,
   type ActionRowBuilder,
   type ButtonBuilder,
   type MessageActionRowComponentBuilder,
-  type MessageMentionOptions,
 } from 'discord.js';
 
 import { LIMITS, fit } from './limits.js';
@@ -22,7 +19,6 @@ export type Block =
   | Readonly<{ kind: 'text'; text: string }>
   | Readonly<{ kind: 'divider'; large: boolean }>
   | Readonly<{ kind: 'aside'; text: string; button: ButtonBuilder }>
-  | Readonly<{ kind: 'picture'; text: string; url: string; alt: string }>
   | Readonly<{ kind: 'file'; name: string }>
   | Readonly<{ kind: 'row'; row: ButtonRow }>;
 
@@ -30,7 +26,6 @@ export const text = (body: string): Block => ({ kind: 'text', text: body });
 export const divider = (large = false): Block => ({ kind: 'divider', large });
 export const field = (name: string, value: string): Block => text(`**${name}**\n${value || '\u2014'}`);
 export const aside = (body: string, button: ButtonBuilder): Block => ({ kind: 'aside', text: body, button });
-export const picture = (body: string, url: string, alt = ''): Block => ({ kind: 'picture', text: body, url, alt });
 // An attachment sent with the message, shown where the block sits.
 export const file = (name: string): Block => ({ kind: 'file', name });
 // Buttons or a menu placed among the blocks, rather than at the panel's end.
@@ -50,16 +45,6 @@ export type Panel = Readonly<{
   // of the tone's.
   accent?: number;
 }>;
-
-export type PanelMessage = {
-  flags: MessageFlags.IsComponentsV2;
-  components: ContainerBuilder[];
-  allowedMentions: MessageMentionOptions;
-};
-
-// Mentions render but never ping unless a caller asks: an embed never
-// pinged, and a panel replaces one.
-const NO_PINGS: MessageMentionOptions = { parse: [] };
 
 function heading(panel: Panel): string | null {
   if (!panel.title) return null;
@@ -83,7 +68,7 @@ export function blocksOf(panel: Panel): Block[] {
 export function componentCount(blocks: readonly Block[], actions: readonly ButtonRow[] = []): number {
   let n = 1;
   for (const block of blocks) {
-    n += block.kind === 'aside' || block.kind === 'picture' ? 3 : block.kind === 'row' ? 1 + block.row.components.length : 1;
+    n += block.kind === 'aside' ? 3 : block.kind === 'row' ? 1 + block.row.components.length : 1;
   }
   for (const row of actions) n += 1 + row.components.length;
   return n;
@@ -141,16 +126,6 @@ export function container(panel: Panel): ContainerBuilder {
             .setButtonAccessory(block.button),
         );
         break;
-      case 'picture': {
-        const thumb = new ThumbnailBuilder().setURL(block.url);
-        if (block.alt) thumb.setDescription(fit(block.alt, 1024));
-        box.addSectionComponents(
-          new SectionBuilder()
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent(block.text))
-            .setThumbnailAccessory(thumb),
-        );
-        break;
-      }
       case 'file':
         box.addFileComponents(new FileBuilder().setURL(`attachment://${block.name}`));
         break;
@@ -161,10 +136,6 @@ export function container(panel: Panel): ContainerBuilder {
   }
   if (actions.length) box.addActionRowComponents(...actions);
   return box;
-}
-
-export function panelMessage(panel: Panel, allowedMentions: MessageMentionOptions = NO_PINGS): PanelMessage {
-  return { flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions };
 }
 
 // A one-line answer to the person who acted: the tone's emoji and the text.

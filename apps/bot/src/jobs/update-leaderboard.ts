@@ -5,11 +5,13 @@ import type {
   Snowflake,
 } from 'discord.js';
 
-import { getLeaderboardRanking } from '../services/reporting.service.js';
+import { ApiClient } from '../api/index.js';
 import type { LeaderboardRanking } from '../api/types.js';
 import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.data.js';
 import { log } from '../utils/log.js';
+
+const api = new ApiClient();
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const PLACEHOLDER_COUNT = 12;
@@ -170,7 +172,7 @@ async function updateLeaderboard(
   if (!thread) return;
 
   const messages = await ensurePlaceholderMessages(thread);
-  const leaderboardRanking = await getLeaderboardRanking(
+  const leaderboardRanking = await api.getLeaderboardRanking(
     leaderboard.game,
     leaderboard.game_type,
     leaderboard.game_mode,

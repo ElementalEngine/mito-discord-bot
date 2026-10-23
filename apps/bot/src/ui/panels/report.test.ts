@@ -61,9 +61,9 @@ test('standings run in placement order with signed deltas', () => {
   const panel = reportPanel({ match: match(), names: new Map() });
   const body = bodyOf(panel);
   assert.ok(body.indexOf(`<@${A}>`) < body.indexOf(`<@${B}>`));
-  assert.match(body, /^\u{1f947} <@100000000000000001> \u2014 Shaka\n-# \+14 lifetime \u00b7 \+9 season$/mu);
+  assert.match(body, /^\u{1f947} <@100000000000000001> \u2014 Shaka\n-# \u0394 \+14 lifetime \u00b7 \u0394 \+9 season$/mu);
   assert.match(body, /^\u{1f948} <@100000000000000002> /mu);
-  assert.match(body, /-# \u22126 lifetime \u00b7 \u22124 season/);
+  assert.match(body, /-# \u0394 \u22126 lifetime \u00b7 \u0394 \u22124 season/);
   assert.equal(panel.tone, 'info');
   assert.equal(panel.title, 'Civ6 FFA report');
   assert.equal(panel.actions?.length, 1);
@@ -75,7 +75,7 @@ test('an unassigned seat is marked, and turns the panel orange for staff', () =>
   const m = match({ players: [player({ discord_id: '-76561190000000001', user_name: 'Gandhi fan' }), player({ discord_id: B, placement: 1, team: 1 })] });
   const panel = reportPanel({ match: m, names: new Map() });
   assert.equal(panel.tone, 'refused');
-  assert.match(bodyOf(panel), new RegExp(`\`Gandhi fan\` ${MARK.unassigned} \u2014 Shaka\n-# \u00b10 lifetime`));
+  assert.match(bodyOf(panel), new RegExp(`\`Gandhi fan\` ${MARK.unassigned} \u2014 Shaka\n-# \u0394 \u00b10 lifetime`));
   assert.match(bodyOf(panel), /\*\*For staff\*\*\n.*1 seat is unassigned\. Use Edit to assign it before approving\./);
 });
 
@@ -90,7 +90,7 @@ test('a quit and a sub are marked on the name and spelled out for staff, not on 
   const second = new Map([[C, { discord_id: C, count: 1, limit: 3, window_days: 30 }]]);
   const panel = reportPanel({ match: m, names: new Map(), quotas: second });
   const body = bodyOf(panel);
-  assert.match(body, new RegExp(`<@${C}> ${MARK.quit} ${MARK.sub} \u2014 Shaka\n-# \u00b10 lifetime \u00b7 \u00b10 season\n`));
+  assert.match(body, new RegExp(`<@${C}> ${MARK.quit} ${MARK.sub} \u2014 Shaka\n-# \u0394 \u00b10 lifetime \u00b7 \u0394 \u00b10 season\n`));
   assert.doesNotMatch(body, /^\*\*\d+\.\*\* <@100000000000000001>/m);
   assert.match(body, new RegExp(`${MARK.quit} <@${C}> quit\.`));
   assert.match(body, new RegExp(`${MARK.sub} <@${C}> subbed in for <@${A}> \u00b7 sub-in 2 of 3 in 30 days\.`));
@@ -162,7 +162,17 @@ test('a duplicate upload is told which of three cases it is', () => {
 test('ids and words', () => {
   assert.equal(reportId('approve', ID), `report:approve:${ID}`);
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd']);
-  assert.equal(reportLabel(match({ game: 'civ7', game_mode: 'Duel' })), 'Civ7 Duel');
+  // The modes each reporting channel shows, as the parsers name them.
+  for (const [game, mode, label] of [
+    ['civ6', 'ffa', 'Civ6 FFA'],
+    ['civ6', 'teamer', 'Civ6 Teamer'],
+    ['civ6', 'duel', 'Civ6 Duel'],
+    ['civ7', 'ffa', 'Civ7 FFA'],
+    ['civ7', 'teamer', 'Civ7 Teamer'],
+    ['civ7', 'Duel', 'Civ7 Duel'],
+  ] as const) {
+    assert.equal(reportLabel(match({ game, game_mode: mode })), label);
+  }
   assert.equal(mapLabel('pangaea_ultima'), 'Pangaea Ultima');
   assert.equal(mapLabel('Seven_Seas'), 'Seven Seas');
   assert.equal(mapLabel('Seven Seas'), 'Seven Seas');

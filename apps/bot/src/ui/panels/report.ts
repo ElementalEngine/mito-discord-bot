@@ -102,8 +102,9 @@ function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string
   const p = s.player;
   const second = match.is_cloud ? p.combined_delta : p.season_delta;
   const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
-  const deltas = [`${signed(p.delta)} lifetime`];
-  if (typeof second === 'number') deltas.push(`${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
+  // Each rating change carries the delta sign players know from the Elo tables.
+  const deltas = [`\u0394 ${signed(p.delta)} lifetime`];
+  if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
   return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }
 
@@ -224,7 +225,7 @@ export function revertedPanel(match: Match): Panel {
   };
 }
 
-// The players an approved result pings, as v1's history post did.
+// The match's players: who a report and its result ping, and who may contest.
 export function playerIds(match: Match): string[] {
   return [...new Set(match.players.filter(isAssigned).map((p) => p.discord_id ?? ''))];
 }

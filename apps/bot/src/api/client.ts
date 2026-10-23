@@ -293,20 +293,15 @@ export class ApiClient {
     let lastErr: unknown;
     for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-          const headers = new Headers(init?.headers);
-          if (this.serviceToken) headers.set("authorization", `Bearer ${this.serviceToken}`);
-          const res = await this.fetcher(input, { ...init, headers, signal: controller.signal });
-          if (!res.ok) {
-            const body = await this.safeJson(res);
-            throw new ApiError(`HTTP ${res.status}`, res.status, body);
-          }
-          return res;
-        } finally {
-          clearTimeout(timeout);
+        const headers = new Headers(init?.headers);
+        if (this.serviceToken) headers.set("authorization", `Bearer ${this.serviceToken}`);
+        // The signal outlives this call, so reading the body is timed too.
+        const res = await this.fetcher(input, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) });
+        if (!res.ok) {
+          const body = await this.safeJson(res);
+          throw new ApiError(`HTTP ${res.status}`, res.status, body);
         }
+        return res;
       } catch (err) {
         lastErr = err;
         if (attempt === RETRY_ATTEMPTS || !this.shouldRetry(err, method)) throw err;

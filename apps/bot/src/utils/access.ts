@@ -27,10 +27,3 @@ export const staffRoleIds = (): string[] => [config.discord.roles.moderator, con
 export function isStaff(interaction: Interaction): boolean {
   return holdsAny(roleIdsOf(interaction), staffRoleIds());
 }
-
-// A thread answers for the channel it was opened in.
-export function channelOf(interaction: Interaction): string | null {
-  const ch = interaction.channel;
-  if (ch?.isThread()) return ch.parentId ?? interaction.channelId;
-  return interaction.channelId;
-}

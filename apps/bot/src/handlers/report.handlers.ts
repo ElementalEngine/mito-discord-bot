@@ -18,11 +18,12 @@ import {
   deleteReportMessages,
   editorOf,
   historyChannelId,
+  inTurn,
   memberNames,
   refreshReport,
   viewOf,
 } from '../services/report.service.js';
-import { channel as channelMention, customId, mention, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mention, notice, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
@@ -48,7 +49,6 @@ import { playerIds, reportPanel } from '../ui/panels/report.js';
 import { Refusal, defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
-import { serial } from '../utils/serial.js';
 import { log } from '../utils/log.js';
 import { logAction } from '../utils/log-command.js';
 
@@ -62,8 +62,6 @@ const editors = idleCloser();
 const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
-// Saves on one report take turns, so a quick second pick reads the first.
-const inTurn = serial();
 type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 // Closing waits its turn behind any pick in progress, so the closed notice is
 // the last thing the editor shows and no draft outlives it.
@@ -80,12 +78,13 @@ const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 
-// A read before a form opens must beat Discord's 3 second window, so a slow
-// league server is said plainly rather than left to time out.
-async function beforeForm<T>(read: Promise<T>): Promise<T> {
+// A read before a form opens must beat Discord's 3 second window, counted from
+// the press itself, so a slow league server is said plainly, not left to time out.
+async function beforeForm<T>(interaction: Interaction, read: Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
+  const left = Math.max(0, interaction.createdTimestamp + 2_500 - Date.now());
   const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Refusal('The league server is slow right now. Try again in a moment.')), 2_500);
+    timer = setTimeout(() => reject(new Refusal('The league server is slow right now. Try again in a moment.')), left);
   });
   try {
     return await Promise.race([read, late]);
@@ -126,11 +125,23 @@ const ACTION: Readonly<Record<string, string>> = {
 async function approve(interaction: ButtonInteraction, matchId: string): Promise<void> {
   if (!isAdminOrDeveloper(interaction)) refuse('Only an admin or a developer can approve a report.');
   await defer(interaction, 'private');
+  await inTurn(matchId, () => approveInTurn(interaction, matchId));
+}
+
+// Results this process has posted. core-api answers a repeated approve with
+// the approved match, so a press after a lost answer can still post it, once.
+const posted = new Set<string>();
+
+async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await api.approve(matchId, { id: interaction.user.id, isStaff: true });
   editors.close(matchId);
+  if (posted.has(matchId)) {
+    await say(interaction, 'muted', 'This report is already approved.');
+    return;
+  }
   const view = await viewOf(match, api);
   const history = await interaction.client.channels.fetch(historyChannelId(match)).catch(() => null);
-  const posted = history?.isSendable()
+  const inHistory = history?.isSendable()
     ? await postPanel(history, reportPanel(view), { users: playerIds(match) }).then(
         () => true,
         (error: unknown) => {
@@ -139,22 +150,27 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
         },
       )
     : false;
-  if (posted) await deleteReportMessages(interaction.client, match);
-  else await editPanel(interaction.message, reportPanel(view)).catch(() => undefined);
+  // Shown approved first, so a report that cannot be deleted has no buttons left.
+  await editPanel(interaction.message, reportPanel(view)).catch(() => undefined);
+  if (inHistory) {
+    posted.add(matchId);
+    await deleteReportMessages(interaction.client, match);
+  }
+  const where = inHistory ? `The result is in ${channelMention(historyChannelId(match))}.` : 'The result stays on the report.';
+  await say(interaction, 'success', `Approved. ${where}`);
+  // Rank roles follow; the approver need not wait for them.
   if (interaction.guild && match.affected_players?.length) {
     await updateRankRolesForApprovedMatch(interaction.guild, match.affected_players).catch((error: unknown) => {
       log.warn('rank roles not synced', matchId, error instanceof Error ? error.message : error);
     });
   }
-  const where = posted ? `The result is in ${channelMention(historyChannelId(match))}.` : 'The result stays on the report.';
-  await say(interaction, 'success', `Approved. ${where}`);
   await logAction(interaction, 'approve', { matchId });
 }
 
 // Contest is for the match's own players. The form opens only for them, so
 // nobody writes a reason that is then refused.
 async function openContest(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  const match = await beforeForm(api.match(matchId));
+  const match = await beforeForm(interaction, api.match(matchId));
   if (!playerIds(match).includes(interaction.user.id)) refuse('Only players in this match can contest it.');
   const reason = new TextInputBuilder()
     .setCustomId(REASON)
@@ -175,11 +191,16 @@ async function openContest(interaction: ButtonInteraction, matchId: string): Pro
   );
 }
 
+// In turn with the editor's saves, so neither rewrites the report from an
+// older copy and hides the other.
 async function submitContest(interaction: ModalSubmitInteraction, matchId: string): Promise<void> {
   await defer(interaction, 'private');
   const reason = interaction.fields.getTextInputValue(REASON).trim();
-  const match = await api.contest(matchId, reason, { id: interaction.user.id });
-  if (await refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)))) {
+  const shown = await inTurn(matchId, async () => {
+    const match = await api.contest(matchId, reason, { id: interaction.user.id });
+    return refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)));
+  });
+  if (shown) {
     await say(interaction, 'success', 'Your contest is on the report. Staff see it before they approve.');
   } else {
     await say(interaction, 'failed', 'Your contest is recorded, but the report could not be updated.');
@@ -198,17 +219,24 @@ async function done(interaction: ButtonInteraction, matchId: string): Promise<vo
 // again on every save, and only staff may set a tie.
 async function openEditor(interaction: ButtonInteraction, matchId: string): Promise<void> {
   await defer(interaction, 'private');
+  const busy = (): string | null => {
+    const holder = editors.holder(matchId);
+    return holder && holder !== interaction.user.id
+      ? `${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`
+      : null;
+  };
+  const before = busy();
+  if (before) refuse(before);
   const match = await api.match(matchId);
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
   const panel = await editorOf(interaction.guild, match, staff, api);
-  const holder = editors.holder(matchId);
-  if (holder && holder !== interaction.user.id) {
-    refuse(`${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`);
-  }
   // The deferred reply is edited, so the editor's message comes straight back.
   const editor = await respond(interaction, panel, 'private');
-  if (editor) editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction, matchId), IDLE_MS);
+  // Someone else may have opened one while this one was being built.
+  const after = busy();
+  if (after) await replacePanel(interaction, notice('refused', after));
+  else if (editor) editors.open(matchId, interaction.user.id, editor.id, closerFor(interaction, matchId), IDLE_MS);
 }
 
 // A form from the editor, built from the report as it is now. The members
@@ -221,6 +249,7 @@ async function openForm(
 ): Promise<void> {
   if (!editors.touch(matchId, interaction.message.id, FORM_MS)) refuse(EDITOR_CLOSED);
   const [match, names] = await beforeForm(
+    interaction,
     api.match(matchId).then(async (m) => [m, await civNames(editionOf(m.game), api)] as const),
   );
   const form = build(match, names, memberNames(interaction.guild, playerIds(match)));
@@ -387,7 +416,10 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         quit: interaction.fields.getCheckbox(FIELD.quit),
         left: picked(interaction, FIELD.left),
       };
-      await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => seatEdits(m, at, choice));
+      await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => {
+        const edits = seatEdits(m, at, choice);
+        return typeof edits === 'string' ? refuse(edits) : edits;
+      });
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {

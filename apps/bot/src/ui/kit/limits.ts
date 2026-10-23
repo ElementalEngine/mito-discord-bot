@@ -3,9 +3,7 @@
 export const LIMITS = {
   components: 40,
   text: 4000,
-  buttonLabel: 80,
   customId: 100,
-  plainMessage: 2000,
 } as const;
 
 const ELLIPSIS = '\u2026';

@@ -18,8 +18,8 @@ import { ApiError, parseApiError } from '../api/errors.js';
 import { log } from '../utils/log.js';
 import { container, notice, type Panel, type Tone } from './kit/index.js';
 
-// Errors and refusals are private, results for the channel public; anything
-// calling core-api defers first, as Discord drops an interaction after 3s.
+// Errors and refusals are private, results for the channel public. Discord
+// drops an interaction after 3s, so a call to core-api defers first or races it.
 export type Visibility = 'public' | 'private';
 
 // A rule the user broke, said back to them. Thrown so a command can stop at

@@ -153,8 +153,8 @@ test('picking a player who holds another seat swaps the two in one save', () => 
     { seat: 0, discord_id: B },
     { seat: 2, discord_id: A },
   ]);
-  // An unassigned seat has no player to give back, so core-api decides.
-  assert.deepEqual(seatEdits(ffa, 3, { player: A, place: 1, shown: 1, quit: false, left: null }), [{ seat: 3, discord_id: A }]);
+  // An unassigned seat has no player to give back, so it is refused here.
+  assert.equal(seatEdits(ffa, 3, { player: A, place: 1, shown: 1, quit: false, left: null }), `<@${A}> has seat 1. Give seat 1 another player first.`);
 });
 
 test('the editor fits Discord and only real seats get a form', () => {
