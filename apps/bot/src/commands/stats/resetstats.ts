@@ -19,10 +19,11 @@ const ACCESS_POLICY = {
     config.discord.channels.botTesting,
   ],
   requiredRoleIds: [
+    config.discord.roles.admin,
     config.discord.roles.noviceManager,
-    config.discord.roles.moderator
   ],
   allowDeveloperOverride: true,
+  allowModeratorOverride: false,
 } as const;
 
 const statsService = new StatsService();

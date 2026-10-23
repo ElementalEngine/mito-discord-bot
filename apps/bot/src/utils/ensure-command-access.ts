@@ -104,7 +104,8 @@ export async function ensureCommandAccess(
     return false;
   }
 
-  const moderatorId = config.discord.roles.moderator?.trim() ?? '';
+  const moderatorId =
+    policy.allowModeratorOverride === false ? '' : (config.discord.roles.moderator?.trim() ?? '');
   if (moderatorId && roleIds.has(moderatorId)) return true;
 
   const developerId = policy.allowDeveloperOverride

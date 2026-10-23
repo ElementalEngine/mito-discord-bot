@@ -12,8 +12,9 @@ export const data = new SlashCommandBuilder()
 
 const ACCESS_POLICY = {
   allowedChannelIds: [config.discord.channels.botTesting],
-  requiredRoleIds: [config.discord.roles.moderator, config.discord.roles.developer],
+  requiredRoleIds: [config.discord.roles.developer],
   allowDeveloperOverride: true,
+  allowModeratorOverride: false,
 } as const;
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
