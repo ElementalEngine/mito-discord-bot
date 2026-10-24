@@ -7,7 +7,7 @@ import { refuse, respond } from '../../ui/reply.js';
 import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { normalizePlayerList } from '../../utils/player-list.js';
-import { STATS_POLICY } from '../../utils/stats-options.js';
+import { MAX_PLAYERS, STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
 
@@ -35,13 +35,16 @@ function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): st
       .split(' ')
       .filter((id) => SNOWFLAKE.test(id));
     if (listed.length < 2) refuse('List at least two players in discord-ids, as mentions or ids.');
-    return [...new Set(listed)];
+    const players = [...new Set(listed)];
+    if (players.length > MAX_PLAYERS) refuse(`List at most ${MAX_PLAYERS} players.`);
+    return players;
   }
   if (!(interaction.member instanceof GuildMember)) refuse('Run /teamgen in the server, not in a DM.');
   const voice = interaction.member.voice.channel;
   if (!voice) refuse('Join a voice channel first, then run /teamgen.');
   const ids = [...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.user.id);
   if (ids.length < 2) refuse('At least two players need to be in your voice channel.');
+  if (ids.length > MAX_PLAYERS) refuse(`Teams can be made for at most ${MAX_PLAYERS} players.`);
   return ids;
 }
 

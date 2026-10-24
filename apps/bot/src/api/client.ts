@@ -194,6 +194,11 @@ export class ApiClient {
   }
 
   // The settings /draft offers for one edition, as the vote asks them.
+  // core-api's readiness, its database included. Throws when it is not ready.
+  async ping(): Promise<void> {
+    await this.fetchWithRetry(`${this.base}/readyz`, { method: "GET" });
+  }
+
   async getDraftSettings(edition: CivVersion): Promise<DraftQuestion[]> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/settings/${edition}`, { method: "GET" });
 

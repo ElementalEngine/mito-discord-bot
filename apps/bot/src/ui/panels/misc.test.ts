@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { ComponentType } from 'discord.js';
 
 import { container } from '../kit/index.js';
-import { coinPanel, membersPanel, seedPanel } from './misc.js';
+import { coinPanel, membersPanel, pingPanel, rollPanel, seedPanel } from './misc.js';
 
 test('a coin flip states the side', () => {
   const json = container(coinPanel('tails')).toJSON();
@@ -26,4 +26,23 @@ test('a member export shows its counts and its file', () => {
   assert.ok(fileBlock && fileBlock.type === ComponentType.File);
   assert.equal(fileBlock.file.url, 'attachment://members.json');
   assert.match(JSON.stringify(json), /\*\*8\*\* people/);
+});
+
+test('a full roll reads as a turn order, a partial one as the numbers drawn', () => {
+  const order = rollPanel([3, 1, 2], 3, { label: 'Saturday FFA', userId: '100', channelId: null });
+  assert.equal(order.title, 'Turn order for Saturday FFA');
+  assert.match(JSON.stringify(order.body), /1\. \*\*3\*\*\\n2\. \*\*1\*\*/);
+  assert.equal(order.footer, '<@100>');
+  const picks = rollPanel([4, 5], 5);
+  assert.equal(picks.title, 'Roll');
+  assert.equal(picks.subtitle, '2 of 1\u20135, no repeats');
+  assert.equal(picks.footer, undefined);
+});
+
+test('a ping says when the league server is not answering', () => {
+  assert.equal(pingPanel(42, { ok: true, ms: 7 }).tone, 'success');
+  const down = pingPanel(-1, { ok: false, ms: 10000 });
+  assert.equal(down.tone, 'failed');
+  assert.match(JSON.stringify(down.body), /not measured yet/);
+  assert.match(JSON.stringify(down.body), /not answering after 10000 ms/);
 });

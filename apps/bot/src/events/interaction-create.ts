@@ -3,6 +3,7 @@ import { Events, type Interaction } from 'discord.js';
 import { handleDraftInteraction } from '../handlers/draft.handlers.js';
 import { handleLobbyInteraction } from '../handlers/lobby.handlers.js';
 import { handleReportInteraction } from '../handlers/report.handlers.js';
+import { handleRoomsInteraction } from '../handlers/rooms.handlers.js';
 import { handleHistoryInteraction } from '../handlers/history.handlers.js';
 import { handleSeasonInteraction } from '../handlers/season.handlers.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
@@ -44,6 +45,7 @@ export async function execute(interaction: Interaction): Promise<void> {
       if (await handleReportInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;
       if (await handleHistoryInteraction(interaction)) return;
+      if (await handleRoomsInteraction(interaction)) return;
       if (await handleSeasonInteraction(interaction)) return;
     } catch (error) {
       await fail(interaction, error, 'complete that action', { customId: interaction.customId });

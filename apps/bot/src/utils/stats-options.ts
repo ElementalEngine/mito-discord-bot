@@ -12,6 +12,9 @@ const STATS_CHANNELS = [
   config.discord.channels.noviceCommands,
 ];
 
+// core-api's cap on players in one stats or team request.
+export const MAX_PLAYERS = 200;
+
 export const STATS_POLICY = {
   allowedChannelIds: STATS_CHANNELS,
   requiredRoleIds: [config.discord.roles.civ6Rank, config.discord.roles.civ7Rank, config.discord.roles.civCloud],

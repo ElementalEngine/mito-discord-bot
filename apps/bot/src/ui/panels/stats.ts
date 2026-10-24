@@ -165,14 +165,38 @@ export function resetPanel(reset: ResetStatsResponse): Panel {
   };
 }
 
-export function roomPanel(page: string, voiceChannelId: string, players: number, part?: Readonly<{ n: number; of: number }>): Panel {
+export const ROOMS = { surface: 'rooms', page: 'page' } as const;
+
+// The room and who asked: only they page through it, as with game history.
+export type RoomOf = Readonly<{ civVersion: CivVersion; voiceChannelId: string; asker: string }>;
+
+const roomButton = (of: RoomOf, page: number, label: string, disabled: boolean): ButtonBuilder =>
+  new ButtonBuilder()
+    .setCustomId(customId(ROOMS.surface, ROOMS.page, of.civVersion, of.voiceChannelId, String(page), of.asker))
+    .setLabel(label)
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(disabled);
+
+// One message for the room; a large room pages in place.
+export function roomPanel(pages: readonly string[], page: number, of: RoomOf, players: number): Panel {
+  const at = Math.min(Math.max(page, 0), pages.length - 1);
   const count = `${players} ${players === 1 ? 'player' : 'players'}`;
   return {
     tone: 'info',
     surface: 'rooms',
     title: 'Room ranks',
-    subtitle: `<#${voiceChannelId}> \u00b7 ${count}${part && part.of > 1 ? ` \u00b7 page ${part.n} of ${part.of}` : ''}`,
-    body: [text(page)],
+    subtitle: `<#${of.voiceChannelId}> \u00b7 ${editionName(of.civVersion)} \u00b7 ${count}${pages.length > 1 ? ` \u00b7 page ${at + 1} of ${pages.length}` : ''}`,
+    body: [text(pages[at] ?? '')],
+    ...(pages.length > 1
+      ? {
+          actions: [
+            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+              roomButton(of, Math.max(0, at - 1), 'Previous', at === 0),
+              roomButton(of, Math.min(pages.length - 1, at + 1), 'Next', at === pages.length - 1),
+            ),
+          ],
+        }
+      : {}),
   };
 }
 

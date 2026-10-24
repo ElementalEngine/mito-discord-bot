@@ -23,6 +23,8 @@ export const SURFACES = {
   teams: '\u2696\ufe0f',
   coin: '\ud83e\ude99',
   seed: '\ud83d\uddfa\ufe0f',
+  roll: '\ud83c\udfb2',
+  ping: '\ud83c\udfd3',
   users: '\ud83d\udc65',
   season: '\ud83d\udcc5',
 } as const;

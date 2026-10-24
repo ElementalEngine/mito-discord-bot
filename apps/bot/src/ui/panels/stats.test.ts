@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { StatRow, UserStatsResponse } from '../../api/types.js';
 import { formatRoomRanksPages } from '../layouts/roomranks.js';
 import type { HistoryGame, HistoryPage, StatsSummary } from '../../api/types.js';
-import { civLines, historyLine, historyPanel, mapTable, rankAccent, resetPanel, statTable, statsPanel, teamsPanel } from './stats.js';
+import { civLines, historyLine, historyPanel, mapTable, rankAccent, resetPanel, roomPanel, statTable, statsPanel, teamsPanel } from './stats.js';
 
 const row = (games: number, first: number, gains: number, mu = 1250): StatRow => ({
   mu,
@@ -196,3 +196,14 @@ test('history pages carry who asked, and only the ways that exist are open', () 
   assert.equal(historyPanel(page({ page: 1, games: [], has_more: false }), OF, NAMES).subtitle, 'Civ6 \u00b7 realtime');
 });
 
+
+test('room ranks page in place, turned only from the edges inward', () => {
+  const of = { civVersion: 'civ6', voiceChannelId: '300', asker: '100' } as const;
+  assert.equal(roomPanel(['only'], 0, of, 3).actions, undefined);
+  const ids = (panel: ReturnType<typeof roomPanel>) =>
+    (panel.actions ?? []).flatMap((r) => r.toJSON().components.map((c) => ('custom_id' in c ? [c.custom_id, c.disabled ?? false] : [])));
+  assert.deepEqual(ids(roomPanel(['a', 'b', 'c'], 0, of, 30)), [['rooms:page:civ6:300:0:100', true], ['rooms:page:civ6:300:1:100', false]]);
+  const last = roomPanel(['a', 'b', 'c'], 9, of, 30);
+  assert.match(last.subtitle ?? '', /page 3 of 3/);
+  assert.deepEqual(ids(last), [['rooms:page:civ6:300:1:100', false], ['rooms:page:civ6:300:2:100', true]]);
+});
