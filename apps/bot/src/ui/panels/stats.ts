@@ -1,6 +1,17 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
 
-import type { CivVersion, HistoryGame, HistoryPage, ResetStatsResponse, StatRow, StatSet, StatsSummary, TeamGenResponse, UserStatsResponse } from '../../api/types.js';
+import type {
+  CivVersion,
+  HistoryGame,
+  HistoryPage,
+  ResetStatsResponse,
+  StatRow,
+  StatSet,
+  StatsGameType,
+  StatsSummary,
+  TeamGenResponse,
+  UserStatsResponse,
+} from '../../api/types.js';
 import { RANK_DEFS_CIV6 } from '../../config/constants.js';
 import {
   customId,
@@ -18,16 +29,19 @@ import {
 } from '../kit/index.js';
 import { mapLabel, ordinal } from './report.js';
 
-type Mode = 'ffa' | 'teamer' | 'duel';
-const MODES: readonly Mode[] = ['ffa', 'teamer', 'duel'];
-const HEADERS: Readonly<Record<Mode, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' };
+const MODES = ['ffa', 'teamer', 'duel'] as const;
+const MODE_LABEL: ReadonlyMap<string, string> = new Map([
+  ['ffa', 'FFA'],
+  ['teamer', 'Teamer'],
+  ['duel', 'Duel'],
+]);
 const LABEL_W = 12;
 const COL_W = 7;
 const DASH = '\u2014';
 
-// A win is a game that raised the rating, as v1 counted it. It is not always
-// first place: an FFA finish high enough gains, and a sub-in never loses.
-const COUNTERS_NOTE = 'A win is a game that raised your rating; 1st is first place.';
+// A win is a game that raised the rating, as v1 counted it: an FFA finish
+// high enough is a win, and so is every sub-in.
+const COUNTERS_NOTE = 'Wins are games that raised your skill. 1st place is finishing first.';
 
 type Line = Readonly<{ label: string; cell: (row: StatRow) => string }>;
 
@@ -37,10 +51,10 @@ const LINES: readonly Line[] = [
   { label: 'Skill', cell: (r) => String(r.mu) },
   { label: 'Sigma', cell: (r) => String(Math.round(r.sigma)) },
   { label: 'Games', cell: (r) => String(r.games) },
-  { label: '1st', cell: (r) => String(r.first) },
   { label: 'Wins', cell: (r) => String(r.rating_gains) },
   { label: 'Losses', cell: (r) => String(Math.max(0, r.games - r.rating_gains)) },
   { label: 'Win %', cell: (r) => pct(r.rating_gains, r.games) },
+  { label: '1st place', cell: (r) => String(r.first) },
   { label: 'Subbed in', cell: (r) => String(r.subbedIn ?? 0) },
   { label: 'Subbed out', cell: (r) => String(r.subbedOut ?? 0) },
 ];
@@ -48,7 +62,7 @@ const LINES: readonly Line[] = [
 // One table per stat set: modes across, counters down. A mode with no games
 // is a column of dashes.
 export function statTable(set: StatSet): string {
-  const head = ''.padEnd(LABEL_W) + MODES.map((m) => HEADERS[m].padStart(COL_W)).join('');
+  const head = ''.padEnd(LABEL_W) + MODES.map((m) => (MODE_LABEL.get(m) ?? m).padStart(COL_W)).join('');
   const body = LINES.map(
     (line) =>
       line.label.padEnd(LABEL_W) +
@@ -74,25 +88,25 @@ const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.n
 const MAP_W = 16;
 const MAX_MAPS = 10;
 
-// Games by map: first places, wins as the stat tables count them, win rate.
+// Games by map, in the stat tables' order: games, wins, win rate, 1st place.
 export function mapTable(summary: StatsSummary): string {
   const rows = summary.maps.slice(0, MAX_MAPS);
-  const head = 'Map'.padEnd(MAP_W) + ['Games', '1st', 'Wins', 'Win %'].map((h) => h.padStart(7)).join('');
+  const head = 'Map'.padEnd(MAP_W) + ['Games', 'Wins', 'Win %', '1st'].map((h) => h.padStart(COL_W)).join('');
   const body = rows.map(
     (m) =>
       fit(mapLabel(m.map_type), MAP_W - 1).padEnd(MAP_W) +
-      [String(m.games), String(m.firsts), String(m.wins), pct(m.wins, m.games)].map((c) => c.padStart(7)).join(''),
+      [String(m.games), String(m.wins), pct(m.wins, m.games), String(m.firsts)].map((c) => c.padStart(COL_W)).join(''),
   );
   return ['```', head, ...body, '```'].join('\n');
 }
 
-// The most played civs (leaders in Civ6), with how often each won.
+// The most played civs (leaders in Civ6), counted like the maps.
 export function civLines(summary: StatsSummary, names: CivNames): string {
   return summary.civs
     .map((c, i) => {
       const games = `${c.games} ${c.games === 1 ? 'game' : 'games'}`;
-      const firsts = `${c.firsts} ${c.firsts === 1 ? 'first' : 'firsts'}`;
-      return `${i + 1}. ${iconOf(names, c.token)} ${plainNameOf(names, c.token)} \u00b7 ${games} \u00b7 ${c.wins} wins (${pct(c.wins, c.games)}) \u00b7 ${firsts}`;
+      const wins = `${c.wins} ${c.wins === 1 ? 'win' : 'wins'} (${pct(c.wins, c.games)})`;
+      return `${i + 1}. ${iconOf(names, c.token)} ${plainNameOf(names, c.token)} \u00b7 ${games} \u00b7 ${wins} \u00b7 1st place: ${c.firsts}`;
     })
     .join('\n');
 }
@@ -119,7 +133,7 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
   const mu = stats.lifetime.ffa?.mu;
   const accent = rankAccent(mu);
   const rank = rankName(mu);
-  const since = summary?.since ? ` Maps and civs since the reset on ${when(new Date(summary.since), 'd')}.` : '';
+  const since = summary?.since ? ` Maps and most played count games since the reset on ${when(new Date(summary.since), 'd')}.` : '';
   return {
     tone: 'info',
     surface: 'stats',
@@ -148,7 +162,7 @@ export function resetPanel(reset: ResetStatsResponse): Panel {
       divider(),
       ...sections(reset.game_type, reset.after_lifetime, reset.after_season, 'After \u00b7 '),
     ],
-    footer: `${COUNTERS_NOTE} After a reset every mode starts again from the starting skill.`,
+    footer: `${COUNTERS_NOTE} After a reset, every mode starts over at the starting skill.`,
   };
 }
 
@@ -173,8 +187,6 @@ export function teamsPanel(result: TeamGenResponse): Panel {
   };
 }
 
-const MODE_LABEL: Readonly<Record<string, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' };
-
 // Two sides is won or lost; more is a place out of how many finished.
 function resultOf(g: HistoryGame): string {
   if (g.subbed_out) return 'Left';
@@ -193,7 +205,7 @@ function pickOf(g: HistoryGame, civVersion: string, names: CivNames): string {
 }
 
 export function historyLine(g: HistoryGame, civVersion: string, names: CivNames): string {
-  const mode = MODE_LABEL[g.game_mode.toLowerCase()] ?? (g.game_mode || DASH);
+  const mode = MODE_LABEL.get(g.game_mode.toLowerCase()) ?? (g.game_mode || DASH);
   const parts = [when(new Date(g.reported_at), 'd'), resultOf(g), mode, pickOf(g, civVersion, names), mapLabel(g.map_type), signed(g.delta)];
   if (g.subbed_in) parts.push('subbed in');
   return parts.join(' \u00b7 ');
@@ -202,7 +214,7 @@ export function historyLine(g: HistoryGame, civVersion: string, names: CivNames)
 export const HISTORY = { surface: 'history', page: 'page' } as const;
 
 // Who the history is of, and who asked: only they page through it.
-export type HistoryOf = Readonly<{ civVersion: CivVersion; mode: string; target: string; asker: string }>;
+export type HistoryOf = Readonly<{ civVersion: CivVersion; mode: StatsGameType; target: string; asker: string }>;
 
 const pageButton = (of: HistoryOf, page: number, label: string, disabled: boolean): ButtonBuilder =>
   new ButtonBuilder()
@@ -232,7 +244,7 @@ export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivName
           ],
         }
       : {}),
-    footer: 'Each game shows its place, or won or lost for a team game or duel, and the rating change.',
+    footer: 'Each line: date, result, mode, civ, map, skill change. Result is your place, or Won or Lost when two sides played.',
   };
 }
 

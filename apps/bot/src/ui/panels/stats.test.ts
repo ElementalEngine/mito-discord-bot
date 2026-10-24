@@ -43,8 +43,12 @@ test('wins are games that raised the rating, and 1st shows beside them in every 
   const table = statTable(stats().lifetime);
   assert.match(lineOf(table, 'Wins'), /^Wins\s+30\s+6\s+\u2014$/);
   // A teamer sub-in gains on the losing side, so wins and firsts can differ.
-  assert.match(lineOf(table, '1st'), /^1st\s+10\s+7\s+\u2014$/);
+  assert.match(lineOf(table, '1st place'), /^1st place\s+10\s+7\s+\u2014$/);
   assert.equal(table.split('\n').filter((l) => /^Rating gains/.test(l)).length, 0);
+  assert.deepEqual(
+    table.split('\n').slice(2, -1).map((l) => l.slice(0, 12).trim()),
+    ['Skill', 'Sigma', 'Games', 'Wins', 'Losses', 'Win %', '1st place', 'Subbed in', 'Subbed out'],
+  );
 });
 
 test('losses and win rate come from wins, in every mode', () => {
@@ -117,16 +121,17 @@ const summary = (over: Partial<StatsSummary> = {}): StatsSummary => ({
 
 const NAMES = new Map([['LEADER_TRAJAN', '<:Trajan:123456789012345678> Trajan']]);
 
-test('maps show games, first places, wins and win rate by wins', () => {
+test('maps show games, wins, win rate and first places, in the stat tables\' order', () => {
   const table = mapTable(summary());
-  assert.match(lineOf(table.replace(/^```\n/, ''), 'Seven Seas'), /^Seven Seas\s+8\s+2\s+4\s+50%$/);
-  assert.match(lineOf(table.replace(/^```\n/, ''), 'Pangaea'), /^Pangaea\s+3\s+1\s+3\s+100%$/);
+  assert.match(table.split('\n')[1] ?? '', /^Map\s+Games\s+Wins\s+Win %\s+1st$/);
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Seven Seas'), /^Seven Seas\s+8\s+4\s+50%\s+2$/);
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Pangaea'), /^Pangaea\s+3\s+3\s+100%\s+1$/);
 });
 
 test('the most played list names each pick with its portrait and win rate', () => {
   assert.equal(
     civLines(summary(), NAMES),
-    '1. <:Trajan:123456789012345678> Trajan \u00b7 4 games \u00b7 2 wins (50%) \u00b7 1 first',
+    '1. <:Trajan:123456789012345678> Trajan \u00b7 4 games \u00b7 2 wins (50%) \u00b7 1st place: 1',
   );
 });
 

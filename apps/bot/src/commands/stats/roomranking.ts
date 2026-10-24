@@ -12,7 +12,6 @@ import { STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
 
-
 // Room for the panel's heading and subtitle within Discord's text limit.
 const PAGE_LIMIT = LIMITS.text - 300;
 

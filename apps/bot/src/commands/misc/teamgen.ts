@@ -7,24 +7,9 @@ import { refuse, respond } from '../../ui/reply.js';
 import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { normalizePlayerList } from '../../utils/player-list.js';
+import { STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
-
-const ACCESS_POLICY = {
-  allowedChannelIds: [
-    config.discord.channels.botTesting,
-    config.discord.channels.civ6Commands,
-    config.discord.channels.civ7Commands,
-    config.discord.channels.cloudCommands,
-    config.discord.channels.noviceCommands,
-  ],
-  requiredRoleIds: [
-    config.discord.roles.civ6Rank,
-    config.discord.roles.civ7Rank,
-    config.discord.roles.civCloud,
-  ],
-  allowDeveloperOverride: true,
-} as const;
 
 const SNOWFLAKE = /^\d{17,20}$/;
 
@@ -36,7 +21,7 @@ export const data = new SlashCommandBuilder()
   .addStringOption((opt) =>
     opt
       .setName('discord-ids')
-      .setDescription('list of player discord ids (only needed if running in cloud-commands channel)')
+      .setDescription('Cloud channel only: the players, as mentions or ids')
       .setRequired(false),
   );
 
@@ -61,7 +46,7 @@ function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): st
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
   const civVersion = editionOf(interaction);
   const cloud = interaction.channelId === config.discord.channels.cloudCommands;
   const ids = playersOf(interaction, cloud);
