@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  CheckboxBuilder,
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
@@ -52,11 +51,13 @@ export const FIELD = {
   finished: 'finished',
   quit: 'quit',
   left: 'left',
-  leftQuit: 'leftquit',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
 } as const;
+
+// The seat form's quit menu: the seat's player, and the player a sub replaced.
+export const QUIT = { player: 'player', left: 'left' } as const;
 
 // A row holds five buttons.
 const PAGE = 5;
@@ -374,30 +375,46 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
   const left = new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false);
   const leftId = idOf(seat.leaver);
   if (leftId) left.setDefaultUsers(leftId);
+  const quitter = new StringSelectMenuBuilder()
+    .setCustomId(FIELD.quit)
+    .setMinValues(0)
+    .setMaxValues(2)
+    .setRequired(false)
+    .setPlaceholder('Nobody quit')
+    .addOptions(
+      {
+        label: 'The player above quit',
+        description: fit(`${nameIn(seat.player, members)} left before the end`, 100),
+        value: QUIT.player,
+        default: seat.player.quit,
+      },
+      {
+        label: 'The player they replaced quit',
+        description: fit(seat.leaver ? `${nameIn(seat.leaver, members)} left before the end` : 'Only when you set who they replaced', 100),
+        value: QUIT.left,
+        default: seat.leaver?.quit ?? false,
+      },
+    );
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.seatForm, match.match_id, String(n), String(mine ?? 0)))
     .setTitle(fit(`Seat ${seat.n}: ${nameIn(seat.player, members)}`, 45))
     .addLabelComponents(
       new LabelBuilder()
         .setLabel('Player')
-        .setDescription('Who played this seat to the end.')
+        .setDescription('Who was playing this seat when the game ended.')
         .setUserSelectMenuComponent(player),
       new LabelBuilder()
-        .setLabel('Finished')
-        .setDescription(isTeamer(match) ? 'Moves the whole team; the team there takes its place.' : 'Whoever finished there takes this seat\'s place.')
-        .setStringSelectMenuComponent(finished),
-      new LabelBuilder()
-        .setLabel('This player quit')
-        .setDescription('Tick if the player above quit, leaving the seat to a sub or the AI.')
-        .setCheckboxComponent(new CheckboxBuilder().setCustomId(FIELD.quit).setDefault(seat.player.quit)),
-      new LabelBuilder()
-        .setLabel('Came in for')
-        .setDescription('The player who left, if this seat was taken over by a sub.')
+        .setLabel('Subbed in for (optional)')
+        .setDescription('Only if the player above came in as a sub: who they replaced.')
         .setUserSelectMenuComponent(left),
       new LabelBuilder()
-        .setLabel('The player who left quit')
-        .setDescription('Tick if the player the sub came in for quit.')
-        .setCheckboxComponent(new CheckboxBuilder().setCustomId(FIELD.leftQuit).setDefault(seat.leaver?.quit ?? false)),
+        .setLabel('Who quit (optional)')
+        .setDescription('Anyone who left before the end, to a sub or the AI. Ratings do not change.')
+        .setStringSelectMenuComponent(quitter),
+      new LabelBuilder()
+        .setLabel('Place')
+        .setDescription(isTeamer(match) ? 'Where the team finished. The team there now swaps with it.' : 'Where this seat finished. The seat there now swaps with it.')
+        .setStringSelectMenuComponent(finished),
     );
 }
 

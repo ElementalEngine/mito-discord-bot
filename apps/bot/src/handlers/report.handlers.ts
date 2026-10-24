@@ -27,6 +27,7 @@ import { channel as channelMention, customId, mention, notice, parseId, type Civ
 import {
   EDIT,
   FIELD,
+  QUIT,
   civFocus,
   closedEditor,
   draftEdits,
@@ -416,9 +417,9 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         player: picked(interaction, FIELD.player),
         place: Number(selected(interaction, FIELD.finished)[0]),
         shown: Number(id.args[2]),
-        quit: interaction.fields.getCheckbox(FIELD.quit),
+        quit: selected(interaction, FIELD.quit).includes(QUIT.player),
         left: picked(interaction, FIELD.left),
-        leftQuit: interaction.fields.getCheckbox(FIELD.leftQuit),
+        leftQuit: selected(interaction, FIELD.quit).includes(QUIT.left),
       };
       await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => {
         const edits = seatEdits(m, at, choice);
