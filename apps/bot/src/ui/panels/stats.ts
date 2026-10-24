@@ -27,6 +27,7 @@ import {
   type CivNames,
   type Panel,
 } from '../kit/index.js';
+import { editionName } from '../../utils/edition.js';
 import { mapLabel, ordinal } from './report.js';
 
 const MODES = ['ffa', 'teamer', 'duel'] as const;
@@ -118,8 +119,6 @@ function summaryBlocks(summary: StatsSummary, names: CivNames): Block[] {
   return blocks;
 }
 
-const editionLabel = (civVersion: string): string => civVersion.replace(/^civ/i, 'Civ');
-
 // Lifetime, then the current season by name; cloud games keep no seasonal ratings.
 function sections(stats: UserStatsResponse, lifetime: StatSet, season: StatSet, heading = ''): Block[] {
   const blocks = [text(`**${heading}Lifetime**\n${statTable(lifetime)}`)];
@@ -138,7 +137,7 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
     tone: 'info',
     surface: 'stats',
     title: 'Stats',
-    subtitle: `${editionLabel(stats.civ_version)} \u00b7 ${stats.game_type}`,
+    subtitle: `${editionName(stats.civ_version)} \u00b7 ${stats.game_type}`,
     body: [
       text(rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)),
       ...sections(stats, stats.lifetime, stats.season),
@@ -155,7 +154,7 @@ export function resetPanel(reset: ResetStatsResponse): Panel {
     tone: 'success',
     surface: 'stats',
     title: 'Stats reset',
-    subtitle: `${editionLabel(reset.civ_version)} \u00b7 ${reset.game_type}`,
+    subtitle: `${editionName(reset.civ_version)} \u00b7 ${reset.game_type}`,
     body: [
       text(`${mention(reset.discord_id)}'s stats are reset.`),
       ...sections(reset, reset.lifetime, reset.season, 'Before \u00b7 '),
@@ -182,7 +181,7 @@ export function teamsPanel(result: TeamGenResponse): Panel {
     tone: 'info',
     surface: 'teams',
     title: 'Teams',
-    subtitle: `${editionLabel(result.civ_version)} \u00b7 ${result.game_type} \u00b7 match quality ${result.game_quality.toFixed(2)}`,
+    subtitle: `${editionName(result.civ_version)} \u00b7 ${result.game_type} \u00b7 match quality ${result.game_quality.toFixed(2)}`,
     body: result.teams.map((team, i) => text(`**Team ${i + 1}**\n${team.map(mention).join('\n')}`)),
   };
 }
@@ -232,7 +231,7 @@ export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivName
     tone: 'info',
     surface: 'stats',
     title: 'Game history',
-    subtitle: `${editionLabel(history.civ_version)} \u00b7 ${history.game_type}${last >= first ? ` \u00b7 games ${first}\u2013${last}, newest first` : ''}`,
+    subtitle: `${editionName(history.civ_version)} \u00b7 ${history.game_type}${last >= first ? ` \u00b7 games ${first}\u2013${last}, newest first` : ''}`,
     body: [text(mention(history.discord_id)), text(lines.join('\n') || 'No games on this page.')],
     ...(paged
       ? {

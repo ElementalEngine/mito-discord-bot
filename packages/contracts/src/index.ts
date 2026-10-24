@@ -1147,6 +1147,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/seasons/{edition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Season */
+        get: operations["get_season_api_v2_seasons__edition__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/seasons/{edition}/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Next Season */
+        post: operations["start_next_season_api_v2_seasons__edition__next_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/stats/batch": {
         parameters: {
             query?: never;
@@ -2128,6 +2162,51 @@ export interface components {
          */
         RoleIntent: "grant_civ6_rank" | "grant_civ7_rank" | "grant_novice" | "grant_server_news" | "grant_civ6_news" | "grant_civ7_news" | "grant_pc_steam" | "grant_2k_crossplatform" | "remove_non_verified";
         /**
+         * SeasonPreview
+         * @description The open season, what comes next, and the season records per collection
+         *     that a change would save and clear.
+         */
+        SeasonPreview: {
+            /** Edition */
+            edition: string;
+            /** Label */
+            label: string;
+            /** Next Label */
+            next_label: string;
+            /** Records */
+            records: {
+                [key: string]: number;
+            };
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+        };
+        /**
+         * SeasonRolled
+         * @description A season change: what closed, what opened, and the backup folder's name.
+         */
+        SeasonRolled: {
+            /** Backup */
+            backup: string;
+            /** Closed */
+            closed: string;
+            /** Edition */
+            edition: string;
+            /** Opened */
+            opened: string;
+            /** Records */
+            records: {
+                [key: string]: number;
+            };
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+        };
+        /**
          * SeatAction
          * @enum {string}
          */
@@ -2188,6 +2267,14 @@ export interface components {
         StartLobbyRequest: {
             /** Expected Revision */
             expected_revision: number;
+        };
+        /**
+         * StartNextSeason
+         * @description The season the caller saw open; the change happens only if it still is.
+         */
+        StartNextSeason: {
+            /** Expected */
+            expected: string;
         };
         /** StatRow */
         StatRow: {
@@ -4867,6 +4954,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_season_api_v2_seasons__edition__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_next_season_api_v2_seasons__edition__next_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartNextSeason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonRolled"];
                 };
             };
             /** @description Validation Error */

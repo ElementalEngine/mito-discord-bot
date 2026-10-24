@@ -1,8 +1,8 @@
 import { AttachmentBuilder, InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import { config } from '../../config.js';
 import { membersPanel } from '../../ui/panels/misc.js';
 import { refuse, respond } from '../../ui/reply.js';
+import { DEVELOPER_ONLY } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 export const data = new SlashCommandBuilder()
@@ -10,20 +10,13 @@ export const data = new SlashCommandBuilder()
   .setName('get-users')
   .setDescription('Get information about all users in the server.');
 
-const ACCESS_POLICY = {
-  allowedChannelIds: [config.discord.channels.botTesting],
-  requiredRoleIds: [config.discord.roles.developer],
-  allowDeveloperOverride: true,
-  allowModeratorOverride: false,
-} as const;
-
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 // Fetching every member is slow on a large server, so the answer is deferred.
 export const visibility = 'private';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction, DEVELOPER_ONLY))) return;
   const guild = interaction.guild;
   if (!guild) refuse('Run this in the server, not in a DM.');
 

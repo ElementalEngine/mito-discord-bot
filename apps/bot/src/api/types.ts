@@ -27,6 +27,8 @@ export type BatchStatsResponse = components['schemas']['BatchStatsResponseV2'];
 export type TeamGenResponse = components['schemas']['TeamGenResponse'];
 export type StatsSummary = components['schemas']['StatsSummary'];
 export type ResetStatsResponse = components['schemas']['ResetStatsResponseV2'];
+export type SeasonPreview = components['schemas']['SeasonPreview'];
+export type SeasonRolled = components['schemas']['SeasonRolled'];
 export type HistoryPage = components['schemas']['HistoryPage'];
 export type HistoryGame = components['schemas']['HistoryGame'];
 

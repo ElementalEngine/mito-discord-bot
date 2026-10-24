@@ -18,6 +18,8 @@ import type {
   StatsSummary,
   HistoryPage,
   ResetStatsResponse,
+  SeasonPreview,
+  SeasonRolled,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -110,6 +112,22 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as ResetStatsResponse;
+  }
+
+  // The edition's open season, and the season records starting the next would clear.
+  async getSeason(edition: CivVersion): Promise<SeasonPreview> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/seasons/${edition}`, { method: "GET" });
+    return (await this.parseJson(res)) as SeasonPreview;
+  }
+
+  // Ends `expected` and starts the next season; refused once it is no longer open.
+  async startNextSeason(edition: CivVersion, expected: string, actorId: string): Promise<SeasonRolled> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/seasons/${edition}/next`, {
+      method: "POST",
+      headers: { ...json, "x-actor-discord-id": actorId },
+      body: JSON.stringify({ expected }),
+    });
+    return (await this.parseJson(res)) as SeasonRolled;
   }
 
   // Games by map and the most played civs, since the player's last reset.

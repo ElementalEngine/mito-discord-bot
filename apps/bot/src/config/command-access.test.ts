@@ -46,7 +46,7 @@ test('staff commands deploy hidden; the rest keep their own defaults', async () 
     .filter((c) => c.default_member_permissions === '0')
     .map((c) => c.name)
     .sort();
-  assert.deepEqual(hidden, ['get-users', 'report-revert', 'resetstats']);
+  assert.deepEqual(hidden, ['get-users', 'report-revert', 'resetstats', 'season-new']);
 });
 
 const role = (id: string, permission = true) => ({ id, type: Type.Role, permission });

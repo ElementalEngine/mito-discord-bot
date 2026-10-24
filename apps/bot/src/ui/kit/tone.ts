@@ -24,6 +24,7 @@ export const SURFACES = {
   coin: '\ud83e\ude99',
   seed: '\ud83d\uddfa\ufe0f',
   users: '\ud83d\udc65',
+  season: '\ud83d\udcc5',
 } as const;
 
 export type Surface = keyof typeof SURFACES;

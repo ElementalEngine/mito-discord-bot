@@ -21,6 +21,18 @@ export function isAdminOrDeveloper(interaction: Interaction): boolean {
   return holdsAny(roleIdsOf(interaction), [admin, developer]);
 }
 
+// The admin commands: developers only, in the bot-testing channel.
+export const DEVELOPER_ONLY = {
+  allowedChannelIds: [config.discord.channels.botTesting],
+  requiredRoleIds: [config.discord.roles.developer],
+  allowDeveloperOverride: true,
+  allowModeratorOverride: false,
+} as const;
+
+export function isDeveloper(interaction: Interaction): boolean {
+  return holdsAny(roleIdsOf(interaction), [config.discord.roles.developer]);
+}
+
 // Staff is a moderator or a developer, as the Activity has it.
 export const staffRoleIds = (): string[] => [config.discord.roles.moderator, config.discord.roles.developer];
 
