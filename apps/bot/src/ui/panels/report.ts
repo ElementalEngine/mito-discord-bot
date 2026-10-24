@@ -207,10 +207,13 @@ export function reportPanel({ match, names, quotas }: ReportView): Panel {
   };
 }
 
-// The three ways an upload can already exist, said so the reporter knows
-// whether there is anything left to do.
+// The ways an upload can already exist, said so the reporter knows whether
+// there is anything left to do.
 export function duplicateText(upload: MatchUpload): string {
   const id = `\`${upload.match_id}\``;
+  if (upload.repeated_by === 'approved') {
+    return `This game was already approved from another save, as match ${id}. A game is rated once.`;
+  }
   if (upload.repeated_by === 'composition') {
     return `This game was already reported from another save, as match ${id}. Edit that report instead.`;
   }

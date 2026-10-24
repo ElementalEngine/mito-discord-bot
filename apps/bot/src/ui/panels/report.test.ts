@@ -180,8 +180,9 @@ test('an approved result is green, says who approved it, and has no buttons', ()
   assert.deepEqual(playerIds(m), [B, A]);
 });
 
-test('a duplicate upload is told which of three cases it is', () => {
+test('a duplicate upload is told which case it is', () => {
   const up = (over: Partial<MatchUpload>): MatchUpload => ({ ...match(), repeated: true, ...over });
+  assert.match(duplicateText(up({ repeated_by: 'approved' })), /already approved from another save/);
   assert.match(duplicateText(up({ repeated_by: 'composition' })), /another save/);
   assert.match(duplicateText(up({ repeated_by: 'file', approved_at: '2026-10-01T00:00:00Z' })), /approved/);
   assert.match(duplicateText(up({ repeated_by: 'file' })), /waiting for approval/);

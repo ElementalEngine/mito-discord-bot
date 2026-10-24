@@ -1,5 +1,5 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 8249edd
+source-sha: 3adcf19
 source-date: 2026-10-24
 
 generated-by: npm run gen:contracts
@@ -35,3 +35,5 @@ Bumped at S13.4: GET /api/v2/seasons/{edition} and POST /api/v2/seasons/{edition
 Bumped at S13.5: the v1 match and stats routes are gone. Nothing Mite uses changed.
 
 Bumped at the S13 close: contest no longer reads x-actor-is-staff.
+
+Bumped at S14.2: GET /api/v2/lobbies/mite/settings/{edition} and POST /api/v2/lobbies/mite/deal; an upload may repeat an approved game.

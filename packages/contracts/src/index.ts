@@ -444,6 +444,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/lobbies/mite/deal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deal For Draft
+         * @description One /draft deal. Nothing is stored.
+         */
+        post: operations["deal_for_draft_api_v2_lobbies_mite_deal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lobbies/mite/settings/{edition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings For Draft
+         * @description The settings /draft offers: every question of the edition's ballots.
+         */
+        get: operations["settings_for_draft_api_v2_lobbies_mite_settings__edition__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/lobbies/mite/sweep": {
         parameters: {
             query?: never;
@@ -513,9 +553,8 @@ export interface paths {
         };
         /**
          * Read Lobby
-         * @description One lobby, censored for the caller, revision-gated.
-         *
-         *     Staff watching a lobby they are not playing in see it uncensored.
+         * @description One lobby, censored for the caller, revision-gated. Staff watching a lobby
+         *     they are not playing in see it uncensored.
          */
         get: operations["read_lobby_api_v2_lobbies__lobby_id__get"];
         put?: never;
@@ -596,10 +635,8 @@ export interface paths {
         get?: never;
         /**
          * Mark Ready
-         * @description A seat finishes the current phase, whether or not it submitted.
-         *
-         *     The phase advances as soon as every seated player is ready, so a lobby
-         *     that agrees quickly does not wait out its timer.
+         * @description A seat finishes the current phase, whether or not it submitted. The phase
+         *     advances once every seated player is ready.
          */
         put: operations["mark_ready_api_v2_lobbies__lobby_id__ready_put"];
         post?: never;
@@ -624,8 +661,8 @@ export interface paths {
         head?: never;
         /**
          * Change Seat
-         * @description Self-place, leave, move and host rearrange (C5), returning the updated censored
-         *     snapshot so the caller never waits for a poll tick.
+         * @description Take, leave or move a seat, or rearrange as host; returns the updated
+         *     snapshot so the caller does not wait for a poll.
          */
         patch: operations["change_seat_api_v2_lobbies__lobby_id__seats_patch"];
         trace?: never;
@@ -1106,6 +1143,13 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** CommandSettings */
+        CommandSettings: {
+            /** Edition */
+            edition: string;
+            /** Questions */
+            questions: components["schemas"]["SettingQuestion"][];
+        };
         /** CompleteRegistrationSessionRequest */
         CompleteRegistrationSessionRequest: {
             /** Discord User Id */
@@ -1172,6 +1216,54 @@ export interface components {
             game: components["schemas"]["SupportedGame"];
             /** @default steam */
             platform: components["schemas"]["RegistrationPlatform"];
+        };
+        /**
+         * DealRequest
+         * @description /draft: how many pools, their sizes, the age and the host's bans.
+         */
+        DealRequest: {
+            /** Civ Bans */
+            civ_bans?: string[];
+            /** Civs */
+            civs?: number | null;
+            /** Drafts */
+            drafts: number;
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "civ6" | "civ7";
+            /**
+             * Game Type
+             * @enum {string}
+             */
+            game_type: "ffa" | "teamer" | "duel";
+            /** Leader Bans */
+            leader_bans?: string[];
+            /** Leaders */
+            leaders: number;
+            /** Starting Age */
+            starting_age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
+        };
+        /** DealResponse */
+        DealResponse: {
+            bans: components["schemas"]["DealtBans"];
+            /** Pools */
+            pools: components["schemas"]["DealtPool"][];
+        };
+        /** DealtBans */
+        DealtBans: {
+            /** Civ */
+            civ: string[];
+            /** Leader */
+            leader: string[];
+        };
+        /** DealtPool */
+        DealtPool: {
+            /** Civs */
+            civs: string[];
+            /** Leaders */
+            leaders: string[];
         };
         /** DiscordAccountLookupHit */
         DiscordAccountLookupHit: {
@@ -1773,6 +1865,24 @@ export interface components {
             /** Platform Account Name */
             platform_account_name?: string | null;
         };
+        /** SettingOption */
+        SettingOption: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** SettingQuestion */
+        SettingQuestion: {
+            /** Default Option Id */
+            default_option_id: string;
+            /** Id */
+            id: string;
+            /** Options */
+            options: components["schemas"]["SettingOption"][];
+            /** Title */
+            title: string;
+        };
         /**
          * StartLobbyRequest
          * @description The host closes seating and opens the settings vote.
@@ -1994,7 +2104,7 @@ export interface components {
              */
             repeated: boolean;
             /** Repeated By */
-            repeated_by?: ("file" | "composition") | null;
+            repeated_by?: ("file" | "composition" | "approved") | null;
             /** Reporter Discord Id */
             reporter_discord_id: string;
             /** Save File Hash */
@@ -2982,6 +3092,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deal_for_draft_api_v2_lobbies_mite_deal_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DealRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DealResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    settings_for_draft_api_v2_lobbies_mite_settings__edition__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandSettings"];
                 };
             };
             /** @description Validation Error */
