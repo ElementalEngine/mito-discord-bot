@@ -47,7 +47,7 @@ import {
   type Members,
 } from '../ui/panels/report-edit.js';
 import { playerIds, reportPanel } from '../ui/panels/report.js';
-import { Refusal, defer, editPanel, fail, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
+import { Refusal, defer, editPanel, fail, failureOf, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -65,12 +65,20 @@ const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
 type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 // Closing waits its turn behind any pick in progress, so the closed notice is
-// the last thing the editor shows and no draft outlives it.
+// the last thing the editor shows. A draft with changes is saved, not lost.
 const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
   close: () =>
     inTurn(matchId, async () => {
+      const held = drafts.get(matchId);
       drafts.delete(matchId);
-      await replacePanel(interaction, closedEditor());
+      const edits = held ? draftEdits(held.base, held.now) : [];
+      if (!held || !edits.length) return replacePanel(interaction, closedEditor());
+      await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, async () => closedEditor('saved')).catch(
+        async (error: unknown) => {
+          log.warn('draft not saved on close', matchId, error instanceof Error ? error.message : error);
+          await replacePanel(interaction, closedEditor({ notSaved: failureOf(error, 'save your unsaved changes').text }));
+        },
+      );
     }),
   until: interaction.createdTimestamp + TOKEN_MS,
 });
@@ -78,6 +86,7 @@ const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
 // Each report's open draft: the match as its panel opened on it, and as the
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
+const DRAFT_ACTION: Readonly<Record<DraftKind, string>> = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' };
 
 // A read before a form opens must beat Discord's 3 second window, counted from
 // the press itself, so a slow league server is said plainly, not left to time out.
@@ -208,7 +217,7 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
   await logAction(interaction, 'contest', { matchId, reason });
 }
 
-// Done closes the editor at once, rather than waiting for it to go idle.
+// Done closes the editor at once, as going idle would, unsaved changes saved.
 async function done(interaction: ButtonInteraction, matchId: string): Promise<void> {
   if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
   await holdPanel(interaction);
@@ -350,8 +359,7 @@ async function saveDraft(interaction: ButtonInteraction, matchId: string): Promi
       await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
       return;
     }
-    const action = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' }[held.kind];
-    await saveSeats(interaction, matchId, action, edits);
+    await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits);
     drafts.delete(matchId);
   });
 }

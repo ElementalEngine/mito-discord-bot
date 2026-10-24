@@ -5,6 +5,7 @@ import type { Match } from '../../api/types.js';
 import { container, type CivNames, type Panel } from '../kit/index.js';
 import {
   civFocus,
+  closedEditor,
   draftEdits,
   draftPanel,
   editorPanel,
@@ -449,4 +450,14 @@ test('the editor and civ picker show a civ7 seat\'s leader and civ, as the repor
   for (const panel of [editorPanel(civ7, names, new Map(), true), panelOf('civs', civ7, names)]) {
     assert.match(JSON.stringify(container(panel).toJSON()), /<:Amina:1> <:Rome:2> \u2014 1st/);
   }
+});
+
+
+test('a closed editor says whether its unsaved changes were kept', () => {
+  assert.equal(closedEditor().tone, 'muted');
+  assert.equal(closedEditor('saved').tone, 'success');
+  assert.match(JSON.stringify(closedEditor('saved').body), /unsaved changes were saved/);
+  const lost = closedEditor({ notSaved: 'Could not save your unsaved changes: Assign seat 1 first.' });
+  assert.equal(lost.tone, 'failed');
+  assert.match(JSON.stringify(lost.body), /Assign seat 1 first\. Press Edit on the report/);
 });
