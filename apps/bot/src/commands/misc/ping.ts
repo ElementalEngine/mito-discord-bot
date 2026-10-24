@@ -19,8 +19,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
   const started = Date.now();
   const league: Reach = await api.ping().then(
-    () => ({ ok: true, ms: Date.now() - started }),
-    () => ({ ok: false, ms: Date.now() - started }),
+    ({ dbMs }) => ({ ok: true, ms: Date.now() - started, dbMs }),
+    () => ({ ok: false, ms: Date.now() - started, dbMs: null }),
   );
   await respond(interaction, pingPanel(interaction.client.ws.ping, league), 'private');
 }

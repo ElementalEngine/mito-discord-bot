@@ -27,21 +27,21 @@ export function seedPanel(seed: string, about: PostAbout = NOBODY): Panel {
   };
 }
 
-// A turn order reads as places; picks from a range as the numbers drawn.
+// A full draw reads as places, a turn order; a partial one as the numbers drawn.
 export function rollPanel(drawn: readonly number[], max: number, about: PostAbout = NOBODY): Panel {
   const order = drawn.length === max;
   const footer = taggedFooter(about);
   return {
     tone: 'info',
     surface: 'roll',
-    title: fit(about.label ? `${order ? 'Turn order' : 'Roll'} for ${about.label}` : order ? 'Turn order' : 'Roll', 200),
+    title: fit(about.label ? `Dice roll for ${about.label}` : 'Dice roll', 200),
     subtitle: order ? `${max} places, each drawn once` : `${drawn.length} of 1\u2013${max}, no repeats`,
     body: [text(order ? drawn.map((n, i) => `${i + 1}. **${n}**`).join('\n') : `### ${drawn.map((n) => `\`${n}\``).join(' ')}`)],
     ...(footer ? { footer } : {}),
   };
 }
 
-export type Reach = Readonly<{ ok: boolean; ms: number }>;
+export type Reach = Readonly<{ ok: boolean; ms: number; dbMs: number | null }>;
 
 // Discord's heartbeat is unknown for a moment after a start, and reads -1.
 export function pingPanel(gatewayMs: number, league: Reach): Panel {
@@ -52,7 +52,8 @@ export function pingPanel(gatewayMs: number, league: Reach): Panel {
     title: 'Pong',
     body: [
       text(`**Discord** ${gateway}`),
-      text(league.ok ? `**League server** ${league.ms} ms, database ready` : `**League server** not answering after ${league.ms} ms`),
+      text(league.ok ? `**League server** ${league.ms} ms` : `**League server** not answering after ${league.ms} ms`),
+      text(league.ok ? `**Database** ${league.dbMs === null ? 'ready' : `${Math.round(league.dbMs)} ms`}` : '**Database** unknown'),
     ],
   };
 }

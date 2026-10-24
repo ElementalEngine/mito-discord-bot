@@ -194,9 +194,11 @@ export class ApiClient {
   }
 
   // The settings /draft offers for one edition, as the vote asks them.
-  // core-api's readiness, its database included. Throws when it is not ready.
-  async ping(): Promise<void> {
-    await this.fetchWithRetry(`${this.base}/readyz`, { method: "GET" });
+  // core-api's readiness and its database's ping time. Throws when it is not ready.
+  async ping(): Promise<{ dbMs: number | null }> {
+    const res = await this.fetchWithRetry(`${this.base}/readyz`, { method: "GET" });
+    const body = (await this.parseJson(res)) as { db_ms?: unknown };
+    return { dbMs: typeof body.db_ms === "number" ? body.db_ms : null };
   }
 
   async getDraftSettings(edition: CivVersion): Promise<DraftQuestion[]> {

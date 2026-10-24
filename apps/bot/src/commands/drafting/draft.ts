@@ -6,11 +6,9 @@ import {
 } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
-import type { DraftQuestion } from '../../api/types.js';
 import { config } from '../../config.js';
 import { civNames, civRows } from '../../services/civ-names.js';
-import { draftSettings, postDraft, readDraftSettings } from '../../services/draft.service.js';
-import { fit } from '../../ui/kit/index.js';
+import { postDraft } from '../../services/draft.service.js';
 import { AGES, MODES, banForm, packChoice, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
 import { defer, fail, refuse } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -19,14 +17,12 @@ const api = new ApiClient();
 const MAX_DRAFTS: Readonly<Record<Edition, number>> = { civ6: 14, civ7: 10 };
 const EVERY_AGE = 'all';
 
-const SETTINGS = await readDraftSettings(api);
-
-const optionName = (questionId: string): string => questionId.replace(/_/g, '-');
-
-function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition, questions: readonly DraftQuestion[]): SlashCommandSubcommandBuilder {
+// A quick draft: the counts, and bans if the host wants them. Settings and
+// seats belong to a hosted game.
+function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
   sub
     .setName(edition)
-    .setDescription(edition === 'civ6' ? 'Deal Civ6 leader drafts.' : 'Deal Civ7 leader and civ drafts.')
+    .setDescription(edition === 'civ6' ? 'Deal Civ6 drafts.' : 'Deal Civ7 drafts of leaders and civs.')
     .addStringOption((o) =>
       o
         .setName('mode')
@@ -35,14 +31,14 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition, questi
         .addChoices(...(Object.keys(MODES) as Mode[]).map((value) => ({ name: MODES[value], value }))),
     )
     .addIntegerOption((o) =>
-      o.setName('drafts').setDescription('How many drafts: one per player, or one per team').setRequired(true).setMinValue(2).setMaxValue(MAX_DRAFTS[edition]),
+      o.setName('drafts').setDescription('Number of drafts: one per player, or one per team').setRequired(true).setMinValue(2).setMaxValue(MAX_DRAFTS[edition]),
     );
   if (edition === 'civ6') {
-    sub.addIntegerOption((o) => o.setName('civs').setDescription('Leaders in each draft').setRequired(true).setMinValue(1));
+    sub.addIntegerOption((o) => o.setName('civs').setDescription('Civs per draft').setRequired(true).setMinValue(1));
   } else {
     sub
-      .addIntegerOption((o) => o.setName('civs').setDescription('Civs in each draft').setRequired(true).setMinValue(1))
-      .addIntegerOption((o) => o.setName('leaders').setDescription('Leaders in each draft').setRequired(true).setMinValue(1))
+      .addIntegerOption((o) => o.setName('leaders').setDescription('Leaders per draft').setRequired(true).setMinValue(1))
+      .addIntegerOption((o) => o.setName('civs').setDescription('Civs per draft').setRequired(true).setMinValue(1))
       .addStringOption((o) =>
         o
           .setName('age')
@@ -51,26 +47,17 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition, questi
           .addChoices(...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }),
       );
   }
-  sub
-    .addStringOption((o) => o.setName('rules').setDescription('Host rules, shown on the draft').setMaxLength(500))
-    .addBooleanOption((o) => o.setName('bans').setDescription('Pick bans before the draft is dealt'));
-  for (const q of questions) {
-    sub.addStringOption((o) =>
-      o
-        .setName(optionName(q.id))
-        .setDescription(fit(q.title, 100))
-        .addChoices(...q.options.slice(0, 25).map((option) => ({ name: fit(option.label, 100), value: option.id }))),
-    );
-  }
-  return sub;
+  return sub.addBooleanOption((o) =>
+    o.setName('bans').setDescription(edition === 'civ6' ? 'Ban leaders before the draft is dealt' : 'Ban leaders and civs before the draft is dealt'),
+  );
 }
 
 export const data = new SlashCommandBuilder()
   .setName('draft')
-  .setDescription('Deal drafts for a game, with optional settings and bans.')
+  .setDescription('Deal drafts for a game, with optional bans.')
   .setContexts(InteractionContextType.Guild)
-  .addSubcommand((sub) => subcommand(sub, 'civ6', SETTINGS?.civ6 ?? []))
-  .addSubcommand((sub) => subcommand(sub, 'civ7', SETTINGS?.civ7 ?? []));
+  .addSubcommand((sub) => subcommand(sub, 'civ6'))
+  .addSubcommand((sub) => subcommand(sub, 'civ7'));
 
 function policyFor(edition: Edition) {
   const c = config.discord.channels;
@@ -81,13 +68,8 @@ function policyFor(edition: Edition) {
   } as const;
 }
 
-function choiceOf(interaction: ChatInputCommandInteraction, edition: Edition, questions: readonly DraftQuestion[]): DraftChoice {
+function choiceOf(interaction: ChatInputCommandInteraction, edition: Edition): DraftChoice {
   const o = interaction.options;
-  const settings: Record<string, string> = {};
-  for (const q of questions) {
-    const picked = o.getString(optionName(q.id));
-    if (picked) settings[q.id] = picked;
-  }
   const age = edition === 'civ7' ? o.getString('age', true) : EVERY_AGE;
   return {
     edition,
@@ -96,7 +78,6 @@ function choiceOf(interaction: ChatInputCommandInteraction, edition: Edition, qu
     leaders: edition === 'civ6' ? o.getInteger('civs', true) : o.getInteger('leaders', true),
     civs: edition === 'civ7' ? o.getInteger('civs', true) : null,
     age: age === EVERY_AGE ? null : (age as Age),
-    settings,
   };
 }
 
@@ -106,17 +87,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   try {
     const edition: Edition = interaction.options.getSubcommand(true) === 'civ7' ? 'civ7' : 'civ6';
     if (!(await ensureCommandAccess(interaction, policyFor(edition)))) return;
-    const questions = draftSettings()?.[edition] ?? [];
-    const choice = choiceOf(interaction, edition, questions);
+    const choice = choiceOf(interaction, edition);
     if (choice.mode === 'duel' && choice.drafts !== 2) refuse('A duel is two drafts. Set drafts to 2.');
-    const rules = interaction.options.getString('rules')?.trim() || null;
     if (interaction.options.getBoolean('bans')) {
       const [rows, names] = await Promise.all([civRows(edition, api), civNames(edition, api)]);
-      await interaction.showModal(banForm(choice, packChoice(choice, questions), rows, names, rules));
+      await interaction.showModal(banForm(choice, packChoice(choice), rows, names));
       return;
     }
     await defer(interaction, 'public');
-    await postDraft(interaction, choice, rules, { leaders: [], civs: [] }, api);
+    await postDraft(interaction, choice, { leaders: [], civs: [] }, api);
   } catch (error) {
     await fail(interaction, error, 'deal the draft', { command: 'draft' });
   }

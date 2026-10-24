@@ -2,9 +2,9 @@ import type { Interaction } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
 import { civNames, civRows } from '../services/civ-names.js';
-import { draftSettings, postDraft } from '../services/draft.service.js';
+import { postDraft } from '../services/draft.service.js';
 import { parseId } from '../ui/kit/index.js';
-import { BAN_FORM, RULES_FIELD, banMenus, civField, leaderField, unpackChoice } from '../ui/panels/draft.js';
+import { BAN_FORM, banMenus, civField, leaderField, unpackChoice } from '../ui/panels/draft.js';
 import { defer, fail, refuse } from '../ui/reply.js';
 
 const api = new ApiClient();
@@ -14,7 +14,7 @@ export async function handleDraftInteraction(interaction: Interaction): Promise<
   if (!interaction.isModalSubmit() || !interaction.customId.startsWith('draft:')) return false;
   try {
     const id = parseId(interaction.customId);
-    const choice = id?.verb === BAN_FORM ? unpackChoice(id.args[0] ?? '', draftSettings()) : null;
+    const choice = id?.verb === BAN_FORM ? unpackChoice(id.args[0] ?? '') : null;
     if (!choice) refuse('This form is out of date. Run /draft again.');
     const [rows, names] = await Promise.all([civRows(choice.edition, api), civNames(choice.edition, api)]);
     const menus = banMenus(choice, rows, names);
@@ -31,9 +31,8 @@ export async function handleDraftInteraction(interaction: Interaction): Promise<
       leaders: picked(menus.leaders.map((_, i) => leaderField(i))),
       civs: picked(menus.civs.map((_, i) => civField(i))),
     };
-    const rules = interaction.fields.getTextInputValue(RULES_FIELD).trim() || null;
     await defer(interaction, 'public');
-    await postDraft(interaction, choice, rules, bans, api);
+    await postDraft(interaction, choice, bans, api);
   } catch (error) {
     await fail(interaction, error, 'deal the draft', { customId: interaction.customId });
   }
