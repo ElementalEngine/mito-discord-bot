@@ -3624,7 +3624,6 @@ export interface operations {
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
-                "x-actor-is-staff"?: boolean;
             };
             path: {
                 match_id: string;

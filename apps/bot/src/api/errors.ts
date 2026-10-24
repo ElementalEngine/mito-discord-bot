@@ -1,7 +1,7 @@
 import type { ApiErrorPayload } from "@cpl/core";
 
 /**
- * Reads D92's error envelope off a response body, or returns null.
+ * Reads core-api's error envelope off a response body, or returns null.
  *
  * Two shapes are accepted: core-api sends `{detail:{error}}`, and the bare
  * `{error}` is what LadyJustice already tolerates for forward compatibility.
@@ -45,7 +45,7 @@ export function parseApiError(body: unknown): ApiErrorPayload | null {
 export class ApiError extends Error {
   status: number;
   body?: unknown;
-  /** Both present only when the response carried a D92 envelope. */
+  /** Both present only when the response carried an error envelope. */
   code?: string;
   retryable?: boolean;
 

@@ -317,12 +317,13 @@ export function withOrderPick(match: Match, at: number, holder: number, unit: nu
   return { ...match, players };
 }
 
-// One menu per seat, labelled with the seat and who has it now. Discord's
-// member menu searches the whole server as a name is typed.
+// One menu per seat, labelled with the seat and who has it now, unassigned
+// seats first. Discord's member menu searches the whole server as a name is typed.
 function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
   const match = draft.now;
   const seats = numbered(match);
-  const menus = seats.slice(0, MENUS_MAX).map((s) => {
+  const shown = [...seats.filter((s) => !idOf(s.player)), ...seats.filter((s) => idOf(s.player))];
+  const menus = shown.slice(0, MENUS_MAX).map((s) => {
     const id = idOf(s.player);
     const save = s.player.user_name ? ` (save: ${s.player.user_name})` : '';
     const name = id ? members.get(id) : undefined;

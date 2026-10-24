@@ -143,7 +143,7 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
 const posted = new Set<string>();
 
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  const match = await api.approve(matchId, { id: interaction.user.id, isStaff: true });
+  const match = await api.approve(matchId, { id: interaction.user.id });
   editors.close(matchId);
   if (posted.has(matchId)) {
     await say(interaction, 'muted', 'This report is already approved.');
@@ -236,7 +236,10 @@ async function openEditor(interaction: ButtonInteraction, matchId: string): Prom
   };
   const before = busy();
   if (before) refuse(before);
-  const match = await api.match(matchId);
+  // A newer editor of the holder's closes the old one first, and is built
+  // after that one's unsaved changes are saved.
+  if (editors.holder(matchId) === interaction.user.id) editors.close(matchId);
+  const match = await inTurn(matchId, () => api.match(matchId));
   const staff = isStaff(interaction);
   if (!staff && match.reporter_discord_id !== interaction.user.id) refuse('Only the reporter or staff can edit this report.');
   const panel = await editorOf(interaction.guild, match, staff, api);

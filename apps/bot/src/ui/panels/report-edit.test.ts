@@ -191,6 +191,12 @@ test('one button each for order and assign, however many seats', () => {
   assert.ok(container(panel).toJSON().components.length < 40);
 });
 
+test('unassigned seats come first in Assign, keeping their seat numbers', () => {
+  const json = JSON.stringify(container(panelOf('assign', ffa)).toJSON());
+  const order = [...json.matchAll(/"custom_id":"report:assignpick:[^:]+:(\d+):/g)].map((m) => m[1]);
+  assert.deepEqual(order, ['3', '1', '2']);
+});
+
 test('a cloud game\'s twelve seats are assigned in one panel, then saved at once', () => {
   const names = new Map([['LEADER_SHAKA', 'Shaka']]);
   const json = JSON.stringify(container(panelOf('assign', cloud, names)).toJSON());

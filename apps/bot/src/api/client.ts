@@ -24,12 +24,12 @@ import type {
 
 type FetchLike = typeof fetch;
 
-// D93. The policy lives here and nowhere else: no call site chooses, and
+// The retry policy lives here and nowhere else: no call site chooses, and
 // fetchWithRetry takes no attempts argument for one to pass.
 const RETRY_ATTEMPTS = 2;
 const RETRY_BASE_MS = 250;
 const TIMEOUT_MS = 10_000;
-// Multipart carries a save file. Everything else is a form post or a query.
+// Multipart carries a save file. Everything else is JSON or a query.
 const UPLOAD_TIMEOUT_MS = 30_000;
 
 const actorHeaders = (actor: Actor): Record<string, string> => ({
@@ -161,15 +161,6 @@ export class ApiClient {
     return (await this.parseJson(res)) as TeamGenResponse;
   }
 
-  /**
-   * D93. Two attempts, and whether the second happens is decided here.
-   *
-   * An enveloped error means core-api answered and chose not to act, so
-   * its retryable flag can be trusted on any method. A transport failure
-   * -- timeout, reset, a proxy 502 -- means we never learned whether the
-   * write landed, so only a read may be repeated. Fifteen of this client's
-   * nineteen calls are PUTs that approve, revert or mutate a match.
-   */
   async createLobby(body: components['schemas']['CreateLobbyRequest'], hostName?: string): Promise<LobbyDocument> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite`, {
       method: "POST",
@@ -308,6 +299,8 @@ export class ApiClient {
     return (await this.parseJson(res)) as SubQuota;
   }
 
+  // A second attempt follows core-api's retryable flag on any method. A transport
+  // failure may hide a write that landed, so then only a read is sent again.
   private shouldRetry(err: unknown, method: string): boolean {
     if (err instanceof ApiError && typeof err.retryable === "boolean") {
       return err.retryable;
