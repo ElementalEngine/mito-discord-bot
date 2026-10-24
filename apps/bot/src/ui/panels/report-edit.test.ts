@@ -339,15 +339,16 @@ test('a quits list longer than a menu holds stops at 25, and seats past it keep 
   assert.deepEqual(quitEdits(big, []), []);
 });
 
-test('the seat form asks who played, who they replaced, who quit, then the place', () => {
+test('the seat form asks who played, their place, who they replaced, then who quit', () => {
   const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
   const form = seatForm(marked, 1, new Map([[A, 'Calcifer'], [D, 'Busysnail']]))?.toJSON() as {
     components: { label: string; component: { options?: { value: string; default?: boolean; description?: string }[] } }[];
   };
-  assert.deepEqual(form.components.map((c) => c.label), ['Player', 'Subbed in for (optional)', 'Who quit (optional)', 'Place']);
-  const quit = form.components[2]!.component.options!;
+  assert.deepEqual(form.components.map((c) => c.label), ['Player', 'Place', 'Subbed in for (optional)', 'Who quit (optional)']);
+  const quit = form.components[3]!.component.options!;
   assert.deepEqual(quit.map((o) => [o.value, o.default]), [['player', false], ['left', true]]);
-  assert.equal(quit[1]!.description, 'Busysnail left before the end');
+  // The options name the form's boxes: a form cannot update names as they change.
+  assert.equal(quit[1]!.description, 'The player in the Subbed in for box left before the end');
 });
 
 // Ninety leaders, as civ6 has, so the picker needs more than one menu.

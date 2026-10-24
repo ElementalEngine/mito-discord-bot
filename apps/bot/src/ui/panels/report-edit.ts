@@ -381,16 +381,17 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
     .setMaxValues(2)
     .setRequired(false)
     .setPlaceholder('Nobody quit')
+    // A form cannot redraw itself, so the options name the boxes, not people.
     .addOptions(
       {
-        label: 'The player above quit',
-        description: fit(`${nameIn(seat.player, members)} left before the end`, 100),
+        label: 'Player quit',
+        description: 'The player in the Player box left before the end',
         value: QUIT.player,
         default: seat.player.quit,
       },
       {
-        label: 'The player they replaced quit',
-        description: fit(seat.leaver ? `${nameIn(seat.leaver, members)} left before the end` : 'Only when you set who they replaced', 100),
+        label: 'Subbed in for player quit',
+        description: 'The player in the Subbed in for box left before the end',
         value: QUIT.left,
         default: seat.leaver?.quit ?? false,
       },
@@ -404,17 +405,17 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
         .setDescription('Who was playing this seat when the game ended.')
         .setUserSelectMenuComponent(player),
       new LabelBuilder()
-        .setLabel('Subbed in for (optional)')
-        .setDescription('Only if the player above came in as a sub: who they replaced.')
-        .setUserSelectMenuComponent(left),
-      new LabelBuilder()
-        .setLabel('Who quit (optional)')
-        .setDescription('Anyone who left before the end, to a sub or the AI. Ratings do not change.')
-        .setStringSelectMenuComponent(quitter),
-      new LabelBuilder()
         .setLabel('Place')
         .setDescription(isTeamer(match) ? 'Where the team finished. The team there now swaps with it.' : 'Where this seat finished. The seat there now swaps with it.')
         .setStringSelectMenuComponent(finished),
+      new LabelBuilder()
+        .setLabel('Subbed in for (optional)')
+        .setDescription('Only if the player came in as a sub: who they replaced.')
+        .setUserSelectMenuComponent(left),
+      new LabelBuilder()
+        .setLabel('Who quit (optional)')
+        .setDescription('Pick anyone who left the game before it ended, to a sub or the AI.')
+        .setStringSelectMenuComponent(quitter),
     );
 }
 
