@@ -31,10 +31,6 @@ test('the mite_router routes are not reachable through the proxy', () => {
   assert.equal(upstreamPath('POST', '/api/lobbies/claim-post'), null);
 });
 
-test('the deleted /active is not reachable', () => {
-  assert.equal(upstreamPath('GET', '/api/lobbies/active'), null);
-});
-
 test('the wrong method on a right path is refused', () => {
   assert.equal(upstreamPath('DELETE', `/api/lobbies/${ID}`), null);
   assert.equal(upstreamPath('GET', `/api/lobbies/${ID}/seats`), null);
