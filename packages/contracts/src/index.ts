@@ -1164,6 +1164,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/stats/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get History */
+        get: operations["get_history_api_v2_stats_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/stats/reset/user": {
         parameters: {
             query?: never;
@@ -1174,6 +1191,23 @@ export interface paths {
         get?: never;
         /** Reset User Stats */
         put: operations["reset_user_stats_api_v2_stats_reset_user_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Summary */
+        get: operations["get_summary_api_v2_stats_summary_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1433,6 +1467,18 @@ export interface components {
             /** Leaders */
             leaders: components["schemas"]["LeaderRow"][];
         };
+        /**
+         * CivRecord
+         * @description A civ6 leader token, or a civ7 civ token, and how it went.
+         */
+        CivRecord: {
+            /** Games */
+            games: number;
+            /** Token */
+            token: string;
+            /** Wins */
+            wins: number;
+        };
         /** CivRow */
         CivRow: {
             /** Age Pool */
@@ -1622,6 +1668,63 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * HistoryGame
+         * @description One approved game, as the player saw it. A placement of 0 is first;
+         *     in a team game it is the team's place.
+         */
+        HistoryGame: {
+            /** Civ */
+            civ?: string | null;
+            /** Delta */
+            delta: number;
+            /** Game Mode */
+            game_mode: string;
+            /** Leader */
+            leader?: string | null;
+            /** Map Type */
+            map_type: string;
+            /** Match Id */
+            match_id: string;
+            /** Placement */
+            placement?: number | null;
+            /**
+             * Reported At
+             * Format: date-time
+             */
+            reported_at: string;
+            /** Sides */
+            sides: number;
+            /**
+             * Subbed In
+             * @default false
+             */
+            subbed_in: boolean;
+            /**
+             * Subbed Out
+             * @default false
+             */
+            subbed_out: boolean;
+            /** Turn */
+            turn?: number | null;
+        };
+        /** HistoryPage */
+        HistoryPage: {
+            /** Civ Version */
+            civ_version: string;
+            /** Discord Id */
+            discord_id: string;
+            /** Game Type */
+            game_type: string;
+            /** Games */
+            games: components["schemas"]["HistoryGame"][];
+            /** Has More */
+            has_more: boolean;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** LeaderRow */
         LeaderRow: {
             /** Civ */
@@ -1688,6 +1791,15 @@ export interface components {
             reason?: string | null;
             /** Subject Discord Id */
             subject_discord_id: string;
+        };
+        /** MapRecord */
+        MapRecord: {
+            /** Games */
+            games: number;
+            /** Map Type */
+            map_type: string;
+            /** Wins */
+            wins: number;
         };
         /**
          * MarkReadyRequest
@@ -2106,6 +2218,25 @@ export interface components {
             duel?: components["schemas"]["StatRowV2"] | null;
             ffa?: components["schemas"]["StatRowV2"] | null;
             teamer?: components["schemas"]["StatRowV2"] | null;
+        };
+        /**
+         * StatsSummary
+         * @description Games by map and the most played civs, since the last reset if any.
+         *     A win is first place.
+         */
+        StatsSummary: {
+            /** Civ Version */
+            civ_version: string;
+            /** Civs */
+            civs: components["schemas"]["CivRecord"][];
+            /** Discord Id */
+            discord_id: string;
+            /** Game Type */
+            game_type: string;
+            /** Maps */
+            maps: components["schemas"]["MapRecord"][];
+            /** Since */
+            since?: string | null;
         };
         /** SubQuotaResponse */
         SubQuotaResponse: {
@@ -4748,6 +4879,42 @@ export interface operations {
             };
         };
     };
+    get_history_api_v2_stats_history_get: {
+        parameters: {
+            query: {
+                civ_version: string;
+                game_type: string;
+                discord_id: string;
+                page?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reset_user_stats_api_v2_stats_reset_user_put: {
         parameters: {
             query: {
@@ -4770,6 +4937,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserStatsResponseV2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_api_v2_stats_summary_get: {
+        parameters: {
+            query: {
+                civ_version: string;
+                game_type: string;
+                discord_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsSummary"];
                 };
             };
             /** @description Validation Error */

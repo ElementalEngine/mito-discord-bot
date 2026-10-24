@@ -24,6 +24,7 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   'report-remove': { roles: RANKED, channels: null },
   'report-revert': { roles: ['admin', 'developer'], channels: null, staffOnly: true },
   stats: { roles: RANKED, channels: COMMAND_CHANNELS },
+  'stats-history': { roles: RANKED, channels: COMMAND_CHANNELS },
   roomranks: { roles: RANKED, channels: COMMAND_CHANNELS },
   resetstats: { roles: ['admin', 'noviceManager', 'developer'], channels: ['botTesting'], staffOnly: true },
   teamgen: { roles: RANKED, channels: COMMAND_CHANNELS },

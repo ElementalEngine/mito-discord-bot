@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 12607cf
-source-date: 2026-10-23
+source-sha: e6ea2fc
+source-date: 2026-10-24
 
 generated-by: npm run gen:contracts
 
@@ -19,3 +19,5 @@ Bumped at S13.2 (db72918 -> c3aebd3): GET /api/v2/matches/sub-quota, and
 UploadResponse with repeated and repeated_by on POST /api/v2/matches.
 
 Bumped at S13.2: seats carry score, the in-game score a Civ6 save records.
+
+Bumped at S13.3: GET /api/v2/stats/history and GET /api/v2/stats/summary.

@@ -15,6 +15,8 @@ import type {
   SeatEdit,
   SubQuota,
   TeamGenResponse,
+  StatsSummary,
+  HistoryPage,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -107,6 +109,20 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as UserStatsResponse;
+  }
+
+  // Games by map and the most played civs, since the player's last reset.
+  async getStatsSummary(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<StatsSummary> {
+    const query = new URLSearchParams({ civ_version: civVersion, game_type: gameType, discord_id: discordId });
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/summary?${query}`, { method: "GET" });
+    return (await this.parseJson(res)) as StatsSummary;
+  }
+
+  // One page of a player's approved games, newest first; page 0 is the latest.
+  async getStatsHistory(civVersion: CivVersion, gameType: StatsGameType, discordId: string, page: number): Promise<HistoryPage> {
+    const query = new URLSearchParams({ civ_version: civVersion, game_type: gameType, discord_id: discordId, page: String(page) });
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/history?${query}`, { method: "GET" });
+    return (await this.parseJson(res)) as HistoryPage;
   }
 
   async getTeamGen(

@@ -1,6 +1,21 @@
-import type { StatRow, StatSet, TeamGenResponse, UserStatsResponse } from '../../api/types.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
+
+import type { CivVersion, HistoryGame, HistoryPage, StatRow, StatSet, StatsSummary, TeamGenResponse, UserStatsResponse } from '../../api/types.js';
 import { RANK_DEFS_CIV6 } from '../../config/constants.js';
-import { mention, text, type Block, type Panel } from '../kit/index.js';
+import {
+  customId,
+  fit,
+  iconOf,
+  mention,
+  plainNameOf,
+  signed,
+  text,
+  when,
+  type Block,
+  type CivNames,
+  type Panel,
+} from '../kit/index.js';
+import { mapLabel, ordinal } from './report.js';
 
 type Mode = 'ffa' | 'teamer' | 'duel';
 const MODES: readonly Mode[] = ['ffa', 'teamer', 'duel'];
@@ -45,11 +60,47 @@ export function statTable(set: StatSet): string {
   return ['```', head, ...body, '```'].join('\n');
 }
 
+const rankOf = (mu: number | null | undefined) =>
+  mu == null || !Number.isFinite(mu) ? undefined : RANK_DEFS_CIV6.find((r) => mu >= r.threshold);
+
 // The panel takes the colour of the rank the lifetime FFA rating reaches.
 export function rankAccent(mu: number | null | undefined): number | undefined {
-  if (mu == null || !Number.isFinite(mu)) return undefined;
-  const rank = RANK_DEFS_CIV6.find((r) => mu >= r.threshold);
+  const rank = rankOf(mu);
   return rank ? Number.parseInt(rank.color.slice(1), 16) : undefined;
+}
+
+const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.name.replace(/_(\d)_STAR$/, ' $1\u2605') ?? null;
+
+const MAP_W = 16;
+const MAX_MAPS = 10;
+
+// Games by map: games, wins and losses by first place, and the win rate.
+export function mapTable(summary: StatsSummary): string {
+  const rows = summary.maps.slice(0, MAX_MAPS);
+  const head = 'Map'.padEnd(MAP_W) + ['Games', 'Wins', 'Losses', 'Win %'].map((h) => h.padStart(7)).join('');
+  const body = rows.map(
+    (m) =>
+      fit(mapLabel(m.map_type), MAP_W - 1).padEnd(MAP_W) +
+      [String(m.games), String(m.wins), String(m.games - m.wins), pct(m.wins, m.games)].map((c) => c.padStart(7)).join(''),
+  );
+  return ['```', head, ...body, '```'].join('\n');
+}
+
+// The most played civs (leaders in Civ6), with how often each won.
+export function civLines(summary: StatsSummary, names: CivNames): string {
+  return summary.civs
+    .map((c, i) => {
+      const games = `${c.games} ${c.games === 1 ? 'game' : 'games'}`;
+      return `${i + 1}. ${iconOf(names, c.token)} ${plainNameOf(names, c.token)} \u00b7 ${games} \u00b7 ${c.wins} wins (${pct(c.wins, c.games)})`;
+    })
+    .join('\n');
+}
+
+function summaryBlocks(summary: StatsSummary, names: CivNames): Block[] {
+  if (summary.maps.length === 0) return [];
+  const blocks = [text(`**Maps**\n${mapTable(summary)}`)];
+  if (summary.civs.length) blocks.push(text(`**Most played ${summary.civ_version === 'civ7' ? 'civs' : 'leaders'}**\n${civLines(summary, names)}`));
+  return blocks;
 }
 
 const editionLabel = (civVersion: string): string => civVersion.replace(/^civ/i, 'Civ');
@@ -61,15 +112,24 @@ function sections(stats: UserStatsResponse): Block[] {
   return blocks;
 }
 
-export function statsPanel(stats: UserStatsResponse): Panel {
-  const accent = rankAccent(stats.lifetime.ffa?.mu);
+// The stat tables, then games by map and the most played civs when a
+// summary came with them.
+export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, names: CivNames = new Map()): Panel {
+  const mu = stats.lifetime.ffa?.mu;
+  const accent = rankAccent(mu);
+  const rank = rankName(mu);
+  const since = summary?.since ? ` Maps and civs since the reset on ${when(new Date(summary.since), 'd')}.` : '';
   return {
     tone: 'info',
     surface: 'stats',
     title: 'Stats',
     subtitle: `${editionLabel(stats.civ_version)} \u00b7 ${stats.game_type}`,
-    body: [text(mention(stats.discord_id)), ...sections(stats)],
-    footer: COUNTERS_NOTE,
+    body: [
+      text(rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)),
+      ...sections(stats),
+      ...(summary ? summaryBlocks(summary, names) : []),
+    ],
+    footer: `${COUNTERS_NOTE}${since}`,
     ...(accent === undefined ? {} : { accent }),
   };
 }
@@ -106,3 +166,67 @@ export function teamsPanel(result: TeamGenResponse): Panel {
     body: result.teams.map((team, i) => text(`**Team ${i + 1}**\n${team.map(mention).join('\n')}`)),
   };
 }
+
+const MODE_LABEL: Readonly<Record<string, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' };
+
+// Two sides is won or lost; more is a place out of how many finished.
+function resultOf(g: HistoryGame): string {
+  if (g.subbed_out) return 'Left';
+  if (g.placement == null) return DASH;
+  if (g.sides <= 2) return g.placement === 0 ? '**Won**' : 'Lost';
+  return `**${ordinal(g.placement + 1)}** of ${g.sides}`;
+}
+
+function pickOf(g: HistoryGame, civVersion: string, names: CivNames): string {
+  if (civVersion === 'civ7' && g.civ) {
+    const leader = g.leader ? `${iconOf(names, g.leader)} ` : '';
+    return `${leader}${iconOf(names, g.civ)} ${plainNameOf(names, g.civ)}`;
+  }
+  const token = g.leader ?? g.civ;
+  return token ? `${iconOf(names, token)} ${plainNameOf(names, token)}` : 'Unknown civ';
+}
+
+export function historyLine(g: HistoryGame, civVersion: string, names: CivNames): string {
+  const mode = MODE_LABEL[g.game_mode.toLowerCase()] ?? (g.game_mode || DASH);
+  const parts = [when(new Date(g.reported_at), 'd'), resultOf(g), mode, pickOf(g, civVersion, names), mapLabel(g.map_type), signed(g.delta)];
+  if (g.subbed_in) parts.push('subbed in');
+  return parts.join(' \u00b7 ');
+}
+
+export const HISTORY = { surface: 'history', page: 'page' } as const;
+
+// Who the history is of, and who asked: only they page through it.
+export type HistoryOf = Readonly<{ civVersion: CivVersion; mode: string; target: string; asker: string }>;
+
+const pageButton = (of: HistoryOf, page: number, label: string, disabled: boolean): ButtonBuilder =>
+  new ButtonBuilder()
+    .setCustomId(customId(HISTORY.surface, HISTORY.page, of.civVersion, of.mode, of.target, String(page), of.asker))
+    .setLabel(label)
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(disabled);
+
+export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivNames): Panel {
+  const first = history.page * history.page_size + 1;
+  const last = history.page * history.page_size + history.games.length;
+  const lines = history.games.map((g) => historyLine(g, history.civ_version, names));
+  const paged = history.page > 0 || history.has_more;
+  return {
+    tone: 'info',
+    surface: 'stats',
+    title: 'Game history',
+    subtitle: `${editionLabel(history.civ_version)} \u00b7 ${history.game_type}${last >= first ? ` \u00b7 games ${first}\u2013${last}, newest first` : ''}`,
+    body: [text(mention(history.discord_id)), text(lines.join('\n') || 'No games on this page.')],
+    ...(paged
+      ? {
+          actions: [
+            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+              pageButton(of, Math.max(0, history.page - 1), 'Newer', history.page === 0),
+              pageButton(of, history.page + 1, 'Older', !history.has_more),
+            ),
+          ],
+        }
+      : {}),
+    footer: 'A win is first place; a team game is won or lost by the team.',
+  };
+}
+

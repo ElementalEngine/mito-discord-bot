@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 import type { StatRow, UserStatsResponse } from '../../api/types.js';
 import { formatRoomRanksPages } from '../layouts/roomranks.js';
-import { rankAccent, resetPanel, statTable, statsPanel, teamsPanel } from './stats.js';
+import type { HistoryGame, HistoryPage, StatsSummary } from '../../api/types.js';
+import { civLines, historyLine, historyPanel, mapTable, rankAccent, resetPanel, statTable, statsPanel, teamsPanel } from './stats.js';
 
 /**
  * The stats panels read v2's counters (D164). What should break this file:
@@ -93,3 +94,88 @@ test('a long room splits into pages of whole tables, each under the limit', () =
   }
   assert.equal(pages.join('').match(/Player number/g)?.length, 120);
 });
+
+const summary = (over: Partial<StatsSummary> = {}): StatsSummary => ({
+  discord_id: '100000000000000001',
+  civ_version: 'civ6',
+  game_type: 'realtime',
+  maps: [
+    { map_type: 'Seven_Seas', games: 8, wins: 2 },
+    { map_type: 'Pangaea', games: 3, wins: 3 },
+  ],
+  civs: [{ token: 'LEADER_TRAJAN', games: 4, wins: 1 }],
+  ...over,
+});
+
+const NAMES = new Map([['LEADER_TRAJAN', '<:Trajan:123456789012345678> Trajan']]);
+
+test('maps show games, wins, losses and win rate by first place', () => {
+  const table = mapTable(summary());
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Seven Seas'), /^Seven Seas\s+8\s+2\s+6\s+25%$/);
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Pangaea'), /^Pangaea\s+3\s+3\s+0\s+100%$/);
+});
+
+test('the most played list names each pick with its portrait and win rate', () => {
+  assert.equal(civLines(summary(), NAMES), '1. <:Trajan:123456789012345678> Trajan \u00b7 4 games \u00b7 1 wins (25%)');
+});
+
+test('the stats panel adds maps, leaders and the rank, and says when a reset started them', () => {
+  const panel = statsPanel(stats(), summary({ since: '2026-09-01T00:00:00Z' }), NAMES);
+  const body = JSON.stringify(panel.body);
+  assert.match(body, /\*\*Maps\*\*/);
+  assert.match(body, /\*\*Most played leaders\*\*/);
+  assert.match(body, /\*\*Emperor\*\*/);
+  assert.match(panel.footer ?? '', /since the reset on <t:1788220800:d>/);
+  assert.doesNotMatch(JSON.stringify(statsPanel(stats(), summary({ maps: [], civs: [] })).body), /Maps/);
+});
+
+const game = (over: Partial<HistoryGame> = {}): HistoryGame => ({
+  match_id: '1',
+  reported_at: '2026-10-01T00:00:00Z',
+  game_mode: 'ffa',
+  map_type: 'Seven_Seas',
+  leader: 'LEADER_TRAJAN',
+  civ: 'CIVILIZATION_ROME',
+  placement: 0,
+  sides: 8,
+  delta: 14,
+  subbed_in: false,
+  subbed_out: false,
+  ...over,
+});
+
+test('a game line reads date, result, mode, pick, map and rating change', () => {
+  assert.equal(
+    historyLine(game(), 'civ6', NAMES),
+    '<t:1790812800:d> \u00b7 **1st** of 8 \u00b7 FFA \u00b7 <:Trajan:123456789012345678> Trajan \u00b7 Seven Seas \u00b7 +14',
+  );
+  assert.match(historyLine(game({ game_mode: 'teamer', sides: 2, placement: 1, delta: -9 }), 'civ6', NAMES), /Lost \u00b7 Teamer/);
+  assert.match(historyLine(game({ subbed_out: true }), 'civ6', NAMES), /Left/);
+  assert.match(historyLine(game({ subbed_in: true }), 'civ6', NAMES), /subbed in$/);
+  assert.match(historyLine(game({ leader: null, civ: null }), 'civ6', NAMES), /Unknown civ/);
+});
+
+const page = (over: Partial<HistoryPage> = {}): HistoryPage => ({
+  discord_id: '100000000000000001',
+  civ_version: 'civ6',
+  game_type: 'realtime',
+  page: 0,
+  page_size: 20,
+  has_more: true,
+  games: [game()],
+  ...over,
+});
+
+const OF = { civVersion: 'civ6', mode: 'realtime', target: '100000000000000001', asker: '100000000000000002' } as const;
+
+test('history pages carry who asked, and only the ways that exist are open', () => {
+  const panel = historyPanel(page(), OF, NAMES);
+  const buttons = JSON.stringify(panel.actions);
+  assert.match(buttons, /history:page:civ6:realtime:100000000000000001:1:100000000000000002/);
+  assert.match(buttons, /"label":"Newer","style":2,"disabled":true/);
+  assert.match(buttons, /"label":"Older","style":2,"disabled":false/);
+  assert.equal(panel.subtitle, 'Civ6 \u00b7 realtime \u00b7 games 1\u20131, newest first');
+  assert.equal(historyPanel(page({ has_more: false }), OF, NAMES).actions, undefined);
+  assert.equal(historyPanel(page({ page: 1, games: [], has_more: false }), OF, NAMES).subtitle, 'Civ6 \u00b7 realtime');
+});
+

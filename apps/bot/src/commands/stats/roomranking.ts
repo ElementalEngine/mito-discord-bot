@@ -2,30 +2,15 @@ import { GuildMember, InteractionContextType, SlashCommandBuilder, type ChatInpu
 
 import { ApiClient } from '../../api/index.js';
 import type { CivVersion, StatSet, UserStatsResponse } from '../../api/types.js';
-import { config } from '../../config.js';
 import { LIMITS } from '../../ui/kit/index.js';
 import { formatRoomRanksPages, type RoomRanksLifetimeRow, type RoomRanksRow } from '../../ui/layouts/roomranks.js';
 import { roomPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
 
-const ACCESS_POLICY = {
-  allowedChannelIds: [
-    config.discord.channels.botTesting,
-    config.discord.channels.civ6Commands,
-    config.discord.channels.civ7Commands,
-    config.discord.channels.cloudCommands,
-    config.discord.channels.noviceCommands,
-  ],
-  requiredRoleIds: [
-    config.discord.roles.civ6Rank,
-    config.discord.roles.civ7Rank,
-    config.discord.roles.civCloud,
-  ],
-  allowDeveloperOverride: true,
-} as const;
 
 // Room for the panel's heading and subtitle within Discord's text limit.
 const PAGE_LIMIT = LIMITS.text - 300;
@@ -53,7 +38,7 @@ export const data = new SlashCommandBuilder()
 export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
   const civVersion: CivVersion = interaction.options.getString('version', true) === 'civ7' ? 'civ7' : 'civ6';
   if (!(interaction.member instanceof GuildMember)) refuse('Run /roomranks in the server, not in a DM.');
   const voice = interaction.member.voice.channel;

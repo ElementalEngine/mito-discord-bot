@@ -25,6 +25,9 @@ export type StatSet = components['schemas']['StatSetV2'];
 export type UserStatsResponse = components['schemas']['UserStatsResponseV2'];
 export type BatchStatsResponse = components['schemas']['BatchStatsResponseV2'];
 export type TeamGenResponse = components['schemas']['TeamGenResponse'];
+export type StatsSummary = components['schemas']['StatsSummary'];
+export type HistoryPage = components['schemas']['HistoryPage'];
+export type HistoryGame = components['schemas']['HistoryGame'];
 
 // The fields Mite reads from a lobby document. The read route is untyped
 // upstream, so this is the bot's own view of it, kept to what the embeds use.
