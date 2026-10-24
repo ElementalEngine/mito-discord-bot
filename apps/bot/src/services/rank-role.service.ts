@@ -165,12 +165,24 @@ async function runBounded<T>(
   await Promise.all(runners);
 }
 
-export async function updateRankRolesForApprovedMatch(
+// Each player's rank role, from the rating core-api says it follows, after an
+// approve, a revert or a reset. A failure is logged; the caller carries on.
+export async function syncRankRoles(
+  guild: Guild,
+  affectedPlayers: readonly AffectedPlayerRating[] | null | undefined,
+  context: string,
+): Promise<void> {
+  if (!affectedPlayers?.length) return;
+  await setRankRoles(guild, affectedPlayers).catch((error: unknown) => {
+    log.warn('rank roles not synced', context, error instanceof Error ? error.message : error);
+  });
+}
+
+async function setRankRoles(
   guild: Guild,
   affectedPlayers: readonly AffectedPlayerRating[],
   opts: { concurrency?: number } = {},
 ): Promise<void> {
-  if (!affectedPlayers.length) return;
 
   const canManage = await ensureBotCanManageRoles(guild);
   if (!canManage) {

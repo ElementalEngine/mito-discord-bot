@@ -2102,6 +2102,8 @@ export interface components {
          *     again after it -- every mode that had a row, back at the starting rating.
          */
         ResetStatsResponseV2: {
+            /** Affected Players */
+            affected_players?: components["schemas"]["AffectedPlayerRating"][] | null;
             after_lifetime: components["schemas"]["StatSetV2"];
             after_season: components["schemas"]["StatSetV2"];
             /** Civ Version */

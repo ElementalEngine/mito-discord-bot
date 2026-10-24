@@ -1,6 +1,7 @@
 import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
+import { syncRankRoles } from '../../services/rank-role.service.js';
 import { revertedPanel } from '../../ui/panels/report.js';
 import { defer, fail, refuse, respond } from '../../ui/reply.js';
 import { isAdminOrDeveloper } from '../../utils/access.js';
@@ -23,6 +24,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const matchId = interaction.options.getString('match-id', true).trim();
     const match = await api.revert(matchId);
     await respond(interaction, revertedPanel(match), 'public');
+    if (interaction.guild) await syncRankRoles(interaction.guild, match.affected_players, matchId);
     await logAction(interaction, 'report-revert', { matchId });
   } catch (error) {
     await fail(interaction, error, 'revert the report');

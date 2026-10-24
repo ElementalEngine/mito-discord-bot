@@ -12,7 +12,7 @@ import {
 
 import { ApiClient } from '../api/index.js';
 import type { Match, SeatEdit } from '../api/types.js';
-import { updateRankRolesForApprovedMatch } from '../services/rank-role.service.js';
+import { syncRankRoles } from '../services/rank-role.service.js';
 import { civNames, editionOf } from '../services/civ-names.js';
 import {
   deleteReportMessages,
@@ -163,11 +163,7 @@ async function approveInTurn(interaction: ButtonInteraction, matchId: string): P
   const where = inHistory ? `The result is in ${channelMention(historyChannelId(match))}.` : 'The result stays on the report.';
   await say(interaction, 'success', `Approved. ${where}`);
   // Rank roles follow; the approver need not wait for them.
-  if (interaction.guild && match.affected_players?.length) {
-    await updateRankRolesForApprovedMatch(interaction.guild, match.affected_players).catch((error: unknown) => {
-      log.warn('rank roles not synced', matchId, error instanceof Error ? error.message : error);
-    });
-  }
+  if (interaction.guild) await syncRankRoles(interaction.guild, match.affected_players, matchId);
   await logAction(interaction, 'approve', { matchId });
 }
 
