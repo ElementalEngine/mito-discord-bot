@@ -9,6 +9,9 @@ import type {
   StatsGameType,
   LobbyDocument,
   CivDataResponse,
+  DealRequest,
+  DealResponse,
+  DraftQuestion,
   Actor,
   Match,
   MatchUpload,
@@ -188,6 +191,24 @@ export class ApiClient {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/civ-data/${edition}`, { method: "GET" });
 
     return (await this.parseJson(res)) as CivDataResponse;
+  }
+
+  // The settings /draft offers for one edition, as the vote asks them.
+  async getDraftSettings(edition: CivVersion): Promise<DraftQuestion[]> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/settings/${edition}`, { method: "GET" });
+
+    return ((await this.parseJson(res)) as { questions: DraftQuestion[] }).questions;
+  }
+
+  // One /draft deal. core-api stores nothing.
+  async dealDraft(body: DealRequest): Promise<DealResponse> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/deal`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    return (await this.parseJson(res)) as DealResponse;
   }
 
   // Closes every lobby untouched past the stale cutoff. Returns how many.

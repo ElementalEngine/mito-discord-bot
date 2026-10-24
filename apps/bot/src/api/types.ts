@@ -49,6 +49,9 @@ export type LobbyDocument = {
 
 // One edition's leaders and civs, as core-api serves them.
 export type CivDataResponse = components['schemas']['CivDataResponse'];
+export type DraftQuestion = components['schemas']['SettingQuestion'];
+export type DealRequest = components['schemas']['DealRequest'];
+export type DealResponse = components['schemas']['DealResponse'];
 
 // The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];

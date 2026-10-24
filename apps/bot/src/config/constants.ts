@@ -1,7 +1,6 @@
 import type { CivEdition } from './types.js';
 
 // - Discord limits + Helpers
-export const MAX_DISCORD_LEN = 1999 as const;
 export const MENTION_ID_REGEX = /<@!?(\d{17,20})>/;
 
 // - Emojis (Unicode only — safe everywhere)

@@ -34,8 +34,8 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   },
   'get-users': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   'season-new': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
-  'draft-civ6': { roles: RANKED, channels: ['botTesting', 'civ6Commands', 'noviceCommands', 'cloudCommands'] },
-  'draft-civ7': { roles: RANKED, channels: ['botTesting', 'civ7Commands'] },
+  // civ6 and civ7 check their own channels, so the command takes them all.
+  draft: { roles: RANKED, channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'noviceCommands', 'cloudCommands'] },
   // Each subcommand checks its own channel, so the command is open everywhere.
   lobby: { roles: RANKED, channels: null },
   secretvote: { roles: RANKED, channels: COMMAND_CHANNELS },

@@ -87,6 +87,11 @@ export async function respond(
   return undefined;
 }
 
+// Another public panel after the first answer, such as a long draft's second.
+export async function respondMore(interaction: RepliableInteraction, panel: Panel): Promise<void> {
+  await interaction.followUp({ flags: [MessageFlags.IsComponentsV2], components: [container(panel)], allowedMentions: NO_PINGS });
+}
+
 type PanelPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 
 // Acknowledge a press on a private panel without answering it yet; the panel
