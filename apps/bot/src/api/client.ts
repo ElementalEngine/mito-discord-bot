@@ -50,19 +50,16 @@ export class ApiClient {
     this.serviceToken = serviceToken;
   }
 
-  async getLeaderboardRanking(game: string, gameType:string, gameMode: string, isSeasonal: boolean, isCombined: boolean): Promise<LeaderboardRanking> {
-    const form = new FormData();
-    form.append("game", game);
-    form.append("game_type", gameType)
-    form.append("game_mode", gameMode);
-    form.append("is_seasonal", isSeasonal ? "1" : "0");
-    form.append("is_combined", isCombined ? "1" : "0");
-
-    const res = await this.fetchWithRetry(`${this.base}/api/v1/get-leaderboard-ranking/`, {
-      method: "PUT",
-      body: form,
+  // One leaderboard's rankings; a read, so a dropped answer is asked again.
+  async getLeaderboardRanking(game: string, gameType: string, gameMode: string, isSeasonal: boolean, isCombined: boolean): Promise<LeaderboardRanking> {
+    const query = new URLSearchParams({
+      game,
+      game_type: gameType,
+      game_mode: gameMode,
+      is_seasonal: String(isSeasonal),
+      is_combined: String(isCombined),
     });
-
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/leaderboard?${query}`, { method: "GET" });
     return (await this.parseJson(res)) as LeaderboardRanking;
   }
 

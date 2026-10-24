@@ -56,3 +56,19 @@ test("a 4xx is never retried, envelope or not", () => {
   assert.equal(decide(client, err, "GET"), false);
   assert.equal(decide(client, err, "PUT"), false);
 });
+
+test("the leaderboard is read from v2 as a GET with its options in the query", async () => {
+  const seen: { url: string; method: string }[] = [];
+  const fake = (async (input: string | URL, init?: RequestInit) => {
+    seen.push({ url: String(input), method: init?.method ?? "GET" });
+    return new Response(JSON.stringify({ rankings: [], last_updated: 1 }), { status: 200 });
+  }) as typeof fetch;
+  const out = await new ApiClient("http://core", fake, "token").getLeaderboardRanking("civ6", "PBC", "ffa", true, false);
+  assert.deepEqual(out, { rankings: [], last_updated: 1 });
+  assert.deepEqual(seen, [
+    {
+      url: "http://core/api/v2/matches/leaderboard?game=civ6&game_type=PBC&game_mode=ffa&is_seasonal=true&is_combined=false",
+      method: "GET",
+    },
+  ]);
+});

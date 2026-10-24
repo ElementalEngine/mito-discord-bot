@@ -3,18 +3,7 @@ import type { CivEdition } from '../config/types.js';
 export type GameMode = 'realtime' | 'cloud';
 export type Edition = CivEdition;
 
-export type PlayerLeaderboard = {
-  discord_id: string;
-  rating: number;
-  games_played: number;
-  wins: number;
-  first: number;
-}
-
-export type LeaderboardRanking = {
-  rankings: PlayerLeaderboard[];
-  last_updated: number;
-}
+export type LeaderboardRanking = components['schemas']['LeaderboardRankingResponse'];
 
 // ── Stats (C2, /api/v2/stats)
 
