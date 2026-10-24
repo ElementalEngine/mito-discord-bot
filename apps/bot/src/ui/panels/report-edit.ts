@@ -384,14 +384,14 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
     // A form cannot redraw itself, so the options name the boxes, not people.
     .addOptions(
       {
-        label: 'Player quit',
-        description: 'The player in the Player box left before the end',
+        label: 'Player in seat quit',
+        description: 'The player in the first box left early',
         value: QUIT.player,
         default: seat.player.quit,
       },
       {
-        label: 'Subbed in for player quit',
-        description: 'The player in the Subbed in for box left before the end',
+        label: 'Player subbed out quit',
+        description: 'The player in the subbed out box left early',
         value: QUIT.left,
         default: seat.leaver?.quit ?? false,
       },
@@ -402,19 +402,19 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
     .addLabelComponents(
       new LabelBuilder()
         .setLabel('Player')
-        .setDescription('Who was playing this seat when the game ended.')
+        .setDescription('Who was in this seat at the end of the game.')
         .setUserSelectMenuComponent(player),
       new LabelBuilder()
         .setLabel('Place')
-        .setDescription(isTeamer(match) ? 'Where the team finished. The team there now swaps with it.' : 'Where this seat finished. The seat there now swaps with it.')
+        .setDescription(isTeamer(match) ? 'Where the team finished. Whoever has that place swaps with them.' : 'Where they finished. Whoever has that place swaps with them.')
         .setStringSelectMenuComponent(finished),
       new LabelBuilder()
-        .setLabel('Subbed in for (optional)')
-        .setDescription('Only if the player came in as a sub: who they replaced.')
+        .setLabel('Player subbed out (optional)')
+        .setDescription('Only if someone left and the player above took their seat.')
         .setUserSelectMenuComponent(left),
       new LabelBuilder()
-        .setLabel('Who quit (optional)')
-        .setDescription('Pick anyone who left the game before it ended, to a sub or the AI.')
+        .setLabel('Did they quit? (optional)')
+        .setDescription('Pick everyone who quit. You can pick both.')
         .setStringSelectMenuComponent(quitter),
     );
 }
@@ -462,8 +462,8 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   // sub repointed to someone new starts them unmarked unless the box changed.
   if (chosen.leftQuit !== undefined && !cleared && chosen.leftQuit !== (seat.leaver?.quit ?? false)) {
     const paired = seat.player.is_sub && seat.leaver;
-    if (chosen.leftQuit && !replaced && !paired) return 'Nobody left this seat. Set who the sub came in for before marking their quit.';
-    if (chosen.leftQuit && !replaced && !before) return 'The player who left is unassigned. Set who the sub came in for before marking their quit.';
+    if (chosen.leftQuit && !replaced && !paired) return 'Pick the player subbed out first, then mark that they quit.';
+    if (chosen.leftQuit && !replaced && !before) return 'The player subbed out is not registered. Pick them in the Player subbed out box first.';
     edit.leaver_quit = chosen.leftQuit;
   }
   const units = unitsOf(match);
@@ -534,8 +534,8 @@ function quitChoices(match: Match, names: CivNames, members: Members): APISelect
       const leaver = markableLeaver(s);
       const left = leaver
         ? [{
-            label: fit(`${s.n}. ${nameIn(leaver, members)} (left)`, 100),
-            description: fit(`${nameIn(s.player, members)} came in for them`, 100),
+            label: fit(`${s.n}. ${nameIn(leaver, members)} (subbed out)`, 100),
+            description: fit(`Replaced by ${nameIn(s.player, members)}`, 100),
             value: leftValue(s),
             default: leaver.quit,
           }]
@@ -559,8 +559,8 @@ export function quitsForm(match: Match, names: CivNames, members: Members): Moda
         .setLabel('Players who quit')
         .setDescription(
           full
-            ? 'Pick everyone who quit. Anyone not listed is marked from Edit one seat.'
-            : 'Pick everyone who quit; clear anyone who did not.',
+            ? 'Pick everyone who quit. Anyone not listed is set from Edit one seat.'
+            : 'Pick everyone who quit. Untick anyone who did not.',
         )
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()

@@ -267,7 +267,7 @@ test('the seat form marks the quit of the player who left apart from the seat pl
 
 test('a leaver quit with nobody who left is refused before it is sent', () => {
   const lone = { player: B, place: 1, shown: 1, quit: false, left: null, leftQuit: true };
-  assert.equal(seatEdits(ffa, 2, lone), 'Nobody left this seat. Set who the sub came in for before marking their quit.');
+  assert.equal(seatEdits(ffa, 2, lone), 'Pick the player subbed out first, then mark that they quit.');
   const unregistered = match([
     player({ discord_id: A, placement: 0, team: 0, is_sub: true }),
     player({ discord_id: '-7656', placement: 0, team: 0, subbed_out: true }),
@@ -275,13 +275,13 @@ test('a leaver quit with nobody who left is refused before it is sent', () => {
   ]);
   assert.equal(
     seatEdits(unregistered, 1, { player: A, place: 0, shown: 0, quit: false, left: null, leftQuit: true }),
-    'The player who left is unassigned. Set who the sub came in for before marking their quit.',
+    'The player subbed out is not registered. Pick them in the Player subbed out box first.',
   );
 });
 
 test('the quits form lists the player who left as their own entry, one edit per seat', () => {
   const form = JSON.stringify(quitsForm(ffa, new Map(), new Map([[A, 'Calcifer'], [D, 'Busysnail']]))?.toJSON());
-  assert.match(form, /"label":"1\. Busysnail \(left\)","value":"1-left","description":"Calcifer came in for them","default":false/);
+  assert.match(form, /"label":"1\. Busysnail \(subbed out\)","value":"1-left","description":"Replaced by Calcifer","default":false/);
   assert.deepEqual(quitEdits(ffa, ['1-left']), [{ seat: 0, leaver_quit: true }]);
   assert.deepEqual(quitEdits(ffa, ['1', '1-left']), [{ seat: 0, quit: true, leaver_quit: true }]);
   const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
@@ -342,13 +342,14 @@ test('a quits list longer than a menu holds stops at 25, and seats past it keep 
 test('the seat form asks who played, their place, who they replaced, then who quit', () => {
   const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
   const form = seatForm(marked, 1, new Map([[A, 'Calcifer'], [D, 'Busysnail']]))?.toJSON() as {
-    components: { label: string; component: { options?: { value: string; default?: boolean; description?: string }[] } }[];
+    components: { label: string; component: { max_values?: number; options?: { value: string; default?: boolean; description?: string }[] } }[];
   };
-  assert.deepEqual(form.components.map((c) => c.label), ['Player', 'Place', 'Subbed in for (optional)', 'Who quit (optional)']);
+  assert.deepEqual(form.components.map((c) => c.label), ['Player', 'Place', 'Player subbed out (optional)', 'Did they quit? (optional)']);
   const quit = form.components[3]!.component.options!;
   assert.deepEqual(quit.map((o) => [o.value, o.default]), [['player', false], ['left', true]]);
+  assert.equal(form.components[3]!.component.max_values, 2);
   // The options name the form's boxes: a form cannot update names as they change.
-  assert.equal(quit[1]!.description, 'The player in the Subbed in for box left before the end');
+  assert.equal(quit[1]!.description, 'The player in the subbed out box left early');
 });
 
 // Ninety leaders, as civ6 has, so the picker needs more than one menu.
