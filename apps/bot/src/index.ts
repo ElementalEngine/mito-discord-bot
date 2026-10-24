@@ -29,7 +29,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     }, 10_000);
 
     try {
-      client.destroy();
+      await client.destroy();
       log.info('🔴 Discord client destroyed.');
     } finally {
       clearTimeout(forceExitTimer);

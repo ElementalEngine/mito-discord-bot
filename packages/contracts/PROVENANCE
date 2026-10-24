@@ -1,5 +1,5 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 517848b
+source-sha: 030c22d
 source-date: 2026-10-24
 
 generated-by: npm run gen:contracts
@@ -31,3 +31,5 @@ Bumped at S13.3: season_label on the match, stats and reset answers.
 Bumped at S13.4: affected_players on the reset answer.
 
 Bumped at S13.4: GET /api/v2/seasons/{edition} and POST /api/v2/seasons/{edition}/next.
+
+Bumped at S13.5: the v1 match and stats routes are gone. Nothing Mite uses changed.

@@ -24,91 +24,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/append-message-id-list/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Append Message Id List */
-        put: operations["append_message_id_list_api_v1_append_message_id_list__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/approve-match/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Approve Match */
-        put: operations["approve_match_api_v1_approve_match__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assign-discord-id-all/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Assign Discord Id All */
-        put: operations["assign_discord_id_all_api_v1_assign_discord_id_all__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assign-discord-id/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Assign Discord Id */
-        put: operations["assign_discord_id_api_v1_assign_discord_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assign-sub/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Assign Sub */
-        put: operations["assign_sub_api_v1_assign_sub__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/admin/accounts/discord/{discord_id}": {
         parameters: {
             query?: never;
@@ -273,91 +188,6 @@ export interface paths {
         put?: never;
         /** Complete Registration Session */
         post: operations["complete_registration_session_api_v1_auth_registration_sessions__session_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/change-order/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Change Order */
-        put: operations["change_order_api_v1_change_order__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/contest-report/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Contest Report */
-        put: operations["contest_report_api_v1_contest_report__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/delete-pending-match/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Delete Pending Match */
-        put: operations["delete_pending_match_api_v1_delete_pending_match__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/get-leaderboard-ranking/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Get Leaderboard Ranking */
-        put: operations["get_leaderboard_ranking_api_v1_get_leaderboard_ranking__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/get-match/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Get Match */
-        put: operations["get_match_api_v1_get_match__put"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -530,176 +360,6 @@ export interface paths {
         put?: never;
         /** Unsuspend */
         post: operations["unsuspend_api_v1_infractions__discord_id__unsuspend_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/remove-sub/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Remove Sub */
-        put: operations["remove_sub_api_v1_remove_sub__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/revert-match/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Revert Match */
-        put: operations["revert_match_api_v1_revert_match__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/set-player-order/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set Player Order */
-        put: operations["set_player_order_api_v1_set_player_order__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stats/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get Users Stats Batch */
-        post: operations["get_users_stats_batch_api_v1_stats_batch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stats/reset/user": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Reset User Stats */
-        put: operations["reset_user_stats_api_v1_stats_reset_user_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stats/team-gen": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Get Team Gen */
-        post: operations["get_team_gen_api_v1_stats_team_gen_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stats/user": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get User Stats */
-        get: operations["get_user_stats_api_v1_stats_user_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/trigger-quit/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Trigger Quit */
-        put: operations["trigger_quit_api_v1_trigger_quit__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/update-match/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Match */
-        put: operations["update_match_api_v1_update_match__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/upload-game-report/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload Game Report */
-        post: operations["upload_game_report_api_v1_upload_game_report__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1355,51 +1015,6 @@ export interface components {
             /** Rating Mu */
             rating_mu: number;
         };
-        /** AppendDiscordMessageID */
-        AppendDiscordMessageID: {
-            /** Discord Message Id */
-            discord_message_id: string[];
-            /** Match Id */
-            match_id: string;
-        };
-        /** ApproveMatch */
-        ApproveMatch: {
-            /** Approver Discord Id */
-            approver_discord_id: string;
-            /** Match Id */
-            match_id: string;
-        };
-        /** AssignDiscordId */
-        AssignDiscordId: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Player Discord Id */
-            player_discord_id: string;
-            /** Player Id */
-            player_id: string;
-        };
-        /** AssignDiscordIdAll */
-        AssignDiscordIdAll: {
-            /** Discord Id List */
-            discord_id_list: string[];
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-        };
-        /** AssignSub */
-        AssignSub: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Sub In Id */
-            sub_in_id: string;
-            /** Sub Out Discord Id */
-            sub_out_discord_id: string;
-        };
         /** BatchStatsRequest */
         BatchStatsRequest: {
             /** Civ Version */
@@ -1409,15 +1024,6 @@ export interface components {
             /** Game Type */
             game_type: string;
         };
-        /** BatchStatsResponse */
-        BatchStatsResponse: {
-            /** Civ Version */
-            civ_version: string;
-            /** Game Type */
-            game_type: string;
-            /** Results */
-            results: components["schemas"]["UserStatsResponse"][];
-        };
         /** BatchStatsResponseV2 */
         BatchStatsResponseV2: {
             /** Civ Version */
@@ -1426,25 +1032,6 @@ export interface components {
             game_type: string;
             /** Results */
             results: components["schemas"]["UserStatsResponseV2"][];
-        };
-        /** Body_get_match_api_v1_get_match__put */
-        Body_get_match_api_v1_get_match__put: {
-            /** Match Id */
-            match_id: string;
-        };
-        /** Body_upload_game_report_api_v1_upload_game_report__post */
-        Body_upload_game_report_api_v1_upload_game_report__post: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-            /** Is Cloud */
-            is_cloud: string;
-            /** Reporter Discord Id */
-            reporter_discord_id: string;
         };
         /** Body_upload_match_api_v2_matches_post */
         Body_upload_match_api_v2_matches_post: {
@@ -1465,15 +1052,6 @@ export interface components {
         CancelLobbyRequest: {
             /** Expected Revision */
             expected_revision: number;
-        };
-        /** ChangeOrder */
-        ChangeOrder: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** New Order */
-            new_order: string;
         };
         /**
          * ChangeSeatRequest
@@ -1545,17 +1123,6 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** ContestReportRequest */
-        ContestReportRequest: {
-            /** Contestor Discord Id */
-            contestor_discord_id: string;
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Reason */
-            reason: string;
-        };
         /**
          * CreateLobbyRequest
          * @description Mite's create call. Authoritative guild, channel, host and roster.
@@ -1605,11 +1172,6 @@ export interface components {
             game: components["schemas"]["SupportedGame"];
             /** @default steam */
             platform: components["schemas"]["RegistrationPlatform"];
-        };
-        /** DeletePendingMatch */
-        DeletePendingMatch: {
-            /** Match Id */
-            match_id: string;
         };
         /** DiscordAccountLookupHit */
         DiscordAccountLookupHit: {
@@ -1686,19 +1248,6 @@ export interface components {
          * @enum {string}
          */
         FlatType: "smurf" | "oversub" | "comp";
-        /** GetLeaderboardRequest */
-        GetLeaderboardRequest: {
-            /** Game */
-            game: string;
-            /** Game Mode */
-            game_mode: string;
-            /** Game Type */
-            game_type: string;
-            /** Is Combined */
-            is_combined: boolean;
-            /** Is Seasonal */
-            is_seasonal: boolean;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1896,19 +1445,6 @@ export interface components {
             /** Turn */
             turn: number;
         };
-        /** MatchUpdate */
-        MatchUpdate: {
-            /** Confirmed */
-            confirmed?: boolean | null;
-            /** Flagged */
-            flagged?: boolean | null;
-            /** Flagged By */
-            flagged_by?: string | null;
-            /** Match Id */
-            match_id: string;
-            /** Players */
-            players?: components["schemas"]["PlayerSchema"][] | null;
-        };
         /** ModifyDaysRequest */
         ModifyDaysRequest: {
             /** Days */
@@ -2105,15 +1641,6 @@ export interface components {
             /** Registered At */
             registered_at?: string | null;
         };
-        /** RemoveSub */
-        RemoveSub: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Sub Out Id */
-            sub_out_id: string;
-        };
         /** RemoveTierRequest */
         RemoveTierRequest: {
             category: components["schemas"]["TierCategory"];
@@ -2150,11 +1677,6 @@ export interface components {
             season: components["schemas"]["StatSetV2"];
             /** Season Label */
             season_label?: string | null;
-        };
-        /** RevertMatchRequest */
-        RevertMatchRequest: {
-            /** Match Id */
-            match_id: string;
         };
         /**
          * RoleIntent
@@ -2251,15 +1773,6 @@ export interface components {
             /** Platform Account Name */
             platform_account_name?: string | null;
         };
-        /** SetPlayerOrder */
-        SetPlayerOrder: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Player Order */
-            player_order: string;
-        };
         /**
          * StartLobbyRequest
          * @description The host closes seating and opens the settings vote.
@@ -2275,31 +1788,6 @@ export interface components {
         StartNextSeason: {
             /** Expected */
             expected: string;
-        };
-        /** StatRow */
-        StatRow: {
-            /** First */
-            first: number;
-            /** Games */
-            games: number;
-            /** Lastmodified */
-            lastModified?: string | null;
-            /** Mu */
-            mu: number;
-            /** Sigma */
-            sigma: number;
-            /**
-             * Subbedin
-             * @default 0
-             */
-            subbedIn: number;
-            /**
-             * Subbedout
-             * @default 0
-             */
-            subbedOut: number;
-            /** Wins */
-            wins: number;
         };
         /** StatRowV2 */
         StatRowV2: {
@@ -2325,12 +1813,6 @@ export interface components {
              * @default 0
              */
             subbedOut: number;
-        };
-        /** StatSet */
-        StatSet: {
-            duel?: components["schemas"]["StatRow"] | null;
-            ffa?: components["schemas"]["StatRow"] | null;
-            teamer?: components["schemas"]["StatRow"] | null;
         };
         /** StatSetV2 */
         StatSetV2: {
@@ -2466,15 +1948,6 @@ export interface components {
             /** Tier */
             tier: number;
         };
-        /** TriggerQuit */
-        TriggerQuit: {
-            /** Discord Message Id */
-            discord_message_id: string;
-            /** Match Id */
-            match_id: string;
-            /** Quitter Discord Id */
-            quitter_discord_id: string;
-        };
         /**
          * UploadResponse
          * @description A response model drops undeclared keys, so the duplicate flags are declared.
@@ -2531,17 +2004,6 @@ export interface components {
             /** Turn */
             turn: number;
         };
-        /** UserStatsResponse */
-        UserStatsResponse: {
-            /** Civ Version */
-            civ_version: string;
-            /** Discord Id */
-            discord_id: string;
-            /** Game Type */
-            game_type: string;
-            lifetime: components["schemas"]["StatSet"];
-            season: components["schemas"]["StatSet"];
-        };
         /** UserStatsResponseV2 */
         UserStatsResponseV2: {
             /** Civ Version */
@@ -2589,181 +2051,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    append_message_id_list_api_v1_append_message_id_list__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AppendDiscordMessageID"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_match_api_v1_approve_match__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["ApproveMatch"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_discord_id_all_api_v1_assign_discord_id_all__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AssignDiscordIdAll"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_discord_id_api_v1_assign_discord_id__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AssignDiscordId"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_sub_api_v1_assign_sub__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["AssignSub"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3101,181 +2388,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistrationOperationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    change_order_api_v1_change_order__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["ChangeOrder"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    contest_report_api_v1_contest_report__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["ContestReportRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_pending_match_api_v1_delete_pending_match__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["DeletePendingMatch"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_leaderboard_ranking_api_v1_get_leaderboard_ranking__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["GetLeaderboardRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LeaderboardRankingResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_match_api_v1_get_match__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_get_match_api_v1_get_match__put"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3691,356 +2803,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_sub_api_v1_remove_sub__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["RemoveSub"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    revert_match_api_v1_revert_match__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["RevertMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_player_order_api_v1_set_player_order__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["SetPlayerOrder"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_users_stats_batch_api_v1_stats_batch_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchStatsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_user_stats_api_v1_stats_reset_user_put: {
-        parameters: {
-            query: {
-                civ_version: string;
-                game_type: string;
-                discord_id: string;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_team_gen_api_v1_stats_team_gen_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TeamGenRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TeamGenResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_user_stats_api_v1_stats_user_get: {
-        parameters: {
-            query: {
-                civ_version: string;
-                game_type: string;
-                discord_id: string;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    trigger_quit_api_v1_trigger_quit__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["TriggerQuit"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_match_api_v1_update_match__put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["MatchUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upload_game_report_api_v1_upload_game_report__post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_upload_game_report_api_v1_upload_game_report__post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
             };
             /** @description Validation Error */
             422: {

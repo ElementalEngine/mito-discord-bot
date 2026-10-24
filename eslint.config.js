@@ -77,6 +77,19 @@ export default [
       '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
+  // A promise is awaited, returned or marked void, so no failure goes unseen.
+  {
+    files: ['apps/bot/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: { project: './apps/bot/tsconfig.json', tsconfigRootDir: import.meta.dirname },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        { allowForKnownSafeCalls: [{ from: 'package', name: ['test', 'describe', 'it'], package: 'node:test' }] },
+      ],
+    },
+  },
   // Every Mite message is a ui/kit panel sent through ui/reply.ts.
   {
     files: ['apps/bot/src/**/*.ts'],
