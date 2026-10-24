@@ -7,10 +7,11 @@ import type { HistoryGame, HistoryPage, StatsSummary } from '../../api/types.js'
 import { civLines, historyLine, historyPanel, mapTable, rankAccent, resetPanel, statTable, statsPanel, teamsPanel } from './stats.js';
 
 /**
- * The stats panels read v2's counters (D164). What should break this file:
- * the rating-gain counter shown as a win, a head-to-head mode with a gains
- * column that repeats its wins, a season table on a cloud panel, or a room
- * table cut across a page.
+ * The stats panels count as v1 did: a win is a game that raised the rating,
+ * and 1st is first place. What should break this file: first places shown as
+ * the only wins, a mode without its 1st count, losses or win rate taken from
+ * first places, a season table on a cloud panel, or a
+ * room table cut across a page.
  */
 
 const row = (games: number, first: number, gains: number, mu = 1250): StatRow => ({
@@ -38,16 +39,18 @@ const lineOf = (table: string, label: string): string => {
   return line;
 };
 
-test('wins are first places in every mode; rating gains only in ffa', () => {
+test('wins are games that raised the rating, and 1st shows beside them in every mode', () => {
   const table = statTable(stats().lifetime);
-  assert.match(lineOf(table, 'Wins'), /^Wins\s+10\s+7\s+\u2014$/);
-  assert.match(lineOf(table, 'Rating gains'), /^Rating gains\s+30\s+\u2014\s+\u2014$/);
+  assert.match(lineOf(table, 'Wins'), /^Wins\s+30\s+6\s+\u2014$/);
+  // A teamer sub-in gains on the losing side, so wins and firsts can differ.
+  assert.match(lineOf(table, '1st'), /^1st\s+10\s+7\s+\u2014$/);
+  assert.equal(table.split('\n').filter((l) => /^Rating gains/.test(l)).length, 0);
 });
 
-test('losses and win rate come from first places, never from rating gains', () => {
+test('losses and win rate come from wins, in every mode', () => {
   const table = statTable(stats().lifetime);
-  assert.match(lineOf(table, 'Losses'), /^Losses\s+\u2014\s+3\s+\u2014$/);
-  assert.match(lineOf(table, 'Win %'), /^Win %\s+17%\s+70%\s+\u2014$/);
+  assert.match(lineOf(table, 'Losses'), /^Losses\s+30\s+4\s+\u2014$/);
+  assert.match(lineOf(table, 'Win %'), /^Win %\s+50%\s+60%\s+\u2014$/);
 });
 
 test('a realtime panel shows lifetime and season, a cloud panel lifetime only', () => {
@@ -105,23 +108,26 @@ const summary = (over: Partial<StatsSummary> = {}): StatsSummary => ({
   civ_version: 'civ6',
   game_type: 'realtime',
   maps: [
-    { map_type: 'Seven_Seas', games: 8, wins: 2 },
-    { map_type: 'Pangaea', games: 3, wins: 3 },
+    { map_type: 'Seven_Seas', games: 8, wins: 4, firsts: 2 },
+    { map_type: 'Pangaea', games: 3, wins: 3, firsts: 1 },
   ],
-  civs: [{ token: 'LEADER_TRAJAN', games: 4, wins: 1 }],
+  civs: [{ token: 'LEADER_TRAJAN', games: 4, wins: 2, firsts: 1 }],
   ...over,
 });
 
 const NAMES = new Map([['LEADER_TRAJAN', '<:Trajan:123456789012345678> Trajan']]);
 
-test('maps show games, wins, losses and win rate by first place', () => {
+test('maps show games, first places, wins and win rate by wins', () => {
   const table = mapTable(summary());
-  assert.match(lineOf(table.replace(/^```\n/, ''), 'Seven Seas'), /^Seven Seas\s+8\s+2\s+6\s+25%$/);
-  assert.match(lineOf(table.replace(/^```\n/, ''), 'Pangaea'), /^Pangaea\s+3\s+3\s+0\s+100%$/);
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Seven Seas'), /^Seven Seas\s+8\s+2\s+4\s+50%$/);
+  assert.match(lineOf(table.replace(/^```\n/, ''), 'Pangaea'), /^Pangaea\s+3\s+1\s+3\s+100%$/);
 });
 
 test('the most played list names each pick with its portrait and win rate', () => {
-  assert.equal(civLines(summary(), NAMES), '1. <:Trajan:123456789012345678> Trajan \u00b7 4 games \u00b7 1 wins (25%)');
+  assert.equal(
+    civLines(summary(), NAMES),
+    '1. <:Trajan:123456789012345678> Trajan \u00b7 4 games \u00b7 2 wins (50%) \u00b7 1 first',
+  );
 });
 
 test('the stats panel adds maps, leaders and the rank, and says when a reset started them', () => {

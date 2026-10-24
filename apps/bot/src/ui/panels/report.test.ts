@@ -94,6 +94,20 @@ test('an unassigned seat is marked, and turns the panel orange for staff', () =>
   assert.match(bodyOf(panel), /\*\*For staff\*\*\n.*1 seat is unassigned\. Use Edit to assign it before approving\./);
 });
 
+test('the player who left is named as quitting, and the sub is not marked', () => {
+  const m = match({
+    players: [
+      player({ discord_id: C, is_sub: true }),
+      player({ discord_id: A, subbed_out: true, quit: true }),
+      player({ discord_id: B, placement: 1, team: 1 }),
+    ],
+  });
+  const body = bodyOf(reportPanel({ match: m, names: new Map() }));
+  assert.match(body, new RegExp(`<@${C}> ${MARK.sub} \u2014`));
+  assert.match(body, new RegExp(`${MARK.quit} <@${A}> quit\.`));
+  assert.doesNotMatch(body, new RegExp(`${MARK.quit} <@${C}> quit`));
+});
+
 test('a quit and a sub are marked on the name and spelled out for staff, not on the rating line', () => {
   const m = match({
     players: [

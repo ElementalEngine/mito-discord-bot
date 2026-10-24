@@ -1,5 +1,5 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 9f66f1f
+source-sha: 02afb48
 source-date: 2026-10-24
 
 generated-by: npm run gen:contracts
@@ -23,3 +23,5 @@ Bumped at S13.2: seats carry score, the in-game score a Civ6 save records.
 Bumped at S13.3: GET /api/v2/stats/history and GET /api/v2/stats/summary.
 
 Bumped at S13.3: the reset answer carries after_lifetime and after_season.
+
+Bumped at S13.3: leaver_quit on a seat edit; firsts on the summary records.

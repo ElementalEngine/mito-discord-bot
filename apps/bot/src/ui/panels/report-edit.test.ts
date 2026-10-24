@@ -253,6 +253,92 @@ test('quits are marked in one form, for seats with a player', () => {
   assert.doesNotMatch(JSON.stringify(quitsForm(ffa, new Map(), new Map())?.toJSON()), /Gandhi fan/);
 });
 
+// The sub on seat 1 (A) came in for D. Either, both or neither may have quit.
+test('the seat form marks the quit of the player who left apart from the seat player', () => {
+  const base = { player: A, place: 0, shown: 0, quit: false, left: D };
+  assert.deepEqual(seatEdits(ffa, 1, { ...base, leftQuit: true }), [{ seat: 0, leaver_quit: true }]);
+  assert.deepEqual(seatEdits(ffa, 1, { ...base, quit: true, leftQuit: true }), [{ seat: 0, quit: true, leaver_quit: true }]);
+  assert.deepEqual(seatEdits(ffa, 1, { ...base, leftQuit: false }), []);
+  // A new leaver named in the same form starts unmarked, so ticking sends it.
+  assert.deepEqual(seatEdits(ffa, 1, { ...base, left: C, leftQuit: true }), [{ seat: 0, sub_out: C, leaver_quit: true }]);
+  // Clearing the sub drops the leaver and their mark with it.
+  assert.deepEqual(seatEdits(ffa, 1, { ...base, left: null, leftQuit: true }), [{ seat: 0, sub_out: null }]);
+});
+
+test('a leaver quit with nobody who left is refused before it is sent', () => {
+  const lone = { player: B, place: 1, shown: 1, quit: false, left: null, leftQuit: true };
+  assert.equal(seatEdits(ffa, 2, lone), 'Nobody left this seat. Set who the sub came in for before marking their quit.');
+  const unregistered = match([
+    player({ discord_id: A, placement: 0, team: 0, is_sub: true }),
+    player({ discord_id: '-7656', placement: 0, team: 0, subbed_out: true }),
+    player({ discord_id: B, placement: 1, team: 1 }),
+  ]);
+  assert.equal(
+    seatEdits(unregistered, 1, { player: A, place: 0, shown: 0, quit: false, left: null, leftQuit: true }),
+    'The player who left is unassigned. Set who the sub came in for before marking their quit.',
+  );
+});
+
+test('the quits form lists the player who left as their own entry, one edit per seat', () => {
+  const form = JSON.stringify(quitsForm(ffa, new Map(), new Map([[A, 'Calcifer'], [D, 'Busysnail']]))?.toJSON());
+  assert.match(form, /"label":"1\. Busysnail \(left\)","value":"1-left","description":"Calcifer came in for them","default":false/);
+  assert.deepEqual(quitEdits(ffa, ['1-left']), [{ seat: 0, leaver_quit: true }]);
+  assert.deepEqual(quitEdits(ffa, ['1', '1-left']), [{ seat: 0, quit: true, leaver_quit: true }]);
+  const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
+  assert.deepEqual(quitEdits(marked, []), [{ seat: 0, leaver_quit: false }]);
+});
+
+test('the editor shows a leaver\'s quit beside the leaver, not the sub', () => {
+  const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
+  const text = JSON.stringify(editorPanel(marked, new Map(), new Map(), true).body);
+  assert.match(text, new RegExp(`for <@${D}> \\(\\S+ quit\\)`));
+  assert.doesNotMatch(text, new RegExp(`<@${A}>[^\\n]*\\u00b7 \\S+ quit \\u00b7`));
+});
+
+test('repointing a sub does not hand the old leaver\'s quit to the new one', () => {
+  const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
+  // The box opened ticked for D; left as it was, C starts unmarked.
+  assert.deepEqual(seatEdits(marked, 1, { player: A, place: 0, shown: 0, quit: false, left: C, leftQuit: true }), [{ seat: 0, sub_out: C }]);
+});
+
+test('an unchanged mark on an unregistered leaver does not block the rest of the form', () => {
+  const legacy = match([
+    player({ discord_id: A, placement: 0, team: 0, is_sub: true }),
+    player({ discord_id: '-7656', placement: 0, team: 0, subbed_out: true, quit: true }),
+    player({ discord_id: B, placement: 1, team: 1 }),
+  ]);
+  assert.deepEqual(seatEdits(legacy, 1, { player: A, place: 1, shown: 0, quit: false, left: null, leftQuit: true }), [
+    { seat: 0, placement: 1 },
+    { seat: 2, placement: 0 },
+  ]);
+});
+
+test('a leaver row after a seat not marked as a sub is not offered, as core-api would refuse it', () => {
+  const unpaired = match([
+    player({ discord_id: A, placement: 0, team: 0 }),
+    player({ discord_id: D, placement: 0, team: 0, subbed_out: true }),
+    player({ discord_id: B, placement: 1, team: 1 }),
+  ]);
+  assert.doesNotMatch(JSON.stringify(quitsForm(unpaired, new Map(), new Map())?.toJSON()), /1-left/);
+  assert.deepEqual(quitEdits(unpaired, ['1-left']), []);
+});
+
+test('a quits list longer than a menu holds stops at 25, and seats past it keep their marks', () => {
+  const ids = Array.from({ length: 13 }, (_, i) => String(200000000000000000n + BigInt(i)));
+  const left = Array.from({ length: 13 }, (_, i) => String(300000000000000000n + BigInt(i)));
+  const big = match(
+    ids.flatMap((id, i) => [
+      player({ discord_id: id, placement: i, team: i, is_sub: true }),
+      player({ discord_id: left[i], placement: i, team: i, subbed_out: true, quit: i === 12 }),
+    ]),
+  );
+  const form = quitsForm(big, new Map(), new Map())?.toJSON() as { components: { component: { options: unknown[]; max_values: number } }[] };
+  assert.equal(form.components[0]!.component.options.length, 25);
+  assert.equal(form.components[0]!.component.max_values, 25);
+  // Seat 13's leaver is past the list: an empty pick does not clear their quit.
+  assert.deepEqual(quitEdits(big, []), []);
+});
+
 // Ninety leaders, as civ6 has, so the picker needs more than one menu.
 const leaders = new Map(
   Array.from({ length: 90 }, (_, i): [string, string] => [`LEADER_X${i}`, `${String.fromCharCode(65 + (i % 26))}${i}`]),

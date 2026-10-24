@@ -25,23 +25,22 @@ const LABEL_W = 12;
 const COL_W = 7;
 const DASH = '\u2014';
 
-// A win is first place in every mode. Rating gains count games where the
-// rating went up: about half of all games by construction, so never a win.
-const COUNTERS_NOTE = 'A win is first place. Rating gains count games where the rating went up.';
+// A win is a game that raised the rating, as v1 counted it. It is not always
+// first place: an FFA finish high enough gains, and a sub-in never loses.
+const COUNTERS_NOTE = 'A win is a game that raised your rating; 1st is first place.';
 
-type Line = Readonly<{ label: string; cell: (row: StatRow, mode: Mode) => string }>;
+type Line = Readonly<{ label: string; cell: (row: StatRow) => string }>;
 
 const pct = (part: number, whole: number): string => (whole > 0 ? `${Math.round((100 * part) / whole)}%` : DASH);
-const headToHead = (mode: Mode): boolean => mode !== 'ffa';
 
 const LINES: readonly Line[] = [
   { label: 'Skill', cell: (r) => String(r.mu) },
   { label: 'Sigma', cell: (r) => String(Math.round(r.sigma)) },
   { label: 'Games', cell: (r) => String(r.games) },
-  { label: 'Wins', cell: (r) => String(r.first) },
-  { label: 'Losses', cell: (r, m) => (headToHead(m) ? String(Math.max(0, r.games - r.first)) : DASH) },
-  { label: 'Win %', cell: (r) => pct(r.first, r.games) },
-  { label: 'Rating gains', cell: (r, m) => (headToHead(m) ? DASH : String(r.rating_gains)) },
+  { label: '1st', cell: (r) => String(r.first) },
+  { label: 'Wins', cell: (r) => String(r.rating_gains) },
+  { label: 'Losses', cell: (r) => String(Math.max(0, r.games - r.rating_gains)) },
+  { label: 'Win %', cell: (r) => pct(r.rating_gains, r.games) },
   { label: 'Subbed in', cell: (r) => String(r.subbedIn ?? 0) },
   { label: 'Subbed out', cell: (r) => String(r.subbedOut ?? 0) },
 ];
@@ -55,7 +54,7 @@ export function statTable(set: StatSet): string {
       line.label.padEnd(LABEL_W) +
       MODES.map((m) => {
         const row = set[m];
-        return (row ? line.cell(row, m) : DASH).padStart(COL_W);
+        return (row ? line.cell(row) : DASH).padStart(COL_W);
       }).join(''),
   );
   return ['```', head, ...body, '```'].join('\n');
@@ -75,14 +74,14 @@ const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.n
 const MAP_W = 16;
 const MAX_MAPS = 10;
 
-// Games by map: games, wins and losses by first place, and the win rate.
+// Games by map: first places, wins as the stat tables count them, win rate.
 export function mapTable(summary: StatsSummary): string {
   const rows = summary.maps.slice(0, MAX_MAPS);
-  const head = 'Map'.padEnd(MAP_W) + ['Games', 'Wins', 'Losses', 'Win %'].map((h) => h.padStart(7)).join('');
+  const head = 'Map'.padEnd(MAP_W) + ['Games', '1st', 'Wins', 'Win %'].map((h) => h.padStart(7)).join('');
   const body = rows.map(
     (m) =>
       fit(mapLabel(m.map_type), MAP_W - 1).padEnd(MAP_W) +
-      [String(m.games), String(m.wins), String(m.games - m.wins), pct(m.wins, m.games)].map((c) => c.padStart(7)).join(''),
+      [String(m.games), String(m.firsts), String(m.wins), pct(m.wins, m.games)].map((c) => c.padStart(7)).join(''),
   );
   return ['```', head, ...body, '```'].join('\n');
 }
@@ -92,7 +91,8 @@ export function civLines(summary: StatsSummary, names: CivNames): string {
   return summary.civs
     .map((c, i) => {
       const games = `${c.games} ${c.games === 1 ? 'game' : 'games'}`;
-      return `${i + 1}. ${iconOf(names, c.token)} ${plainNameOf(names, c.token)} \u00b7 ${games} \u00b7 ${c.wins} wins (${pct(c.wins, c.games)})`;
+      const firsts = `${c.firsts} ${c.firsts === 1 ? 'first' : 'firsts'}`;
+      return `${i + 1}. ${iconOf(names, c.token)} ${plainNameOf(names, c.token)} \u00b7 ${games} \u00b7 ${c.wins} wins (${pct(c.wins, c.games)}) \u00b7 ${firsts}`;
     })
     .join('\n');
 }
@@ -232,7 +232,7 @@ export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivName
           ],
         }
       : {}),
-    footer: 'A win is first place; a team game is won or lost by the team.',
+    footer: 'Each game shows its place, or won or lost for a team game or duel, and the rating change.',
   };
 }
 

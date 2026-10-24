@@ -52,6 +52,7 @@ export const FIELD = {
   finished: 'finished',
   quit: 'quit',
   left: 'left',
+  leftQuit: 'leftquit',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
@@ -154,7 +155,7 @@ function seatLine(match: Match, s: Numbered, names: CivNames): string {
     isTeamer(match) ? `team ${p.team + 1}` : null,
     typeof p.score === 'number' ? `score ${p.score}` : null,
     p.quit ? `${MARK.quit} quit` : null,
-    left ? `${MARK.sub} for ${left}` : null,
+    left ? `${MARK.sub} for ${left}${s.leaver?.quit ? ` (${MARK.quit} quit)` : ''}` : null,
   ].filter((x): x is string => x !== null);
   return `\`${s.n}\` ${who} ${civOf(match, p, names)} \u2014 ${facts.join(' \u00b7 ')}`;
 }
@@ -386,19 +387,31 @@ export function seatForm(match: Match, n: number, members: Members): ModalBuilde
         .setDescription(isTeamer(match) ? 'Moves the whole team; the team there takes its place.' : 'Whoever finished there takes this seat\'s place.')
         .setStringSelectMenuComponent(finished),
       new LabelBuilder()
-        .setLabel('Quit')
-        .setDescription('Tick if this player quit the game.')
+        .setLabel('This player quit')
+        .setDescription('Tick if the player above quit, leaving the seat to a sub or the AI.')
         .setCheckboxComponent(new CheckboxBuilder().setCustomId(FIELD.quit).setDefault(seat.player.quit)),
       new LabelBuilder()
         .setLabel('Came in for')
         .setDescription('The player who left, if this seat was taken over by a sub.')
         .setUserSelectMenuComponent(left),
+      new LabelBuilder()
+        .setLabel('The player who left quit')
+        .setDescription('Tick if the player the sub came in for quit.')
+        .setCheckboxComponent(new CheckboxBuilder().setCustomId(FIELD.leftQuit).setDefault(seat.leaver?.quit ?? false)),
     );
 }
 
 // `shown` is the place the form opened with: only a change from it moves the
-// seat, so a form open while others edit does not undo their moves.
-export type SeatChoice = Readonly<{ player: string | null; place: number; shown: number; quit: boolean; left: string | null }>;
+// seat, so a form open while others edit does not undo their moves. `quit` is
+// the seat player's; `leftQuit`, when given, is the quit of the player who left.
+export type SeatChoice = Readonly<{
+  player: string | null;
+  place: number;
+  shown: number;
+  quit: boolean;
+  left: string | null;
+  leftQuit?: boolean;
+}>;
 
 // Only what changed is sent; an empty "came in for" leaves an unregistered
 // leaver as it is. A player or place taken from another seat is swapped.
@@ -423,8 +436,18 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   }
   if (quit !== seat.player.quit) edit.quit = quit;
   const before = idOf(seat.leaver);
-  if (chosen.left && chosen.left !== before) edit.sub_out = chosen.left;
-  else if (!chosen.left && before) edit.sub_out = null;
+  const replaced = Boolean(chosen.left && chosen.left !== before);
+  const cleared = !chosen.left && Boolean(before);
+  if (replaced) edit.sub_out = chosen.left;
+  else if (cleared) edit.sub_out = null;
+  // The box opens as the current leaver's mark, so only a change is sent. A
+  // sub repointed to someone new starts them unmarked unless the box changed.
+  if (chosen.leftQuit !== undefined && !cleared && chosen.leftQuit !== (seat.leaver?.quit ?? false)) {
+    const paired = seat.player.is_sub && seat.leaver;
+    if (chosen.leftQuit && !replaced && !paired) return 'Nobody left this seat. Set who the sub came in for before marking their quit.';
+    if (chosen.leftQuit && !replaced && !before) return 'The player who left is unassigned. Set who the sub came in for before marking their quit.';
+    edit.leaver_quit = chosen.leftQuit;
+  }
   const units = unitsOf(match);
   const places = placesOf(units);
   const mine = unitIdOf(match, seat);
@@ -476,36 +499,75 @@ export function tieEdits(match: Match, place: number, tied: readonly number[]): 
   return placeEdits(units, new Map(groups.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
 }
 
-// Everyone with a player, with who quit already ticked. A seat needs its
-// player before it can be marked.
+const leftValue = (s: Numbered): string => `${s.n}-left`;
+const QUITS_MAX = 25;
+
+// The player a sub came in for, where core-api can mark them: paired to a sub
+// seat and registered.
+const markableLeaver = (s: Seat): Seat['player'] | null =>
+  s.player.is_sub && s.leaver && idOf(s.leaver) ? s.leaver : null;
+
+// Everyone the quits form offers, in seat order: each seat's player, then the
+// player its sub came in for. A menu holds 25; past that, Edit one seat.
+function quitChoices(match: Match, names: CivNames, members: Members): APISelectMenuOption[] {
+  return numbered(match)
+    .flatMap((s) => {
+      const own = idOf(s.player) ? [{ ...seatOption(s, names, members), default: s.player.quit }] : [];
+      const leaver = markableLeaver(s);
+      const left = leaver
+        ? [{
+            label: fit(`${s.n}. ${nameIn(leaver, members)} (left)`, 100),
+            description: fit(`${nameIn(s.player, members)} came in for them`, 100),
+            value: leftValue(s),
+            default: leaver.quit,
+          }]
+        : [];
+      return [...own, ...left];
+    })
+    .slice(0, QUITS_MAX);
+}
+
+// Everyone with a player, and everyone a sub came in for, with who quit
+// already ticked. A seat needs its player before it can be marked.
 export function quitsForm(match: Match, names: CivNames, members: Members): ModalBuilder | null {
-  const seats = numbered(match).filter((s) => idOf(s.player));
-  if (!seats.length) return null;
+  const options = quitChoices(match, names, members);
+  if (!options.length) return null;
+  const full = numbered(match).reduce((n, s) => n + (idOf(s.player) ? 1 : 0) + (markableLeaver(s) ? 1 : 0), 0) > QUITS_MAX;
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.quitsForm, match.match_id))
     .setTitle('Who quit?')
     .addLabelComponents(
       new LabelBuilder()
         .setLabel('Players who quit')
-        .setDescription('Pick everyone who quit; clear anyone who did not.')
+        .setDescription(
+          full
+            ? 'Pick everyone who quit. Anyone not listed is marked from Edit one seat.'
+            : 'Pick everyone who quit; clear anyone who did not.',
+        )
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.quits)
             .setMinValues(0)
-            .setMaxValues(seats.length)
+            .setMaxValues(options.length)
             .setRequired(false)
-            .addOptions(seats.map((s) => ({ ...seatOption(s, names, members), default: s.player.quit }))),
+            .addOptions(options),
         ),
     );
 }
 
+// One edit per seat: its player's quit and its leaver's, as they changed.
+// Only what the form offered is read, so anyone past the list keeps their mark.
 export function quitEdits(match: Match, picked: readonly string[]): SeatEdit[] {
-  return numbered(match)
-    .filter((s) => idOf(s.player))
-    .flatMap((s) => {
-      const quit = picked.includes(String(s.n));
-      return quit === s.player.quit ? [] : [{ seat: s.index, quit }];
-    });
+  const offered = new Set(quitChoices(match, new Map(), new Map()).map((o) => o.value));
+  return numbered(match).flatMap((s) => {
+    const edit: SeatEdit = { seat: s.index };
+    const quit = picked.includes(String(s.n));
+    if (offered.has(String(s.n)) && quit !== s.player.quit) edit.quit = quit;
+    const leaver = markableLeaver(s);
+    const leftQuit = picked.includes(leftValue(s));
+    if (leaver && offered.has(leftValue(s)) && leftQuit !== leaver.quit) edit.leaver_quit = leftQuit;
+    return Object.keys(edit).length > 1 ? [edit] : [];
+  });
 }
 
 // A menu holds 25 options, so a longer list is split A-Z across even menus.

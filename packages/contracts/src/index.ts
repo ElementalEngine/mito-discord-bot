@@ -1472,6 +1472,8 @@ export interface components {
          * @description A civ6 leader token, or a civ7 civ token, and how it went.
          */
         CivRecord: {
+            /** Firsts */
+            firsts: number;
             /** Games */
             games: number;
             /** Token */
@@ -1792,8 +1794,13 @@ export interface components {
             /** Subject Discord Id */
             subject_discord_id: string;
         };
-        /** MapRecord */
+        /**
+         * MapRecord
+         * @description Games on a map, those whose rating went up, and first places.
+         */
         MapRecord: {
+            /** Firsts */
+            firsts: number;
             /** Games */
             games: number;
             /** Map Type */
@@ -2130,6 +2137,8 @@ export interface components {
             discord_id?: string | null;
             /** Leader */
             leader?: string | null;
+            /** Leaver Quit */
+            leaver_quit?: boolean | null;
             /** Placement */
             placement?: number | null;
             /** Quit */
@@ -2239,7 +2248,7 @@ export interface components {
         /**
          * StatsSummary
          * @description Games by map and the most played civs, since the last reset if any.
-         *     A win is first place.
+         *     A win is a game whose rating went up; a first is first place.
          */
         StatsSummary: {
             /** Civ Version */

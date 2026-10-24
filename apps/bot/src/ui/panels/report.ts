@@ -160,6 +160,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
     const unknown = pending ? unknownCiv(match, names, s.player) : null;
     if (unknown) notes.push({ line: `${MARK.civ} ${who(s.player)}: the civ data does not know \`${unknown}\`.`, holds: false });
     if (s.player.quit) notes.push({ line: `${MARK.quit} ${who(s.player)} quit.`, holds: false });
+    if (s.leaver?.quit) notes.push({ line: `${MARK.quit} ${who(s.leaver)} quit.`, holds: false });
     if (s.leaver) notes.push(subNote(s.player, s.leaver, pending ? quotas.get(s.player.discord_id ?? '') : undefined));
   }
   if (pending) {

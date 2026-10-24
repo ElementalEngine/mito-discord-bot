@@ -418,6 +418,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         shown: Number(id.args[2]),
         quit: interaction.fields.getCheckbox(FIELD.quit),
         left: picked(interaction, FIELD.left),
+        leftQuit: interaction.fields.getCheckbox(FIELD.leftQuit),
       };
       await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => {
         const edits = seatEdits(m, at, choice);
