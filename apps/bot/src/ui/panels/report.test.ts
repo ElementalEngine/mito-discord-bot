@@ -72,6 +72,11 @@ test('standings run in placement order with signed deltas', () => {
   assert.equal(panel.footer, 'Reported by <@100000000000000001> \u00b7 <t:1792670400:f>');
 });
 
+test('the season rating change names its season', () => {
+  const body = bodyOf(reportPanel({ match: match({ season_label: 'Season 6' }), names: new Map() }));
+  assert.match(body, /-# \u0394 \+14 lifetime \u00b7 \u0394 \+9 Season 6$/mu);
+});
+
 test('a seat shows the in-game score the save recorded, and nothing where it has none', () => {
   const scored = match({
     players: [

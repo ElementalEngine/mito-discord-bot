@@ -1857,6 +1857,8 @@ export interface components {
             reporter_discord_id: string;
             /** Save File Hash */
             save_file_hash: string;
+            /** Season Label */
+            season_label?: string | null;
             /** Turn */
             turn: number;
         };
@@ -2110,6 +2112,8 @@ export interface components {
             game_type: string;
             lifetime: components["schemas"]["StatSetV2"];
             season: components["schemas"]["StatSetV2"];
+            /** Season Label */
+            season_label?: string | null;
         };
         /** RevertMatchRequest */
         RevertMatchRequest: {
@@ -2433,6 +2437,8 @@ export interface components {
             reporter_discord_id: string;
             /** Save File Hash */
             save_file_hash: string;
+            /** Season Label */
+            season_label?: string | null;
             /** Turn */
             turn: number;
         };
@@ -2457,6 +2463,8 @@ export interface components {
             game_type: string;
             lifetime: components["schemas"]["StatSetV2"];
             season: components["schemas"]["StatSetV2"];
+            /** Season Label */
+            season_label?: string | null;
         };
         /** ValidationError */
         ValidationError: {

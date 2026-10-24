@@ -120,10 +120,10 @@ function summaryBlocks(summary: StatsSummary, names: CivNames): Block[] {
 
 const editionLabel = (civVersion: string): string => civVersion.replace(/^civ/i, 'Civ');
 
-// Lifetime, then season; cloud games keep no seasonal ratings.
-function sections(gameType: string, lifetime: StatSet, season: StatSet, heading = ''): Block[] {
+// Lifetime, then the current season by name; cloud games keep no seasonal ratings.
+function sections(stats: UserStatsResponse, lifetime: StatSet, season: StatSet, heading = ''): Block[] {
   const blocks = [text(`**${heading}Lifetime**\n${statTable(lifetime)}`)];
-  if (gameType !== 'cloud') blocks.push(text(`**${heading}Season**\n${statTable(season)}`));
+  if (stats.game_type !== 'cloud') blocks.push(text(`**${heading}${stats.season_label ?? 'Season'}**\n${statTable(season)}`));
   return blocks;
 }
 
@@ -141,7 +141,7 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
     subtitle: `${editionLabel(stats.civ_version)} \u00b7 ${stats.game_type}`,
     body: [
       text(rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)),
-      ...sections(stats.game_type, stats.lifetime, stats.season),
+      ...sections(stats, stats.lifetime, stats.season),
       ...(summary ? summaryBlocks(summary, names) : []),
     ],
     footer: `${COUNTERS_NOTE}${since}`,
@@ -158,9 +158,9 @@ export function resetPanel(reset: ResetStatsResponse): Panel {
     subtitle: `${editionLabel(reset.civ_version)} \u00b7 ${reset.game_type}`,
     body: [
       text(`${mention(reset.discord_id)}'s stats are reset.`),
-      ...sections(reset.game_type, reset.lifetime, reset.season, 'Before \u00b7 '),
+      ...sections(reset, reset.lifetime, reset.season, 'Before \u00b7 '),
       divider(),
-      ...sections(reset.game_type, reset.after_lifetime, reset.after_season, 'After \u00b7 '),
+      ...sections(reset, reset.after_lifetime, reset.after_season, 'After \u00b7 '),
     ],
     footer: `${COUNTERS_NOTE} After a reset, every mode starts over at the starting skill.`,
   };

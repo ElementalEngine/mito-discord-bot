@@ -66,6 +66,15 @@ test('a realtime panel shows lifetime and season, a cloud panel lifetime only', 
   assert.doesNotMatch(cloud, /\*\*Season\*\*/);
 });
 
+test('the season tables are headed by the current season\'s name', () => {
+  assert.match(JSON.stringify(statsPanel(stats({ season_label: 'Season 6' })).body), /\*\*Season 6\*\*/);
+  const reset = resetPanel({ ...stats({ season_label: 'Season 6' }), after_lifetime: {}, after_season: {} });
+  assert.match(JSON.stringify(reset.body), /Before \u00b7 Season 6/);
+  assert.match(JSON.stringify(reset.body), /After \u00b7 Season 6/);
+  const rows = [{ name: 'A', lifetime: { ffa: 1000, teamer: null, duel: null }, season: { ffa: 1000, teamer: null, duel: null } }];
+  assert.match(formatRoomRanksPages({ realtimeRows: rows, cloudLifetimeRows: null, seasonLabel: 'Season 6' }, 1500)[0] ?? '', /Realtime \u00b7 Season 6/);
+});
+
 test('the panel takes the rank colour of the lifetime ffa rating', () => {
   assert.equal(statsPanel(stats()).accent, 0xf1c40f);
   assert.equal(rankAccent(null), undefined);

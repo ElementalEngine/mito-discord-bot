@@ -63,7 +63,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }));
   const anyCloud = cloudRows.some((r) => Object.values(r.lifetime).some((mu) => mu !== null));
 
-  const pages = formatRoomRanksPages({ realtimeRows, cloudLifetimeRows: anyCloud ? cloudRows : null }, PAGE_LIMIT);
+  const seasonLabel = realtime.results[0]?.season_label;
+  const pages = formatRoomRanksPages({ realtimeRows, cloudLifetimeRows: anyCloud ? cloudRows : null, seasonLabel }, PAGE_LIMIT);
   for (const [i, page] of pages.entries()) {
     await respond(interaction, roomPanel(page, voice.id, members.length, { n: i + 1, of: pages.length }), 'public');
   }

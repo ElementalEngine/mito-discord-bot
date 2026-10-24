@@ -107,7 +107,7 @@ function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string
   // Each rating change carries the delta sign players know from the Elo tables;
   // the in-game score follows where the save recorded one.
   const deltas = [`\u0394 ${signed(p.delta)} lifetime`];
-  if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'combined' : 'season'}`);
+  if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'combined' : (match.season_label ?? 'season')}`);
   if (typeof p.score === 'number') deltas.push(`score ${p.score}`);
   return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }

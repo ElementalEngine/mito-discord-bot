@@ -351,7 +351,7 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
 }
 
 // One seat's whole state in one form: who played it, where it finished,
-// whether they quit, and who they replaced if they came in as a sub.
+// who they replaced if they came in as a sub, and who quit.
 export function seatForm(match: Match, n: number, members: Members): ModalBuilder | null {
   const seat = numbered(match).find((s) => s.n === n);
   if (!seat) return null;
@@ -458,9 +458,10 @@ export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit
   const cleared = !chosen.left && Boolean(before);
   if (replaced) edit.sub_out = chosen.left;
   else if (cleared) edit.sub_out = null;
-  // The box opens as the current leaver's mark, so only a change is sent. A
-  // sub repointed to someone new starts them unmarked unless the box changed.
-  if (chosen.leftQuit !== undefined && !cleared && chosen.leftQuit !== (seat.leaver?.quit ?? false)) {
+  // The quit box means whoever is in the subbed out box: a new leaver takes
+  // it as shown, the same leaver only when it changed.
+  const leftWas = replaced ? false : (seat.leaver?.quit ?? false);
+  if (chosen.leftQuit !== undefined && !cleared && chosen.leftQuit !== leftWas) {
     const paired = seat.player.is_sub && seat.leaver;
     if (chosen.leftQuit && !replaced && !paired) return 'Pick the player subbed out first, then mark that they quit.';
     if (chosen.leftQuit && !replaced && !before) return 'The player subbed out is not registered. Pick them in the Player subbed out box first.';
@@ -560,7 +561,7 @@ export function quitsForm(match: Match, names: CivNames, members: Members): Moda
         .setDescription(
           full
             ? 'Pick everyone who quit. Anyone not listed is set from Edit one seat.'
-            : 'Pick everyone who quit. Untick anyone who did not.',
+            : 'Pick everyone who quit. Remove anyone who did not.',
         )
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()

@@ -295,10 +295,11 @@ test('the editor shows a leaver\'s quit beside the leaver, not the sub', () => {
   assert.doesNotMatch(text, new RegExp(`<@${A}>[^\\n]*\\u00b7 \\S+ quit \\u00b7`));
 });
 
-test('repointing a sub does not hand the old leaver\'s quit to the new one', () => {
+test('a repointed sub\'s quit box marks whoever is now in the subbed out box', () => {
   const marked = match(ffa.players.map((p, i) => (i === 1 ? { ...p, quit: true } : p)));
-  // The box opened ticked for D; left as it was, C starts unmarked.
-  assert.deepEqual(seatEdits(marked, 1, { player: A, place: 0, shown: 0, quit: false, left: C, leftQuit: true }), [{ seat: 0, sub_out: C }]);
+  // The box opened ticked for D. Changed to C, the form saves what it shows.
+  assert.deepEqual(seatEdits(marked, 1, { player: A, place: 0, shown: 0, quit: false, left: C, leftQuit: true }), [{ seat: 0, sub_out: C, leaver_quit: true }]);
+  assert.deepEqual(seatEdits(marked, 1, { player: A, place: 0, shown: 0, quit: false, left: C, leftQuit: false }), [{ seat: 0, sub_out: C }]);
 });
 
 test('an unchanged mark on an unregistered leaver does not block the rest of the form', () => {

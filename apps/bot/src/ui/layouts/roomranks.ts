@@ -129,13 +129,14 @@ function renderTable<T extends { name: string }>(
 type Rows = Readonly<{
   realtimeRows: readonly RoomRanksRow[];
   cloudLifetimeRows: readonly RoomRanksLifetimeRow[] | null;
+  seasonLabel?: string | null;
 }>;
 
-function renderAll({ realtimeRows, cloudLifetimeRows }: Rows): string {
+function renderAll({ realtimeRows, cloudLifetimeRows, seasonLabel }: Rows): string {
   const out: string[] = [];
   out.push('**Realtime \u00b7 lifetime**');
   out.push(renderTable(realtimeRows, (r) => r.lifetime));
-  out.push('**Realtime \u00b7 season**');
+  out.push(`**Realtime \u00b7 ${seasonLabel ?? 'season'}**`);
   out.push(renderTable(realtimeRows, (r) => r.season));
   if (cloudLifetimeRows && cloudLifetimeRows.length > 0) {
     out.push('**Cloud \u00b7 lifetime**');
@@ -158,6 +159,7 @@ export function formatRoomRanksPages(rows: Rows, limit: number): string[] {
     let page = '';
     for (; end > start; end -= 1) {
       page = renderAll({
+        ...rows,
         realtimeRows: realtimeRows.slice(start, end),
         cloudLifetimeRows: cloudLifetimeRows ? cloudLifetimeRows.slice(start, end) : null,
       });
