@@ -1,11 +1,12 @@
 import { GuildMember, InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
-import type { CivVersion, StatSet, UserStatsResponse } from '../../api/types.js';
+import type { StatSet, UserStatsResponse } from '../../api/types.js';
 import { LIMITS } from '../../ui/kit/index.js';
 import { formatRoomRanksPages, type RoomRanksLifetimeRow, type RoomRanksRow } from '../../ui/layouts/roomranks.js';
 import { roomPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
+import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { STATS_POLICY } from '../../utils/stats-options.js';
 
@@ -27,19 +28,13 @@ export const data = new SlashCommandBuilder()
   .setName('roomranks')
   .setDescription('Show stats for everyone currently in your voice channel.')
   .setContexts(InteractionContextType.Guild)
-  .addStringOption((opt) =>
-    opt
-      .setName('version')
-      .setDescription('civ6 or civ7')
-      .setRequired(true)
-      .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
-  );
+  .addStringOption(editionOption);
 
 export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
-  const civVersion: CivVersion = interaction.options.getString('version', true) === 'civ7' ? 'civ7' : 'civ6';
+  const civVersion = editionOf(interaction);
   if (!(interaction.member instanceof GuildMember)) refuse('Run /roomranks in the server, not in a DM.');
   const voice = interaction.member.voice.channel;
   if (!voice) refuse('Join a voice channel first, then run /roomranks.');

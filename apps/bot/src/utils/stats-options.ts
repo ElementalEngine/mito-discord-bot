@@ -2,6 +2,7 @@ import type { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.j
 
 import type { CivVersion, StatsGameType } from '../api/types.js';
 import { config } from '../config.js';
+import { editionOf, editionOption } from './edition.js';
 
 const STATS_CHANNELS = [
   config.discord.channels.botTesting,
@@ -20,13 +21,7 @@ export const STATS_POLICY = {
 // The options /stats and /stats-history share: which game, which mode, whose.
 export function withStatsOptions(builder: SlashCommandBuilder, whose: string): SlashCommandBuilder {
   builder
-    .addStringOption((opt) =>
-      opt
-        .setName('edition')
-        .setDescription('civ6 or civ7')
-        .setRequired(true)
-        .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
-    )
+    .addStringOption(editionOption)
     .addStringOption((opt) =>
       opt
         .setName('mode')
@@ -42,7 +37,7 @@ export type StatsAsk = Readonly<{ civVersion: CivVersion; mode: StatsGameType; t
 
 export function statsAskOf(interaction: ChatInputCommandInteraction): StatsAsk {
   return {
-    civVersion: interaction.options.getString('edition', true) === 'civ7' ? 'civ7' : 'civ6',
+    civVersion: editionOf(interaction),
     mode: interaction.options.getString('mode', true) === 'cloud' ? 'cloud' : 'realtime',
     target: (interaction.options.getUser('user') ?? interaction.user).id,
   };

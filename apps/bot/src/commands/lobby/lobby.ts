@@ -6,6 +6,7 @@ import { config } from '../../config.js';
 import { lobbyLabel, lobbyListPanel, lobbyOpenPanel } from '../../ui/panels/lobby.js';
 import { fail, postPanel, refuse, respond, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
+import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const api = new ApiClient();
@@ -48,9 +49,7 @@ export const data = new SlashCommandBuilder()
     sub
       .setName('create')
       .setDescription('Open a lobby and take the host seat.')
-      .addStringOption((o) =>
-        o.setName('game').setDescription('Edition').setRequired(true)
-          .addChoices({ name: 'Civ6', value: 'civ6' }, { name: 'Civ7', value: 'civ7' }))
+      .addStringOption(editionOption)
       .addStringOption((o) =>
         o.setName('mode').setDescription('Game mode').setRequired(true)
           .addChoices(...MODES.map((m) => ({ name: m.label, value: m.value }))))
@@ -114,7 +113,7 @@ async function runBrowse(interaction: ChatInputCommandInteraction): Promise<void
 }
 
 async function runCreate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const game = interaction.options.getString('game', true) as Game;
+  const game: Game = editionOf(interaction);
   const chosen = MODES.find((m) => m.value === interaction.options.getString('mode', true));
   if (!chosen) refuse('That mode is not offered. Pick one from the list.');
   if (!(await ensureCommandAccess(interaction, { allowedChannelIds: allowedChannels(game, chosen.gameType) }))) return;

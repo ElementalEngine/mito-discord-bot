@@ -17,6 +17,7 @@ import type {
   TeamGenResponse,
   StatsSummary,
   HistoryPage,
+  ResetStatsResponse,
 } from './types.js';
 
 type FetchLike = typeof fetch;
@@ -97,7 +98,7 @@ export class ApiClient {
     return (await this.parseJson(res)) as BatchStatsResponse;
   }
 
-  async resetUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<UserStatsResponse> {
+  async resetUserStats(civVersion: CivVersion, gameType: StatsGameType, discordId: string): Promise<ResetStatsResponse> {
     const params = new URLSearchParams({
       civ_version: civVersion,
       game_type: gameType,
@@ -108,7 +109,7 @@ export class ApiClient {
       method: "PUT",
     });
 
-    return (await this.parseJson(res)) as UserStatsResponse;
+    return (await this.parseJson(res)) as ResetStatsResponse;
   }
 
   // Games by map and the most played civs, since the player's last reset.

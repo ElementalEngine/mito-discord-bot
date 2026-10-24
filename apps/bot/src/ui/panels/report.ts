@@ -54,9 +54,11 @@ export function reportLabel(match: Match): string {
   return `${match.game.toLowerCase() === 'civ7' ? 'Civ7' : 'Civ6'} ${match.is_cloud ? 'PBC ' : ''}${shown}`;
 }
 
-// Saves store a map file name such as Seven_Seas, or a name already.
+// Saves store a map file name such as Seven_Seas, a name already, or a map
+// script's path, which reads as its file name.
 export function mapLabel(map: string): string {
-  return /_/.test(map) && !/\s/.test(map) ? pretty(map) : map;
+  const file = map.split(/[\\/]/).pop()?.replace(/\.(lua|civ6map|civ7map|xml)$/i, '') || map;
+  return /_/.test(file) && !/\s/.test(file) ? pretty(file) : file;
 }
 
 // Saves store an age token; older documents hold a display name.

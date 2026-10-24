@@ -191,6 +191,8 @@ test('ids and words', () => {
   assert.equal(mapLabel('pangaea_ultima'), 'Pangaea Ultima');
   assert.equal(mapLabel('Seven_Seas'), 'Seven Seas');
   assert.equal(mapLabel('Seven Seas'), 'Seven Seas');
+  assert.equal(mapLabel('../../Assets/Maps/Pangaea_Ultima'), 'Pangaea Ultima');
+  assert.equal(mapLabel('..\\Maps\\Lakes.lua'), 'Lakes');
 });
 
 test('a revert names whose ratings came back', () => {

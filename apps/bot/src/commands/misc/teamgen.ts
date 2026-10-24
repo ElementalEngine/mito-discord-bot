@@ -1,10 +1,10 @@
 import { GuildMember, InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
-import type { CivVersion } from '../../api/types.js';
 import { config } from '../../config.js';
 import { teamsPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
+import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { normalizePlayerList } from '../../utils/player-list.js';
 
@@ -32,13 +32,7 @@ export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('teamgen')
   .setDescription('Create two balanced teams to compete.')
-  .addStringOption((opt) =>
-    opt
-      .setName('version')
-      .setDescription('civ6 or civ7')
-      .setRequired(true)
-      .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
-  )
+  .addStringOption(editionOption)
   .addStringOption((opt) =>
     opt
       .setName('discord-ids')
@@ -68,7 +62,7 @@ function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): st
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
-  const civVersion: CivVersion = interaction.options.getString('version', true) === 'civ7' ? 'civ7' : 'civ6';
+  const civVersion = editionOf(interaction);
   const cloud = interaction.channelId === config.discord.channels.cloudCommands;
   const ids = playersOf(interaction, cloud);
   const result = await api.getTeamGen(civVersion, cloud ? 'cloud' : 'realtime', ids);

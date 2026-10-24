@@ -2087,6 +2087,23 @@ export interface components {
             /** Was Changed */
             was_changed: boolean;
         };
+        /**
+         * ResetStatsResponseV2
+         * @description A reset's answer: the stats as they stood before it, and as they start
+         *     again after it -- every mode that had a row, back at the starting rating.
+         */
+        ResetStatsResponseV2: {
+            after_lifetime: components["schemas"]["StatSetV2"];
+            after_season: components["schemas"]["StatSetV2"];
+            /** Civ Version */
+            civ_version: string;
+            /** Discord Id */
+            discord_id: string;
+            /** Game Type */
+            game_type: string;
+            lifetime: components["schemas"]["StatSetV2"];
+            season: components["schemas"]["StatSetV2"];
+        };
         /** RevertMatchRequest */
         RevertMatchRequest: {
             /** Match Id */
@@ -4936,7 +4953,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserStatsResponseV2"];
+                    "application/json": components["schemas"]["ResetStatsResponseV2"];
                 };
             };
             /** @description Validation Error */

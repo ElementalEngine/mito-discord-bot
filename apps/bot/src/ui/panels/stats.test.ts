@@ -65,10 +65,15 @@ test('the panel takes the rank colour of the lifetime ffa rating', () => {
   assert.equal(statsPanel(stats({ lifetime: {} })).accent, undefined);
 });
 
-test('a reset shows the stats as they stood before it', () => {
-  const panel = resetPanel(stats());
+test('a reset shows the stats before it, then as they start again', () => {
+  const fresh = { mu: 1200, sigma: 8, games: 0, first: 0, rating_gains: 0, subbedIn: 0, subbedOut: 0 };
+  const panel = resetPanel({ ...stats(), after_lifetime: { ffa: fresh }, after_season: { ffa: fresh } });
   assert.equal(panel.tone, 'success');
-  assert.match(JSON.stringify(panel.body), /Before the reset/);
+  const body = JSON.stringify(panel.body);
+  assert.ok(body.indexOf('Before \u00b7 Lifetime') < body.indexOf('After \u00b7 Lifetime'));
+  assert.match(body, /Before \u00b7 Lifetime/);
+  assert.match(body, /Before \u00b7 Season/);
+  assert.match(body, /After \u00b7 Season/);
 });
 
 test('teams list their players and the match quality', () => {

@@ -2,10 +2,11 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
-import type { CivVersion, StatsGameType } from '../../api/types.js';
+import type { StatsGameType } from '../../api/types.js';
 import { config } from '../../config.js';
 import { resetPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
+import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const api = new ApiClient();
@@ -26,13 +27,7 @@ export const data = new SlashCommandBuilder()
   .setName('resetstats')
   .setDescription('Reset stats of a player.')
   .setContexts(InteractionContextType.Guild)
-  .addStringOption((opt) =>
-    opt
-      .setName('game')
-      .setDescription('civ6 or civ7')
-      .setRequired(true)
-      .addChoices({ name: 'civ6', value: 'civ6' }, { name: 'civ7', value: 'civ7' }),
-  )
+  .addStringOption(editionOption)
   .addStringOption((opt) =>
     opt
       .setName('mode')
@@ -46,7 +41,7 @@ export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
-  const civVersion: CivVersion = interaction.options.getString('game', true) === 'civ7' ? 'civ7' : 'civ6';
+  const civVersion = editionOf(interaction);
   const mode: StatsGameType = interaction.options.getString('mode', true) === 'cloud' ? 'cloud' : 'realtime';
   const target = interaction.options.getUser('user', true);
   const before = await api.resetUserStats(civVersion, mode, target.id).catch((error: unknown) => {

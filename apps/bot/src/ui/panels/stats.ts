@@ -1,9 +1,10 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
 
-import type { CivVersion, HistoryGame, HistoryPage, StatRow, StatSet, StatsSummary, TeamGenResponse, UserStatsResponse } from '../../api/types.js';
+import type { CivVersion, HistoryGame, HistoryPage, ResetStatsResponse, StatRow, StatSet, StatsSummary, TeamGenResponse, UserStatsResponse } from '../../api/types.js';
 import { RANK_DEFS_CIV6 } from '../../config/constants.js';
 import {
   customId,
+  divider,
   fit,
   iconOf,
   mention,
@@ -105,10 +106,10 @@ function summaryBlocks(summary: StatsSummary, names: CivNames): Block[] {
 
 const editionLabel = (civVersion: string): string => civVersion.replace(/^civ/i, 'Civ');
 
-function sections(stats: UserStatsResponse): Block[] {
-  const blocks = [text(`**Lifetime**\n${statTable(stats.lifetime)}`)];
-  // Cloud games keep no seasonal ratings.
-  if (stats.game_type !== 'cloud') blocks.push(text(`**Season**\n${statTable(stats.season)}`));
+// Lifetime, then season; cloud games keep no seasonal ratings.
+function sections(gameType: string, lifetime: StatSet, season: StatSet, heading = ''): Block[] {
+  const blocks = [text(`**${heading}Lifetime**\n${statTable(lifetime)}`)];
+  if (gameType !== 'cloud') blocks.push(text(`**${heading}Season**\n${statTable(season)}`));
   return blocks;
 }
 
@@ -126,7 +127,7 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
     subtitle: `${editionLabel(stats.civ_version)} \u00b7 ${stats.game_type}`,
     body: [
       text(rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)),
-      ...sections(stats),
+      ...sections(stats.game_type, stats.lifetime, stats.season),
       ...(summary ? summaryBlocks(summary, names) : []),
     ],
     footer: `${COUNTERS_NOTE}${since}`,
@@ -134,15 +135,20 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
   };
 }
 
-// A reset answers with the stats as they stood before it.
-export function resetPanel(before: UserStatsResponse): Panel {
+// A reset shows the stats as they stood, then as they start again.
+export function resetPanel(reset: ResetStatsResponse): Panel {
   return {
     tone: 'success',
     surface: 'stats',
     title: 'Stats reset',
-    subtitle: `${editionLabel(before.civ_version)} \u00b7 ${before.game_type}`,
-    body: [text(`${mention(before.discord_id)}'s stats are reset. Before the reset:`), ...sections(before)],
-    footer: COUNTERS_NOTE,
+    subtitle: `${editionLabel(reset.civ_version)} \u00b7 ${reset.game_type}`,
+    body: [
+      text(`${mention(reset.discord_id)}'s stats are reset.`),
+      ...sections(reset.game_type, reset.lifetime, reset.season, 'Before \u00b7 '),
+      divider(),
+      ...sections(reset.game_type, reset.after_lifetime, reset.after_season, 'After \u00b7 '),
+    ],
+    footer: `${COUNTERS_NOTE} After a reset every mode starts again from the starting skill.`,
   };
 }
 
