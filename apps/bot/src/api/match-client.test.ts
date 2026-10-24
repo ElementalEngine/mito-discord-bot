@@ -3,13 +3,6 @@ import assert from 'node:assert/strict';
 
 import { ApiClient } from './client.js';
 
-/**
- * C1 from Mite's side: each call's verb, path, actor headers and body.
- * What should break this file: a write sent without its actor, staff
- * asserted when the caller is not staff, or a match id reaching the path
- * unescaped.
- */
-
 type Call = { url: string; method: string; headers: Headers; body: unknown };
 
 function recorder(answer: unknown = {}): { client: ApiClient; calls: Call[] } {

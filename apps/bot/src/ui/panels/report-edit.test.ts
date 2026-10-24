@@ -22,12 +22,6 @@ import {
   type Members,
 } from './report-edit.js';
 
-/**
- * The report editor. What should break this file: an order that skips or
- * repeats a seat reaching core-api, a sub's leaver row counted as a seat, or
- * a seat form that sends fields nobody changed.
- */
-
 const A = '100000000000000001';
 const B = '100000000000000002';
 const C = '100000000000000003';

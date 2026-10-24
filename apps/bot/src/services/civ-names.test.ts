@@ -7,11 +7,6 @@ import type { ApiClient } from '../api/index.js';
 import type { CivDataResponse } from '../api/types.js';
 import { civNames, editionOf, forgetCivNames, loadAppEmojis } from './civ-names.js';
 
-/**
- * Display names, cached per edition. What should break this file: a fetch
- * on every panel, or a core-api outage taking the panel down with it.
- */
-
 const data = {
   edition: 'civ6',
   leader_data_version: 3,

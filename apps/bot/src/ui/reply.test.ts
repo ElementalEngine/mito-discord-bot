@@ -4,12 +4,6 @@ import assert from 'node:assert/strict';
 import { ApiError } from '../api/errors.js';
 import { Refusal, failureOf } from './reply.js';
 
-/**
- * What a user reads when something goes wrong. What should break this file:
- * a raw response body reaching Discord, a refusal logged as an error, or a
- * bug shown without the incident id that finds it in the journal.
- */
-
 const envelope = (code: string, message: string, retryable: boolean, correlation_id?: string) => ({
   detail: { error: { code, message, retryable, ...(correlation_id ? { correlation_id } : {}) } },
 });

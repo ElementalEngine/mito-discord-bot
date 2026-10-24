@@ -1,6 +1,5 @@
-// Regenerates packages/contracts/src from the vendored OpenAPI spec.
-// --check re-generates in memory and fails on any diff (D98, C12).
-// Reads the VENDORED spec only: no network, no live core-api.
+// Regenerates packages/contracts/src from the vendored OpenAPI spec, offline.
+// --check regenerates in memory and fails on any diff.
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -6,14 +6,6 @@ import { formatRoomRanksPages } from '../layouts/roomranks.js';
 import type { HistoryGame, HistoryPage, StatsSummary } from '../../api/types.js';
 import { civLines, historyLine, historyPanel, mapTable, rankAccent, resetPanel, statTable, statsPanel, teamsPanel } from './stats.js';
 
-/**
- * The stats panels count as v1 did: a win is a game that raised the rating,
- * and 1st is first place. What should break this file: first places shown as
- * the only wins, a mode without its 1st count, losses or win rate taken from
- * first places, a season table on a cloud panel, or a
- * room table cut across a page.
- */
-
 const row = (games: number, first: number, gains: number, mu = 1250): StatRow => ({
   mu,
   sigma: 8.4,

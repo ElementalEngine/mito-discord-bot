@@ -5,7 +5,7 @@ import type { Runtime } from './platform/runtime.js';
 
 const KEY = 'cpl:session';
 
-// sessionStorage only, per C9. A tab closing ends the session.
+// sessionStorage only: a tab closing ends the session.
 export const store: TokenStore = {
   get: () => sessionStorage.getItem(KEY),
   set: (token) => sessionStorage.setItem(KEY, token),

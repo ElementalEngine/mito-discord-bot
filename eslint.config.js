@@ -3,14 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 
-/**
- * Minimal, stable ESLint 9 flat config.
- * - Parses TypeScript
- * - Applies @typescript-eslint recommended rules
- * - Disables formatting rules via eslint-config-prettier
- *
- * Important: keep lint low-friction (no repo-wide refactors required).
- */
+// TypeScript on the recommended rules, with formatting left to Prettier.
 const KIT = 'Build messages with ui/kit and send them through ui/reply.ts.';
 const KIT_ONLY = [
   "NewExpression[callee.name='EmbedBuilder']",

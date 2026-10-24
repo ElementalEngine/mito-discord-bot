@@ -3,12 +3,6 @@ import assert from 'node:assert/strict';
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 
-/**
- * Moderators pass every command's role check unless the command opts out.
- * What should break this file: a moderator running /resetstats or /get-users,
- * or a command that keeps the default no longer letting a moderator through.
- */
-
 const MOD = '100000000000000001';
 const DEV = '100000000000000002';
 const NOVICE = '100000000000000003';

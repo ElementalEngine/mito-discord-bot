@@ -5,7 +5,7 @@ export type Edition = CivEdition;
 
 export type LeaderboardRanking = components['schemas']['LeaderboardRankingResponse'];
 
-// ── Stats (C2, /api/v2/stats)
+// ── Stats (/api/v2/stats)
 
 export type CivVersion = Lowercase<Edition>;
 export type StatsGameType = GameMode;
@@ -50,7 +50,7 @@ export type LobbyDocument = {
 // One edition's leaders and civs, as core-api serves them.
 export type CivDataResponse = components['schemas']['CivDataResponse'];
 
-// C1, the v2 match surface, as core-api declares it.
+// The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];
 export type MatchUpload = components['schemas']['UploadResponse'];
 export type SeatEdit = components['schemas']['SeatPatchIn'];

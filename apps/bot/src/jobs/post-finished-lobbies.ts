@@ -10,9 +10,8 @@ import { log } from '../utils/log.js';
 const INTERVAL_MS = 15_000;
 const MAX_PER_TICK = 10;
 
-// Mite polls core-api for finished lobbies nobody has posted (P4: no
-// inbound listener on the bot). claim-post hands each one over exactly
-// once, so a lobby is posted once even if two ticks overlap.
+// Mite polls for finished lobbies rather than listening for them. claim-post
+// hands each over once, so a lobby is posted once even if two ticks overlap.
 async function postFinishedLobbies(client: Client, api: ApiClient): Promise<void> {
   for (let i = 0; i < MAX_PER_TICK; i += 1) {
     const lobby = await api.claimLobbyPost(config.discord.guildId);

@@ -1,21 +1,7 @@
 import type { ApiErrorPayload } from "@cpl/core";
 
-/**
- * Reads core-api's error envelope off a response body, or returns null.
- *
- * Two shapes are accepted: core-api sends `{detail:{error}}`, and the bare
- * `{error}` is what LadyJustice already tolerates for forward compatibility.
- * Matching that here costs one `??` and keeps both clients reading the wire
- * the same way.
- *
- * Null means no envelope: a proxy's error page, or a v1 route, which raises
- * HTTPException(400, str(exc)) with none. A caller that gets null has learned
- * nothing about retryability and must fall back to the transport rule.
- *
- * Both `code` and `retryable` are required. A half-envelope is treated as
- * no envelope rather than guessed at -- `retryable` drives a real decision
- * and defaulting it either way would be inventing contract.
- */
+// Reads core-api's error envelope, `{detail:{error}}` or a bare `{error}`, or null.
+// A half-envelope is null too: `retryable` decides a retry and is never guessed.
 export function parseApiError(body: unknown): ApiErrorPayload | null {
   if (typeof body !== "object" || body === null) return null;
 

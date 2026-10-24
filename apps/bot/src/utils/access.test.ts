@@ -3,12 +3,6 @@ import assert from 'node:assert/strict';
 
 import { holdsAny } from './access.js';
 
-/**
- * Staff is a fact Mite asserts to core-api, so a wrong answer grants an
- * approve or a tie. What should break this file: an unset role id (an empty
- * env value) matching anyone.
- */
-
 test('a held role matches', () => {
   assert.equal(holdsAny(new Set(['111', '222']), ['333', '222']), true);
 });

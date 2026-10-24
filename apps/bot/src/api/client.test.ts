@@ -4,16 +4,6 @@ import assert from "node:assert/strict";
 import { ApiClient } from "./client.js";
 import { ApiError } from "./errors.js";
 
-/**
- * D93's retry rule. Fifteen of this client's nineteen calls are PUTs that
- * approve, revert or mutate a match, so the question these tests answer is
- * not "does it retry" but "does it decline to retry a write whose outcome
- * we never learned".
- *
- * What should break this file: retrying a transport failure on anything
- * but GET, or ignoring an envelope that says retryable false.
- */
-
 const envelope = (code: string, retryable: boolean) => ({
   detail: { error: { code, message: "", retryable } },
 });

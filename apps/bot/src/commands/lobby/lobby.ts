@@ -38,9 +38,8 @@ const MODES: readonly ModeChoice[] = [
   { label: 'CWC 5v5', value: 'cwc-5v5', gameType: 'teamer', teams: 2, teamSize: 5, draftMode: 'cwc' },
 ];
 
-// Edition and mode are data, not structure: Discord allows three levels of
-// nesting and the verbs need them. The combinations are checked here, where
-// a refusal can say why.
+// Edition and mode are options, not subcommands, since Discord nests only three
+// levels. Their combinations are checked here, where a refusal can say why.
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('lobby')

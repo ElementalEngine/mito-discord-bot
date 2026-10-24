@@ -6,11 +6,6 @@ import { ComponentType } from 'discord.js';
 import { container } from '../kit/index.js';
 import { coinPanel, membersPanel, seedPanel } from './misc.js';
 
-/**
- * The small commands' panels. What should break this file: a seed that does
- * not copy as one token, or an export whose file is not shown on the panel.
- */
-
 test('a coin flip states the side', () => {
   const json = container(coinPanel('tails')).toJSON();
   const all = JSON.stringify(json);

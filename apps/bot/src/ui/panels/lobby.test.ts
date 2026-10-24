@@ -5,12 +5,6 @@ import type { CivDataResponse, LobbyDocument } from '../../api/types.js';
 import { civNamesOf, container, type Panel } from '../kit/index.js';
 import { BROWSE_LOBBIES_ID, lobbyDonePanel, lobbyLabel, lobbyListPanel, lobbyOpenPanel, openLobbyId } from './lobby.js';
 
-/**
- * The lobby panels. What should break this file: posting tokens when names
- * are known, a missing civ-data row taking the summary down, or a button id
- * that old posted lobbies no longer match.
- */
-
 const done = (over: Partial<LobbyDocument> = {}): LobbyDocument =>
   ({
     _id: '652f1a2b3c4d5e6f7a8b9c0d',

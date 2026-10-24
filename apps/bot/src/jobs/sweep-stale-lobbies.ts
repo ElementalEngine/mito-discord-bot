@@ -3,9 +3,8 @@ import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 15 * 60_000;
 
-// An hour-old lobby nobody touched blocks every player seated in it, because
-// a player holds one seat at a time. The sweep is the outer bound; a host or
-// staff member who knows it is dead uses /lobby cancel instead.
+// An hour-old untouched lobby blocks everyone seated in it, since a player holds
+// one seat at a time. A host or staff member who knows it is dead cancels it.
 export function startSweepStaleLobbiesJob(): () => void {
   const api = new ApiClient();
   let running = false;

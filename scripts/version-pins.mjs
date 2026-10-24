@@ -1,12 +1,10 @@
-// D12 fleet version alignment, enforced across this repo's manifests.
-// Auth and LJ are Wave 2 (D40) and are NOT checked here: they are frozen,
-// so a check spanning them would go red on repos Wave 1 may not touch,
-// and reading them would need the cross-repo plumbing D98 rejects.
+// The fleet's shared versions, checked across this repo's manifests only: the
+// other bots' repos are not read.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-// Deps where three copies drifting apart is itself the bug (D12, D58).
+// Deps where three copies drifting apart is itself the bug.
 export const FLEET_DEPS = ['discord.js', '@discordjs/rest', 'undici'];
 
 export const MANIFESTS = [

@@ -20,9 +20,8 @@ type Props = {
 
 const SEPARATOR = '|';
 
-// A ballot must answer every question: one unanswered question sends that
-// question to its default for everyone. So a choice can be swapped, never
-// emptied, and a full multi-choice drops its oldest pick.
+// An unanswered question goes to its default for everyone, so a choice can be
+// swapped but never emptied, and a full multi-choice drops its oldest pick.
 export const choose = (current: string, option: string, max: number): string => {
   const chosen = current ? current.split(SEPARATOR) : [];
   if (max <= 1) return option;

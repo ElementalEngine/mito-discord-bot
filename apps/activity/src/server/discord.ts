@@ -23,9 +23,8 @@ async function call(url: string, init: RequestInit): Promise<Response | null> {
   }
 }
 
-// The SDK code, exchanged and resolved to a guild member in three calls.
-// Membership is verified here and nowhere else; the token that comes out
-// of the mint is only as trustworthy as this.
+// The SDK code, exchanged and resolved to a guild member. Membership is verified
+// here and nowhere else, so the minted token is only as trustworthy as this.
 export async function resolveMember(app: DiscordApp, code: string): Promise<Resolved> {
   const exchange = await call(`${app.baseUrl}/oauth2/token`, {
     method: 'POST',

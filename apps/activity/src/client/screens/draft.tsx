@@ -12,11 +12,8 @@ type Props = {
   act: (method: string, path: string, body: unknown) => Promise<unknown>;
 };
 
-// Two drafts share this screen. Standard and blind deal every seat its own
-// pool and keep each pick private until all are in. Cwc deals one shared pool
-// and the two captains pick in turn, in public, for their teams. Either way a
-// pick is a leader, plus a civ where civs were dealt (civ7), chosen and then
-// locked in together: the server takes one submission per pick.
+// Standard and blind give each seat its own pool and keep picks private until all
+// are in; cwc shares one pool and the captains pick in turn. A pick is sent once.
 export function DraftScreen({ civData, lobby, me, mine, act }: Props) {
   const [leader, setLeader] = useState<string | null>(null);
   const [civ, setCiv] = useState<string | null>(null);

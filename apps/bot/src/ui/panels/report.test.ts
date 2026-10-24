@@ -6,12 +6,6 @@ import { container, type Panel } from '../kit/index.js';
 import { MARK, ageLabel, duplicateText, mapLabel, ordinal, playerIds, reportId, reportLabel, reportPanel, revertedPanel } from './report.js';
 import { editorPanel } from './report-edit.js';
 
-/**
- * The report panel: one message, edited in place. What should break this
- * file: a standing out of placement order, a sub shown as its own seat, a
- * report needing staff that does not say so, or buttons on an approved one.
- */
-
 const ID = '652f1a2b3c4d5e6f7a8b9c0d';
 const A = '100000000000000001';
 const B = '100000000000000002';

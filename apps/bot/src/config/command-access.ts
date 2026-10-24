@@ -2,9 +2,8 @@ import { ApplicationCommandPermissionType, type ApplicationCommandPermissions } 
 
 import { config } from '../config.js';
 
-// Who may run each command, and where. Discord's Integrations settings hold the
-// live rules, set by an admin from this table; startup logs any difference.
-// Every command needs a ranked role: unverified members see only Auth's.
+// Who may run each command, and where. An admin sets Discord's Integrations from
+// this table and startup logs any difference; every command needs a ranked role.
 type Channel = keyof typeof config.discord.channels;
 type Role = keyof typeof config.discord.roles;
 

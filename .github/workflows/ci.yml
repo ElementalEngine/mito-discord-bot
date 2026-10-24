@@ -34,8 +34,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      # D98 / C12: regenerate from the VENDORED spec and diff against the
-      # committed types. No network, no live core-api. Catches hand edits,
-      # partial commits, and regenerating without committing.
+      # Regenerates from the vendored spec, offline, and diffs against the
+      # committed types: catches hand edits and an uncommitted regeneration.
       - name: Contracts — types match vendored spec
         run: npm run gen:contracts:check

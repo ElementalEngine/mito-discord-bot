@@ -25,12 +25,6 @@ import {
   withinTextLimit,
 } from './index.js';
 
-/**
- * The kit every Mite message is built from. What should break this file: a
- * message Discord would reject (over 40 components or 4000 characters), a
- * panel whose bar does not carry its tone, or an id a restart cannot parse.
- */
-
 const json = (panel: Parameters<typeof container>[0]): APIContainerComponent => container(panel).toJSON();
 
 test('fit cuts with an ellipsis and leaves short text alone', () => {

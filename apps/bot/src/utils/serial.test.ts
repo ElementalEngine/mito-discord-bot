@@ -3,12 +3,6 @@ import assert from 'node:assert/strict';
 
 import { serial } from './serial.js';
 
-/**
- * Saves on one report run in turn. What should break this file: two runs on
- * one key overlapping, a failed run blocking the next, or one key holding
- * up another.
- */
-
 const later = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('runs on one key take turns, and a failure does not block the next', async () => {

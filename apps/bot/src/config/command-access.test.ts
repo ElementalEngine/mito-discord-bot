@@ -10,12 +10,6 @@ import type { Command } from '../types/global.js';
 import { payloadOf } from '../deploy.js';
 import { COMMAND_ACCESS, driftOf, type Wanted } from './command-access.js';
 
-/**
- * Discord's Integrations settings are set by hand from this table, and startup
- * compares the two. What should break this file: a command missing from the
- * table, a staff command deployed visible, or a difference the check misses.
- */
-
 const GUILD = '1000';
 const ALL_CHANNELS = '999';
 

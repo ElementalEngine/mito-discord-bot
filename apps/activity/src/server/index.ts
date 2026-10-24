@@ -18,9 +18,8 @@ listen(
   config.env,
 );
 
-// Last resort, not a strategy: every dispatch already catches its own
-// rejection. Anything that reaches here is logged and, for an exception,
-// ends the process so systemd restarts it clean.
+// Last resort: every dispatch catches its own rejection. Anything reaching here is
+// logged, and an exception ends the process so systemd restarts it clean.
 process.on('unhandledRejection', (reason) => {
   log.error('unhandled rejection', reason instanceof Error ? reason.stack ?? reason.message : reason);
 });

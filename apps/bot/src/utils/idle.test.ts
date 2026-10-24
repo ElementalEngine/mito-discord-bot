@@ -3,11 +3,6 @@ import assert from 'node:assert/strict';
 
 import { idleCloser } from './idle.js';
 
-/**
- * Idle panels close. What should break this file: a panel that never closes,
- * one closed while in use, two open for one key, or a close after its token.
- */
-
 const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 test('a panel closes when idle, activity restarts the clock, and a closed one stays closed', async () => {

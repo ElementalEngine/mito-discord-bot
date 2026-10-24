@@ -12,9 +12,8 @@ type Props = {
   };
 };
 
-// How a setting was decided, from the ballots, by the server's rule
-// (tally.resolve_settings): a missing ballot means the default, and a tied
-// top count was drawn. Says whether it was close, never the counts.
+// How a setting was decided, by the server's rule: a missing ballot means the
+// default and a tied top count was drawn. Says whether it was close, never counts.
 export const decidedBy = (seats: Seat[], questionId: string): 'default' | 'draw' | null => {
   const ballots = seats.map((s) => s.ballot?.[questionId]);
   if (ballots.some((b) => !b)) return 'default';
