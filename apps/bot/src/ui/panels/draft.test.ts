@@ -36,32 +36,30 @@ test('the deal asks core-api for exactly what the host chose', () => {
   assert.equal(dealRequest(civ7, [], []).civs, 3);
 });
 
-test('the post reads the bans, then each player\'s draft one pick a line', () => {
+test('the post opens with what was asked and banned, then each draft as its own message', () => {
   const panels = draftPanels({ choice: civ6, deal: deal(8), names: civNamesOf(data(16)), by: '100' });
-  assert.equal(panels.length, 1);
-  assert.equal(panels[0]!.title, 'Civ6 FFA draft');
-  assert.equal(panels[0]!.subtitle, '8 drafts · 3 civs each');
-  const body = textOf(panels);
-  assert.match(body, /\*\*Bans\*\*\nLeaders: None/);
-  assert.match(body, /\*\*Player n°1\*\*\nLeader 00\nLeader 01/);
-  assert.ok(body.indexOf('Player n°1') < body.indexOf('Player n°8'));
-  assert.equal(panels[0]!.footer, 'Drafted by <@100>');
+  assert.equal(panels.length, 9);
+  const [head, first] = panels;
+  assert.equal(head!.title, 'Civ6 FFA draft');
+  assert.equal(head!.subtitle, '8 drafts · 3 civs each');
+  assert.match(textOf([head!]), /\*\*Bans\*\*\nLeaders: None/);
+  assert.equal(head!.footer, 'Drafted by <@100>');
+  assert.equal(first!.title, 'Player n°1');
+  assert.equal(textOf([first!]), 'Leader 00\nLeader 01');
+  assert.equal(panels[8]!.title, 'Player n°8');
 });
 
 test('a teamer deals a draft per team, and civ7 lists its leaders and civs apart', () => {
-  const body = textOf(draftPanels({ choice: civ7, deal: deal(2, true), names: new Map(), by: '100' }));
-  assert.match(body, /\*\*Team 2\*\*\n-# Leaders\n.+\n.+\n-# Civs\n.+\n.+/);
-  assert.match(body, /Civs: None/);
-  assert.doesNotMatch(body, /Player n/);
+  const panels = draftPanels({ choice: civ7, deal: deal(2, true), names: new Map(), by: '100' });
+  assert.deepEqual(panels.slice(1).map((p) => p.title), ['Team 1', 'Team 2']);
+  assert.match(textOf([panels[2]!]), /^-# Leaders\n.+\n.+\n-# Civs\n.+\n.+$/);
+  assert.match(textOf([panels[0]!]), /Civs: None/);
 });
 
-test('a long draft runs on into more posts, each within Discord\'s limit', () => {
-  const panels = draftPanels({ choice: { ...civ6, drafts: 40 }, deal: deal(40), names: new Map(), by: '100' });
-  assert.ok(panels.length > 1);
-  assert.match(panels[1]!.title ?? '', /continued$/);
-  assert.equal(panels[0]!.footer, undefined);
-  for (const panel of panels) assert.ok(JSON.stringify(container(panel).toJSON()).length < LIMITS.text * 2);
-  assert.match(textOf(panels), /\*\*Player n°40\*\*/);
+test('every draft message stays well within Discord\'s limit', () => {
+  const panels = draftPanels({ choice: { ...civ6, drafts: 14 }, deal: deal(14), names: civNamesOf(data(28)), by: '100' });
+  assert.equal(panels.length, 15);
+  for (const panel of panels) assert.ok(JSON.stringify(container(panel).toJSON()).length < LIMITS.text);
 });
 
 test('the ban form fits the whole civ6 roster in four menus', () => {

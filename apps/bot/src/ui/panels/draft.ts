@@ -1,7 +1,7 @@
 import { LabelBuilder, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 import type { CivDataResponse, DealRequest, DealResponse } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, LIMITS, type CivNames, type Panel } from '../kit/index.js';
+import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
 
 export type Edition = 'civ6' | 'civ7';
 export type Mode = 'ffa' | 'teamer' | 'duel';
@@ -133,39 +133,32 @@ export const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' 
 
 export type DraftView = Readonly<{ choice: DraftChoice; deal: DealResponse; names: CivNames; by: string }>;
 
-// Room left in a panel for its heading, subtitle and footer.
-const PAGE_TEXT = LIMITS.text - 300;
-const PAGE_DRAFTS = 30;
-
-// The draft as posted: the bans, then each draft in order. A long draft runs
-// on into more panels; the last says who drafted it.
+// The draft as posted: one panel of what was asked and banned, then each
+// draft as its own message, so a player can find and quote theirs.
 export function draftPanels(view: DraftView): Panel[] {
   const { choice, deal, names } = view;
   const leaderBans = `Leaders: ${listOf(names, deal.bans.leader)}`;
   const bans = choice.edition === 'civ6' ? leaderBans : `${leaderBans}\nCivs: ${listOf(names, deal.bans.civ)}`;
-  const drafts = deal.pools.map((pool, i) => {
-    const label = `**${draftLabel(choice.mode, i)}**`;
-    if (choice.edition === 'civ6') return `${label}\n${lines(names, pool.leaders)}`;
-    return `${label}\n-# Leaders\n${lines(names, pool.leaders)}\n-# Civs\n${lines(names, pool.civs)}`;
-  });
-  const pages: string[][] = [[]];
-  let used = bans.length;
-  for (const draft of drafts) {
-    const page = pages[pages.length - 1]!;
-    if (page.length && (used + draft.length > PAGE_TEXT || page.length >= PAGE_DRAFTS)) {
-      pages.push([]);
-      used = 0;
-    }
-    pages[pages.length - 1]!.push(draft);
-    used += draft.length;
-  }
-  const title = draftTitle(choice);
-  return pages.map((page, i) => ({
+  const head: Panel = {
     tone: 'info',
     surface: 'draft',
-    title: i === 0 ? title : `${title}, continued`,
-    ...(i === 0 ? { subtitle: sizes(choice) } : {}),
-    body: [...(i === 0 ? [field('Bans', bans)] : []), ...page.map(text)],
-    ...(i === pages.length - 1 ? { footer: `Drafted by ${mention(view.by)}` } : {}),
-  }));
+    title: draftTitle(choice),
+    subtitle: sizes(choice),
+    body: [field('Bans', bans)],
+    footer: `Drafted by ${mention(view.by)}`,
+  };
+  const drafts = deal.pools.map(
+    (pool, i): Panel => ({
+      tone: 'info',
+      title: draftLabel(choice.mode, i),
+      body: [
+        text(
+          choice.edition === 'civ6'
+            ? lines(names, pool.leaders)
+            : `-# Leaders\n${lines(names, pool.leaders)}\n-# Civs\n${lines(names, pool.civs)}`,
+        ),
+      ],
+    }),
+  );
+  return [head, ...drafts];
 }
