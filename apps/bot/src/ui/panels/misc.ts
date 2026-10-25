@@ -8,7 +8,7 @@ export function coinPanel(side: CoinSide): Panel {
 }
 
 // Who and where a result is for, under it; the player tagged is notified.
-function taggedFooter(about: PostAbout): string | undefined {
+export function taggedFooter(about: PostAbout): string | undefined {
   const tagged = [about.userId ? mention(about.userId) : null, about.channelId ? channel(about.channelId) : null].filter((x): x is string => x !== null);
   return tagged.length ? tagged.join(' \u00b7 ') : undefined;
 }

@@ -9,16 +9,17 @@ import { ApiClient } from '../../api/index.js';
 import { config } from '../../config.js';
 import { civNames, civRows } from '../../services/civ-names.js';
 import { postDraft } from '../../services/draft.service.js';
-import { AGES, MODES, banForm, packChoice, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
+import { AGES, MODES, banForm, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
 import { defer, fail, refuse } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { postAboutOf, withPostOptions } from '../../utils/post-options.js';
 
 const api = new ApiClient();
 const MAX_DRAFTS: Readonly<Record<Edition, number>> = { civ6: 14, civ7: 10 };
 const EVERY_AGE = 'all';
 
-// A quick draft: the counts, and bans if the host wants them. Settings and
-// seats belong to a hosted game.
+// A quick draft: the counts, whether to ban first, and what it is for.
+// Settings and seats belong to a hosted game.
 function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
   sub
     .setName(edition)
@@ -47,8 +48,11 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
           .addChoices(...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }),
       );
   }
-  return sub.addBooleanOption((o) =>
-    o.setName('bans').setDescription(edition === 'civ6' ? 'Ban leaders before the draft is dealt' : 'Ban leaders and civs before the draft is dealt'),
+  const banned = edition === 'civ6' ? 'leaders' : 'leaders and civs';
+  return withPostOptions(
+    sub.addBooleanOption((o) =>
+      o.setName('bans').setDescription(`True: pick ${banned} to ban in a form, then deal. False: deal now.`).setRequired(true),
+    ),
   );
 }
 
@@ -89,13 +93,14 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (!(await ensureCommandAccess(interaction, policyFor(edition)))) return;
     const choice = choiceOf(interaction, edition);
     if (choice.mode === 'duel' && choice.drafts !== 2) refuse('A duel is two drafts. Set drafts to 2.');
-    if (interaction.options.getBoolean('bans')) {
+    const about = postAboutOf(interaction);
+    if (interaction.options.getBoolean('bans', true)) {
       const [rows, names] = await Promise.all([civRows(edition, api), civNames(edition, api)]);
-      await interaction.showModal(banForm(choice, packChoice(choice), rows, names));
+      await interaction.showModal(banForm(choice, about, rows, names));
       return;
     }
     await defer(interaction, 'public');
-    await postDraft(interaction, choice, { leaders: [], civs: [] }, api);
+    await postDraft(interaction, choice, { leaders: [], civs: [] }, about, api);
   } catch (error) {
     await fail(interaction, error, 'deal the draft', { command: 'draft' });
   }

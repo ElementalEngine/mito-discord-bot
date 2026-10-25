@@ -1,9 +1,8 @@
-import { ChannelType, type ChatInputCommandInteraction, type MessageMentionOptions, type SlashCommandOptionsOnlyBuilder } from 'discord.js';
+import { ChannelType, type ChatInputCommandInteraction, type MessageMentionOptions, type SharedSlashCommandOptions } from 'discord.js';
 
 import { config } from '../config.js';
 
-// /roll and /mapseed post where players set up a game, and share the options
-// that say what the result is for.
+// /roll and /mapseed post where players set up a game.
 export const POST_POLICY = {
   allowedChannelIds: [
     config.discord.channels.botTesting,
@@ -19,10 +18,12 @@ export const POST_POLICY = {
 
 export type PostAbout = Readonly<{ label: string; userId: string | null; channelId: string | null }>;
 
-// A plain builder is taken too: it is an options-only builder that has no options yet.
-export function withPostOptions(builder: SlashCommandOptionsOnlyBuilder): SlashCommandOptionsOnlyBuilder {
+export const LABEL_MAX = 120;
+
+// The options that say what a result is for, on a command or a subcommand.
+export function withPostOptions<T extends SharedSlashCommandOptions<T>>(builder: SharedSlashCommandOptions<T>): T {
   return builder
-    .addStringOption((o) => o.setName('label').setDescription('What it is for, shown in the title').setMaxLength(120))
+    .addStringOption((o) => o.setName('label').setDescription('What it is for, shown in the title').setMaxLength(LABEL_MAX))
     .addUserOption((o) => o.setName('tag').setDescription('A player to notify'))
     .addChannelOption((o) =>
       o

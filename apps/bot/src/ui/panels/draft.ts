@@ -1,7 +1,9 @@
-import { LabelBuilder, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { LabelBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 import type { CivDataResponse, DealRequest, DealResponse } from '../../api/types.js';
+import { LABEL_MAX, type PostAbout } from '../../utils/post-options.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
+import { taggedFooter } from './misc.js';
 
 export type Edition = 'civ6' | 'civ7';
 export type Mode = 'ffa' | 'teamer' | 'duel';
@@ -21,11 +23,15 @@ export type DraftChoice = Readonly<{
 export const MODES: Readonly<Record<Mode, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' };
 export const AGES: Readonly<Record<Age, string>> = { AGE_ANTIQUITY: 'Antiquity', AGE_EXPLORATION: 'Exploration', AGE_MODERN: 'Modern' };
 export const BAN_FORM = 'bans';
+export const LABEL_FIELD = 'label';
 
 const MODE_CODES: Readonly<Record<Mode, string>> = { ffa: 'f', teamer: 't', duel: 'd' };
 const AGE_CODES: Readonly<Record<Age, string>> = { AGE_ANTIQUITY: 'a', AGE_EXPLORATION: 'e', AGE_MODERN: 'm' };
 const PACKED = /^([67])([ftd])([0-9a-z])([0-9a-z]{2})([0-9a-z]{2})([aemx])$/;
 const two = (n: number): string => n.toString(36).padStart(2, '0');
+const NONE = '-';
+// A form holds five fields: up to four menus, then the label.
+const MENUS_PER_FORM = 4;
 
 // The choice as one id part, so a form still knows it after a restart.
 export function packChoice(choice: DraftChoice): string {
@@ -100,17 +106,34 @@ function menu(id: string, options: readonly Option[]): StringSelectMenuBuilder {
     .addOptions(options.map((o) => ({ label: fit(o.label, 100), value: o.token, ...(o.emoji ? { emoji: o.emoji } : {}) })));
 }
 
-// The ban menus, leaders then civs; each may be left empty.
-export function banForm(choice: DraftChoice, packed: string, data: CivDataResponse, names: CivNames): ModalBuilder {
+function labelField(label: string): LabelBuilder {
+  const input = new TextInputBuilder().setCustomId(LABEL_FIELD).setStyle(TextInputStyle.Short).setMaxLength(LABEL_MAX).setRequired(false);
+  if (label) input.setValue(label);
+  return new LabelBuilder().setLabel('What it is for').setDescription('Optional. Shown in the title.').setTextInputComponent(input);
+}
+
+// The ban menus, leaders then civs; each may be left empty. The id carries the
+// draft and who and where it is for; the label, too long for an id, is a field.
+export function banForm(choice: DraftChoice, about: PostAbout, data: CivDataResponse, names: CivNames): ModalBuilder {
   const { leaders, civs } = banMenus(choice, data, names);
-  if (leaders.length + civs.length > 5) throw new Error('too many leaders and civs to ban in one form');
+  if (leaders.length + civs.length > MENUS_PER_FORM) throw new Error('too many leaders and civs to ban in one form');
   return new ModalBuilder()
-    .setCustomId(customId('draft', BAN_FORM, packed))
+    .setCustomId(customId('draft', BAN_FORM, packChoice(choice), about.userId ?? NONE, about.channelId ?? NONE))
     .setTitle(fit(`Bans for your ${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`, 45))
     .addLabelComponents(
       ...leaders.map((options, i) => menuLabel('leaders', options, leaders.length > 1).setStringSelectMenuComponent(menu(leaderField(i), options))),
       ...civs.map((options, i) => menuLabel('civs', options, civs.length > 1).setStringSelectMenuComponent(menu(civField(i), options))),
+      labelField(about.label),
     );
+}
+
+export type BanFormAnswer = Readonly<{ choice: DraftChoice; about: PostAbout }>;
+
+export function unpackForm(args: readonly string[], label: string): BanFormAnswer | null {
+  const choice = unpackChoice(args[0] ?? '');
+  if (!choice) return null;
+  const idOf = (arg: string | undefined): string | null => (arg && arg !== NONE ? arg : null);
+  return { choice, about: { label: label.trim(), userId: idOf(args[1]), channelId: idOf(args[2]) } };
 }
 
 const editionLabel = (edition: Edition): string => (edition === 'civ6' ? 'Civ6' : 'Civ7');
@@ -131,21 +154,22 @@ const lines = (names: CivNames, tokens: readonly string[]): string => tokens.map
 // A teamer deals one draft per team; every other mode one per player.
 export const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' ? `Team ${i + 1}` : `Player n\u00b0${i + 1}`);
 
-export type DraftView = Readonly<{ choice: DraftChoice; deal: DealResponse; names: CivNames; by: string }>;
+export type DraftView = Readonly<{ choice: DraftChoice; deal: DealResponse; names: CivNames; by: string; about: PostAbout }>;
 
 // The draft as posted: one panel of what was asked and banned, then each
 // draft as its own message, so a player can find and quote theirs.
 export function draftPanels(view: DraftView): Panel[] {
-  const { choice, deal, names } = view;
+  const { choice, deal, names, about } = view;
+  const tagged = taggedFooter(about);
   const leaderBans = `Leaders: ${listOf(names, deal.bans.leader)}`;
   const bans = choice.edition === 'civ6' ? leaderBans : `${leaderBans}\nCivs: ${listOf(names, deal.bans.civ)}`;
   const head: Panel = {
     tone: 'info',
     surface: 'draft',
-    title: draftTitle(choice),
+    title: about.label ? fit(`${draftTitle(choice)} for ${about.label}`, 200) : draftTitle(choice),
     subtitle: sizes(choice),
     body: [field('Bans', bans)],
-    footer: `Drafted by ${mention(view.by)}`,
+    footer: `Drafted by ${mention(view.by)}${tagged ? ` \u00b7 ${tagged}` : ''}`,
   };
   const drafts = deal.pools.map(
     (pool, i): Panel => ({
