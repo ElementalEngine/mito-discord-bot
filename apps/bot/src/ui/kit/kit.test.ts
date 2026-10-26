@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, type APIContainerComponent } from 'discord.js';
 
@@ -56,19 +55,6 @@ test('formatters', () => {
   assert.equal(signed(0.2), '\u00b10');
   assert.equal(when(1_700_000_000_000, 'R'), '<t:1700000000:R>');
   assert.equal(pretty('LEADER_CATHERINE_DE_MEDICI'), 'Catherine De Medici');
-});
-
-test('the palette is the Activity\u2019s, so the bot and the Activity match', () => {
-  const css = readFileSync(new URL('../../../../activity/src/client/index.css', import.meta.url), 'utf8');
-  const colour = (name: string): number => {
-    const hex = new RegExp(`--color-${name}:\\s*#([0-9a-fA-F]{6})`).exec(css)?.[1];
-    assert.ok(hex, `--color-${name} not found in the Activity theme`);
-    return Number.parseInt(hex, 16);
-  };
-  assert.equal(TONES.info.colour, colour('accent'));
-  assert.equal(TONES.success.colour, colour('good'));
-  assert.equal(TONES.failed.colour, colour('danger'));
-  assert.equal(TONES.muted.colour, colour('muted'));
 });
 
 test('the bar carries the tone, and an accent overrides it', () => {

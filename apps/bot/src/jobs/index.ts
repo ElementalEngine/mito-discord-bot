@@ -1,7 +1,5 @@
 import type { Client } from 'discord.js';
 
-import { startPostFinishedLobbiesJob } from './post-finished-lobbies.js';
-import { startSweepStaleLobbiesJob } from './sweep-stale-lobbies.js';
 import { startUpdateLeaderboardsJob } from './update-leaderboard.js';
 import { log } from '../utils/log.js';
 
@@ -12,7 +10,7 @@ let stopAll: StopFn | null = null;
 export function startJobs(client: Client): void {
   if (stopAll) return;
 
-  const stops: StopFn[] = [startUpdateLeaderboardsJob(client), startPostFinishedLobbiesJob(client), startSweepStaleLobbiesJob()];
+  const stops: StopFn[] = [startUpdateLeaderboardsJob(client)];
 
   stopAll = () => {
     for (const stop of stops) {

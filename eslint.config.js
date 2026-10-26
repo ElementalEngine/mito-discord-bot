@@ -1,7 +1,6 @@
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
-import reactHooks from 'eslint-plugin-react-hooks';
 
 // TypeScript on the recommended rules, with formatting left to Prettier.
 const KIT = 'Build messages with ui/kit and send them through ui/reply.ts.';
@@ -23,14 +22,6 @@ const LEGACY_UI = [
 ];
 
 export default [
-  {
-    files: ['apps/activity/src/client/**/*.tsx'],
-    plugins: { 'react-hooks': reactHooks },
-    rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-    },
-  },
   {
     ignores: ['**/dist/**', '**/node_modules/**', '**/*.d.ts'],
   },

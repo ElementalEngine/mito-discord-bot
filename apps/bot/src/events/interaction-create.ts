@@ -1,7 +1,6 @@
 import { Events, type Interaction } from 'discord.js';
 
 import { handleDraftInteraction } from '../handlers/draft.handlers.js';
-import { handleLobbyInteraction } from '../handlers/lobby.handlers.js';
 import { handleReportInteraction } from '../handlers/report.handlers.js';
 import { handleRoomsInteraction } from '../handlers/rooms.handlers.js';
 import { handleHistoryInteraction } from '../handlers/history.handlers.js';
@@ -40,7 +39,6 @@ export async function execute(interaction: Interaction): Promise<void> {
 
   if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu() || interaction.isModalSubmit()) {
     try {
-      if (await handleLobbyInteraction(interaction)) return;
       if (await handleDraftInteraction(interaction)) return;
       if (await handleReportInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;

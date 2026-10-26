@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 3adcf19
-source-date: 2026-10-24
+source-sha: 0cc4b5f
+source-date: 2026-10-26
 
 generated-by: npm run gen:contracts
 
@@ -37,3 +37,5 @@ Bumped at S13.5: the v1 match and stats routes are gone. Nothing Mite uses chang
 Bumped at the S13 close: contest no longer reads x-actor-is-staff.
 
 Bumped at S14.2: GET /api/v2/lobbies/mite/settings/{edition} and POST /api/v2/lobbies/mite/deal; an upload may repeat an approved game.
+
+Bumped at S14 (D288): the Activity's lobby routes are gone; of the lobby routes only POST /api/v2/lobbies/mite/deal stays.

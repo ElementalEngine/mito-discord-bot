@@ -1,4 +1,3 @@
-import type { components } from '@cpl/contracts';
 import { config } from "../config.js";
 import { ApiError } from "./errors.js";
 import type {
@@ -7,11 +6,9 @@ import type {
   BatchStatsResponse,
   CivVersion,
   StatsGameType,
-  LobbyDocument,
   CivDataResponse,
   DealRequest,
   DealResponse,
-  DraftQuestion,
   Actor,
   Match,
   MatchUpload,
@@ -164,47 +161,19 @@ export class ApiClient {
     return (await this.parseJson(res)) as TeamGenResponse;
   }
 
-  async createLobby(body: components['schemas']['CreateLobbyRequest'], hostName?: string): Promise<LobbyDocument> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite`, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(hostName ? { "x-actor-name": encodeURIComponent(hostName) } : {}) },
-      body: JSON.stringify(body)
-    });
-
-    return (await this.parseJson(res)) as LobbyDocument;
-  }
-
-  // The oldest finished lobby nobody has posted yet, or null when there is none.
-  async claimLobbyPost(guildId: string): Promise<LobbyDocument | null> {
-    const res = await this.fetchWithRetry(
-      `${this.base}/api/v2/lobbies/mite/claim-post?guild_id=${encodeURIComponent(guildId)}`,
-      { method: "POST" }
-    );
-    if (res.status === 204) return null;
-
-    return (await this.parseJson(res)) as LobbyDocument;
-  }
-
   // Display names and portraits for one edition. A read, so a transport
   // failure is retried like any other.
-  async getCivData(edition: LobbyDocument['edition']): Promise<CivDataResponse> {
+  async getCivData(edition: CivVersion): Promise<CivDataResponse> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/civ-data/${edition}`, { method: "GET" });
 
     return (await this.parseJson(res)) as CivDataResponse;
   }
 
-  // The settings /draft offers for one edition, as the vote asks them.
   // core-api's readiness and its database's ping time. Throws when it is not ready.
   async ping(): Promise<{ dbMs: number | null }> {
     const res = await this.fetchWithRetry(`${this.base}/readyz`, { method: "GET" });
     const body = (await this.parseJson(res)) as { db_ms?: unknown };
     return { dbMs: typeof body.db_ms === "number" ? body.db_ms : null };
-  }
-
-  async getDraftSettings(edition: CivVersion): Promise<DraftQuestion[]> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/settings/${edition}`, { method: "GET" });
-
-    return ((await this.parseJson(res)) as { questions: DraftQuestion[] }).questions;
   }
 
   // One /draft deal. core-api stores nothing.
@@ -216,51 +185,6 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as DealResponse;
-  }
-
-  // Closes every lobby untouched past the stale cutoff. Returns how many.
-  async sweepStaleLobbies(): Promise<number> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/sweep`, { method: "POST" });
-    const body = (await this.parseJson(res)) as { closed?: number };
-
-    return body.closed ?? 0;
-  }
-
-  // The viewer decides the censoring, so browse carries an actor like the rest.
-  async browseLobbies(guildId: string, actor: string, channelId?: string): Promise<LobbyDocument[]> {
-    const query = new URLSearchParams({ guild_id: guildId });
-    if (channelId) query.set("channel_id", channelId);
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite?${query}`, {
-      method: "GET",
-      headers: { "x-actor-discord-id": actor }
-    });
-
-    return (await this.parseJson(res)) as LobbyDocument[];
-  }
-
-  // Staff cancel on the host's behalf; the header decides, not the caller.
-  async cancelLobby(lobbyId: string, actor: string, expectedRevision: number, isStaff = false): Promise<LobbyDocument> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/${lobbyId}/cancel`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-actor-discord-id": actor,
-        ...(isStaff ? { "x-actor-is-staff": "true" } : {})
-      },
-      body: JSON.stringify({ expected_revision: expectedRevision })
-    });
-
-    return (await this.parseJson(res)) as LobbyDocument;
-  }
-
-  async leaveLobby(lobbyId: string, actor: string, expectedRevision: number): Promise<LobbyDocument> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/${lobbyId}/leave`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", "x-actor-discord-id": actor },
-      body: JSON.stringify({ expected_revision: expectedRevision, action: "leave" })
-    });
-
-    return (await this.parseJson(res)) as LobbyDocument;
   }
 
   // C1. The reporter rules live in core-api; staff is asserted from here.

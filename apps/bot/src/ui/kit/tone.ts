@@ -1,5 +1,4 @@
-// One colour and one emoji per outcome. The colours are the Activity's own
-// (apps/activity/src/client/index.css), so the bot and the Activity match.
+// One colour and one emoji per outcome.
 export const TONES = {
   info: { colour: 0xd4a13c, emoji: '\u2139\ufe0f' },
   success: { colour: 0x4b9e5f, emoji: '\u2705' },

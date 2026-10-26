@@ -33,7 +33,7 @@ export function isDeveloper(interaction: Interaction): boolean {
   return holdsAny(roleIdsOf(interaction), [config.discord.roles.developer]);
 }
 
-// Staff is a moderator or a developer, as the Activity has it.
+// Staff is a moderator or a developer.
 export const staffRoleIds = (): string[] => [config.discord.roles.moderator, config.discord.roles.developer];
 
 export function isStaff(interaction: Interaction): boolean {
