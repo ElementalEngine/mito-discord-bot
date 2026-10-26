@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { CivDataResponse, DealResponse } from '../../api/types.js';
+import type { CivDataResponse, DraftDeal } from '../../api/types.js';
 import type { PostAbout } from '../../utils/post-options.js';
 import { civNamesOf, container, LIMITS, parseId, type Panel } from '../kit/index.js';
-import { banForm, banMenus, dealRequest, draftPanels, packChoice, unpackChoice, unpackForm, type DraftChoice } from './draft.js';
+import { banForm, banMenus, draftPanels, draftRequest, packChoice, unpackChoice, unpackForm, type DraftChoice } from './draft.js';
 
 const civ6: DraftChoice = { edition: 'civ6', mode: 'ffa', drafts: 8, leaders: 3, civs: null, age: null };
 const civ7: DraftChoice = { edition: 'civ7', mode: 'teamer', drafts: 2, leaders: 4, civs: 3, age: 'AGE_ANTIQUITY' };
@@ -16,7 +16,7 @@ const data = (leaderCount: number, civs: { token: string; age_pool: string }[] =
   ({ edition: 'civ7', leader_data_version: 1, leaders: leaders(leaderCount), civs: civs.map((c) => ({ ...c, name: c.token, display: c.token })) }) as unknown as CivDataResponse;
 
 // Each draft deals its own leaders, two at a time, in order.
-const deal = (drafts: number, civs = false): DealResponse => ({
+const deal = (drafts: number, civs = false): DraftDeal => ({
   pools: Array.from({ length: drafts }, (_, i) => ({ leaders: [`LEADER_${pad(2 * i)}`, `LEADER_${pad(2 * i + 1)}`], civs: civs ? ['CIV_A', 'CIV_B'] : [] })),
   bans: { leader: [], civ: [] },
 });
@@ -31,11 +31,12 @@ test('a choice survives its trip through a form id', () => {
 });
 
 test('the deal asks core-api for exactly what the host chose', () => {
-  assert.deepEqual(dealRequest(civ6, ['LEADER_00'], []), {
-    edition: 'civ6', game_type: 'ffa', drafts: 8, leaders: 3, civs: null, starting_age: null, leader_bans: ['LEADER_00'], civ_bans: [],
+  const none = { leaders: [], civs: [] };
+  assert.deepEqual(draftRequest(civ6, { leaders: ['LEADER_00'], civs: [] }, '100'), {
+    host_id: '100', edition: 'civ6', game_type: 'ffa', drafts: 8, leaders: 3, civs: null, starting_age: null, leader_bans: ['LEADER_00'], civ_bans: [],
   });
-  assert.equal(dealRequest(civ7, [], ['CIV_A']).starting_age, 'AGE_ANTIQUITY');
-  assert.equal(dealRequest(civ7, [], []).civs, 3);
+  assert.equal(draftRequest(civ7, { leaders: [], civs: ['CIV_A'] }, '100').starting_age, 'AGE_ANTIQUITY');
+  assert.equal(draftRequest(civ7, none, '100').civs, 3);
 });
 
 test('the post opens with what was asked and banned, then each draft as its own message', () => {

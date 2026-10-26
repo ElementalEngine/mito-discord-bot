@@ -1,6 +1,6 @@
 import { LabelBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
-import type { CivDataResponse, DealRequest, DealResponse } from '../../api/types.js';
+import type { CivDataResponse, DraftDeal, DraftRequest } from '../../api/types.js';
 import { LABEL_MAX, type PostAbout } from '../../utils/post-options.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
 import { taggedFooter } from './misc.js';
@@ -56,16 +56,19 @@ export function unpackChoice(packed: string): DraftChoice | null {
   };
 }
 
-export function dealRequest(choice: DraftChoice, leaderBans: readonly string[], civBans: readonly string[]): DealRequest {
+export type DraftBans = Readonly<{ leaders: readonly string[]; civs: readonly string[] }>;
+
+export function draftRequest(choice: DraftChoice, bans: DraftBans, hostId: string): DraftRequest {
   return {
+    host_id: hostId,
     edition: choice.edition,
     game_type: choice.mode,
     drafts: choice.drafts,
     leaders: choice.leaders,
     civs: choice.civs,
     starting_age: choice.age,
-    leader_bans: [...leaderBans],
-    civ_bans: [...civBans],
+    leader_bans: [...bans.leaders],
+    civ_bans: [...bans.civs],
   };
 }
 
@@ -154,7 +157,7 @@ const lines = (names: CivNames, tokens: readonly string[]): string => tokens.map
 // A teamer deals one draft per team; every other mode one per player.
 export const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' ? `Team ${i + 1}` : `Player n\u00b0${i + 1}`);
 
-export type DraftView = Readonly<{ choice: DraftChoice; deal: DealResponse; names: CivNames; by: string; about: PostAbout }>;
+export type DraftView = Readonly<{ choice: DraftChoice; deal: DraftDeal; names: CivNames; by: string; about: PostAbout }>;
 
 // The draft as posted: one panel of what was asked and banned, then each
 // draft as its own message, so a player can find and quote theirs.

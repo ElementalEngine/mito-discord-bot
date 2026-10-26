@@ -7,8 +7,8 @@ import type {
   CivVersion,
   StatsGameType,
   CivDataResponse,
-  DealRequest,
-  DealResponse,
+  DraftDeal,
+  DraftRequest,
   Actor,
   Match,
   MatchUpload,
@@ -176,15 +176,15 @@ export class ApiClient {
     return { dbMs: typeof body.db_ms === "number" ? body.db_ms : null };
   }
 
-  // One /draft deal. core-api stores nothing.
-  async dealDraft(body: DealRequest): Promise<DealResponse> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/lobbies/mite/deal`, {
+  // One /draft deal, which core-api also records.
+  async dealDraft(body: DraftRequest): Promise<DraftDeal> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/match-setups/draft`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body)
     });
 
-    return (await this.parseJson(res)) as DealResponse;
+    return (await this.parseJson(res)) as DraftDeal;
   }
 
   // C1. The reporter rules live in core-api; staff is asserted from here.

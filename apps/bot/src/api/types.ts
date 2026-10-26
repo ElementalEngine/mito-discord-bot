@@ -23,8 +23,8 @@ export type HistoryGame = components['schemas']['HistoryGame'];
 
 // One edition's leaders and civs, as core-api serves them.
 export type CivDataResponse = components['schemas']['CivDataResponse'];
-export type DealRequest = components['schemas']['DealRequest'];
-export type DealResponse = components['schemas']['DealResponse'];
+export type DraftRequest = components['schemas']['DraftRequest'];
+export type DraftDeal = components['schemas']['DraftDeal'];
 
 // The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];

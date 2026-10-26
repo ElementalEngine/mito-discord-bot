@@ -383,7 +383,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/lobbies/mite/deal": {
+    "/api/v2/match-setups/draft": {
         parameters: {
             query?: never;
             header?: never;
@@ -393,10 +393,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Deal For Draft
-         * @description One /draft deal. Nothing is stored.
+         * Deal Draft And Record
+         * @description /draft: deal the pools, then record the setup.
          */
-        post: operations["deal_for_draft_api_v2_lobbies_mite_deal_post"];
+        post: operations["deal_draft_and_record_api_v2_match_setups_draft_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -848,40 +848,6 @@ export interface components {
             /** @default steam */
             platform: components["schemas"]["RegistrationPlatform"];
         };
-        /**
-         * DealRequest
-         * @description /draft: how many pools, their sizes, the age and the host's bans.
-         */
-        DealRequest: {
-            /** Civ Bans */
-            civ_bans?: string[];
-            /** Civs */
-            civs?: number | null;
-            /** Drafts */
-            drafts: number;
-            /**
-             * Edition
-             * @enum {string}
-             */
-            edition: "civ6" | "civ7";
-            /**
-             * Game Type
-             * @enum {string}
-             */
-            game_type: "ffa" | "teamer" | "duel";
-            /** Leader Bans */
-            leader_bans?: string[];
-            /** Leaders */
-            leaders: number;
-            /** Starting Age */
-            starting_age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
-        };
-        /** DealResponse */
-        DealResponse: {
-            bans: components["schemas"]["DealtBans"];
-            /** Pools */
-            pools: components["schemas"]["DealtPool"][];
-        };
         /** DealtBans */
         DealtBans: {
             /** Civ */
@@ -936,6 +902,42 @@ export interface components {
             /** Session Id */
             session_id: string;
             status: components["schemas"]["RegistrationSessionStatus"];
+        };
+        /** DraftDeal */
+        DraftDeal: {
+            bans: components["schemas"]["DealtBans"];
+            /** Pools */
+            pools: components["schemas"]["DealtPool"][];
+        };
+        /**
+         * DraftRequest
+         * @description How many pools, their sizes, the age and the host's bans.
+         */
+        DraftRequest: {
+            /** Civ Bans */
+            civ_bans?: string[];
+            /** Civs */
+            civs?: number | null;
+            /** Drafts */
+            drafts: number;
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "civ6" | "civ7";
+            /**
+             * Game Type
+             * @enum {string}
+             */
+            game_type: "ffa" | "teamer" | "duel";
+            /** Host Id */
+            host_id: string;
+            /** Leader Bans */
+            leader_bans?: string[];
+            /** Leaders */
+            leaders: number;
+            /** Starting Age */
+            starting_age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
         };
         /** FinalizeRegistrationOperationRequest */
         FinalizeRegistrationOperationRequest: {
@@ -2514,7 +2516,7 @@ export interface operations {
             };
         };
     };
-    deal_for_draft_api_v2_lobbies_mite_deal_post: {
+    deal_draft_and_record_api_v2_match_setups_draft_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2525,7 +2527,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DealRequest"];
+                "application/json": components["schemas"]["DraftRequest"];
             };
         };
         responses: {
@@ -2535,7 +2537,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DealResponse"];
+                    "application/json": components["schemas"]["DraftDeal"];
                 };
             };
             /** @description Validation Error */
