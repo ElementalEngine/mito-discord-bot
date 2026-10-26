@@ -101,6 +101,11 @@ const discord = {
 const backendDefault =
   nodeEnv === 'production' ? 'http://localhost:8000' : 'http://localhost:8001';
 
+// Discord links only http(s), so a Steam lobby link goes out through this
+// redirect, which accepts nothing but a lobby.
+const lobbyLinkDefault =
+  nodeEnv === 'production' ? 'https://prod-lobbylink.elementalengine.net' : 'https://dev-lobbylink.elementalengine.net';
+
 // Final config export
 export const config = {
   discord,
@@ -108,5 +113,6 @@ export const config = {
     url: env('BACKEND_SERVICE_URL', backendDefault),
     serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
+  lobbyLinkUrl: env('LOBBY_LINK_URL', lobbyLinkDefault),
   env: nodeEnv,
 } as const;

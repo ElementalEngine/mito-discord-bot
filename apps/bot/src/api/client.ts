@@ -9,6 +9,9 @@ import type {
   CivDataResponse,
   DraftDeal,
   DraftRequest,
+  Lobby,
+  LobbyRequest,
+  SettingQuestion,
   Actor,
   Match,
   MatchUpload,
@@ -185,6 +188,78 @@ export class ApiClient {
     });
 
     return (await this.parseJson(res)) as DraftDeal;
+  }
+
+  // The settings a lobby's host may fix for its game type.
+  async lobbySettings(edition: CivVersion, gameType: string): Promise<SettingQuestion[]> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/match-setups/settings/${edition}/${encodeURIComponent(gameType)}`, { method: "GET" });
+    return (await this.parseJson(res)) as SettingQuestion[];
+  }
+
+  async hostLobby(body: LobbyRequest, host: Actor): Promise<Lobby> {
+    return this.lobbyCall("", "POST", host, body);
+  }
+
+  async lobby(lobbyId: string): Promise<Lobby> {
+    const res = await this.fetchWithRetry(this.lobbyUrl(lobbyId), { method: "GET" });
+    return (await this.parseJson(res)) as Lobby;
+  }
+
+  async openLobbies(guildId: string): Promise<Lobby[]> {
+    const res = await this.fetchWithRetry(`${this.lobbyUrl("")}?guild_id=${encodeURIComponent(guildId)}`, { method: "GET" });
+    return (await this.parseJson(res)) as Lobby[];
+  }
+
+  // Every lobby idle past its limit, closed so its post can say so.
+  async closeIdleLobbies(): Promise<Lobby[]> {
+    const res = await this.fetchWithRetry(this.lobbyUrl("close-idle"), { method: "POST" });
+    return (await this.parseJson(res)) as Lobby[];
+  }
+
+  async setLobbyMessage(lobbyId: string, messageId: string, host: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/message`, "PUT", host, { message_id: messageId });
+  }
+
+  async joinLobby(lobbyId: string, player: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/join`, "POST", player);
+  }
+
+  async leaveLobby(lobbyId: string, player: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/leave`, "POST", player);
+  }
+
+  async moveLobbyPlayer(lobbyId: string, host: Actor, playerId: string, team: number): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/move`, "POST", host, { player_id: playerId, team });
+  }
+
+  async fixLobbySettings(lobbyId: string, host: Actor, settings: Readonly<Record<string, string>>): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/settings`, "PUT", host, { settings });
+  }
+
+  async banLobbyLeaders(lobbyId: string, host: Actor, leaders: readonly string[]): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/bans`, "PUT", host, { leaders });
+  }
+
+  // A full lobby starts itself: the bot then acts as its host.
+  async startLobby(lobbyId: string, host: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/start`, "POST", host);
+  }
+
+  async cancelLobby(lobbyId: string, actor: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/cancel`, "POST", actor);
+  }
+
+  private lobbyUrl(path: string): string {
+    return `${this.base}/api/v2/match-setups/lobbies${path ? `/${path}` : ""}`;
+  }
+
+  private async lobbyCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Lobby> {
+    const res = await this.fetchWithRetry(this.lobbyUrl(path), {
+      method,
+      headers: body === undefined ? actorHeaders(actor) : { ...json, ...actorHeaders(actor) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return (await this.parseJson(res)) as Lobby;
   }
 
   // C1. The reporter rules live in core-api; staff is asserted from here.

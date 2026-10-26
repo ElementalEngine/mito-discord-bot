@@ -85,28 +85,53 @@ function inMenus(options: readonly Option[]): Option[][] {
   return out;
 }
 
-// The form's menus: leaders, then civs for the chosen age, 25 to a menu.
-export function banMenus(choice: DraftChoice, data: CivDataResponse, names: CivNames): Readonly<{ leaders: Option[][]; civs: Option[][] }> {
-  const civs = choice.edition === 'civ7' ? data.civs.filter((c) => !choice.age || c.age_pool === choice.age).map((c) => c.token) : [];
-  return { leaders: inMenus(sortedOptions(data.leaders.map((l) => l.token), names)), civs: inMenus(sortedOptions(civs, names)) };
+// What may be banned: civ6 bans leaders; civ7 leaders, and civs of the age.
+export type BanScope = Pick<DraftChoice, 'edition' | 'age'>;
+
+const bannableCivs = (scope: BanScope, data: CivDataResponse): string[] =>
+  scope.edition === 'civ7' ? data.civs.filter((c) => !scope.age || c.age_pool === scope.age).map((c) => c.token) : [];
+
+// The form's menus: leaders, then civs, 25 to a menu.
+export function banMenus(scope: BanScope, data: CivDataResponse, names: CivNames): Readonly<{ leaders: Option[][]; civs: Option[][] }> {
+  return {
+    leaders: inMenus(sortedOptions(data.leaders.map((l) => l.token), names)),
+    civs: inMenus(sortedOptions(bannableCivs(scope, data), names)),
+  };
 }
 
-export const leaderField = (i: number): string => `l${i + 1}`;
-export const civField = (i: number): string => `c${i + 1}`;
+const fieldIds = (prefix: string, count: number): string[] => Array.from({ length: Math.ceil(count / 25) }, (_, i) => `${prefix}${i + 1}`);
+
+// The ids of the form's menus, to read the bans back from what was submitted.
+export const banFieldIds = (scope: BanScope, data: CivDataResponse): Readonly<{ leaders: string[]; civs: string[] }> => ({
+  leaders: fieldIds('l', data.leaders.length),
+  civs: fieldIds('c', bannableCivs(scope, data).length),
+});
 
 function menuLabel(kind: string, menu: readonly Option[], many: boolean): LabelBuilder {
   const range = many ? ` ${menu[0]!.label[0]}–${menu[menu.length - 1]!.label[0]}` : '';
   return new LabelBuilder().setLabel(fit(`Ban ${kind}${range}`, 45)).setDescription('Optional. Pick any number.');
 }
 
-function menu(id: string, options: readonly Option[]): StringSelectMenuBuilder {
+function menu(id: string, options: readonly Option[], chosen: ReadonlySet<string>): StringSelectMenuBuilder {
   return new StringSelectMenuBuilder()
     .setCustomId(id)
     .setMinValues(0)
     .setMaxValues(options.length)
     .setRequired(false)
     .setPlaceholder('Nothing banned')
-    .addOptions(options.map((o) => ({ label: fit(o.label, 100), value: o.token, ...(o.emoji ? { emoji: o.emoji } : {}) })));
+    .addOptions(
+      options.map((o) => ({ label: fit(o.label, 100), value: o.token, default: chosen.has(o.token), ...(o.emoji ? { emoji: o.emoji } : {}) })),
+    );
+}
+
+// The ban menus, leaders then civs, with what is already banned ticked.
+export function banFields(scope: BanScope, data: CivDataResponse, names: CivNames, chosen: ReadonlySet<string> = new Set()): LabelBuilder[] {
+  const { leaders, civs } = banMenus(scope, data, names);
+  const ids = banFieldIds(scope, data);
+  return [
+    ...leaders.map((options, i) => menuLabel('leaders', options, leaders.length > 1).setStringSelectMenuComponent(menu(ids.leaders[i]!, options, chosen))),
+    ...civs.map((options, i) => menuLabel('civs', options, civs.length > 1).setStringSelectMenuComponent(menu(ids.civs[i]!, options, chosen))),
+  ];
 }
 
 function labelField(label: string): LabelBuilder {
@@ -118,16 +143,12 @@ function labelField(label: string): LabelBuilder {
 // The ban menus, leaders then civs; each may be left empty. The id carries the
 // draft and who and where it is for; the label, too long for an id, is a field.
 export function banForm(choice: DraftChoice, about: PostAbout, data: CivDataResponse, names: CivNames): ModalBuilder {
-  const { leaders, civs } = banMenus(choice, data, names);
-  if (leaders.length + civs.length > MENUS_PER_FORM) throw new Error('too many leaders and civs to ban in one form');
+  const menus = banFields(choice, data, names);
+  if (menus.length > MENUS_PER_FORM) throw new Error('too many leaders and civs to ban in one form');
   return new ModalBuilder()
     .setCustomId(customId('draft', BAN_FORM, packChoice(choice), about.userId ?? NONE, about.channelId ?? NONE))
     .setTitle(fit(`Bans for your ${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`, 45))
-    .addLabelComponents(
-      ...leaders.map((options, i) => menuLabel('leaders', options, leaders.length > 1).setStringSelectMenuComponent(menu(leaderField(i), options))),
-      ...civs.map((options, i) => menuLabel('civs', options, civs.length > 1).setStringSelectMenuComponent(menu(civField(i), options))),
-      labelField(about.label),
-    );
+    .addLabelComponents(...menus, labelField(about.label));
 }
 
 export type BanFormAnswer = Readonly<{ choice: DraftChoice; about: PostAbout }>;
@@ -152,7 +173,7 @@ function sizes(choice: DraftChoice): string {
 const listOf = (names: CivNames, tokens: readonly string[]): string => (tokens.length ? tokens.map((t) => nameOf(names, t)).join(' \u00b7 ') : 'None');
 
 // One pick a line, so a player can quote the ones they trade.
-const lines = (names: CivNames, tokens: readonly string[]): string => tokens.map((t) => nameOf(names, t)).join('\n');
+export const pickLines = (names: CivNames, tokens: readonly string[]): string => tokens.map((t) => nameOf(names, t)).join('\n');
 
 // A teamer deals one draft per team; every other mode one per player.
 export const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' ? `Team ${i + 1}` : `Player n\u00b0${i + 1}`);
@@ -181,8 +202,8 @@ export function draftPanels(view: DraftView): Panel[] {
       body: [
         text(
           choice.edition === 'civ6'
-            ? lines(names, pool.leaders)
-            : `-# Leaders\n${lines(names, pool.leaders)}\n-# Civs\n${lines(names, pool.civs)}`,
+            ? pickLines(names, pool.leaders)
+            : `-# Leaders\n${pickLines(names, pool.leaders)}\n-# Civs\n${pickLines(names, pool.civs)}`,
         ),
       ],
     }),

@@ -10,6 +10,7 @@ import { editPanelById } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { serial } from '../utils/serial.js';
 import { civNames, editionOf } from './civ-names.js';
+import { loadMembers, memberNames } from './members.js';
 
 // Writes to one report take turns, from the editor, approve, contest or a
 // repeated upload, so none redraws it from an older copy than the last.
@@ -73,29 +74,10 @@ export async function refreshReport(client: Client, match: Match, panel: Panel):
   );
 }
 
-// Bring the members of a match into the cache, so the forms opened from the
-// editor can name them without a fetch inside Discord's 3 second window.
-async function loadMembers(guild: Guild | null, ids: readonly string[]): Promise<void> {
-  const missing = ids.filter((id) => !guild?.members.cache.has(id));
-  if (guild && missing.length) await guild.members.fetch({ user: missing, time: 1_500 }).catch(() => undefined);
-}
-
 // The private editor for a report, with its players' server names loaded so
 // the forms it opens can name them at once.
 export async function editorOf(guild: Guild | null, match: Match, staff: boolean, api: ApiClient): Promise<Panel> {
   const ids = playerIds(match);
   const [names] = await Promise.all([civNames(editionOf(match.game), api), loadMembers(guild, ids)]);
   return editorPanel(match, names, memberNames(guild, ids), staff);
-}
-
-// Server names for the edit forms, where mentions do not render, from the
-// cache only; anyone not in it keeps the name in the save.
-export function memberNames(guild: Guild | null, ids: readonly string[]): ReadonlyMap<string, string> {
-  if (!guild) return new Map();
-  return new Map(
-    ids.flatMap((id): [string, string][] => {
-      const member = guild.members.cache.get(id);
-      return member ? [[id, member.displayName]] : [];
-    }),
-  );
 }

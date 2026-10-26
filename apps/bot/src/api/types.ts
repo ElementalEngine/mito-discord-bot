@@ -26,6 +26,12 @@ export type CivDataResponse = components['schemas']['CivDataResponse'];
 export type DraftRequest = components['schemas']['DraftRequest'];
 export type DraftDeal = components['schemas']['DraftDeal'];
 
+// A hosted lobby, from host to draft, and the settings its host may fix.
+export type LobbyRequest = components['schemas']['LobbyRequest'];
+export type LobbyShape = LobbyRequest['shape'];
+export type Lobby = components['schemas']['LobbyView'];
+export type SettingQuestion = components['schemas']['SettingQuestion'];
+
 // The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];
 export type MatchUpload = components['schemas']['UploadResponse'];

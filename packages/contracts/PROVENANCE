@@ -1,5 +1,5 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: 70c8508
+source-sha: 6cf880c
 source-date: 2026-10-26
 
 generated-by: npm run gen:contracts
@@ -41,3 +41,5 @@ Bumped at S14.2: GET /api/v2/lobbies/mite/settings/{edition} and POST /api/v2/lo
 Bumped at S14 (D288): the Activity's lobby routes are gone; of the lobby routes only POST /api/v2/lobbies/mite/deal stays.
 
 Bumped at S14 (D288): /draft's deal moves to POST /api/v2/match-setups/draft and takes host_id; DraftRequest and DraftDeal replace DealRequest and DealResponse.
+
+Bumped at S14 (D288): /lobby's routes under /api/v2/match-setups/lobbies, and GET /api/v2/match-setups/settings/{edition}/{game_type}.

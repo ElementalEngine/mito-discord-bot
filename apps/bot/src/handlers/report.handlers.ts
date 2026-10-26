@@ -19,10 +19,10 @@ import {
   editorOf,
   historyChannelId,
   inTurn,
-  memberNames,
   refreshReport,
   viewOf,
 } from '../services/report.service.js';
+import { memberNames } from '../services/members.js';
 import { channel as channelMention, customId, mention, notice, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,

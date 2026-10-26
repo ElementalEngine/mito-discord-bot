@@ -403,6 +403,224 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/match-setups/lobbies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open Lobbies */
+        get: operations["open_lobbies_api_v2_match_setups_lobbies_get"];
+        put?: never;
+        /** Host Lobby */
+        post: operations["host_lobby_api_v2_match_setups_lobbies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/close-idle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Idle Lobbies
+         * @description Close every lobby idle past the limit, so the bot can mark their posts.
+         */
+        post: operations["close_idle_lobbies_api_v2_match_setups_lobbies_close_idle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Lobby */
+        get: operations["read_lobby_api_v2_match_setups_lobbies__lobby_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/bans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Ban Leaders */
+        put: operations["ban_leaders_api_v2_match_setups_lobbies__lobby_id__bans_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Lobby */
+        post: operations["cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join Lobby */
+        post: operations["join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave Lobby */
+        post: operations["leave_lobby_api_v2_match_setups_lobbies__lobby_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Lobby Message
+         * @description The post that shows the lobby, so it can be edited in place.
+         */
+        put: operations["set_lobby_message_api_v2_match_setups_lobbies__lobby_id__message_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move Player */
+        post: operations["move_player_api_v2_match_setups_lobbies__lobby_id__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Fix Settings */
+        put: operations["fix_settings_api_v2_match_setups_lobbies__lobby_id__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Lobby
+         * @description Deal the draft and close the lobby. The bot starts a full lobby itself,
+         *     acting as its host.
+         */
+        post: operations["start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/settings/{edition}/{game_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings Questions
+         * @description The settings a host may fix for a game type; the rest are voted.
+         */
+        get: operations["settings_questions_api_v2_match_setups_settings__edition___game_type__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/matches": {
         parameters: {
             query?: never;
@@ -778,6 +996,15 @@ export interface components {
             /** Is Cloud */
             is_cloud: string;
         };
+        /** ChosenSetting */
+        ChosenSetting: {
+            /** By */
+            by: string;
+            /** Id */
+            id: string;
+            /** Value */
+            value: string;
+        };
         /** CivDataResponse */
         CivDataResponse: {
             /** Civs */
@@ -1035,6 +1262,21 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
+        /** HostBans */
+        HostBans: {
+            /** Leaders */
+            leaders: string[];
+        };
+        /**
+         * HostSettings
+         * @description Every setting the host fixes, by question id; the rest are voted.
+         */
+        HostSettings: {
+            /** Settings */
+            settings: {
+                [key: string]: string;
+            };
+        };
         /** LeaderRow */
         LeaderRow: {
             /** Civ */
@@ -1076,6 +1318,104 @@ export interface components {
             /** Linked Account Name */
             linked_account_name?: string | null;
             linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
+        };
+        /** LobbyMessage */
+        LobbyMessage: {
+            /** Message Id */
+            message_id: string;
+        };
+        /** LobbyPlayer */
+        LobbyPlayer: {
+            /** Discord Id */
+            discord_id: string;
+            /** Team */
+            team: number | null;
+        };
+        /**
+         * LobbyPool
+         * @description A player's draft, or a team's when `player_id` is empty.
+         */
+        LobbyPool: {
+            /** Leaders */
+            leaders: string[];
+            /** Player Id */
+            player_id: string | null;
+            /** Team */
+            team: number | null;
+        };
+        /**
+         * LobbyRequest
+         * @description /lobby host. The host is the acting player.
+         */
+        LobbyRequest: {
+            /** Channel Id */
+            channel_id: string;
+            /**
+             * Draft Mode
+             * @enum {string}
+             */
+            draft_mode: "standard" | "random";
+            /** Guild Id */
+            guild_id: string;
+            /** Rules */
+            rules?: string | null;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            /** Steam Link */
+            steam_link: string;
+        };
+        /** LobbyView */
+        LobbyView: {
+            /** Bans */
+            bans: components["schemas"]["SetupBan"][];
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Channel Id */
+            channel_id: string;
+            /** Draft Mode */
+            draft_mode: string;
+            /** Guild Id */
+            guild_id: string;
+            /** Host Id */
+            host_id: string;
+            /** Id */
+            id: string;
+            /** Message Id */
+            message_id: string | null;
+            /** Mode */
+            mode: string;
+            /** Players */
+            players: components["schemas"]["LobbyPlayer"][];
+            /** Pools */
+            pools: components["schemas"]["LobbyPool"][];
+            /** Rules */
+            rules: string | null;
+            /** Seats */
+            seats: number;
+            /** Settings */
+            settings: components["schemas"]["ChosenSetting"][];
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "done" | "cancelled";
+            /** Steam Link */
+            steam_link: string;
+            /** Teams */
+            teams: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * ManualRegistrationChoice
@@ -1485,6 +1825,35 @@ export interface components {
             /** Platform Account Name */
             platform_account_name?: string | null;
         };
+        /** SettingOption */
+        SettingOption: {
+            /** Emoji */
+            emoji: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** SettingQuestion */
+        SettingQuestion: {
+            /** Default Option Id */
+            default_option_id: string;
+            /** Id */
+            id: string;
+            /** Options */
+            options: components["schemas"]["SettingOption"][];
+            /** Title */
+            title: string;
+        };
+        /** SetupBan */
+        SetupBan: {
+            /** By */
+            by: string;
+            /** Kind */
+            kind: string;
+            /** Token */
+            token: string;
+        };
         /**
          * StartNextSeason
          * @description The season the caller saw open; the change happens only if it still is.
@@ -1591,6 +1960,13 @@ export interface components {
             game_type: string;
             /** Teams */
             teams: string[][];
+        };
+        /** TeamMove */
+        TeamMove: {
+            /** Player Id */
+            player_id: string;
+            /** Team */
+            team: number;
         };
         /**
          * TierCategory
@@ -2538,6 +2914,461 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DraftDeal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_lobbies_api_v2_match_setups_lobbies_get: {
+        parameters: {
+            query: {
+                guild_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    host_lobby_api_v2_match_setups_lobbies_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_idle_lobbies_api_v2_match_setups_lobbies_close_idle_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_lobby_api_v2_match_setups_lobbies__lobby_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ban_leaders_api_v2_match_setups_lobbies__lobby_id__bans_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostBans"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_lobby_api_v2_match_setups_lobbies__lobby_id__leave_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_lobby_message_api_v2_match_setups_lobbies__lobby_id__message_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyMessage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_player_api_v2_match_setups_lobbies__lobby_id__move_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fix_settings_api_v2_match_setups_lobbies__lobby_id__settings_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    settings_questions_api_v2_match_setups_settings__edition___game_type__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+                game_type: "ffa" | "duel" | "teamer";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingQuestion"][];
                 };
             };
             /** @description Validation Error */
