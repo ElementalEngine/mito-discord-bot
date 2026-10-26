@@ -26,7 +26,6 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(...(Object.keys(SHAPES) as LobbyShape[]).map((value) => ({ name: SHAPES[value], value }))),
       )
-      .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120))
       .addStringOption((o) =>
         o
           .setName('draft')
@@ -34,6 +33,7 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(...(Object.keys(DRAFT_MODES) as DraftMode[]).map((value) => ({ name: DRAFT_MODES[value], value }))),
       )
+      .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120))
       .addStringOption((o) => o.setName('rules').setDescription('Host rules, shown on the lobby').setMaxLength(500)),
   )
   .addSubcommand((sub) => sub.setName('browse').setDescription('List the open lobbies here.'))
