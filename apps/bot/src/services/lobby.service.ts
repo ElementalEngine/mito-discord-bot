@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { Lobby, SettingQuestion } from '../api/types.js';
+import type { Actor, Lobby, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
 import { lobbyDraftPanels, lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
@@ -42,4 +42,18 @@ export async function showLobby(client: Client, lobby: Lobby, api: ApiClient, dr
   const view = await lobbyViewOf(lobby, api);
   await editPanelById(channel, lobby.message_id, lobbyPanel(view));
   if (drafted) for (const panel of lobbyDraftPanels(lobby, view.names)) await postPanel(channel, panel);
+}
+
+// The host confirms: the lobby's post goes up in its channel, and from then on
+// players join from it.
+export async function publishLobby(client: Client, lobby: Lobby, host: Actor, api: ApiClient): Promise<Lobby> {
+  const channel = await channelOf(client, lobby);
+  if (!channel) throw new Error(`lobby channel ${lobby.channel_id} is not one the bot can post in`);
+  const post = await postPanel(channel, lobbyPanel(await lobbyViewOf(lobby, api)));
+  try {
+    return await api.openLobby(lobby.id, host, post.id);
+  } catch (error) {
+    await post.delete().catch(() => undefined);
+    throw error;
+  }
 }

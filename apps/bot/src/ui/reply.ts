@@ -106,7 +106,9 @@ function asPanel(panel: Panel, allowedMentions: MessageMentionOptions = NO_PINGS
   return { content: null, embeds: [], flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions };
 }
 
-export async function replacePanel(interaction: PanelPress, panel: Panel): Promise<void> {
+// The interaction's own message rewritten: the panel a press was held on, or a
+// command's or press's earlier reply.
+export async function replacePanel(interaction: RepliableInteraction, panel: Panel): Promise<void> {
   await interaction.editReply(asPanel(panel));
 }
 

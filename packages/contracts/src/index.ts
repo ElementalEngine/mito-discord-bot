@@ -410,7 +410,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Open Lobbies */
+        /**
+         * Open Lobbies
+         * @description The live lobbies players can join; with a host, that host's own, live
+         *     or in setup.
+         */
         get: operations["open_lobbies_api_v2_match_setups_lobbies_get"];
         put?: never;
         /** Host Lobby */
@@ -458,23 +462,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/match-setups/lobbies/{lobby_id}/bans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Ban Leaders */
-        put: operations["ban_leaders_api_v2_match_setups_lobbies__lobby_id__bans_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/match-setups/lobbies/{lobby_id}/cancel": {
         parameters: {
             query?: never;
@@ -486,6 +473,26 @@ export interface paths {
         put?: never;
         /** Cancel Lobby */
         post: operations["cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Lobby
+         * @description The host's edit, saved whole.
+         */
+        put: operations["edit_lobby_api_v2_match_setups_lobbies__lobby_id__edit_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -526,27 +533,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/match-setups/lobbies/{lobby_id}/message": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Set Lobby Message
-         * @description The post that shows the lobby, so it can be edited in place.
-         */
-        put: operations["set_lobby_message_api_v2_match_setups_lobbies__lobby_id__message_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/match-setups/lobbies/{lobby_id}/move": {
+    "/api/v2/match-setups/lobbies/{lobby_id}/live": {
         parameters: {
             query?: never;
             header?: never;
@@ -555,25 +542,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Move Player */
-        post: operations["move_player_api_v2_match_setups_lobbies__lobby_id__move_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/match-setups/lobbies/{lobby_id}/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Fix Settings */
-        put: operations["fix_settings_api_v2_match_setups_lobbies__lobby_id__settings_put"];
-        post?: never;
+        /**
+         * Open Lobby
+         * @description The host confirms the setup; its post opens the lobby to players.
+         */
+        post: operations["open_lobby_api_v2_match_setups_lobbies__lobby_id__live_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1262,21 +1235,6 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
-        /** HostBans */
-        HostBans: {
-            /** Leaders */
-            leaders: string[];
-        };
-        /**
-         * HostSettings
-         * @description Every setting the host fixes, by question id; the rest are voted.
-         */
-        HostSettings: {
-            /** Settings */
-            settings: {
-                [key: string]: string;
-            };
-        };
         /** LeaderRow */
         LeaderRow: {
             /** Civ */
@@ -1319,8 +1277,35 @@ export interface components {
             linked_account_name?: string | null;
             linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
         };
-        /** LobbyMessage */
-        LobbyMessage: {
+        /**
+         * LobbyEdit
+         * @description The host's whole edit: the size, every setting fixed (the rest are
+         *     voted), every leader banned, and players moved or removed.
+         */
+        LobbyEdit: {
+            /** Bans */
+            bans: string[];
+            /** Removed */
+            removed?: string[];
+            /** Settings */
+            settings: {
+                [key: string]: string;
+            };
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            /** Teams */
+            teams?: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * LobbyLive
+         * @description The post that opens the lobby to players, edited in place from then on.
+         */
+        LobbyLive: {
             /** Message Id */
             message_id: string;
         };
@@ -1365,7 +1350,7 @@ export interface components {
              */
             shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
             /** Steam Link */
-            steam_link: string;
+            steam_link?: string | null;
         };
         /** LobbyView */
         LobbyView: {
@@ -1383,6 +1368,8 @@ export interface components {
             host_id: string;
             /** Id */
             id: string;
+            /** Live */
+            live: boolean;
             /** Message Id */
             message_id: string | null;
             /** Mode */
@@ -1408,7 +1395,7 @@ export interface components {
              */
             status: "open" | "done" | "cancelled";
             /** Steam Link */
-            steam_link: string;
+            steam_link: string | null;
             /** Teams */
             teams: number;
             /**
@@ -1960,13 +1947,6 @@ export interface components {
             game_type: string;
             /** Teams */
             teams: string[][];
-        };
-        /** TeamMove */
-        TeamMove: {
-            /** Player Id */
-            player_id: string;
-            /** Team */
-            team: number;
         };
         /**
          * TierCategory
@@ -2931,6 +2911,7 @@ export interface operations {
         parameters: {
             query: {
                 guild_id: string;
+                host_id?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -3060,23 +3041,20 @@ export interface operations {
             };
         };
     };
-    ban_leaders_api_v2_match_setups_lobbies__lobby_id__bans_put: {
+    cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post: {
         parameters: {
             query?: never;
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
             };
             path: {
                 lobby_id: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HostBans"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -3098,20 +3076,23 @@ export interface operations {
             };
         };
     };
-    cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post: {
+    edit_lobby_api_v2_match_setups_lobbies__lobby_id__edit_put: {
         parameters: {
             query?: never;
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
-                "x-actor-is-staff"?: boolean;
             };
             path: {
                 lobby_id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyEdit"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3201,44 +3182,7 @@ export interface operations {
             };
         };
     };
-    set_lobby_message_api_v2_match_setups_lobbies__lobby_id__message_put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                lobby_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LobbyMessage"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LobbyView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    move_player_api_v2_match_setups_lobbies__lobby_id__move_post: {
+    open_lobby_api_v2_match_setups_lobbies__lobby_id__live_post: {
         parameters: {
             query?: never;
             header: {
@@ -3252,45 +3196,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TeamMove"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LobbyView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    fix_settings_api_v2_match_setups_lobbies__lobby_id__settings_put: {
-        parameters: {
-            query?: never;
-            header: {
-                authorization?: string | null;
-                "x-actor-discord-id": string;
-            };
-            path: {
-                lobby_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HostSettings"];
+                "application/json": components["schemas"]["LobbyLive"];
             };
         };
         responses: {

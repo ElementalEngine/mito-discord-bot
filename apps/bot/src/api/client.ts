@@ -10,6 +10,7 @@ import type {
   DraftDeal,
   DraftRequest,
   Lobby,
+  LobbyEdit,
   LobbyRequest,
   SettingQuestion,
   Actor,
@@ -205,8 +206,10 @@ export class ApiClient {
     return (await this.parseJson(res)) as Lobby;
   }
 
-  async openLobbies(guildId: string): Promise<Lobby[]> {
-    const res = await this.fetchWithRetry(`${this.lobbyUrl("")}?guild_id=${encodeURIComponent(guildId)}`, { method: "GET" });
+  // The live lobbies players can join; with a host, that host's own, live or in setup.
+  async openLobbies(guildId: string, hostId?: string): Promise<Lobby[]> {
+    const query = new URLSearchParams({ guild_id: guildId, ...(hostId ? { host_id: hostId } : {}) });
+    const res = await this.fetchWithRetry(`${this.lobbyUrl("")}?${query}`, { method: "GET" });
     return (await this.parseJson(res)) as Lobby[];
   }
 
@@ -216,8 +219,9 @@ export class ApiClient {
     return (await this.parseJson(res)) as Lobby[];
   }
 
-  async setLobbyMessage(lobbyId: string, messageId: string, host: Actor): Promise<Lobby> {
-    return this.lobbyCall(`${lobbyId}/message`, "PUT", host, { message_id: messageId });
+  // The host confirms the setup; the post opens the lobby to players.
+  async openLobby(lobbyId: string, host: Actor, messageId: string): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/live`, "POST", host, { message_id: messageId });
   }
 
   async joinLobby(lobbyId: string, player: Actor): Promise<Lobby> {
@@ -228,16 +232,9 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/leave`, "POST", player);
   }
 
-  async moveLobbyPlayer(lobbyId: string, host: Actor, playerId: string, team: number): Promise<Lobby> {
-    return this.lobbyCall(`${lobbyId}/move`, "POST", host, { player_id: playerId, team });
-  }
-
-  async fixLobbySettings(lobbyId: string, host: Actor, settings: Readonly<Record<string, string>>): Promise<Lobby> {
-    return this.lobbyCall(`${lobbyId}/settings`, "PUT", host, { settings });
-  }
-
-  async banLobbyLeaders(lobbyId: string, host: Actor, leaders: readonly string[]): Promise<Lobby> {
-    return this.lobbyCall(`${lobbyId}/bans`, "PUT", host, { leaders });
+  // The host's edit, saved whole.
+  async editLobby(lobbyId: string, host: Actor, edit: LobbyEdit): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/edit`, "PUT", host, edit);
   }
 
   // A full lobby starts itself: the bot then acts as its host.

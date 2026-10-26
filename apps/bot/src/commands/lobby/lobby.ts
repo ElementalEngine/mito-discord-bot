@@ -3,8 +3,9 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 import { ApiClient } from '../../api/index.js';
 import type { LobbyShape } from '../../api/types.js';
 import { config } from '../../config.js';
-import { lobbyViewOf, showLobby } from '../../services/lobby.service.js';
-import { DRAFT_MODES, SHAPES, lobbyLinkOf, lobbyPanel, openLobbiesPanel, type DraftMode } from '../../ui/panels/lobby.js';
+import { openEditor } from '../../handlers/lobby.handlers.js';
+import { showLobby } from '../../services/lobby.service.js';
+import { DRAFT_MODES, SHAPES, lobbyLinkOf, openLobbiesPanel, type DraftMode } from '../../ui/panels/lobby.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
@@ -12,12 +13,12 @@ const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setName('lobby')
-  .setDescription('Host a Civ6 lobby players join, then draft it.')
+  .setDescription('Host a Civ6 lobby: set it up, open it to players, then draft it.')
   .setContexts(InteractionContextType.Guild)
   .addSubcommand((sub) =>
     sub
       .setName('host')
-      .setDescription('Open a Civ6 lobby and take its first seat.')
+      .setDescription('Set up a Civ6 lobby, then open it to players.')
       .addStringOption((o) =>
         o
           .setName('mode')
@@ -25,7 +26,7 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(...(Object.keys(SHAPES) as LobbyShape[]).map((value) => ({ name: SHAPES[value], value }))),
       )
-      .addStringOption((o) => o.setName('steam-link').setDescription('Your Civ6 lobby link: steam://joinlobby/289070/...').setRequired(true).setMaxLength(120))
+      .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120))
       .addStringOption((o) =>
         o
           .setName('draft')
@@ -46,16 +47,16 @@ function hostChannels(shape: LobbyShape): string[] {
   return shape === 'duel' ? [c.civ6ffaVote] : [c.civ6ffaVote, c.noviceCommands];
 }
 
+// The lobby opens in setup, seen only by its host in their editor.
 async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
   const shape = interaction.options.getString('mode', true) as LobbyShape;
   const policy = { allowedChannelIds: hostChannels(shape), requiredRoleIds: [config.discord.roles.civ6Rank], allowDeveloperOverride: true };
   if (!(await ensureCommandAccess(interaction, policy))) return;
-  const steamLink = interaction.options.getString('steam-link', true).trim();
-  if (!lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
-    refuse('That is not a Civ6 lobby link. Paste the steam://joinlobby/289070/... link of your lobby.');
+  const steamLink = interaction.options.getString('steam-link')?.trim() || null;
+  if (steamLink && !lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
+    refuse('That is not a Civ6 lobby link. Paste the steam://joinlobby/289070/... link of your lobby, or leave it out.');
   }
-  await defer(interaction, 'public');
-  const actor = { id: interaction.user.id };
+  await defer(interaction, 'private');
   const lobby = await api.hostLobby(
     {
       shape,
@@ -65,10 +66,9 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
       steam_link: steamLink,
       rules: interaction.options.getString('rules')?.trim() || null,
     },
-    actor,
+    { id: interaction.user.id },
   );
-  const post = await respond(interaction, lobbyPanel(await lobbyViewOf(lobby, api)), 'public');
-  if (post) await api.setLobbyMessage(lobby.id, post.id, actor);
+  await openEditor(interaction, lobby);
 }
 
 async function browse(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
@@ -78,7 +78,7 @@ async function browse(interaction: ChatInputCommandInteraction<'cached' | 'raw'>
 
 async function cancel(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
   await defer(interaction, 'private');
-  const mine = (await api.openLobbies(interaction.guildId)).find((l) => l.host_id === interaction.user.id);
+  const [mine] = await api.openLobbies(interaction.guildId, interaction.user.id);
   if (!mine) refuse('You are not hosting an open lobby.');
   const cancelled = await api.cancelLobby(mine.id, { id: interaction.user.id });
   await showLobby(interaction.client, cancelled, api);

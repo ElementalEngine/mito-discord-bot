@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
-import type { CivDataResponse, Lobby, LobbyShape, SettingQuestion } from '../../api/types.js';
+import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, text, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
@@ -19,56 +19,85 @@ export const SHAPES: Readonly<Record<LobbyShape, string>> = {
 export const DRAFT_MODES = { standard: 'Standard', random: 'Random' } as const;
 export type DraftMode = keyof typeof DRAFT_MODES;
 
+// A lobby keeps its mode and its number of teams; only its size changes.
+const SIZES: readonly (readonly LobbyShape[])[] = [
+  ['ffa-8', 'ffa-10', 'ffa-12', 'ffa-14'],
+  ['duel'],
+  ['teamer-2v2', 'teamer-3v3', 'teamer-4v4', 'teamer-5v5'],
+  ['teamer-2v2v2v2'],
+];
+const SEATS: Readonly<Record<LobbyShape, number>> = {
+  'ffa-8': 8,
+  'ffa-10': 10,
+  'ffa-12': 12,
+  'ffa-14': 14,
+  duel: 2,
+  'teamer-2v2': 4,
+  'teamer-3v3': 6,
+  'teamer-4v4': 8,
+  'teamer-5v5': 10,
+  'teamer-2v2v2v2': 8,
+};
+
 export const VERB = {
   join: 'join',
   leave: 'leave',
   start: 'start',
   cancel: 'cancel',
-  settings: 'settings',
+  edit: 'edit',
+  view: 'view',
   setting: 'setting',
+  shape: 'shape',
+  move: 'move',
+  kick: 'kick',
   bans: 'bans',
   bansForm: 'bansform',
-  teams: 'teams',
-  move: 'move',
+  done: 'done',
+  revert: 'revert',
+  confirm: 'confirm',
+  discard: 'discard',
 } as const;
 
-// A setting the host leaves open.
+// A setting the host leaves open, to be voted.
 export const NOT_FIXED = '-';
 export const LOBBY_BANS = { edition: 'civ6', age: null } as const;
 const STEAM_LINK = /^steam:\/\/joinlobby\/289070\/([0-9]+)\/(7656119[0-9]+)$/;
 
 // Discord links only http(s), so the Steam link goes out through the redirect
 // host, which accepts nothing but a lobby. Null for anything else.
-export function lobbyLinkOf(steamLink: string, redirectUrl: string): string | null {
-  const m = STEAM_LINK.exec(steamLink.trim());
+export function lobbyLinkOf(steamLink: string | null, redirectUrl: string): string | null {
+  const m = steamLink ? STEAM_LINK.exec(steamLink.trim()) : null;
   return m ? `${redirectUrl}/civ6/${m[1]}/${m[2]}` : null;
 }
 
-const button = (lobby: Lobby, verb: string, label: string, style: ButtonStyle): ButtonBuilder =>
-  new ButtonBuilder().setCustomId(customId('lobby', verb, lobby.id)).setLabel(label).setStyle(style);
+const button = (lobby: Lobby, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
+  new ButtonBuilder().setCustomId(customId('lobby', verb, lobby.id, ...args)).setLabel(label).setStyle(style);
 
 const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
 
-const teamOf = (lobby: Lobby, team: number): string[] => lobby.players.filter((p) => p.team === team).map((p) => p.discord_id);
+type Seat = Readonly<{ discord_id: string; team: number | null }>;
 
-function seatLines(lobby: Lobby): string {
+const teamOf = (players: readonly Seat[], team: number): string[] => players.filter((p) => p.team === team).map((p) => p.discord_id);
+
+function seatLines(lobby: Lobby, players: readonly Seat[] = lobby.players): string {
   const name = (id: string): string => (id === lobby.host_id ? `${mention(id)} (host)` : mention(id));
-  if (!lobby.teams) return lobby.players.map((p, i) => `${i + 1}. ${name(p.discord_id)}`).join('\n');
+  if (!lobby.teams) return players.map((p, i) => `${i + 1}. ${name(p.discord_id)}`).join('\n');
   return Array.from({ length: lobby.teams }, (_, i) => {
-    const team = teamOf(lobby, i + 1);
+    const team = teamOf(players, i + 1);
     return `**Team ${i + 1}** · ${team.length ? team.map(name).join(', ') : 'empty'}`;
   }).join('\n');
 }
 
-function settingsLine(lobby: Lobby, questions: readonly SettingQuestion[]): string {
-  if (!lobby.settings.length) return 'None fixed';
-  return lobby.settings
-    .map((s) => {
-      const q = questions.find((x) => x.id === s.id);
-      return `${q?.title ?? s.id}: ${q?.options.find((o) => o.id === s.value)?.label ?? s.value}`;
-    })
-    .join('\n');
+function settingLines(chosen: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): string {
+  const lines = questions
+    .filter((q) => chosen[q.id] !== undefined)
+    .map((q) => `${q.title}: ${q.options.find((o) => o.id === chosen[q.id])?.label ?? chosen[q.id]}`);
+  return lines.join('\n') || 'None fixed';
 }
+
+const banLine = (names: CivNames, bans: readonly string[]): string => bans.map((t) => nameOf(names, t)).join(' · ') || 'None';
+
+const fixedOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
 
 const CLOSED: Readonly<Record<string, string>> = {
   host: 'Cancelled by the host',
@@ -85,13 +114,12 @@ export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel 
     return { tone: 'muted', surface: 'lobby', title, subtitle: CLOSED[lobby.cancel_reason ?? ''] ?? 'Closed', footer: `Hosted by ${mention(lobby.host_id)}` };
   }
   const open = lobby.status === 'open';
-  const bans = lobby.bans.map((b) => nameOf(names, b.token)).join(' · ') || 'None';
   const body = [
     ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
     ...(lobby.rules ? [field('Host rules', lobby.rules)] : []),
     field(open ? 'Seats' : 'Players', seatLines(lobby)),
-    field('Settings', settingsLine(lobby, questions)),
-    field('Leader bans', bans),
+    field('Settings', settingLines(fixedOf(lobby), questions)),
+    field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
   ];
   const actions = [
     row(
@@ -99,21 +127,16 @@ export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel 
       button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
       button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
     ),
-    row(
-      button(lobby, VERB.settings, 'Settings', ButtonStyle.Secondary),
-      button(lobby, VERB.bans, 'Bans', ButtonStyle.Secondary),
-      ...(lobby.teams ? [button(lobby, VERB.teams, 'Teams', ButtonStyle.Secondary)] : []),
-      button(lobby, VERB.cancel, 'Cancel', ButtonStyle.Danger),
-    ),
+    row(button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary), button(lobby, VERB.cancel, 'Cancel', ButtonStyle.Danger)),
   ];
+  const footer = `Hosted by ${mention(lobby.host_id)}`;
   return {
     tone: open ? 'info' : 'success',
     surface: 'lobby',
     title: open ? title : `${title}: drafted`,
     subtitle: `${lobby.players.length}/${lobby.seats} seats · ${DRAFT_MODES[lobby.draft_mode as DraftMode] ?? lobby.draft_mode} draft`,
     body,
-    ...(open ? { actions } : {}),
-    footer: open ? `Hosted by ${mention(lobby.host_id)} · closes after 2.5 hours with no activity` : `Hosted by ${mention(lobby.host_id)}`,
+    ...(open ? { actions, footer: `${footer} · closes after 2.5 hours with no activity` } : { footer }),
   };
 }
 
@@ -122,7 +145,13 @@ export function lobbyDraftPanels(lobby: Lobby, names: CivNames): Panel[] {
   return lobby.pools.map((pool) => ({
     tone: 'info',
     title: pool.player_id ? mention(pool.player_id) : `Team ${pool.team}`,
-    body: [text(pool.player_id ? pickLines(names, pool.leaders) : `-# ${teamOf(lobby, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`)],
+    body: [
+      text(
+        pool.player_id
+          ? pickLines(names, pool.leaders)
+          : `-# ${teamOf(lobby.players, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`,
+      ),
+    ],
   }));
 }
 
@@ -140,59 +169,169 @@ export function openLobbiesPanel(lobbies: readonly Lobby[]): Panel {
   };
 }
 
-// The host's settings: each one fixed, or left open.
-export function settingsPanel(lobby: Lobby, questions: readonly SettingQuestion[]): Panel {
-  const fixed = new Map(lobby.settings.map((s) => [s.id, s.value]));
-  const menus = questions.map((q) =>
-    row(
-      new StringSelectMenuBuilder()
-        .setCustomId(customId('lobby', VERB.setting, lobby.id, q.id))
-        .setPlaceholder(fit(q.title, 150))
-        .addOptions(
-          { label: fit(`${q.title}: not fixed`, 100), value: NOT_FIXED, default: !fixed.has(q.id) },
-          ...q.options.map((o) => ({
-            label: fit(`${q.title}: ${o.label}`, 100),
-            value: o.id,
-            default: fixed.get(q.id) === o.id,
-            emoji: { name: o.emoji },
-          })),
-        ),
-    ),
-  );
-  return { tone: 'info', surface: 'lobby', title: 'Lobby settings', subtitle: 'Fix any setting; the rest stay open', actions: menus };
+// The host's editor: changes stay a draft until Done (or Confirm, in setup).
+export type EditorView = 'main' | 'settings' | 'lobby';
+
+export type EditorDraft = Readonly<{
+  lobby: Lobby;
+  view: EditorView;
+  shape: LobbyShape;
+  settings: Readonly<Record<string, string>>;
+  bans: readonly string[];
+  teams: Readonly<Record<string, number>>;
+  removed: readonly string[];
+}>;
+
+export const draftOf = (lobby: Lobby): EditorDraft => ({
+  lobby,
+  view: 'main',
+  shape: lobby.shape,
+  settings: fixedOf(lobby),
+  bans: lobby.bans.map((b) => b.token),
+  teams: {},
+  removed: [],
+});
+
+export const editOf = (d: EditorDraft): LobbyEdit => ({ shape: d.shape, settings: { ...d.settings }, bans: [...d.bans], teams: { ...d.teams }, removed: [...d.removed] });
+
+// The players as the draft leaves them.
+const seatsOf = (d: EditorDraft): Seat[] =>
+  d.lobby.players.filter((p) => !d.removed.includes(p.discord_id)).map((p) => ({ ...p, team: d.teams[p.discord_id] ?? p.team }));
+
+export function withSetting(d: EditorDraft, question: string, value: string): EditorDraft {
+  const settings: Record<string, string> = { ...d.settings };
+  if (value === NOT_FIXED) delete settings[question];
+  else settings[question] = value;
+  return { ...d, settings };
 }
 
-export const settingsAfter = (lobby: Lobby, question: string, value: string): Record<string, string> => {
-  const chosen: Record<string, string> = Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
-  if (value === NOT_FIXED) delete chosen[question];
-  else chosen[question] = value;
-  return chosen;
-};
+export const withShape = (d: EditorDraft, shape: LobbyShape): EditorDraft => ({ ...d, shape });
+export const withBans = (d: EditorDraft, bans: readonly string[]): EditorDraft => ({ ...d, bans: [...new Set(bans)] });
+// A player moved back to their own team has no move left to save.
+export function withMove(d: EditorDraft, player: string, team: number): EditorDraft {
+  const teams: Record<string, number> = { ...d.teams, [player]: team };
+  if (d.lobby.players.find((p) => p.discord_id === player)?.team === team) delete teams[player];
+  return { ...d, teams };
+}
+export const withKick = (d: EditorDraft, player: string): EditorDraft => ({ ...d, removed: [...new Set([...d.removed, player])] });
+export const withView = (d: EditorDraft, view: EditorView): EditorDraft => ({ ...d, view });
 
-// The host's team moves: every player onto every other team with room.
-export function teamsPanel(lobby: Lobby, playerNames: ReadonlyMap<string, string>): Panel {
-  const room = (team: number): boolean => teamOf(lobby, team).length < lobby.seats / lobby.teams;
-  const moves = lobby.players.flatMap((p) =>
-    Array.from({ length: lobby.teams }, (_, i) => i + 1)
-      .filter((team) => team !== p.team && room(team))
-      .map((team) => ({ label: fit(`${playerNames.get(p.discord_id) ?? p.discord_id} to Team ${team}`, 100), value: `${p.discord_id}:${team}` })),
-  );
-  const head = { tone: 'info' as const, surface: 'lobby' as const, title: 'Teams' };
-  if (!moves.length) return { ...head, body: [text('No move is open: every other team is full.')] };
+const sizesLike = (shape: LobbyShape): readonly LobbyShape[] => SIZES.find((sizes) => sizes.includes(shape)) ?? [shape];
+
+function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: CivNames): Panel {
+  const live = d.lobby.live;
+  const lobby = d.lobby;
+  const changes = [
+    ...(d.removed.length ? [`Removing ${d.removed.map(mention).join(', ')}`] : []),
+    ...(Object.keys(d.teams).length ? [`Moving ${Object.entries(d.teams).map(([p, t]) => `${mention(p)} to Team ${t}`).join(', ')}`] : []),
+  ];
   return {
-    ...head,
-    body: [text(seatLines(lobby))],
+    tone: 'info',
+    surface: 'lobby',
+    title: live ? 'Edit your lobby' : 'Set up your lobby',
+    subtitle: live ? 'Done saves your changes; Revert drops them' : 'Players see it once you confirm',
+    body: [
+      field('Size', `${SHAPES[d.shape]} · ${seatsOf(d).length}/${SEATS[d.shape]} seated`),
+      field('Settings', settingLines(d.settings, questions)),
+      field('Leader bans', banLine(names, d.bans)),
+      ...(changes.length ? [field('Players', changes.join('\n'))] : []),
+    ],
     actions: [
-      row(new StringSelectMenuBuilder().setCustomId(customId('lobby', VERB.move, lobby.id)).setPlaceholder('Move a player').addOptions(moves.slice(0, 25))),
+      row(
+        button(lobby, VERB.view, 'Game settings', ButtonStyle.Secondary, 'settings'),
+        button(lobby, VERB.bans, 'Leader bans', ButtonStyle.Secondary),
+        button(lobby, VERB.view, 'Lobby', ButtonStyle.Secondary, 'lobby'),
+      ),
+      live
+        ? row(button(lobby, VERB.done, 'Done', ButtonStyle.Success), button(lobby, VERB.revert, 'Revert', ButtonStyle.Secondary))
+        : row(button(lobby, VERB.confirm, 'Confirm', ButtonStyle.Success), button(lobby, VERB.discard, 'Cancel lobby', ButtonStyle.Danger)),
     ],
   };
 }
 
-// /draft's ban menus, with what the host has banned already ticked.
-export function lobbyBanForm(lobby: Lobby, data: CivDataResponse, names: CivNames): ModalBuilder {
-  return new ModalBuilder()
-    .setCustomId(customId('lobby', VERB.bansForm, lobby.id))
-    .setTitle('Leader bans for your lobby')
-    .addLabelComponents(...banFields(LOBBY_BANS, data, names, new Set(lobby.bans.map((b) => b.token))));
+function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Panel {
+  const menus = questions.map((q) =>
+    row(
+      new StringSelectMenuBuilder()
+        .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
+        .addOptions(
+          { label: fit(`${q.title}: not fixed`, 100), value: NOT_FIXED, default: d.settings[q.id] === undefined },
+          ...q.options.map((o) => ({ label: fit(`${q.title}: ${o.label}`, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } })),
+        ),
+    ),
+  );
+  return {
+    tone: 'info',
+    surface: 'lobby',
+    title: 'Game settings',
+    subtitle: 'Fix any setting; the rest are voted',
+    actions: [...menus, row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
+  };
 }
 
+function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Panel {
+  const lobby = d.lobby;
+  const seats = seatsOf(d);
+  const nameOfPlayer = (id: string): string => playerNames.get(id) ?? id;
+  const fits = (s: LobbyShape): boolean =>
+    SEATS[s] >= seats.length && Array.from({ length: lobby.teams }, (_, i) => teamOf(seats, i + 1).length).every((n) => n <= SEATS[s] / lobby.teams);
+  const sizes = sizesLike(d.shape).filter(fits);
+  const menus: ButtonRow[] = [];
+  if (sizes.length > 1) {
+    menus.push(
+      row(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('lobby', VERB.shape, lobby.id))
+          .addOptions(sizes.map((s) => ({ label: SHAPES[s], value: s, default: s === d.shape }))),
+      ),
+    );
+  }
+  if (lobby.teams) {
+    const room = (team: number): boolean => teamOf(seats, team).length < SEATS[d.shape] / lobby.teams;
+    const moves = seats.flatMap((p) =>
+      Array.from({ length: lobby.teams }, (_, i) => i + 1)
+        .filter((team) => team !== p.team && room(team))
+        .map((team) => ({ label: fit(`${nameOfPlayer(p.discord_id)} to Team ${team}`, 100), value: `${p.discord_id}:${team}` })),
+    );
+    if (moves.length) {
+      menus.push(row(new StringSelectMenuBuilder().setCustomId(customId('lobby', VERB.move, lobby.id)).setPlaceholder('Move a player').addOptions(moves.slice(0, 25))));
+    }
+  }
+  const others = seats.filter((p) => p.discord_id !== lobby.host_id);
+  if (others.length) {
+    menus.push(
+      row(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('lobby', VERB.kick, lobby.id))
+          .setPlaceholder('Remove a player')
+          .addOptions(others.slice(0, 25).map((p) => ({ label: fit(nameOfPlayer(p.discord_id), 100), value: p.discord_id }))),
+      ),
+    );
+  }
+  return {
+    tone: 'info',
+    surface: 'lobby',
+    title: 'Lobby',
+    subtitle: `${SHAPES[d.shape]} · ${seats.length}/${SEATS[d.shape]} seated`,
+    body: [text(seatLines(lobby, seats))],
+    actions: [...menus, row(button(lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
+  };
+}
+
+export type EditorContext = Readonly<{ questions: readonly SettingQuestion[]; names: CivNames; playerNames: ReadonlyMap<string, string> }>;
+
+export function editorPanel(d: EditorDraft, ctx: EditorContext): Panel {
+  if (d.view === 'settings') return settingsView(d, ctx.questions);
+  if (d.view === 'lobby') return lobbyView(d, ctx.playerNames);
+  return mainView(d, ctx.questions, ctx.names);
+}
+
+export const closedEditor = (message: string): Panel => ({ tone: 'muted', surface: 'lobby', title: 'Lobby editor closed', body: [text(message)] });
+
+// /draft's ban menus, with the draft's bans ticked.
+export function lobbyBanForm(d: EditorDraft, data: CivDataResponse, names: CivNames): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(customId('lobby', VERB.bansForm, d.lobby.id))
+    .setTitle('Leader bans for your lobby')
+    .addLabelComponents(...banFields(LOBBY_BANS, data, names, new Set(d.bans)));
+}
