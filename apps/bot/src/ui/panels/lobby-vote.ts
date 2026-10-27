@@ -1,8 +1,8 @@
 import { ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
 
-import type { Lobby } from '../../api/types.js';
+import type { CivDataResponse, Lobby } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type CivNames, type Panel } from '../kit/index.js';
-import { SHAPES, VERB, button, row } from './lobby.js';
+import { SHAPES, VERB, button, lobbyFooter, row } from './lobby.js';
 
 const closes = (lobby: Lobby, done: string): string => `Closes ${lobby.deadline ? when(Date.parse(lobby.deadline), 'R') : 'soon'}, or once every player has ${done}`;
 
@@ -28,11 +28,12 @@ export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
       field('Players', ticks(lobby, new Set(lobby.vote?.finished ?? []))),
     ],
     actions: [row(button(lobby, VERB.finished, 'Finished', ButtonStyle.Success))],
+    footer: lobbyFooter(lobby),
   };
 }
 
-// The blind draft's message, where the vote's was: who has locked in. Pools
-// go out by DM; the button shows one here to anyone the DM missed.
+// The blind draft's message, where the vote's was: who has locked in, and the
+// button that shows each player their own pool, privately.
 export function blindStatusPanel(lobby: Lobby): Panel {
   return {
     tone: 'info',
@@ -40,45 +41,42 @@ export function blindStatusPanel(lobby: Lobby): Panel {
     title: `Blind draft: Civ6 ${SHAPES[lobby.shape]} lobby`,
     subtitle: closes(lobby, 'locked in'),
     body: [
-      text('Your pool is in your DMs: pick a leader and lock it in. No DM? Press Pick here. The picks are revealed together; no pick by the deadline is an auto pick.'),
+      text('Press **Pick your leader** to see your pool and lock in a pick; only you see it. The picks are revealed together, and anyone without a pick by the deadline gets an auto pick.'),
       field('Players', ticks(lobby, new Set(lobby.picks.map((p) => p.player_id)))),
     ],
-    actions: [row(button(lobby, VERB.pick, 'Pick here', ButtonStyle.Secondary))],
+    actions: [row(button(lobby, VERB.pick, 'Pick your leader', ButtonStyle.Primary))],
+    footer: lobbyFooter(lobby),
   };
 }
 
-const pickTitle = (lobby: Lobby): string => `Blind pick: Civ6 ${SHAPES[lobby.shape]} lobby`;
-
-// A player's own pool: a leader chosen from the menu, then locked in. Once
-// locked, it shows the pick until the reveal.
-export function blindPickPanel(lobby: Lobby, playerId: string, names: CivNames, chosen?: string): Panel {
+// A player's own pool, each leader with their civ, then chosen from the menu
+// and locked in. Once locked, it shows the pick until the reveal.
+export function blindPickPanel(lobby: Lobby, playerId: string, names: CivNames, data: CivDataResponse, chosen?: string): Panel {
+  const title = `Blind pick: Civ6 ${SHAPES[lobby.shape]} lobby`;
   const locked = lobby.picks.find((p) => p.player_id === playerId)?.leader;
   if (locked) {
-    return { tone: 'success', surface: 'draft', title: pickTitle(lobby), subtitle: `Locked in: ${plainNameOf(names, locked)}. Revealed once every player has locked in.` };
+    return { tone: 'success', surface: 'draft', title, subtitle: `Locked in: ${plainNameOf(names, locked)}. Revealed once every player has locked in.`, footer: lobbyFooter(lobby) };
   }
+  const civOf: ReadonlyMap<string, string> = new Map(data.leaders.flatMap((l) => (l.civ_display ? [[l.token, l.civ_display] as [string, string]] : [])));
   const pool = lobby.pools.find((p) => p.player_id === playerId)?.leaders ?? [];
   const menu = new StringSelectMenuBuilder()
     .setCustomId(customId('lobby', VERB.picked, lobby.id))
-    .setPlaceholder('Your leader')
+    .setPlaceholder('Choose your leader')
     .addOptions(
       pool.map((token) => {
         const emoji = portraitOf(names, token);
-        return { label: fit(plainNameOf(names, token), 100), value: token, default: token === chosen, ...(emoji ? { emoji } : {}) };
+        const description = civOf.get(token);
+        return { label: fit(plainNameOf(names, token), 100), value: token, default: token === chosen, ...(description ? { description: fit(description, 100) } : {}), ...(emoji ? { emoji } : {}) };
       }),
     );
   const lockIn = button(lobby, VERB.lockIn, chosen ? `Lock in ${fit(plainNameOf(names, chosen), 60)}` : 'Lock in', ButtonStyle.Success, ...(chosen ? [chosen] : [])).setDisabled(!chosen);
   return {
     tone: 'info',
     surface: 'draft',
-    title: pickTitle(lobby),
+    title,
     subtitle: closes(lobby, 'locked in'),
+    body: [field('Your pool', pool.map((token) => `${nameOf(names, token)}${civOf.has(token) ? ` · ${civOf.get(token)}` : ''}`).join('\n'))],
     actions: [row(menu), row(lockIn)],
+    footer: lobbyFooter(lobby),
   };
-}
-
-// The DM once the picks are revealed.
-export function blindClosedPanel(lobby: Lobby, playerId: string, names: CivNames): Panel {
-  const pick = lobby.picks.find((p) => p.player_id === playerId);
-  const yours = pick ? `${plainNameOf(names, pick.leader)}${pick.by === 'auto' ? ', an auto pick' : ''}` : 'none';
-  return { tone: 'muted', surface: 'draft', title: pickTitle(lobby), subtitle: lobby.status === 'done' ? `Revealed. You play ${yours}.` : 'Closed: the lobby was cancelled.' };
 }

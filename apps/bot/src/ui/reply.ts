@@ -8,6 +8,7 @@ import {
   type Message,
   type MessageEditOptions,
   type MessageMentionOptions,
+  type ModalMessageModalSubmitInteraction,
   type ModalSubmitInteraction,
   type RepliableInteraction,
   type SendableChannels,
@@ -99,6 +100,12 @@ type PanelPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInte
 export async function holdPanel(interaction: PanelPress): Promise<void> {
   holding.add(interaction);
   await interaction.deferUpdate();
+}
+
+// A press answered by its panel redrawn, in the one call that acknowledges it:
+// for changes ready at once, so the panel never lags the press.
+export async function updatePanel(interaction: ButtonInteraction | AnySelectMenuInteraction | ModalMessageModalSubmitInteraction, panel: Panel): Promise<void> {
+  await interaction.update({ components: [container(panel)], allowedMentions: NO_PINGS });
 }
 
 // A message rewritten as a panel, clearing whatever it showed before.

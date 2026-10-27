@@ -123,12 +123,14 @@ test('a drafted lobby points to its draft', () => {
   assert.match(textOf(drafted), /### Drafted in <#9>/);
 });
 
-test('the draft opens with the game, then each player or team, or the blind picks together', () => {
+test('the draft opens with the game, then each player or team, or the blind picks together, each with its host and code', () => {
   const ffa = lobbyDraftPanels(view(lobby({ status: 'done', pools: [{ player_id: '100', team: null, leaders: ['LEADER_A', 'LEADER_B'] }] })));
   assert.equal(ffa[0]!.title, 'Civ6 FFA, 8 seats draft');
   assert.match(textOf(ffa[0]!), /1️⃣ Huts: 1x/);
   assert.equal(ffa[1]!.title, '<@100>');
   assert.equal(textOf(ffa[1]!), 'Abe\nBea');
+  assert.equal(ffa[0]!.subtitle, 'Standard draft');
+  assert.deepEqual(ffa.map((p) => p.footer), ['Hosted by <@100> · code K7Q2', 'Hosted by <@100> · code K7Q2']);
   const team = lobbyDraftPanels(view(teamer([['100', 1], ['200', 2], ['300', 1]], { pools: [{ player_id: null, team: 1, leaders: ['LEADER_A'] }] })));
   assert.equal(team[1]!.title, 'Team 1');
   assert.equal(textOf(team[1]!), '-# <@100>, <@300>\nAbe');
@@ -139,6 +141,7 @@ test('the draft opens with the game, then each player or team, or the blind pick
   const blind = lobbyDraftPanels(view(lobby({ draft_mode: 'blind', picks })));
   assert.equal(blind.length, 2);
   assert.equal(textOf(blind[1]!), '<@100> · Abe\n<@200> · Bea (auto pick)');
+  assert.equal(blind[1]!.footer, 'Hosted by <@100> · code K7Q2');
 });
 
 test('in setup the editor confirms or cancels; once live it saves or reverts', () => {

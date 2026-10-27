@@ -90,7 +90,7 @@ async function cancel(interaction: ChatInputCommandInteraction<'cached' | 'raw'>
   const cancelled = await api.cancelLobby(interaction.guildId, code, { id: interaction.user.id, isStaff: isStaff(interaction) });
   await inLobbyTurn(cancelled.id, async () => {
     await showLobby(interaction.client, cancelled, api);
-    await closeVote(interaction.client, cancelled, api);
+    await closeVote(interaction.client, cancelled);
   });
   await say(interaction, 'success', `Lobby ${cancelled.code} is cancelled.`);
 }

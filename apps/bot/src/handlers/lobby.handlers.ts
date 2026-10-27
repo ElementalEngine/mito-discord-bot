@@ -3,6 +3,7 @@ import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
   Interaction,
+  ModalMessageModalSubmitInteraction,
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from 'discord.js';
@@ -33,7 +34,7 @@ import {
   type EditorView,
 } from '../ui/panels/lobby.js';
 import { blindPickPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
-import { defer, fail, holdPanel, refuse, replacePanel, respond } from '../ui/reply.js';
+import { defer, fail, holdPanel, refuse, replacePanel, respond, updatePanel } from '../ui/reply.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
 import { selectedIn } from '../utils/modal-fields.js';
@@ -49,6 +50,10 @@ const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
 
 type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
+type EditorUpdate = ButtonInteraction | StringSelectMenuInteraction | ModalMessageModalSubmitInteraction;
+// Lobbies whose editor is saving, confirming or cancelling: their drafts are
+// out of reach until it is done.
+const busy = new Set<string>();
 
 // What each press does, completing "Could not ...".
 const ACTION: Readonly<Record<string, string>> = {
@@ -84,16 +89,17 @@ const closerFor = (interaction: ChatInputCommandInteraction | EditorPress, lobby
   until: Date.now() + TOKEN_MS,
 });
 
+// Read from caches the editor warmed as it opened, so a press waits on nothing.
 async function editorContext(draft: EditorDraft, guild: Interaction['guild']) {
-  const ids = draft.lobby.players.map((p) => p.discord_id);
-  const [questions, names] = await Promise.all([lobbySettings(draft.lobby.mode, api), civNames('civ6', api), loadMembers(guild, ids)]);
-  return { questions, names, playerNames: memberNames(guild, ids) };
+  const [questions, names] = await Promise.all([lobbySettings(draft.lobby.mode, api), civNames('civ6', api)]);
+  return { questions, names, playerNames: memberNames(guild, draft.lobby.players.map((p) => p.discord_id)) };
 }
 
 // The host's editor, privately: in setup straight after /lobby host, or from
 // /lobby edit while live. A newer editor closes the one before it.
 export async function openEditor(interaction: ChatInputCommandInteraction, lobby: Lobby): Promise<void> {
   const draft = draftOf(lobby);
+  await loadMembers(interaction.guild, lobby.players.map((p) => p.discord_id));
   const message = await respond(interaction, editorPanel(draft, await editorContext(draft, interaction.guild)), 'private');
   if (!message) throw new Error('the editor was not posted');
   drafts.set(lobby.id, { messageId: message.id, draft });
@@ -105,6 +111,7 @@ export async function openEditor(interaction: ChatInputCommandInteraction, lobby
 function editorDraft(interaction: EditorPress, lobbyId: string, ms = IDLE_MS): EditorDraft {
   const held = drafts.get(lobbyId);
   const messageId = interaction.message?.id ?? '';
+  if (busy.has(lobbyId)) refuse('Your changes are being saved. Try again in a moment.');
   const closer = ms === FORM_MS ? undefined : closerFor(interaction, lobbyId, messageId);
   if (!held || held.messageId !== messageId || !editors.touch(lobbyId, messageId, ms, closer)) {
     refuse('This editor has closed. Open it again with /lobby edit.');
@@ -112,25 +119,28 @@ function editorDraft(interaction: EditorPress, lobbyId: string, ms = IDLE_MS): E
   return held.draft;
 }
 
-// A press on the editor, worked in the lobby's turn on its draft. A newer
-// editor opened meanwhile has the draft, so this press then does nothing.
+// A press on the editor that calls core-api, worked in the lobby's turn on its
+// draft. A newer editor opened meanwhile has the draft, so this one does nothing.
 async function inEditorTurn(interaction: EditorPress, lobbyId: string, work: (draft: EditorDraft) => Promise<void>): Promise<void> {
   editorDraft(interaction, lobbyId);
-  await holdPanel(interaction);
-  await inLobbyTurn(lobbyId, async () => {
-    const held = drafts.get(lobbyId);
-    if (held && held.messageId === interaction.message?.id) await work(held.draft);
-  });
+  busy.add(lobbyId);
+  try {
+    await holdPanel(interaction);
+    await inLobbyTurn(lobbyId, async () => {
+      const held = drafts.get(lobbyId);
+      if (held && held.messageId === interaction.message?.id) await work(held.draft);
+    });
+  } finally {
+    busy.delete(lobbyId);
+  }
 }
 
-// The draft changed and the editor redrawn.
-async function onEditor(interaction: EditorPress, lobbyId: string, change: (draft: EditorDraft) => EditorDraft | Promise<EditorDraft>): Promise<void> {
-  await inEditorTurn(interaction, lobbyId, async (draft) => {
-    const next = await change(draft);
-    const held = drafts.get(lobbyId);
-    if (held) drafts.set(lobbyId, { ...held, draft: next });
-    await replacePanel(interaction, editorPanel(next, await editorContext(next, interaction.guild)));
-  });
+// The draft changed and the editor redrawn in the press's own answer: the
+// change is local, so nothing waits on core-api or the lobby's turn.
+async function onEditor(interaction: EditorUpdate, lobbyId: string, change: (draft: EditorDraft) => EditorDraft): Promise<void> {
+  const draft = change(editorDraft(interaction, lobbyId));
+  drafts.set(lobbyId, { messageId: interaction.message.id, draft });
+  await updatePanel(interaction, editorPanel(draft, await editorContext(draft, interaction.guild)));
 }
 
 // The editor's last word: the draft is gone, so the closer has nothing to do.
@@ -150,7 +160,11 @@ async function save(interaction: ButtonInteraction, lobbyId: string): Promise<vo
 }
 
 async function revert(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
-  await onEditor(interaction, lobbyId, async () => draftOf(await api.lobby(lobbyId)));
+  await inEditorTurn(interaction, lobbyId, async () => {
+    const draft = draftOf(await api.lobby(lobbyId));
+    drafts.set(lobbyId, { messageId: interaction.message.id, draft });
+    await replacePanel(interaction, editorPanel(draft, await editorContext(draft, interaction.guild)));
+  });
 }
 
 async function confirm(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
@@ -177,6 +191,7 @@ async function openBans(interaction: ButtonInteraction, lobbyId: string): Promis
 }
 
 async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Promise<void> {
+  if (!interaction.isFromMessage()) refuse('This form is out of date.');
   const fields = banFieldIds(LOBBY_BANS, await civRows('civ6', api));
   await onEditor(interaction, lobbyId, (draft) => withBans(withView(draft, 'main'), selectedIn(interaction, fields.leaders)));
 }
@@ -210,18 +225,24 @@ async function pickingLobby(lobbyId: string, playerId: string): Promise<Lobby> {
   return lobby;
 }
 
-// A blind drafter's own pool, privately here, for anyone the DM missed.
+// A player's pool panel, from cached civ data.
+async function poolPanel(lobby: Lobby, playerId: string, leader?: string) {
+  const [names, data] = await Promise.all([civNames('civ6', api), civRows('civ6', api)]);
+  return blindPickPanel(lobby, playerId, names, data, leader);
+}
+
+// A blind drafter's own pool, privately.
 async function showPool(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
   await defer(interaction, 'private');
   const lobby = await pickingLobby(lobbyId, interaction.user.id);
-  await respond(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api)), 'private');
+  await respond(interaction, await poolPanel(lobby, interaction.user.id), 'private');
 }
 
 // A leader chosen from the pool, not yet locked in.
 async function chooseLeader(interaction: StringSelectMenuInteraction, lobbyId: string, leader: string): Promise<void> {
   await holdPanel(interaction);
   const lobby = await pickingLobby(lobbyId, interaction.user.id);
-  await replacePanel(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api), leader));
+  await replacePanel(interaction, await poolPanel(lobby, interaction.user.id, leader));
 }
 
 // The pick locked in; once every player has, the picks are revealed.
@@ -229,7 +250,7 @@ async function lockIn(interaction: ButtonInteraction, lobbyId: string, leader: s
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const lobby = await api.pickLeader(lobbyId, actorOf(interaction), leader);
-    await replacePanel(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api)));
+    await replacePanel(interaction, await poolPanel(lobby, interaction.user.id));
     await showBlindStatus(interaction.client, lobby);
     if (lobby.pools.every((pool) => lobby.picks.some((p) => p.player_id === pool.player_id))) await advanceLobby(interaction.client, lobbyId, api);
   });

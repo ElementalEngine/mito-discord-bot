@@ -104,6 +104,9 @@ function settingLines(chosen: Readonly<Record<string, string>>, questions: reado
     .join('\n');
 }
 
+// Every lobby message carries its host and code, so players can tell it is theirs.
+export const lobbyFooter = (lobby: Lobby): string => `Hosted by ${mention(lobby.host_id)} · code ${lobby.code}`;
+
 const banLine = (names: CivNames, bans: readonly string[]): string => bans.map((t) => nameOf(names, t)).join(' · ') || 'None';
 
 const settingsOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
@@ -136,7 +139,7 @@ function whereItDrafts(lobby: Lobby): Block[] {
 // deleted. Seats lock once its host starts it or its countdown ends.
 export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
-  const footer = `Hosted by ${mention(lobby.host_id)} · code ${lobby.code}`;
+  const footer = lobbyFooter(lobby);
   const open = lobby.status === 'open';
   const live = open && lobby.phase === 'live';
   const actions = [
@@ -174,12 +177,13 @@ export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[
     tone: 'info',
     surface: 'draft',
     title: `Civ6 ${SHAPES[lobby.shape]} draft`,
-    subtitle: `${draftModeOf(lobby)} · hosted by ${mention(lobby.host_id)}`,
+    subtitle: draftModeOf(lobby),
     body: [field('Settings', settingLines(settingsOf(lobby), questions)), field('Leader bans', banLine(names, lobby.bans.map((b) => b.token)))],
+    footer: lobbyFooter(lobby),
   };
   if (lobby.draft_mode === 'blind') {
     const picks = lobby.picks.map((p) => `${mention(p.player_id)} · ${nameOf(names, p.leader)}${p.by === 'auto' ? ' (auto pick)' : ''}`);
-    return [head, { tone: 'info', title: 'Blind picks', body: [text(picks.join('\n'))] }];
+    return [head, { tone: 'info', title: 'Blind picks', body: [text(picks.join('\n'))], footer: lobbyFooter(lobby) }];
   }
   return [
     head,
@@ -193,6 +197,7 @@ export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[
             : `-# ${teamOf(lobby.players, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`,
         ),
       ],
+      footer: lobbyFooter(lobby),
     })),
   ];
 }
