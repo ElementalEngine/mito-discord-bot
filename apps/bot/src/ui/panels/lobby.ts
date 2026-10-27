@@ -170,23 +170,23 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView
   };
 }
 
-// The draft as posted in the voting channel: the game, then each player's or
-// team's pool as its own message, or the blind picks together.
+// The draft in the voting channel: one message for a blind or random draft; a
+// standard one's pool size, then each pool as its own message to trade from.
 export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[] {
-  const head: Panel = {
-    tone: 'info',
-    surface: 'draft',
-    title: `Civ6 ${SHAPES[lobby.shape]} draft`,
-    subtitle: draftModeOf(lobby),
-    body: [field('Settings', settingLines(settingsOf(lobby), questions)), field('Leader bans', banLine(names, lobby.bans.map((b) => b.token)))],
-    footer: lobbyFooter(lobby),
-  };
+  const game = [field('Settings', settingLines(settingsOf(lobby), questions)), field('Leader bans', banLine(names, lobby.bans.map((b) => b.token)))];
+  const head = { tone: 'info', surface: 'draft', title: `Civ6 ${SHAPES[lobby.shape]} draft`, footer: lobbyFooter(lobby) } as const;
+  const team = (team: number | null): string => (lobby.teams && team ? `Team ${team} · ` : '');
   if (lobby.draft_mode === 'blind') {
     const picks = lobby.picks.map((p) => `${mention(p.player_id)} · ${nameOf(names, p.leader)}${p.by === 'auto' ? ' (auto pick)' : ''}`);
-    return [head, { tone: 'info', title: 'Blind picks', body: [text(picks.join('\n'))], footer: lobbyFooter(lobby) }];
+    return [{ ...head, subtitle: draftModeOf(lobby), body: [field('Picks', picks.join('\n')), ...game] }];
   }
+  if (lobby.draft_mode === 'random') {
+    const picks = lobby.pools.map((p) => `${team(p.team)}${mention(p.player_id ?? '')} · ${nameOf(names, p.leaders[0] ?? '')}`);
+    return [{ ...head, subtitle: draftModeOf(lobby), body: [field('Picks', picks.join('\n')), ...game] }];
+  }
+  const size = lobby.pools[0]?.leaders.length ?? 0;
   return [
-    head,
+    { ...head, subtitle: `${draftModeOf(lobby)} · ${size} leader${size === 1 ? '' : 's'} ${lobby.teams ? 'a team' : 'each'}`, body: game },
     ...lobby.pools.map((pool): Panel => ({
       tone: 'info',
       title: pool.player_id ? mention(pool.player_id) : `Team ${pool.team}`,
