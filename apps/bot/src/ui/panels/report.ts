@@ -18,7 +18,7 @@ import {
 
 type Player = Match['players'][number];
 
-export type ReportVerb = 'edit' | 'contest' | 'approve';
+export type ReportVerb = 'contest' | 'approve';
 export const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
 
 // The marks a seat carries beside its player, and that the staff notes use.
@@ -153,7 +153,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
   const notes: Note[] = [];
   const unassigned = seats.filter((s) => !isAssigned(s.player)).length;
   if (pending && unassigned) {
-    const them = unassigned === 1 ? 'seat is unassigned. Use Edit to assign it before approving.' : 'seats are unassigned. Use Edit to assign them before approving.';
+    const them = unassigned === 1 ? 'seat is unassigned. Assign it with /report-edit before approving.' : 'seats are unassigned. Assign them with /report-edit before approving.';
     notes.push({ line: `${MARK.unassigned} ${unassigned} ${them}`, holds: true });
   }
   for (const s of seats) {
@@ -173,7 +173,6 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
 
 function reportButtons(matchId: string): ButtonRow {
   return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(reportId('edit', matchId)).setLabel('Edit').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(reportId('approve', matchId)).setLabel('Approve').setStyle(ButtonStyle.Success),
   );
@@ -215,7 +214,7 @@ export function duplicateText(upload: MatchUpload): string {
     return `This game was already approved from another save, as match ${id}. A game is rated once.`;
   }
   if (upload.repeated_by === 'composition') {
-    return `This game was already reported from another save, as match ${id}. Edit that report instead.`;
+    return `This game was already reported from another save, as match ${id}. Edit that report with /report-edit instead.`;
   }
   if (upload.approved_at) return `This save was already reported and approved, as match ${id}.`;
   return `This save is already reported, as match ${id}, and is waiting for approval.`;

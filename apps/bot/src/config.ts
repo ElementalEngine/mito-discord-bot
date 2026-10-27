@@ -95,6 +95,8 @@ const discord = {
     civ6Rank: env('ROLE_CIV6_RANKED'),
     civ7Rank: env('ROLE_CIV7_RANKED'),
     civCloud: env('ROLE_CLOUD'),
+    // Pinged when a lobby asks for players.
+    civ6Lfg: env('ROLE_CIV6_LFG'),
   },
   
   rankRoles,

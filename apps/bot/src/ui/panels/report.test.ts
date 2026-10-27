@@ -90,7 +90,7 @@ test('an unassigned seat is marked, and turns the panel orange for staff', () =>
   const panel = reportPanel({ match: m, names: new Map() });
   assert.equal(panel.tone, 'refused');
   assert.match(bodyOf(panel), new RegExp(`\`Gandhi fan\` ${MARK.unassigned} \u2014 Shaka\n-# \u0394 \u00b10 lifetime`));
-  assert.match(bodyOf(panel), /\*\*For staff\*\*\n.*1 seat is unassigned\. Use Edit to assign it before approving\./);
+  assert.match(bodyOf(panel), /\*\*For staff\*\*\n.*1 seat is unassigned\. Assign it with \/report-edit before approving\./);
 });
 
 test('the player who left is named as quitting, and the sub is not marked', () => {

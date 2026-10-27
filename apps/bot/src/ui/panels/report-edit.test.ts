@@ -459,5 +459,5 @@ test('a closed editor says whether its unsaved changes were kept', () => {
   assert.match(JSON.stringify(closedEditor('saved').body), /unsaved changes were saved/);
   const lost = closedEditor({ notSaved: 'Could not save your unsaved changes: Assign seat 1 first.' });
   assert.equal(lost.tone, 'failed');
-  assert.match(JSON.stringify(lost.body), /Assign seat 1 first\. Press Edit on the report/);
+  assert.match(JSON.stringify(lost.body), /Assign seat 1 first\. Open \/report-edit/);
 });

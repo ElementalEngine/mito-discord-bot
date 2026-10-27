@@ -239,7 +239,8 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/edit`, "PUT", host, edit);
   }
 
-  // The host starts before it fills: the seats lock and the bans vote opens.
+  // The host starts, or the bot for them once a full lobby's countdown ends:
+  // the seats lock and the bans vote opens.
   async startLobby(lobbyId: string, host: Actor): Promise<Lobby> {
     return this.lobbyCall(`${lobbyId}/start`, "POST", host);
   }
@@ -267,7 +268,7 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/reveal`, "POST", host);
   }
 
-  // Votes and blind picks past their time, left open by a restart.
+  // Countdowns, votes and blind picks past their time, left open by a restart.
   async lobbiesDue(): Promise<Lobby[]> {
     const res = await this.fetchWithRetry(this.lobbyUrl("due"), { method: "GET" });
     return (await this.parseJson(res)) as Lobby[];

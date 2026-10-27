@@ -5,6 +5,7 @@ import {
   TextInputStyle,
   type AnySelectMenuInteraction,
   type ButtonInteraction,
+  type ChatInputCommandInteraction,
   type Interaction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
@@ -64,9 +65,11 @@ const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
 type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
+// The editor's own message: /report-edit's reply, or a press on the editor.
+type EditorMessage = EditorPress | ChatInputCommandInteraction;
 // Closing waits its turn behind any pick in progress, so the closed notice is
 // the last thing the editor shows. A draft with changes is saved, not lost.
-const closerFor = (interaction: EditorPress, matchId: string): Closer => ({
+const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
   close: () =>
     inTurn(matchId, async () => {
       const held = drafts.get(matchId);
@@ -111,7 +114,6 @@ const ACTION: Readonly<Record<string, string>> = {
   approve: 'approve the report',
   contest: 'open the contest form',
   [CONTEST_FORM]: 'record your contest',
-  edit: 'open the editor',
   [EDIT.seat]: 'open the seat form',
   [EDIT.seatForm]: 'save the seat',
   [EDIT.order]: 'open the order panel',
@@ -224,10 +226,9 @@ async function done(interaction: ButtonInteraction, matchId: string): Promise<vo
   editors.close(matchId);
 }
 
-// The editor is the reporter's or staff's; core-api checks the reporter
-// again on every save, and only staff may set a tie.
-async function openEditor(interaction: ButtonInteraction, matchId: string): Promise<void> {
-  await defer(interaction, 'private');
+// /report-edit: the editor is the reporter's or staff's; core-api checks the
+// reporter again on every save, and only staff may set a tie.
+export async function openEditor(interaction: ChatInputCommandInteraction, matchId: string): Promise<void> {
   const busy = (): string | null => {
     const holder = editors.holder(matchId);
     return holder && holder !== interaction.user.id
@@ -272,7 +273,7 @@ async function openForm(
 // Save, then rewrite the public report and the private panel together, from
 // the one saved match, so neither shows anything the other does not.
 async function saveSeats(
-  interaction: EditorPress,
+  interaction: EditorMessage,
   matchId: string,
   action: string,
   seats: readonly SeatEdit[],
@@ -385,7 +386,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     if (interaction.isButton() && id.verb === 'approve') await approve(interaction, matchId);
     else if (interaction.isButton() && id.verb === 'contest') await openContest(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === CONTEST_FORM) await submitContest(interaction, matchId);
-    else if (interaction.isButton() && id.verb === 'edit') await openEditor(interaction, matchId);
     else if (interaction.isButton() && id.verb === EDIT.done) await done(interaction, matchId);
     else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
       await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));

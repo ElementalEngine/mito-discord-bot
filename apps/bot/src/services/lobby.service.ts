@@ -26,7 +26,8 @@ export function lobbySettings(gameType: string, api: ApiClient): Promise<readonl
 
 export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyView> {
   const [names, asked] = await Promise.all([civNames('civ6', api), lobbySettings(lobby.mode, api)]);
-  return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl) };
+  const lfgRole = lobby.lfg ? config.discord.roles.civ6Lfg || null : null;
+  return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl), lfgRole };
 }
 
 async function channelOf(client: Client, lobby: Lobby) {
@@ -42,12 +43,13 @@ export async function showLobby(client: Client, lobby: Lobby, api: ApiClient): P
   else await editPanelById(channel, lobby.message_id, lobbyPanel(await lobbyViewOf(lobby, api)));
 }
 
-// The host confirms: the lobby's post goes up in its channel, drawn live, and
-// from then on players join from it.
+// The host confirms: the lobby's post goes up in its channel, drawn live and
+// pinging the LFG role if asked, and from then on players join from it.
 export async function publishLobby(client: Client, lobby: Lobby, host: Actor, api: ApiClient): Promise<Lobby> {
   const channel = await channelOf(client, lobby);
   if (!channel) throw new Error(`lobby channel ${lobby.channel_id} is not one the bot can post in`);
-  const post = await postPanel(channel, lobbyPanel(await lobbyViewOf({ ...lobby, phase: 'live' }, api)));
+  const view = await lobbyViewOf({ ...lobby, phase: 'live' }, api);
+  const post = await postPanel(channel, lobbyPanel(view), { roles: view.lfgRole ? [view.lfgRole] : [] });
   try {
     return await api.openLobby(lobby.id, host, post.id);
   } catch (error) {

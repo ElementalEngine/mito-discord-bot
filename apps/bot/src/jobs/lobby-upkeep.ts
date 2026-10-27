@@ -19,7 +19,7 @@ export function startLobbyUpkeepJob(client: Client): () => void {
       for (const lobby of await api.closeIdleLobbies()) {
         await inLobbyTurn(lobby.id, async () => {
           await showLobby(client, lobby, api);
-          await closeVote(client, lobby);
+          await closeVote(client, lobby, api);
         }).catch((error: unknown) => log.warn('idle lobby post not updated', lobby.id, error));
       }
       for (const lobby of await api.lobbiesDue()) {

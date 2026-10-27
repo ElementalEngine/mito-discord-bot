@@ -9,31 +9,25 @@ const closes = (lobby: Lobby, done: string): string => `Closes ${lobby.deadline 
 const ticks = (lobby: Lobby, done: ReadonlySet<string>): string =>
   lobby.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
 
-// The vote's first message: who has finished, and the button to finish.
-export function voteStatusPanel(lobby: Lobby): Panel {
+// The bans vote, one message: what to do, the host's bans, who has finished,
+// and the button to finish. Players react on it.
+export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
+  const need = Math.floor(lobby.players.length / 2) + 1;
+  const hosts = lobby.bans.map((b) => nameOf(names, b.token)).join(' \u00b7 ');
   return {
     tone: 'info',
     surface: 'vote',
     title: `Bans vote: Civ6 ${SHAPES[lobby.shape]} lobby`,
     subtitle: closes(lobby, 'finished'),
     body: [
-      text('React on the message below with the portraits of the leaders you want banned. Then press Finished.'),
+      field(
+        'Optional: extra leader bans',
+        `React to this message with the server's leader emojis to ban those leaders. A ban lands with ${need} of the ${lobby.players.length} players. Then press Finished.`,
+      ),
+      ...(hosts ? [field('Banned by the host', hosts)] : []),
       field('Players', ticks(lobby, new Set(lobby.vote?.finished ?? []))),
     ],
     actions: [row(button(lobby, VERB.finished, 'Finished', ButtonStyle.Success))],
-  };
-}
-
-export function voteBansPanel(lobby: Lobby, names: CivNames): Panel {
-  const need = Math.floor(lobby.players.length / 2) + 1;
-  const hosts = lobby.bans.map((b) => nameOf(names, b.token)).join(' · ');
-  return {
-    tone: 'info',
-    title: 'Leader bans',
-    body: [
-      text(`React with a leader's portrait to ban them. A ban lands with ${need} of the ${lobby.players.length} players.`),
-      ...(hosts ? [field('Banned by the host', hosts)] : []),
-    ],
   };
 }
 

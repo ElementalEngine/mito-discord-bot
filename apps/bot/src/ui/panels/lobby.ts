@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { channel, customId, field, fit, mention, nameOf, row as inBody, text, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { channel, customId, field, fit, mention, nameOf, row as inBody, text, when, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
 // In the order /lobby host offers them.
@@ -46,7 +46,6 @@ export const VERB = {
   join: 'join',
   leave: 'leave',
   start: 'start',
-  edit: 'edit',
   view: 'view',
   setting: 'setting',
   shape: 'shape',
@@ -64,10 +63,8 @@ export const VERB = {
   lockIn: 'lockin',
 } as const;
 
-// The vote's messages by key: its status, which blind picks follow on, and
-// the bans.
+// The vote's one message, then the blind picks' in its place.
 export const VOTE_STATUS = 'status';
-export const VOTE_BANS = 'bans';
 
 export const LOBBY_BANS = { edition: 'civ6', age: null } as const;
 const STEAM_LINK = /^steam:\/\/joinlobby\/289070\/([0-9]+)\/(7656119[0-9]+)$/;
@@ -117,13 +114,9 @@ const draftModeOf = (lobby: Lobby): string => (lobby.draft_mode ? `${DRAFT_MODES
 const unsetOf = (settings: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): SettingQuestion[] =>
   questions.filter((q) => settings[q.id] === undefined);
 
-const CLOSED: Readonly<Record<string, string>> = {
-  host: 'Cancelled by the host',
-  staff: 'Cancelled by staff',
-  idle: 'Closed after 2.5 hours with no activity',
-};
-
-export type LobbyView = Readonly<{ lobby: Lobby; names: CivNames; questions: readonly SettingQuestion[]; link: string | null }>;
+// A lobby as drawn: its names, settings, Steam link, and the LFG role it pings
+// when asked; null for none.
+export type LobbyView = Readonly<{ lobby: Lobby; names: CivNames; questions: readonly SettingQuestion[]; link: string | null; lfgRole: string | null }>;
 
 // The vote's status message, in the voting channel.
 const voteLinkOf = (lobby: Lobby): string | null => {
@@ -139,14 +132,11 @@ function whereItDrafts(lobby: Lobby): Block[] {
   return [];
 }
 
-// The lobby's post, edited in place as it fills, drafts or closes. Seats lock
-// once it fills or its host starts it.
-export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel {
+// The lobby's post, edited in place as it fills and drafts; a closed one is
+// deleted. Seats lock once its host starts it or its countdown ends.
+export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
   const footer = `Hosted by ${mention(lobby.host_id)} · code ${lobby.code}`;
-  if (lobby.status === 'cancelled') {
-    return { tone: 'muted', surface: 'lobby', title, subtitle: CLOSED[lobby.cancel_reason ?? ''] ?? 'Closed', footer };
-  }
   const open = lobby.status === 'open';
   const live = open && lobby.phase === 'live';
   const actions = [
@@ -154,17 +144,20 @@ export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel 
       button(lobby, VERB.join, 'Join', ButtonStyle.Success),
       button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
       button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
-      button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary),
     ),
   ];
+  const countdown = live && lobby.deadline ? [text(`### Full: the bans vote starts ${when(Date.parse(lobby.deadline), 'R')}\n-# Or sooner, when the host presses Start.`)] : [];
   return {
     tone: open ? 'info' : 'success',
     surface: 'lobby',
     title: open ? title : `${title}: drafted`,
     subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draftModeOf(lobby)}`,
     body: [
+      ...(live && lfgRole && !lobby.deadline ? [text(`<@&${lfgRole}> looking for players`)] : []),
       ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
+      ...countdown,
       ...whereItDrafts(lobby),
+      ...(lobby.message ? [field('From the host', lobby.message)] : []),
       field(live ? 'Seats' : 'Players', seatLines(lobby)),
       field('Settings', settingLines(settingsOf(lobby), questions)),
       field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
@@ -178,7 +171,7 @@ export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel 
 // team's pool as its own message, or the blind picks together.
 export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[] {
   const head: Panel = {
-    tone: 'success',
+    tone: 'info',
     surface: 'draft',
     title: `Civ6 ${SHAPES[lobby.shape]} draft`,
     subtitle: `${draftModeOf(lobby)} · hosted by ${mention(lobby.host_id)}`,

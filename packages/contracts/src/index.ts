@@ -477,7 +477,8 @@ export interface paths {
         };
         /**
          * Lobbies Due
-         * @description Votes and blind picks past their time, for the bot to close.
+         * @description Countdowns, votes and blind picks past their time, for the bot to move
+         *     on.
          */
         get: operations["lobbies_due_api_v2_match_setups_lobbies_due_get"];
         put?: never;
@@ -553,7 +554,7 @@ export interface paths {
         put?: never;
         /**
          * Join Lobby
-         * @description A player sits down; the last seat starts the bans vote.
+         * @description A player sits down; the last seat starts the countdown to the vote.
          */
         post: operations["join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post"];
         delete?: never;
@@ -651,7 +652,8 @@ export interface paths {
         put?: never;
         /**
          * Start Lobby
-         * @description The host starts before it fills: the seats lock and the bans vote opens.
+         * @description The host starts, or the bot once a full lobby's countdown ends: the
+         *     seats lock and the bans vote opens.
          */
         post: operations["start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post"];
         delete?: never;
@@ -1443,8 +1445,8 @@ export interface components {
         };
         /**
          * LobbyEdit
-         * @description The host's whole edit: the size, every setting with the draft mode,
-         *     every leader banned, and players moved or removed.
+         * @description The host's whole edit: the size, the settings with the draft mode (all
+         *     of them once live), every leader banned, and players moved or removed.
          */
         LobbyEdit: {
             /** Bans */
@@ -1494,14 +1496,20 @@ export interface components {
         };
         /**
          * LobbyRequest
-         * @description /lobby host. The host is the acting player; the settings start at their
-         *     defaults.
+         * @description /lobby host. The host is the acting player; the settings start blank.
          */
         LobbyRequest: {
             /** Channel Id */
             channel_id: string;
             /** Guild Id */
             guild_id: string;
+            /**
+             * Lfg
+             * @default false
+             */
+            lfg: boolean;
+            /** Message */
+            message?: string | null;
             /**
              * Shape
              * @enum {string}
@@ -1530,6 +1538,13 @@ export interface components {
             host_id: string;
             /** Id */
             id: string;
+            /**
+             * Lfg
+             * @default false
+             */
+            lfg: boolean;
+            /** Message */
+            message?: string | null;
             /** Message Id */
             message_id: string | null;
             /** Mode */
@@ -2229,7 +2244,8 @@ export interface components {
         };
         /**
          * VotePlace
-         * @description Where the bans vote is posted: its channel, and its messages.
+         * @description Where the bans vote, then the blind picks, are posted: the channel and
+         *     the one message.
          */
         VotePlace: {
             /** Channel Id */

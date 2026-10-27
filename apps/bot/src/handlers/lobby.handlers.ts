@@ -10,7 +10,7 @@ import type {
 import { ApiClient } from '../api/index.js';
 import type { Actor, Lobby, LobbyShape } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
-import { advanceLobby, openVote, showBlindStatus } from '../services/lobby-vote.service.js';
+import { advanceLobby, keepTime, openVote, showBlindStatus } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
 import { loadMembers, memberNames } from '../services/members.js';
 import { parseId } from '../ui/kit/index.js';
@@ -49,14 +49,12 @@ const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
 
 type EditorPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
-type EditorOpener = ChatInputCommandInteraction | ButtonInteraction;
 
 // What each press does, completing "Could not ...".
 const ACTION: Readonly<Record<string, string>> = {
   [VERB.join]: 'join the lobby',
   [VERB.leave]: 'leave the lobby',
   [VERB.start]: 'start the lobby',
-  [VERB.edit]: 'open the editor',
   [VERB.bansForm]: 'set the bans',
   [VERB.done]: 'save your changes',
   [VERB.confirm]: 'open the lobby',
@@ -71,17 +69,17 @@ const actorOf = (interaction: Interaction): Actor => ({ id: interaction.user.id 
 
 // Idle, an editor drops its draft and a setup lobby is cancelled, freeing its
 // host. One a newer editor replaced just says so.
-const closerFor = (interaction: EditorOpener | EditorPress, lobbyId: string, messageId: string): Closer => ({
+const closerFor = (interaction: ChatInputCommandInteraction | EditorPress, lobbyId: string, messageId: string): Closer => ({
   close: () =>
     inLobbyTurn(lobbyId, async () => {
       const held = drafts.get(lobbyId);
       if (!held) return;
       if (held.messageId !== messageId) return replacePanel(interaction, closedEditor('You opened the editor again, so this one closed.'));
       drafts.delete(lobbyId);
-      if (held.draft.lobby.phase !== 'setup') return replacePanel(interaction, closedEditor('Closed after 2 minutes with no activity. Nothing was saved.'));
+      if (held.draft.lobby.phase !== 'setup') return replacePanel(interaction, closedEditor('Closed with no activity. Nothing was saved.'));
       const { guild_id, code } = held.draft.lobby;
       await api.cancelLobby(guild_id, code, actorOf(interaction)).catch((error: unknown) => log.warn('unconfirmed lobby not cancelled', lobbyId, error));
-      await replacePanel(interaction, closedEditor('Closed after 2 minutes with no activity, so the lobby was cancelled. Run /lobby host again.'));
+      await replacePanel(interaction, closedEditor('Closed with no activity, so the lobby was cancelled. Run /lobby host again.'));
     }),
   until: Date.now() + TOKEN_MS,
 });
@@ -93,10 +91,8 @@ async function editorContext(draft: EditorDraft, guild: Interaction['guild']) {
 }
 
 // The host's editor, privately: in setup straight after /lobby host, or from
-// the live post's Edit lobby. A newer editor closes the one before it.
-export async function openEditor(interaction: EditorOpener, lobby: Lobby): Promise<void> {
-  if (lobby.host_id !== interaction.user.id) refuse('Only the host can edit the lobby.');
-  if (lobby.status !== 'open') refuse('This lobby is closed.');
+// /lobby edit while live. A newer editor closes the one before it.
+export async function openEditor(interaction: ChatInputCommandInteraction, lobby: Lobby): Promise<void> {
   const draft = draftOf(lobby);
   const message = await respond(interaction, editorPanel(draft, await editorContext(draft, interaction.guild)), 'private');
   if (!message) throw new Error('the editor was not posted');
@@ -104,13 +100,14 @@ export async function openEditor(interaction: EditorOpener, lobby: Lobby): Promi
   editors.open(lobby.id, interaction.user.id, message.id, closerFor(interaction, lobby.id, message.id), IDLE_MS);
 }
 
-// The draft of the editor this press came from, its clock restarted; refused
-// if that editor is no longer the open one.
+// The draft of the editor this press came from, its clock restarted. A press
+// opening a form keeps the closer it had: it has no panel of its own to close.
 function editorDraft(interaction: EditorPress, lobbyId: string, ms = IDLE_MS): EditorDraft {
   const held = drafts.get(lobbyId);
   const messageId = interaction.message?.id ?? '';
-  if (!held || held.messageId !== messageId || !editors.touch(lobbyId, messageId, ms, closerFor(interaction, lobbyId, messageId))) {
-    refuse('This editor has closed. Open it again from the lobby.');
+  const closer = ms === FORM_MS ? undefined : closerFor(interaction, lobbyId, messageId);
+  if (!held || held.messageId !== messageId || !editors.touch(lobbyId, messageId, ms, closer)) {
+    refuse('This editor has closed. Open it again with /lobby edit.');
   }
   return held.draft;
 }
@@ -147,6 +144,7 @@ async function save(interaction: ButtonInteraction, lobbyId: string): Promise<vo
   await inEditorTurn(interaction, lobbyId, async (draft) => {
     const lobby = await api.editLobby(lobbyId, actorOf(interaction), editOf(draft));
     await showLobby(interaction.client, lobby, api);
+    keepTime(interaction.client, lobby, api);
     await finish(interaction, lobbyId, 'Saved. The lobby shows your changes.');
   });
 }
@@ -183,14 +181,15 @@ async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Pr
   await onEditor(interaction, lobbyId, (draft) => withBans(withView(draft, 'main'), selectedIn(interaction, fields.leaders)));
 }
 
-// A press on the lobby's post: the change, then the post redrawn. Joining the
-// last seat, or the host's Start, opens the bans vote.
+// A press on the lobby's post: the change, then the post redrawn. The host's
+// Start opens the bans vote; a full lobby's countdown opens it at its end.
 async function onPost(interaction: ButtonInteraction, lobbyId: string, change: () => Promise<Lobby>): Promise<void> {
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const changed = await change();
-    if (changed.phase === 'voting') await openVote(interaction.client, changed, api);
-    else await showLobby(interaction.client, changed, api);
+    if (changed.phase === 'voting') return openVote(interaction.client, changed, api);
+    await showLobby(interaction.client, changed, api);
+    keepTime(interaction.client, changed, api);
   });
 }
 
@@ -199,7 +198,7 @@ async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Pr
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const lobby = await api.finishVote(lobbyId, actorOf(interaction));
-    await replacePanel(interaction, voteStatusPanel(lobby));
+    await replacePanel(interaction, voteStatusPanel(lobby, await civNames('civ6', api)));
     if (lobby.players.every((p) => lobby.vote?.finished.includes(p.discord_id))) await advanceLobby(interaction.client, lobbyId, api);
   });
 }
@@ -258,10 +257,6 @@ async function onButton(interaction: ButtonInteraction, verb: string, lobbyId: s
   if (verb === VERB.finished) return finishVoting(interaction, lobbyId);
   if (verb === VERB.pick) return showPool(interaction, lobbyId);
   if (verb === VERB.lockIn && arg) return lockIn(interaction, lobbyId, arg);
-  if (verb === VERB.edit) {
-    await defer(interaction, 'private');
-    return openEditor(interaction, await api.lobby(lobbyId));
-  }
   if (verb === VERB.view && VIEWS.includes(arg as EditorView)) return onEditor(interaction, lobbyId, (d) => withView(d, arg as EditorView));
   if (verb === VERB.bans) return openBans(interaction, lobbyId);
   if (verb === VERB.done) return save(interaction, lobbyId);

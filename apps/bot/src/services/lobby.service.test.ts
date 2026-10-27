@@ -5,7 +5,9 @@ import type { Client } from 'discord.js';
 
 import type { ApiClient } from '../api/index.js';
 import type { Lobby } from '../api/types.js';
-import { publishLobby, showLobby } from './lobby.service.js';
+
+process.env.ROLE_CIV6_LFG = '77';
+const { publishLobby, showLobby } = await import('./lobby.service.js');
 
 const setup: Lobby = {
   id: '652f1a2b3c4d5e6f7a8b9c0d',
@@ -23,6 +25,8 @@ const setup: Lobby = {
   channel_id: '2',
   message_id: null,
   steam_link: null,
+  message: null,
+  lfg: false,
   players: [{ discord_id: '100', team: null }],
   settings: [],
   bans: [],
@@ -40,24 +44,36 @@ const api = {
 
 function fakeChannel() {
   const sent: string[] = [];
+  const pinged: unknown[] = [];
   const deleted: string[] = [];
   const channel = {
     isTextBased: () => true,
     isSendable: () => true,
-    send: async (o: { components: { toJSON(): unknown }[] }) => {
+    send: async (o: { components: { toJSON(): unknown }[]; allowedMentions: unknown }) => {
       sent.push(JSON.stringify(o.components[0]!.toJSON()));
+      pinged.push(o.allowedMentions);
       return { id: '3', delete: async () => undefined };
     },
     messages: { edit: async () => ({}), delete: async (id: string) => void deleted.push(id) },
   };
-  return { client: { channels: { fetch: async () => channel } } as unknown as Client, sent, deleted };
+  return { client: { channels: { fetch: async () => channel } } as unknown as Client, sent, pinged, deleted };
 }
 
 test('a confirmed lobby is posted live, with its seats and buttons', async () => {
   const { client, sent } = fakeChannel();
   assert.equal((await publishLobby(client, setup, { id: '100' }, api)).phase, 'live');
   assert.match(sent[0]!, /\*\*Seats\*\*/);
-  for (const verb of ['join', 'leave', 'start', 'edit']) assert.match(sent[0]!, new RegExp(`"lobby:${verb}:${setup.id}"`));
+  for (const verb of ['join', 'leave', 'start']) assert.match(sent[0]!, new RegExp(`"lobby:${verb}:${setup.id}"`));
+});
+
+test('a lobby asking for players pings the LFG role once, as it opens', async () => {
+  const { client, sent, pinged } = fakeChannel();
+  await publishLobby(client, { ...setup, lfg: true }, { id: '100' }, api);
+  assert.match(sent[0]!, /<@&77> looking for players/);
+  assert.deepEqual(pinged, [{ roles: ['77'] }]);
+  const quiet = fakeChannel();
+  await publishLobby(quiet.client, setup, { id: '100' }, api);
+  assert.deepEqual(quiet.pinged, [{ roles: [] }]);
 });
 
 test('a cancelled lobby has its post removed', async () => {

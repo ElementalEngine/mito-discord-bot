@@ -206,11 +206,11 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
 }
 
 // What an editor becomes when it closes, idle or replaced by a newer one.
-export const EDITOR_CLOSED = 'This editor has closed. If the report is still waiting, press Edit on it to open it again.';
+export const EDITOR_CLOSED = 'This editor has closed. If the report is still waiting, open it again with /report-edit.';
 // An editor closed with unsaved picks saves them first, and says how it went.
 export function closedEditor(draft?: 'saved' | Readonly<{ notSaved: string }>): Panel {
   if (draft === 'saved') return notice('success', 'This editor has closed. Your unsaved changes were saved.');
-  if (draft) return notice('failed', `This editor has closed. ${draft.notSaved} Press Edit on the report to make them again.`);
+  if (draft) return notice('failed', `This editor has closed. ${draft.notSaved} Open /report-edit to make them again.`);
   return notice('muted', EDITOR_CLOSED);
 }
 

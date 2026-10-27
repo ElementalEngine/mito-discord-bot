@@ -20,6 +20,7 @@ const COMMAND_CHANNELS: readonly Channel[] = ['botTesting', 'civ6Commands', 'civ
 
 export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   'report-game': { roles: RANKED, channels: ['civ6realtimeUploads', 'civ7realtimeUploads', 'civ6cloudUploads', 'civ7cloudUploads'] },
+  'report-edit': { roles: RANKED, channels: null },
   'report-remove': { roles: RANKED, channels: null },
   'report-revert': { roles: ['admin', 'developer'], channels: null, staffOnly: true },
   stats: { roles: RANKED, channels: COMMAND_CHANNELS },

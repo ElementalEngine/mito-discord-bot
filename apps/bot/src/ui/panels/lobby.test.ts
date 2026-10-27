@@ -40,6 +40,8 @@ const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   channel_id: '2',
   message_id: '3',
   steam_link: LINK,
+  message: null,
+  lfg: false,
   players: [
     { discord_id: '100', team: null },
     { discord_id: '200', team: null },
@@ -67,7 +69,7 @@ const QUESTIONS: SettingQuestion[] = [
 const NAMES = new Map([['LEADER_A', 'Abe'], ['LEADER_B', 'Bea']]);
 const CTX = { questions: QUESTIONS, names: NAMES, playerNames: new Map([['100', 'Host'], ['200', 'Ann'], ['300', 'Bo']]) };
 
-const view = (l: Lobby) => ({ lobby: l, names: NAMES, questions: QUESTIONS, link: lobbyLinkOf(l.steam_link, REDIRECT) });
+const view = (l: Lobby, lfgRole: string | null = null) => ({ lobby: l, names: NAMES, questions: QUESTIONS, link: lobbyLinkOf(l.steam_link, REDIRECT), lfgRole });
 const textOf = (panel: Panel): string => (panel.body ?? []).map((b) => ('text' in b ? b.text : '')).join('\n');
 type Json = { custom_id: string; options?: { label: string; value: string; default?: boolean }[] };
 const rowsOf = (panel: Panel) => [...(panel.body ?? []).flatMap((b) => (b.kind === 'row' ? [b.row] : [])), ...(panel.actions ?? [])];
@@ -90,12 +92,22 @@ test('a live lobby shows its link, seats, every setting with its emoji, bans and
   assert.match(body, /\*\*Settings\*\*\n2️⃣ Huts: 1\.5x\n🌐 Map: Pangaea/);
   assert.match(body, /\*\*Leader bans\*\*\nAbe/);
   assert.match(panel.footer ?? '', /Hosted by <@100> · code K7Q2 · closes after 2\.5 hours/);
-  assert.deepEqual(verbsOf(panel), ['join', 'leave', 'start', 'edit']);
+  assert.deepEqual(verbsOf(panel), ['join', 'leave', 'start']);
   assert.doesNotMatch(textOf(lobbyPanel(view(lobby({ steam_link: null })))), /Join the Steam lobby/);
 });
 
+test("a live lobby pings the LFG role until full, then counts down to its vote; the host's note shows", () => {
+  const open = textOf(lobbyPanel(view(lobby({ message: 'no novices' }), '77')));
+  assert.match(open, /^<@&77> looking for players/);
+  assert.match(open, /\*\*From the host\*\*\nno novices/);
+  assert.doesNotMatch(open, /Full: the bans vote/);
+  const full = textOf(lobbyPanel(view(lobby({ deadline: '2026-10-27T12:10:00Z' }), '77')));
+  assert.match(full, /### Full: the bans vote starts <t:1793103000:R>\n-# Or sooner, when the host presses Start\./);
+  assert.doesNotMatch(full, /<@&77>|From the host/);
+});
+
 test('a lobby that has started links to its vote or picks and has no buttons', () => {
-  const vote = { channel_id: '9', messages: { status: '8', bans: '7' }, finished: [] };
+  const vote = { channel_id: '9', messages: { status: '8' }, finished: [] };
   const voting = lobbyPanel(view(lobby({ phase: 'voting', vote })));
   assert.match(textOf(voting), /\[Voting on bans\]\(https:\/\/discord\.com\/channels\/1\/9\/8\)/);
   assert.equal(voting.actions, undefined);
@@ -103,15 +115,12 @@ test('a lobby that has started links to its vote or picks and has no buttons', (
   assert.doesNotMatch(textOf(lobbyPanel(view(lobby({ phase: 'voting', vote: { ...vote, channel_id: null } })))), /Voting on/);
 });
 
-test('a drafted lobby points to its draft; a cancelled one says why', () => {
+test('a drafted lobby points to its draft', () => {
   const vote = { channel_id: '9', messages: {}, finished: [] };
   const drafted = lobbyPanel(view(lobby({ status: 'done', phase: 'voting', vote })));
   assert.equal(drafted.title, 'Civ6 FFA, 8 seats lobby: drafted');
   assert.equal(drafted.actions, undefined);
   assert.match(textOf(drafted), /### Drafted in <#9>/);
-  const closed = lobbyPanel(view(lobby({ status: 'cancelled', cancel_reason: 'idle' })));
-  assert.equal(closed.subtitle, 'Closed after 2.5 hours with no activity');
-  assert.equal(closed.actions, undefined);
 });
 
 test('the draft opens with the game, then each player or team, or the blind picks together', () => {

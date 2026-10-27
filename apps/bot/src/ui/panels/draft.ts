@@ -162,7 +162,7 @@ export function unpackForm(args: readonly string[], label: string): BanFormAnswe
 
 const editionLabel = (edition: Edition): string => (edition === 'civ6' ? 'Civ6' : 'Civ7');
 
-export const draftTitle = (choice: DraftChoice): string => `${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`;
+const draftTitle = (choice: DraftChoice): string => `${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`;
 
 function sizes(choice: DraftChoice): string {
   if (choice.edition === 'civ6') return `${choice.drafts} drafts \u00b7 ${choice.leaders} civs each`;
@@ -176,7 +176,7 @@ const listOf = (names: CivNames, tokens: readonly string[]): string => (tokens.l
 export const pickLines = (names: CivNames, tokens: readonly string[]): string => tokens.map((t) => nameOf(names, t)).join('\n');
 
 // A teamer deals one draft per team; every other mode one per player.
-export const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' ? `Team ${i + 1}` : `Player n\u00b0${i + 1}`);
+const draftLabel = (mode: Mode, i: number): string => (mode === 'teamer' ? `Team ${i + 1}` : `Player n\u00b0${i + 1}`);
 
 export type DraftView = Readonly<{ choice: DraftChoice; deal: DraftDeal; names: CivNames; by: string; about: PostAbout }>;
 

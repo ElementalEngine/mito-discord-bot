@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { Lobby } from '../../api/types.js';
 import { container, type Panel } from '../kit/index.js';
-import { blindClosedPanel, blindPickPanel, blindStatusPanel, voteBansPanel, voteStatusPanel } from './lobby-vote.js';
+import { blindClosedPanel, blindPickPanel, blindStatusPanel, voteStatusPanel } from './lobby-vote.js';
 
 const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   id: '652f1a2b3c4d5e6f7a8b9c0d',
@@ -21,6 +21,8 @@ const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   channel_id: '2',
   message_id: '3',
   steam_link: null,
+  message: null,
+  lfg: false,
   players: ['100', '200', '300'].map((discord_id) => ({ discord_id, team: null })),
   settings: [],
   bans: [{ token: 'LEADER_A', kind: 'leader', by: 'host' }],
@@ -36,20 +38,18 @@ const textOf = (panel: Panel): string => (panel.body ?? []).map((b) => ('text' i
 type Json = { custom_id: string; label?: string; options?: { label: string; value: string; default?: boolean; emoji?: { id: string; name: string } }[] };
 const componentsOf = (panel: Panel): Json[] => (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
 
-test('the vote shows who has finished, when it closes, and the Finished button', () => {
-  const panel = voteStatusPanel(lobby());
+test('the vote is one message: the optional bans, what a ban needs, the host bans, who has finished', () => {
+  const panel = voteStatusPanel(lobby(), NAMES);
   assert.equal(panel.title, 'Bans vote: Civ6 FFA, 8 seats lobby');
   assert.match(panel.subtitle ?? '', /Closes <t:1793103000:R>/);
-  assert.match(textOf(panel), /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);
+  const body = textOf(panel);
+  assert.match(body, /\*\*Optional: extra leader bans\*\*\nReact to this message with the server's leader emojis/);
+  assert.match(body, /A ban lands with 2 of the 3 players/);
+  assert.match(body, /\*\*Banned by the host\*\*\nAbe/);
+  assert.match(body, /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);
   assert.deepEqual(componentsOf(panel).map((c) => [c.custom_id, c.label]), [['lobby:finished:652f1a2b3c4d5e6f7a8b9c0d', 'Finished']]);
+  assert.doesNotMatch(textOf(voteStatusPanel(lobby({ bans: [] }), NAMES)), /Banned by the host/);
   container(panel);
-});
-
-test('the bans message says what a ban needs and what the host banned', () => {
-  const bans = textOf(voteBansPanel(lobby(), NAMES));
-  assert.match(bans, /A ban lands with 2 of the 3 players/);
-  assert.match(bans, /\*\*Banned by the host\*\*\nAbe/);
-  assert.doesNotMatch(textOf(voteBansPanel(lobby({ bans: [] }), NAMES)), /Banned by the host/);
 });
 
 test('the blind draft shows who has locked in and offers a pick here to anyone the DM missed', () => {
