@@ -1,14 +1,14 @@
 import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import { closeVote, countVote } from '../services/lobby-vote.service.js';
+import { advanceLobby, closeVote } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, showLobby } from '../services/lobby.service.js';
 import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 5 * 60_000;
 
 // Every five minutes: lobbies idle for 2.5 hours close, freeing their seats,
-// and votes a restart left past their time are counted.
+// and votes or blind picks a restart left past their time are closed.
 export function startLobbyUpkeepJob(client: Client): () => void {
   const api = new ApiClient();
   let running = false;
@@ -22,8 +22,8 @@ export function startLobbyUpkeepJob(client: Client): () => void {
           await closeVote(client, lobby);
         }).catch((error: unknown) => log.warn('idle lobby post not updated', lobby.id, error));
       }
-      for (const lobby of await api.votesDue()) {
-        await inLobbyTurn(lobby.id, () => countVote(client, lobby.id, api)).catch((error: unknown) => log.warn('due lobby vote not counted', lobby.id, error));
+      for (const lobby of await api.lobbiesDue()) {
+        await inLobbyTurn(lobby.id, () => advanceLobby(client, lobby.id, api)).catch((error: unknown) => log.warn('due lobby not advanced', lobby.id, error));
       }
     } catch (error) {
       log.error('lobby upkeep tick failed', error);

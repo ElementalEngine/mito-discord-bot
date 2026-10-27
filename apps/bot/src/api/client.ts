@@ -239,7 +239,7 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/edit`, "PUT", host, edit);
   }
 
-  // The host starts: the seats lock and the vote opens.
+  // The host starts before it fills: the seats lock and the bans vote opens.
   async startLobby(lobbyId: string, host: Actor): Promise<Lobby> {
     return this.lobbyCall(`${lobbyId}/start`, "POST", host);
   }
@@ -253,19 +253,29 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/finished`, "POST", player);
   }
 
-  // The players' reactions, counted and the lobby drafted; the bot acts as the host.
+  // The players' ban reactions, counted and the draft dealt; the bot acts as the host.
   async tallyVote(lobbyId: string, host: Actor, ballot: LobbyBallot): Promise<Lobby> {
     return this.lobbyCall(`${lobbyId}/tally`, "POST", host, ballot);
   }
 
-  // Votes past their time, left uncounted by a restart.
-  async votesDue(): Promise<Lobby[]> {
-    const res = await this.fetchWithRetry(this.lobbyUrl("votes-due"), { method: "GET" });
+  async pickLeader(lobbyId: string, player: Actor, leader: string): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/pick`, "POST", player, { leader });
+  }
+
+  // The blind picks revealed together; the bot acts as the host.
+  async revealPicks(lobbyId: string, host: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/reveal`, "POST", host);
+  }
+
+  // Votes and blind picks past their time, left open by a restart.
+  async lobbiesDue(): Promise<Lobby[]> {
+    const res = await this.fetchWithRetry(this.lobbyUrl("due"), { method: "GET" });
     return (await this.parseJson(res)) as Lobby[];
   }
 
-  async cancelLobby(lobbyId: string, actor: Actor): Promise<Lobby> {
-    return this.lobbyCall(`${lobbyId}/cancel`, "POST", actor);
+  // A lobby is cancelled by its code, by its host or by staff.
+  async cancelLobby(guildId: string, code: string, actor: Actor): Promise<Lobby> {
+    return this.lobbyCall("cancel", "POST", actor, { guild_id: guildId, code });
   }
 
   private lobbyUrl(path: string): string {

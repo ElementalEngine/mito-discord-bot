@@ -1,163 +1,176 @@
-import { ThreadAutoArchiveDuration, type Client, type Message, type SendableChannels, type TextBasedChannel } from 'discord.js';
+import type { Client, Message, SendableChannels } from 'discord.js';
 
 import type { ApiClient } from '../api/index.js';
-import type { CivDataResponse, Lobby, LobbyBallot, SettingQuestion } from '../api/types.js';
+import type { CivDataResponse, Lobby, LobbyBallot } from '../api/types.js';
 import { config } from '../config.js';
-import { SHAPES, VOTE_BANS, VOTE_STATUS } from '../ui/panels/lobby.js';
-import { openQuestions, voteBansPanel, voteCountedPanel, voteQuestionPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
-import { editPanelById, postPanel } from '../ui/reply.js';
+import { VOTE_BANS, VOTE_STATUS, lobbyDraftPanels } from '../ui/panels/lobby.js';
+import { blindClosedPanel, blindPickPanel, blindStatusPanel, voteBansPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
+import { editPanel, editPanelById, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
-import { channelOf, inLobbyTurn, lobbySettings, showLobby } from './lobby.service.js';
+import { inLobbyTurn, lobbyViewOf, showLobby } from './lobby.service.js';
 
-// Each running vote's closing time; after a restart the upkeep job counts it.
+// Each open lobby's deadline; after a restart the upkeep job keeps it.
 const timers = new Map<string, NodeJS.Timeout>();
-
-// Discord may echo an emoji back without its variation selector.
-const emojiKey = (emoji: string): string => emoji.replace(/️/g, '');
+// Each blind draft's pool DMs, closed with each player's pick at the reveal.
+const poolDms = new Map<string, [string, Message][]>();
 
 export type Reaction = Readonly<{ id: string | null; name: string | null; users: readonly string[] }>;
-export type Reacted = Readonly<{ key: string; reactions: readonly Reaction[] }>;
 
-// The players' reactions as core-api counts them: per open setting by option,
-// and per leader portrait by name. Other emoji and other people are left out.
-export function ballotOf(reacted: readonly Reacted[], lobby: Lobby, questions: readonly SettingQuestion[], data: CivDataResponse): LobbyBallot {
+// The ban reactions as core-api counts them: per leader portrait, matched by
+// name, the players banning it. Other emoji and other people are left out.
+export function ballotOf(reactions: readonly Reaction[], lobby: Lobby, data: CivDataResponse): LobbyBallot {
   const players = new Set(lobby.players.map((p) => p.discord_id));
-  const tokenOf = new Map(data.leaders.map((l) => [l.name, l.token]));
-  const settings: Record<string, Record<string, string[]>> = {};
+  const tokenOf: ReadonlyMap<string, string> = new Map(data.leaders.map((l) => [l.name, l.token]));
   const bans: Record<string, string[]> = {};
-  const add = (into: Record<string, string[]>, key: string, users: readonly string[]): void => {
+  for (const { id, name, users } of reactions) {
+    const token = id && name ? tokenOf.get(name) : undefined;
     const voters = users.filter((u) => players.has(u));
-    if (voters.length) into[key] = [...new Set([...(into[key] ?? []), ...voters])];
-  };
-  for (const { key, reactions } of reacted) {
-    const question = questions.find((q) => q.id === key);
-    for (const { id, name, users } of reactions) {
-      if (!name) continue;
-      if (key === VOTE_BANS) {
-        const token = id ? tokenOf.get(name) : undefined;
-        if (token) add(bans, token, users);
-        continue;
-      }
-      const option = id ? undefined : question?.options.find((o) => emojiKey(o.emoji) === emojiKey(name));
-      if (question && option) add((settings[question.id] ??= {}), option.id, users);
-    }
+    if (!token || !voters.length) continue;
+    bans[token] = [...new Set([...(bans[token] ?? []), ...voters])];
   }
-  return { settings, bans };
+  return { bans };
 }
 
-// A thread off the lobby's post, or the lobby's channel.
-async function votePlace(client: Client, lobby: Lobby): Promise<SendableChannels> {
-  const channel = await channelOf(client, lobby);
-  if (!channel || !lobby.message_id) throw new Error(`lobby ${lobby.id} has no post to vote under`);
-  if (config.lobbyVoteIn === 'channel') return channel;
-  const post = await channel.messages.fetch(lobby.message_id);
-  return post.startThread({ name: `Vote: ${SHAPES[lobby.shape]}`, autoArchiveDuration: ThreadAutoArchiveDuration.OneHour });
+// FFAs and duels draft in the FFA voting channel, teamers in the teamer one.
+async function votingChannel(client: Client, lobby: Lobby): Promise<SendableChannels> {
+  const c = config.discord.channels;
+  const id = lobby.mode === 'teamer' ? c.civ6teamerVote : c.civ6ffaVote;
+  const channel = await client.channels.fetch(id);
+  if (!channel?.isSendable()) throw new Error(`voting channel ${id} is not one the bot can post in`);
+  return channel;
 }
 
-// The vote's messages cleared: a thread archived, a channel's own messages
-// deleted one by one, which needs no Manage Messages.
-async function clearPlace(place: TextBasedChannel, ids: readonly string[], statusId: string | undefined, lobby: Lobby): Promise<void> {
-  if (place.isThread()) {
-    if (statusId) await editPanelById(place, statusId, voteCountedPanel(lobby));
-    await place.setLocked(true).catch((error: unknown) => log.warn('vote thread not locked', place.id, error));
-    await place.setArchived(true);
-    return;
-  }
-  for (const id of ids) await place.messages.delete(id).catch(() => undefined);
+async function placeOf(client: Client, lobby: Lobby): Promise<SendableChannels | null> {
+  const id = lobby.vote?.channel_id;
+  const channel = id ? await client.channels.fetch(id).catch(() => null) : null;
+  return channel?.isSendable() ? channel : null;
 }
 
 function schedule(client: Client, lobby: Lobby, api: ApiClient): void {
   clearTimeout(timers.get(lobby.id));
-  const ms = Math.max(0, Date.parse(lobby.vote?.ends_at ?? '') - Date.now() || 0);
+  const ms = Math.max(0, Date.parse(lobby.deadline ?? '') - Date.now() || 0);
   const timer = setTimeout(() => {
-    void inLobbyTurn(lobby.id, () => countVote(client, lobby.id, api)).catch((error: unknown) => log.error('lobby vote not counted', lobby.id, error));
+    void inLobbyTurn(lobby.id, () => advanceLobby(client, lobby.id, api)).catch((error: unknown) =>
+      log.error('lobby not advanced at its deadline', lobby.id, error),
+    );
   }, ms);
   timer.unref();
   timers.set(lobby.id, timer);
 }
 
-// Start, in the lobby's turn: the vote is posted, recorded and linked, its
-// option emoji added last. A vote that cannot open is counted at once.
+// In the lobby's turn, once it fills or its host starts it: the bans vote is
+// posted in the voting channel. A vote that cannot open is counted at once.
 export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
-  const vote = lobby.vote;
-  if (!vote) return;
-  const [questions, names] = await Promise.all([lobbySettings(lobby.mode, api), civNames('civ6', api)]);
-  const posted: [SettingQuestion, Message][] = [];
-  const messages: Record<string, string> = {};
-  let place: SendableChannels | null = null;
   try {
-    place = await votePlace(client, lobby);
+    const place = await votingChannel(client, lobby);
     const pings = { users: lobby.players.map((p) => p.discord_id) };
-    messages[VOTE_STATUS] = (await postPanel(place, voteStatusPanel(lobby, vote), pings)).id;
-    for (const question of openQuestions(lobby, questions)) {
-      const message = await postPanel(place, voteQuestionPanel(question));
-      messages[question.id] = message.id;
-      posted.push([question, message]);
-    }
-    messages[VOTE_BANS] = (await postPanel(place, voteBansPanel(lobby, names))).id;
+    const status = await postPanel(place, voteStatusPanel(lobby), pings);
+    const bans = await postPanel(place, voteBansPanel(lobby, await civNames('civ6', api)));
+    const messages = { [VOTE_STATUS]: status.id, [VOTE_BANS]: bans.id };
     const placed = await api.placeVote(lobby.id, { id: lobby.host_id }, { channel_id: place.id, messages });
     await showLobby(client, placed, api);
     schedule(client, placed, api);
   } catch (error) {
     log.warn('lobby vote not opened, so it is counted now', lobby.id, error);
-    if (place) await clearPlace(place, Object.values(messages), undefined, lobby).catch(() => undefined);
     await countVote(client, lobby.id, api);
+  }
+}
+
+async function banReactions(place: SendableChannels, messageId: string | undefined): Promise<Reaction[]> {
+  const message = messageId ? await place.messages.fetch(messageId).catch(() => null) : null;
+  const reactions: Reaction[] = [];
+  for (const reaction of message?.reactions.cache.values() ?? []) {
+    const users = await reaction.users.fetch();
+    reactions.push({ id: reaction.emoji.id, name: reaction.emoji.name, users: [...users.keys()] });
+  }
+  return reactions;
+}
+
+// The draft posted in the voting channel and on the lobby's post.
+async function postDraft(client: Client, lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
+  if (place) for (const panel of lobbyDraftPanels(await lobbyViewOf(lobby, api))) await postPanel(place, panel);
+  await showLobby(client, lobby, api);
+}
+
+// In the lobby's turn, once all finish or time is up: the bans counted and the
+// draft dealt. A blind draft then picks on the vote's status message.
+async function countVote(client: Client, lobbyId: string, api: ApiClient): Promise<void> {
+  const lobby = await api.lobby(lobbyId);
+  if (lobby.status !== 'open' || lobby.phase !== 'voting') return;
+  const place = await placeOf(client, lobby);
+  const reactions = place ? await banReactions(place, lobby.vote?.messages[VOTE_BANS]) : [];
+  const dealt = await api.tallyVote(lobby.id, { id: lobby.host_id }, ballotOf(reactions, lobby, await civRows('civ6', api)));
+  const statusId = dealt.vote?.messages[VOTE_STATUS];
+  if (dealt.phase === 'picking' && place && statusId) {
+    await deleteMessages(place, [dealt.vote?.messages[VOTE_BANS]]);
+    await editPanelById(place, statusId, blindStatusPanel(dealt));
+    await showLobby(client, dealt, api);
+    schedule(client, dealt, api);
+    await sendPools(client, dealt, api);
     return;
   }
-  void addOptions(posted);
+  if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
+  await closeVote(client, dealt);
+  await postDraft(client, dealt, place, api);
 }
 
-async function addOptions(posted: readonly [SettingQuestion, Message][]): Promise<void> {
-  try {
-    for (const [question, message] of posted) for (const option of question.options) await message.react(option.emoji);
-  } catch (error) {
-    log.warn('vote options not all added', error instanceof Error ? error.message : error);
-  }
-}
-
-async function reactionsOn(place: TextBasedChannel, messages: Readonly<Record<string, string>>): Promise<Reacted[]> {
-  const reacted: Reacted[] = [];
-  for (const [key, id] of Object.entries(messages)) {
-    if (key === VOTE_STATUS) continue;
-    const message = await place.messages.fetch(id).catch(() => null);
-    if (!message) continue;
-    const reactions = [];
-    for (const reaction of message.reactions.cache.values()) {
-      if (reaction.count <= (reaction.me ? 1 : 0)) continue;
-      const users = await reaction.users.fetch();
-      reactions.push({ id: reaction.emoji.id, name: reaction.emoji.name, users: [...users.keys()] });
+// Each player's pool by DM. A closed DM is logged; that player picks from the
+// voting channel instead.
+async function sendPools(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
+  const names = await civNames('civ6', api);
+  const sent: [string, Message][] = [];
+  for (const { player_id: playerId } of lobby.pools) {
+    if (!playerId) continue;
+    try {
+      const dm = await (await client.users.fetch(playerId)).createDM();
+      sent.push([playerId, await postPanel(dm, blindPickPanel(lobby, playerId, names))]);
+    } catch (error) {
+      log.info('blind pool not sent by DM', playerId, error instanceof Error ? error.message : error);
     }
-    reacted.push({ key, reactions });
   }
-  return reacted;
+  poolDms.set(lobby.id, sent);
 }
 
-// Close, in the lobby's turn, once all finish or time is up: counted, drafted
-// and cleared. A lobby already counted or cancelled is left as it is.
-export async function countVote(client: Client, lobbyId: string, api: ApiClient): Promise<void> {
+// The blind picks revealed together, in the lobby's turn.
+async function revealPicks(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
+  const shown = await api.revealPicks(lobby.id, { id: lobby.host_id });
+  await closeVote(client, shown);
+  await postDraft(client, shown, await placeOf(client, shown), api);
+}
+
+// In the lobby's turn: a vote closed, or blind picks revealed, whichever the
+// lobby is in. Anything else is left as it is.
+export async function advanceLobby(client: Client, lobbyId: string, api: ApiClient): Promise<void> {
   clearTimeout(timers.get(lobbyId));
   timers.delete(lobbyId);
   const lobby = await api.lobby(lobbyId);
-  if (lobby.status !== 'open' || !lobby.vote) return;
-  const [questions, data] = await Promise.all([lobbySettings(lobby.mode, api), civRows('civ6', api)]);
-  const place = lobby.vote.channel_id ? await client.channels.fetch(lobby.vote.channel_id).catch(() => null) : null;
-  const reacted = place?.isTextBased() ? await reactionsOn(place, lobby.vote.messages) : [];
-  const drafted = await api.tallyVote(lobby.id, { id: lobby.host_id }, ballotOf(reacted, lobby, questions, data));
-  await showLobby(client, drafted, api, true);
-  await closeVote(client, drafted);
+  if (lobby.status !== 'open') return;
+  if (lobby.phase === 'voting') return countVote(client, lobbyId, api);
+  if (lobby.phase === 'picking') return revealPicks(client, lobby, api);
 }
 
-// A counted or cancelled lobby's vote, cleared from where it ran.
+async function deleteMessages(place: SendableChannels, ids: readonly (string | undefined)[]): Promise<void> {
+  for (const id of ids) if (id) await place.messages.delete(id).catch(() => undefined);
+}
+
+// Who has picked, on the blind draft's message.
+export async function showBlindStatus(client: Client, lobby: Lobby): Promise<void> {
+  const place = await placeOf(client, lobby);
+  const statusId = lobby.vote?.messages[VOTE_STATUS];
+  if (place && statusId) await editPanelById(place, statusId, blindStatusPanel(lobby));
+}
+
+// A drafted or cancelled lobby's vote messages, deleted from the voting
+// channel, and its pool DMs closed.
 export async function closeVote(client: Client, lobby: Lobby): Promise<void> {
   clearTimeout(timers.get(lobby.id));
   timers.delete(lobby.id);
-  const vote = lobby.vote;
-  if (!vote?.channel_id) return;
-  try {
-    const place = await client.channels.fetch(vote.channel_id);
-    if (place?.isTextBased()) await clearPlace(place, Object.values(vote.messages), vote.messages[VOTE_STATUS], lobby);
-  } catch (error) {
-    log.warn('lobby vote not cleared', lobby.id, error);
-  }
+  const place = await placeOf(client, lobby);
+  if (place) await deleteMessages(place, Object.values(lobby.vote?.messages ?? {}));
+  const dms = poolDms.get(lobby.id) ?? [];
+  poolDms.delete(lobby.id);
+  if (!dms.length) return;
+  const names = await civNames('civ6');
+  for (const [playerId, message] of dms) await editPanel(message, blindClosedPanel(lobby, playerId, names)).catch(() => undefined);
 }

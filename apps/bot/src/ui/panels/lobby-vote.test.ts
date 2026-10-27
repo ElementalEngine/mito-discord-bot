@@ -1,63 +1,86 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { Lobby, SettingQuestion } from '../../api/types.js';
+import type { Lobby } from '../../api/types.js';
 import { container, type Panel } from '../kit/index.js';
-import { openQuestions, voteBansPanel, voteCountedPanel, voteQuestionPanel, voteStatusPanel } from './lobby-vote.js';
+import { blindClosedPanel, blindPickPanel, blindStatusPanel, voteBansPanel, voteStatusPanel } from './lobby-vote.js';
 
-const VOTE = { ends_at: '2026-10-27T12:10:00Z', channel_id: '9', messages: {}, finished: ['200'] };
 const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   id: '652f1a2b3c4d5e6f7a8b9c0d',
   shape: 'ffa-8',
   mode: 'ffa',
   seats: 8,
   teams: 0,
-  draft_mode: 'standard',
+  draft_mode: 'blind',
   status: 'open',
-  live: true,
+  phase: 'voting',
+  deadline: '2026-10-27T12:10:00Z',
+  code: 'K7Q2',
   host_id: '100',
   guild_id: '1',
   channel_id: '2',
   message_id: '3',
   steam_link: null,
   players: ['100', '200', '300'].map((discord_id) => ({ discord_id, team: null })),
-  settings: [{ id: 'huts', value: 'x1', by: 'host' }],
+  settings: [],
   bans: [{ token: 'LEADER_A', kind: 'leader', by: 'host' }],
   pools: [],
-  vote: VOTE,
+  picks: [],
+  vote: { channel_id: '9', messages: {}, finished: ['200'] },
   cancel_reason: null,
   updated_at: '2026-10-27T12:00:00Z',
   ...fields,
 });
-const QUESTIONS: SettingQuestion[] = [
-  { id: 'huts', title: 'Huts', default_option_id: 'x1', options: [{ id: 'x1', label: '1x', emoji: '1️⃣' }] },
-  { id: 'map', title: 'Map', default_option_id: 'pangea', options: [{ id: 'pangea', label: 'Pangaea', emoji: '🌐' }, { id: 'lakes', label: 'Lakes', emoji: '🌊' }] },
-];
+const NAMES = new Map([['LEADER_A', 'Abe'], ['LEADER_B', '<:Bea:55> Bea'], ['LEADER_C', 'Cy']]);
 const textOf = (panel: Panel): string => (panel.body ?? []).map((b) => ('text' in b ? b.text : '')).join('\n');
+type Json = { custom_id: string; label?: string; options?: { label: string; value: string; default?: boolean; emoji?: { id: string; name: string } }[] };
+const componentsOf = (panel: Panel): Json[] => (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
 
-test('only the settings the host left open are voted', () => {
-  assert.deepEqual(openQuestions(lobby(), QUESTIONS).map((q) => q.id), ['map']);
-});
-
-test('the status shows who has finished, when it closes, and the Finished button', () => {
-  const panel = voteStatusPanel(lobby(), VOTE);
-  assert.equal(panel.title, 'Vote: Civ6 FFA, 8 seats lobby');
+test('the vote shows who has finished, when it closes, and the Finished button', () => {
+  const panel = voteStatusPanel(lobby());
+  assert.equal(panel.title, 'Bans vote: Civ6 FFA, 8 seats lobby');
   assert.match(panel.subtitle ?? '', /Closes <t:1793103000:R>/);
   assert.match(textOf(panel), /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);
-  const [button] = (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as { custom_id: string; label: string }));
-  assert.deepEqual([button?.custom_id, button?.label], ['lobby:finished:652f1a2b3c4d5e6f7a8b9c0d', 'Finished']);
+  assert.deepEqual(componentsOf(panel).map((c) => [c.custom_id, c.label]), [['lobby:finished:652f1a2b3c4d5e6f7a8b9c0d', 'Finished']]);
   container(panel);
 });
 
-test('each setting lists its options by emoji, and the bans say what a ban needs', () => {
-  assert.equal(textOf(voteQuestionPanel(QUESTIONS[1]!)), '🌐 Pangaea\n🌊 Lakes');
-  const bans = textOf(voteBansPanel(lobby(), new Map([['LEADER_A', 'Abe']])));
+test('the bans message says what a ban needs and what the host banned', () => {
+  const bans = textOf(voteBansPanel(lobby(), NAMES));
   assert.match(bans, /A ban lands with 2 of the 3 players/);
   assert.match(bans, /\*\*Banned by the host\*\*\nAbe/);
-  assert.doesNotMatch(textOf(voteBansPanel(lobby({ bans: [] }), new Map())), /Banned by the host/);
+  assert.doesNotMatch(textOf(voteBansPanel(lobby({ bans: [] }), NAMES)), /Banned by the host/);
 });
 
-test('a closed vote says where the result went', () => {
-  assert.match(voteCountedPanel(lobby({ status: 'done' })).subtitle ?? '', /draft is on the lobby post/);
-  assert.match(voteCountedPanel(lobby({ status: 'cancelled' })).subtitle ?? '', /cancelled/);
+test('the blind draft shows who has locked in and offers a pick here to anyone the DM missed', () => {
+  const picking = lobby({ phase: 'picking', deadline: '2026-10-27T12:13:00Z', picks: [{ player_id: '200', leader: 'LEADER_C', by: 'player' }] });
+  const status = blindStatusPanel(picking);
+  assert.match(status.subtitle ?? '', /Closes <t:1793103180:R>, or once every player has locked in/);
+  assert.match(textOf(status), /Your pool is in your DMs/);
+  assert.match(textOf(status), /⬜ <@100>\n✅ <@200>/);
+  assert.deepEqual(componentsOf(status).map((c) => [c.custom_id, c.label]), [['lobby:pick:652f1a2b3c4d5e6f7a8b9c0d', 'Pick here']]);
+});
+
+test('a player chooses from their own pool, then locks it in', () => {
+  const pools = [
+    { player_id: '100', team: null, leaders: ['LEADER_B', 'LEADER_C'] },
+    { player_id: '200', team: null, leaders: ['LEADER_A'] },
+  ];
+  const picking = lobby({ phase: 'picking', deadline: '2026-10-27T12:13:00Z', pools });
+  type Lock = Json & { disabled?: boolean };
+  const fresh = componentsOf(blindPickPanel(picking, '100', NAMES)) as Lock[];
+  assert.deepEqual(fresh[0]!.options!.map((o) => [o.label, o.default, o.emoji?.id]), [['Bea', false, '55'], ['Cy', false, undefined]]);
+  assert.deepEqual([fresh[1]!.custom_id, fresh[1]!.label, fresh[1]!.disabled], ['lobby:lockin:652f1a2b3c4d5e6f7a8b9c0d', 'Lock in', true]);
+  const chosen = componentsOf(blindPickPanel(picking, '100', NAMES, 'LEADER_C')) as Lock[];
+  assert.equal(chosen[0]!.options!.find((o) => o.default)?.value, 'LEADER_C');
+  assert.deepEqual([chosen[1]!.custom_id, chosen[1]!.label, chosen[1]!.disabled], ['lobby:lockin:652f1a2b3c4d5e6f7a8b9c0d:LEADER_C', 'Lock in Cy', false]);
+  const locked = blindPickPanel({ ...picking, picks: [{ player_id: '100', leader: 'LEADER_C', by: 'player' }] }, '100', NAMES);
+  assert.equal(locked.actions, undefined);
+  assert.match(locked.subtitle ?? '', /Locked in: Cy/);
+});
+
+test('the DM closes with the pick, saying when it was an auto pick', () => {
+  const done = lobby({ status: 'done', picks: [{ player_id: '100', leader: 'LEADER_B', by: 'auto' }] });
+  assert.equal(blindClosedPanel(done, '100', NAMES).subtitle, 'Revealed. You play Bea, an auto pick.');
+  assert.match(blindClosedPanel(lobby({ status: 'cancelled' }), '100', NAMES).subtitle ?? '', /cancelled/);
 });

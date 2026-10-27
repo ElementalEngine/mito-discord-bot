@@ -10,7 +10,7 @@ import type {
 import { ApiClient } from '../api/index.js';
 import type { Actor, Lobby, LobbyShape } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
-import { closeVote, countVote, openVote } from '../services/lobby-vote.service.js';
+import { advanceLobby, openVote, showBlindStatus } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
 import { loadMembers, memberNames } from '../services/members.js';
 import { parseId } from '../ui/kit/index.js';
@@ -32,9 +32,8 @@ import {
   type EditorDraft,
   type EditorView,
 } from '../ui/panels/lobby.js';
-import { voteStatusPanel } from '../ui/panels/lobby-vote.js';
+import { blindPickPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
 import { defer, fail, holdPanel, refuse, replacePanel, respond } from '../ui/reply.js';
-import { isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
 import { selectedIn } from '../utils/modal-fields.js';
@@ -57,13 +56,15 @@ const ACTION: Readonly<Record<string, string>> = {
   [VERB.join]: 'join the lobby',
   [VERB.leave]: 'leave the lobby',
   [VERB.start]: 'start the lobby',
-  [VERB.cancel]: 'cancel the lobby',
   [VERB.edit]: 'open the editor',
   [VERB.bansForm]: 'set the bans',
   [VERB.done]: 'save your changes',
   [VERB.confirm]: 'open the lobby',
   [VERB.discard]: 'cancel the lobby',
   [VERB.finished]: 'finish voting',
+  [VERB.pick]: 'show your pool',
+  [VERB.picked]: 'choose your leader',
+  [VERB.lockIn]: 'lock in your pick',
 };
 
 const actorOf = (interaction: Interaction): Actor => ({ id: interaction.user.id });
@@ -77,8 +78,9 @@ const closerFor = (interaction: EditorOpener | EditorPress, lobbyId: string, mes
       if (!held) return;
       if (held.messageId !== messageId) return replacePanel(interaction, closedEditor('You opened the editor again, so this one closed.'));
       drafts.delete(lobbyId);
-      if (held.draft.lobby.live) return replacePanel(interaction, closedEditor('Closed after 2 minutes with no activity. Nothing was saved.'));
-      await api.cancelLobby(lobbyId, actorOf(interaction)).catch((error: unknown) => log.warn('unconfirmed lobby not cancelled', lobbyId, error));
+      if (held.draft.lobby.phase !== 'setup') return replacePanel(interaction, closedEditor('Closed after 2 minutes with no activity. Nothing was saved.'));
+      const { guild_id, code } = held.draft.lobby;
+      await api.cancelLobby(guild_id, code, actorOf(interaction)).catch((error: unknown) => log.warn('unconfirmed lobby not cancelled', lobbyId, error));
       await replacePanel(interaction, closedEditor('Closed after 2 minutes with no activity, so the lobby was cancelled. Run /lobby host again.'));
     }),
   until: Date.now() + TOKEN_MS,
@@ -162,8 +164,8 @@ async function confirm(interaction: ButtonInteraction, lobbyId: string): Promise
 }
 
 async function discard(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
-  await inEditorTurn(interaction, lobbyId, async () => {
-    await api.cancelLobby(lobbyId, actorOf(interaction));
+  await inEditorTurn(interaction, lobbyId, async ({ lobby }) => {
+    await api.cancelLobby(lobby.guild_id, lobby.code, actorOf(interaction));
     await finish(interaction, lobbyId, 'The lobby was cancelled.');
   });
 }
@@ -181,21 +183,15 @@ async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Pr
   await onEditor(interaction, lobbyId, (draft) => withBans(withView(draft, 'main'), selectedIn(interaction, fields.leaders)));
 }
 
-// A press on the lobby's post: the change, then the post redrawn. A cancelled
-// lobby's vote is cleared too.
+// A press on the lobby's post: the change, then the post redrawn. Joining the
+// last seat, or the host's Start, opens the bans vote.
 async function onPost(interaction: ButtonInteraction, lobbyId: string, change: () => Promise<Lobby>): Promise<void> {
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const changed = await change();
-    await showLobby(interaction.client, changed, api);
-    if (changed.status === 'cancelled') await closeVote(interaction.client, changed);
+    if (changed.phase === 'voting') await openVote(interaction.client, changed, api);
+    else await showLobby(interaction.client, changed, api);
   });
-}
-
-// The host starts: the seats lock and the vote opens.
-async function start(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
-  await holdPanel(interaction);
-  await inLobbyTurn(lobbyId, async () => openVote(interaction.client, await api.startLobby(lobbyId, actorOf(interaction)), api));
 }
 
 // A player is done voting; once every player is, the vote is counted.
@@ -203,10 +199,40 @@ async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Pr
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const lobby = await api.finishVote(lobbyId, actorOf(interaction));
-    const vote = lobby.vote;
-    if (!vote) return;
-    await replacePanel(interaction, voteStatusPanel(lobby, vote));
-    if (lobby.players.every((p) => vote.finished.includes(p.discord_id))) await countVote(interaction.client, lobbyId, api);
+    await replacePanel(interaction, voteStatusPanel(lobby));
+    if (lobby.players.every((p) => lobby.vote?.finished.includes(p.discord_id))) await advanceLobby(interaction.client, lobbyId, api);
+  });
+}
+
+async function pickingLobby(lobbyId: string, playerId: string): Promise<Lobby> {
+  const lobby = await api.lobby(lobbyId);
+  if (lobby.status !== 'open' || lobby.phase !== 'picking') refuse('The blind picks are closed.');
+  if (!lobby.pools.some((p) => p.player_id === playerId)) refuse("Only the lobby's players pick.");
+  return lobby;
+}
+
+// A blind drafter's own pool, privately here, for anyone the DM missed.
+async function showPool(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
+  await defer(interaction, 'private');
+  const lobby = await pickingLobby(lobbyId, interaction.user.id);
+  await respond(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api)), 'private');
+}
+
+// A leader chosen from the pool, not yet locked in.
+async function chooseLeader(interaction: StringSelectMenuInteraction, lobbyId: string, leader: string): Promise<void> {
+  await holdPanel(interaction);
+  const lobby = await pickingLobby(lobbyId, interaction.user.id);
+  await replacePanel(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api), leader));
+}
+
+// The pick locked in; once every player has, the picks are revealed.
+async function lockIn(interaction: ButtonInteraction, lobbyId: string, leader: string): Promise<void> {
+  await holdPanel(interaction);
+  await inLobbyTurn(lobbyId, async () => {
+    const lobby = await api.pickLeader(lobbyId, actorOf(interaction), leader);
+    await replacePanel(interaction, blindPickPanel(lobby, interaction.user.id, await civNames('civ6', api)));
+    await showBlindStatus(interaction.client, lobby);
+    if (lobby.pools.every((pool) => lobby.picks.some((p) => p.player_id === pool.player_id))) await advanceLobby(interaction.client, lobbyId, api);
   });
 }
 
@@ -217,6 +243,7 @@ async function onSelect(interaction: StringSelectMenuInteraction, verb: string, 
   if (verb === VERB.setting) return onEditor(interaction, lobbyId, (d) => withSetting(d, arg, value));
   if (verb === VERB.shape) return onEditor(interaction, lobbyId, (d) => withShape(d, value as LobbyShape));
   if (verb === VERB.kick) return onEditor(interaction, lobbyId, (d) => withKick(d, value));
+  if (verb === VERB.picked) return chooseLeader(interaction, lobbyId, value);
   if (verb === VERB.move) {
     const [player = '', team = ''] = value.split(':');
     return onEditor(interaction, lobbyId, (d) => withMove(d, player, Number(team)));
@@ -227,9 +254,10 @@ async function onSelect(interaction: StringSelectMenuInteraction, verb: string, 
 async function onButton(interaction: ButtonInteraction, verb: string, lobbyId: string, arg: string): Promise<void> {
   if (verb === VERB.join) return onPost(interaction, lobbyId, () => api.joinLobby(lobbyId, actorOf(interaction)));
   if (verb === VERB.leave) return onPost(interaction, lobbyId, () => api.leaveLobby(lobbyId, actorOf(interaction)));
-  if (verb === VERB.start) return start(interaction, lobbyId);
+  if (verb === VERB.start) return onPost(interaction, lobbyId, () => api.startLobby(lobbyId, actorOf(interaction)));
   if (verb === VERB.finished) return finishVoting(interaction, lobbyId);
-  if (verb === VERB.cancel) return onPost(interaction, lobbyId, () => api.cancelLobby(lobbyId, { id: interaction.user.id, isStaff: isStaff(interaction) }));
+  if (verb === VERB.pick) return showPool(interaction, lobbyId);
+  if (verb === VERB.lockIn && arg) return lockIn(interaction, lobbyId, arg);
   if (verb === VERB.edit) {
     await defer(interaction, 'private');
     return openEditor(interaction, await api.lobby(lobbyId));

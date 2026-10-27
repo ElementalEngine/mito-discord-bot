@@ -4,16 +4,18 @@ import { ApiClient } from '../../api/index.js';
 import type { LobbyShape } from '../../api/types.js';
 import { config } from '../../config.js';
 import { openEditor } from '../../handlers/lobby.handlers.js';
+import { closeVote } from '../../services/lobby-vote.service.js';
 import { showLobby } from '../../services/lobby.service.js';
-import { DRAFT_MODES, SHAPES, lobbyLinkOf, openLobbiesPanel, type DraftMode } from '../../ui/panels/lobby.js';
+import { SHAPES, lobbyLinkOf, openLobbiesPanel } from '../../ui/panels/lobby.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
+import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setName('lobby')
-  .setDescription('Host a Civ6 lobby: set it up, open it to players, vote, then draft.')
+  .setDescription('Host a Civ6 lobby: set it up, fill it, vote on bans, then draft.')
   .setContexts(InteractionContextType.Guild)
   .addSubcommand((sub) =>
     sub
@@ -26,30 +28,19 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(...(Object.keys(SHAPES) as LobbyShape[]).map((value) => ({ name: SHAPES[value], value }))),
       )
-      .addStringOption((o) =>
-        o
-          .setName('draft')
-          .setDescription('Standard: an even share of leaders each. Random: one leader each.')
-          .setRequired(true)
-          .addChoices(...(Object.keys(DRAFT_MODES) as DraftMode[]).map((value) => ({ name: DRAFT_MODES[value], value }))),
-      )
       .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120)),
   )
   .addSubcommand((sub) => sub.setName('browse').setDescription('List the open lobbies here.'))
-  .addSubcommand((sub) => sub.setName('cancel').setDescription('Cancel the lobby you host.'));
-
-// FFA and duels are hosted where FFAs are voted, teamers where teamers are,
-// and FFAs in the novice channel too.
-function hostChannels(shape: LobbyShape): string[] {
-  const c = config.discord.channels;
-  if (shape.startsWith('teamer')) return [c.civ6teamerVote];
-  return shape === 'duel' ? [c.civ6ffaVote] : [c.civ6ffaVote, c.noviceCommands];
-}
+  .addSubcommand((sub) =>
+    sub
+      .setName('cancel')
+      .setDescription('Cancel a lobby: its host, or staff.')
+      .addStringOption((o) => o.setName('code').setDescription("The lobby's code, shown on its post").setRequired(true).setMaxLength(8)),
+  );
 
 // The lobby opens in setup, seen only by its host in their editor.
 async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
-  const shape = interaction.options.getString('mode', true) as LobbyShape;
-  const policy = { allowedChannelIds: hostChannels(shape), requiredRoleIds: [config.discord.roles.civ6Rank], allowDeveloperOverride: true };
+  const policy = { allowedChannelIds: [config.discord.channels.civ6LobbyLinks], requiredRoleIds: [config.discord.roles.civ6Rank], allowDeveloperOverride: true };
   if (!(await ensureCommandAccess(interaction, policy))) return;
   const steamLink = interaction.options.getString('steam-link')?.trim() || null;
   if (steamLink && !lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
@@ -58,8 +49,7 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
   await defer(interaction, 'private');
   const lobby = await api.hostLobby(
     {
-      shape,
-      draft_mode: interaction.options.getString('draft', true) as DraftMode,
+      shape: interaction.options.getString('mode', true) as LobbyShape,
       guild_id: interaction.guildId,
       channel_id: interaction.channelId,
       steam_link: steamLink,
@@ -76,14 +66,14 @@ async function browse(interaction: ChatInputCommandInteraction<'cached' | 'raw'>
 
 async function cancel(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
   await defer(interaction, 'private');
-  const [mine] = await api.openLobbies(interaction.guildId, interaction.user.id);
-  if (!mine) refuse('You are not hosting an open lobby.');
-  const cancelled = await api.cancelLobby(mine.id, { id: interaction.user.id });
+  const code = interaction.options.getString('code', true);
+  const cancelled = await api.cancelLobby(interaction.guildId, code, { id: interaction.user.id, isStaff: isStaff(interaction) });
   await showLobby(interaction.client, cancelled, api);
-  await say(interaction, 'success', 'Your lobby is cancelled.');
+  await closeVote(interaction.client, cancelled);
+  await say(interaction, 'success', `Lobby ${cancelled.code} is cancelled.`);
 }
 
-const ACTION: Readonly<Record<string, string>> = { host: 'host the lobby', browse: 'list the lobbies', cancel: 'cancel your lobby' };
+const ACTION: Readonly<Record<string, string>> = { host: 'host the lobby', browse: 'list the lobbies', cancel: 'cancel the lobby' };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand(true);

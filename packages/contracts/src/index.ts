@@ -412,13 +412,36 @@ export interface paths {
         };
         /**
          * Open Lobbies
-         * @description The live lobbies players can join; with a host, that host's own, live
-         *     or in setup.
+         * @description The lobbies players can see; with a host, that host's own, in setup or
+         *     not.
          */
         get: operations["open_lobbies_api_v2_match_setups_lobbies_get"];
         put?: never;
-        /** Host Lobby */
+        /**
+         * Host Lobby
+         * @description A lobby in setup, under a code no other open lobby here has.
+         */
         post: operations["host_lobby_api_v2_match_setups_lobbies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Lobby
+         * @description The host, or staff, cancel an open lobby by its code.
+         */
+        post: operations["cancel_lobby_api_v2_match_setups_lobbies_cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -445,7 +468,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/match-setups/lobbies/votes-due": {
+    "/api/v2/match-setups/lobbies/due": {
         parameters: {
             query?: never;
             header?: never;
@@ -453,10 +476,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Votes Due
-         * @description Votes past their time, for the bot to count.
+         * Lobbies Due
+         * @description Votes and blind picks past their time, for the bot to close.
          */
-        get: operations["votes_due_api_v2_match_setups_lobbies_votes_due_get"];
+        get: operations["lobbies_due_api_v2_match_setups_lobbies_due_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -476,23 +499,6 @@ export interface paths {
         get: operations["read_lobby_api_v2_match_setups_lobbies__lobby_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/match-setups/lobbies/{lobby_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Lobby */
-        post: operations["cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -545,7 +551,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Join Lobby */
+        /**
+         * Join Lobby
+         * @description A player sits down; the last seat starts the bans vote.
+         */
         post: operations["join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post"];
         delete?: never;
         options?: never;
@@ -590,6 +599,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/match-setups/lobbies/{lobby_id}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pick Leader
+         * @description A player's blind pick.
+         */
+        post: operations["pick_leader_api_v2_match_setups_lobbies__lobby_id__pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Picks
+         * @description The blind picks revealed. The bot reveals, acting as the host, once all
+         *     have picked or the time is up.
+         */
+        post: operations["reveal_picks_api_v2_match_setups_lobbies__lobby_id__reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/match-setups/lobbies/{lobby_id}/start": {
         parameters: {
             query?: never;
@@ -601,7 +651,7 @@ export interface paths {
         put?: never;
         /**
          * Start Lobby
-         * @description The host starts: the seats lock and the vote opens.
+         * @description The host starts before it fills: the seats lock and the bans vote opens.
          */
         post: operations["start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post"];
         delete?: never;
@@ -621,8 +671,8 @@ export interface paths {
         put?: never;
         /**
          * Tally Vote
-         * @description Count the vote and deal the draft, closing the lobby. The bot counts,
-         *     acting as the host, once all finish or the time is up.
+         * @description Count the bans and deal the draft. The bot counts, acting as the host,
+         *     once all finish or the time is up.
          */
         post: operations["tally_vote_api_v2_match_setups_lobbies__lobby_id__tally_post"];
         delete?: never;
@@ -660,7 +710,7 @@ export interface paths {
         };
         /**
          * Settings Questions
-         * @description The settings a host may fix for a game type; the rest are voted.
+         * @description Every setting a game is set up with, draft mode last.
          */
         get: operations["settings_questions_api_v2_match_setups_settings__edition___game_type__get"];
         put?: never;
@@ -1034,6 +1084,18 @@ export interface components {
             /** Results */
             results: components["schemas"]["UserStatsResponseV2"][];
         };
+        /** BlindPick */
+        BlindPick: {
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "player" | "auto";
+            /** Leader */
+            leader: string;
+            /** Player Id */
+            player_id: string;
+        };
         /** Body_upload_match_api_v2_matches_post */
         Body_upload_match_api_v2_matches_post: {
             /** Discord Message Id */
@@ -1312,6 +1374,11 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
+        /** LeaderPick */
+        LeaderPick: {
+            /** Leader */
+            leader: string;
+        };
         /** LeaderRow */
         LeaderRow: {
             /** Civ */
@@ -1356,25 +1423,28 @@ export interface components {
         };
         /**
          * LobbyBallot
-         * @description The players' reactions: per setting, each option's voters, and per
-         *     leader, the players banning it.
+         * @description The players' reactions: per leader, the players banning it.
          */
         LobbyBallot: {
             /** Bans */
             bans: {
                 [key: string]: string[];
             };
-            /** Settings */
-            settings: {
-                [key: string]: {
-                    [key: string]: string[];
-                };
-            };
+        };
+        /**
+         * LobbyCancel
+         * @description A lobby is cancelled by its code, by its host or by staff.
+         */
+        LobbyCancel: {
+            /** Code */
+            code: string;
+            /** Guild Id */
+            guild_id: string;
         };
         /**
          * LobbyEdit
-         * @description The host's whole edit: the size, every setting fixed (the rest are
-         *     voted), every leader banned, and players moved or removed.
+         * @description The host's whole edit: the size, every setting with the draft mode,
+         *     every leader banned, and players moved or removed.
          */
         LobbyEdit: {
             /** Bans */
@@ -1424,16 +1494,12 @@ export interface components {
         };
         /**
          * LobbyRequest
-         * @description /lobby host. The host is the acting player.
+         * @description /lobby host. The host is the acting player; the settings start at their
+         *     defaults.
          */
         LobbyRequest: {
             /** Channel Id */
             channel_id: string;
-            /**
-             * Draft Mode
-             * @enum {string}
-             */
-            draft_mode: "standard" | "random";
             /** Guild Id */
             guild_id: string;
             /**
@@ -1452,6 +1518,10 @@ export interface components {
             cancel_reason: string | null;
             /** Channel Id */
             channel_id: string;
+            /** Code */
+            code: string;
+            /** Deadline */
+            deadline: string | null;
             /** Draft Mode */
             draft_mode: string;
             /** Guild Id */
@@ -1460,12 +1530,17 @@ export interface components {
             host_id: string;
             /** Id */
             id: string;
-            /** Live */
-            live: boolean;
             /** Message Id */
             message_id: string | null;
             /** Mode */
             mode: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "setup" | "live" | "voting" | "picking";
+            /** Picks */
+            picks: components["schemas"]["BlindPick"][];
             /** Players */
             players: components["schemas"]["LobbyPlayer"][];
             /** Pools */
@@ -1499,11 +1574,6 @@ export interface components {
         LobbyVote: {
             /** Channel Id */
             channel_id: string | null;
-            /**
-             * Ends At
-             * Format: date-time
-             */
-            ends_at: string;
             /** Finished */
             finished: string[];
             /** Messages */
@@ -2159,8 +2229,7 @@ export interface components {
         };
         /**
          * VotePlace
-         * @description Where the vote is posted: its channel or thread, and the message of each
-         *     open setting and of the bans.
+         * @description Where the bans vote is posted: its channel, and its messages.
          */
         VotePlace: {
             /** Channel Id */
@@ -3097,6 +3166,43 @@ export interface operations {
             };
         };
     };
+    cancel_lobby_api_v2_match_setups_lobbies_cancel_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     close_idle_lobbies_api_v2_match_setups_lobbies_close_idle_post: {
         parameters: {
             query?: never;
@@ -3128,7 +3234,7 @@ export interface operations {
             };
         };
     };
-    votes_due_api_v2_match_setups_lobbies_votes_due_get: {
+    lobbies_due_api_v2_match_setups_lobbies_due_get: {
         parameters: {
             query?: never;
             header?: {
@@ -3164,41 +3270,6 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
-            };
-            path: {
-                lobby_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LobbyView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_lobby_api_v2_match_setups_lobbies__lobby_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header: {
-                authorization?: string | null;
-                "x-actor-discord-id": string;
-                "x-actor-is-staff"?: boolean;
             };
             path: {
                 lobby_id: string;
@@ -3384,6 +3455,78 @@ export interface operations {
                 "application/json": components["schemas"]["LobbyLive"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pick_leader_api_v2_match_setups_lobbies__lobby_id__pick_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaderPick"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reveal_picks_api_v2_match_setups_lobbies__lobby_id__reveal_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

@@ -3,7 +3,7 @@ import type { Client } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import type { Actor, Lobby, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
-import { lobbyDraftPanels, lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
+import { lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
 import { serial } from '../utils/serial.js';
 import { civNames } from './civ-names.js';
@@ -29,19 +29,15 @@ export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyVi
   return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl) };
 }
 
-export async function channelOf(client: Client, lobby: Lobby) {
+async function channelOf(client: Client, lobby: Lobby) {
   const channel = await client.channels.fetch(lobby.channel_id);
   return channel?.isTextBased() && channel.isSendable() ? channel : null;
 }
 
-// Redraw the lobby's post. Once it has drafted, each draft follows as its own
-// message beneath it.
-export async function showLobby(client: Client, lobby: Lobby, api: ApiClient, drafted = false): Promise<void> {
+// Redraw the lobby's post.
+export async function showLobby(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   const channel = await channelOf(client, lobby);
-  if (!channel || !lobby.message_id) return;
-  const view = await lobbyViewOf(lobby, api);
-  await editPanelById(channel, lobby.message_id, lobbyPanel(view));
-  if (drafted) for (const panel of lobbyDraftPanels(lobby, view.names)) await postPanel(channel, panel);
+  if (channel && lobby.message_id) await editPanelById(channel, lobby.message_id, lobbyPanel(await lobbyViewOf(lobby, api)));
 }
 
 // The host confirms: the lobby's post goes up in its channel, and from then on

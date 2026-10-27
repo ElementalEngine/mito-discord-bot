@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, text, when, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { channel, customId, field, fit, mention, nameOf, text, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
@@ -16,8 +16,7 @@ export const SHAPES: Readonly<Record<LobbyShape, string>> = {
   'teamer-5v5': 'Teamer 5v5',
   'teamer-2v2v2v2': 'Teamer 2v2v2v2',
 };
-export const DRAFT_MODES = { standard: 'Standard', random: 'Random' } as const;
-export type DraftMode = keyof typeof DRAFT_MODES;
+const DRAFT_MODES: Readonly<Record<string, string>> = { standard: 'Standard', random: 'Random', blind: 'Blind' };
 
 // A lobby keeps its mode and its number of teams; only its size changes.
 const SIZES: readonly (readonly LobbyShape[])[] = [
@@ -43,7 +42,6 @@ export const VERB = {
   join: 'join',
   leave: 'leave',
   start: 'start',
-  cancel: 'cancel',
   edit: 'edit',
   view: 'view',
   setting: 'setting',
@@ -57,14 +55,16 @@ export const VERB = {
   confirm: 'confirm',
   discard: 'discard',
   finished: 'finished',
+  pick: 'pick',
+  picked: 'picked',
+  lockIn: 'lockin',
 } as const;
 
-// The vote's messages by key: its status, the bans, and one per open setting.
+// The vote's messages by key: its status, which blind picks follow on, and
+// the bans.
 export const VOTE_STATUS = 'status';
 export const VOTE_BANS = 'bans';
 
-// A setting the host leaves open, to be voted.
-export const NOT_FIXED = '-';
 export const LOBBY_BANS = { edition: 'civ6', age: null } as const;
 const STEAM_LINK = /^steam:\/\/joinlobby\/289070\/([0-9]+)\/(7656119[0-9]+)$/;
 
@@ -93,16 +93,21 @@ function seatLines(lobby: Lobby, players: readonly Seat[] = lobby.players): stri
   }).join('\n');
 }
 
+// Each setting with its option's emoji, as the host set it.
 function settingLines(chosen: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): string {
-  const lines = questions
-    .filter((q) => chosen[q.id] !== undefined)
-    .map((q) => `${q.title}: ${q.options.find((o) => o.id === chosen[q.id])?.label ?? chosen[q.id]}`);
-  return lines.join('\n') || 'None fixed';
+  return questions
+    .map((q) => {
+      const option = q.options.find((o) => o.id === chosen[q.id]);
+      return option ? `${option.emoji} ${q.title}: ${option.label}` : `${q.title}: ${chosen[q.id] ?? '—'}`;
+    })
+    .join('\n');
 }
 
 const banLine = (names: CivNames, bans: readonly string[]): string => bans.map((t) => nameOf(names, t)).join(' · ') || 'None';
 
-const fixedOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
+const settingsOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
+
+const draftModeOf = (lobby: Lobby): string => `${DRAFT_MODES[lobby.draft_mode] ?? lobby.draft_mode} draft`;
 
 const CLOSED: Readonly<Record<string, string>> = {
   host: 'Cancelled by the host',
@@ -112,71 +117,92 @@ const CLOSED: Readonly<Record<string, string>> = {
 
 export type LobbyView = Readonly<{ lobby: Lobby; names: CivNames; questions: readonly SettingQuestion[]; link: string | null }>;
 
-// Where the vote's players go: its status message, in the thread or channel.
+// The vote's status message, in the voting channel.
 const voteLinkOf = (lobby: Lobby): string | null => {
   const status = lobby.vote?.messages[VOTE_STATUS];
   return lobby.vote?.channel_id && status ? `https://discord.com/channels/${lobby.guild_id}/${lobby.vote.channel_id}/${status}` : null;
 };
 
-// The lobby's post, edited in place as it fills, votes, drafts or closes.
+function whereItDrafts(lobby: Lobby): Block[] {
+  const voteLink = voteLinkOf(lobby);
+  if (lobby.status === 'done' && lobby.vote?.channel_id) return [text(`### Drafted in ${channel(lobby.vote.channel_id)}`)];
+  if (lobby.phase === 'voting' && voteLink) return [text(`### [Voting on bans](${voteLink})`)];
+  if (lobby.phase === 'picking' && voteLink) return [text(`### [Picking blind](${voteLink})`)];
+  return [];
+}
+
+// The lobby's post, edited in place as it fills, drafts or closes. Seats lock
+// once it fills or its host starts it.
 export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
+  const footer = `Hosted by ${mention(lobby.host_id)} · code ${lobby.code}`;
   if (lobby.status === 'cancelled') {
-    return { tone: 'muted', surface: 'lobby', title, subtitle: CLOSED[lobby.cancel_reason ?? ''] ?? 'Closed', footer: `Hosted by ${mention(lobby.host_id)}` };
+    return { tone: 'muted', surface: 'lobby', title, subtitle: CLOSED[lobby.cancel_reason ?? ''] ?? 'Closed', footer };
   }
   const open = lobby.status === 'open';
-  const vote = open ? lobby.vote : null;
-  const voteLink = voteLinkOf(lobby);
-  const body = [
-    ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
-    ...(vote && voteLink ? [text(`### [Vote on the settings and bans](${voteLink})`)] : []),
-    field(open ? 'Seats' : 'Players', seatLines(lobby)),
-    field('Settings', settingLines(fixedOf(lobby), questions)),
-    field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
+  const live = open && lobby.phase === 'live';
+  const actions = [
+    row(
+      button(lobby, VERB.join, 'Join', ButtonStyle.Success),
+      button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
+      button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
+      button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary),
+    ),
   ];
-  const cancel = button(lobby, VERB.cancel, 'Cancel', ButtonStyle.Danger);
-  const actions = vote
-    ? [row(cancel)]
-    : [
-        row(
-          button(lobby, VERB.join, 'Join', ButtonStyle.Success),
-          button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
-          button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
-        ),
-        row(button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary), cancel),
-      ];
-  const footer = `Hosted by ${mention(lobby.host_id)}`;
-  const draft = `${DRAFT_MODES[lobby.draft_mode as DraftMode] ?? lobby.draft_mode} draft`;
   return {
     tone: open ? 'info' : 'success',
     surface: 'lobby',
     title: open ? title : `${title}: drafted`,
-    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draft}${vote ? ` · voting until ${when(Date.parse(vote.ends_at), 't')}` : ''}`,
-    body,
-    ...(open ? { actions, footer: `${footer} · closes after 2.5 hours with no activity` } : { footer }),
+    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draftModeOf(lobby)}`,
+    body: [
+      ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
+      ...whereItDrafts(lobby),
+      field(live ? 'Seats' : 'Players', seatLines(lobby)),
+      field('Settings', settingLines(settingsOf(lobby), questions)),
+      field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
+    ],
+    ...(live ? { actions } : {}),
+    footer: live ? `${footer} · closes after 2.5 hours with no activity` : footer,
   };
 }
 
-// Each player's or team's draft as its own message, named by who it is for.
-export function lobbyDraftPanels(lobby: Lobby, names: CivNames): Panel[] {
-  return lobby.pools.map((pool) => ({
-    tone: 'info',
-    title: pool.player_id ? mention(pool.player_id) : `Team ${pool.team}`,
-    body: [
-      text(
-        pool.player_id
-          ? pickLines(names, pool.leaders)
-          : `-# ${teamOf(lobby.players, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`,
-      ),
-    ],
-  }));
+// The draft as posted in the voting channel: the game, then each player's or
+// team's pool as its own message, or the blind picks together.
+export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[] {
+  const head: Panel = {
+    tone: 'success',
+    surface: 'draft',
+    title: `Civ6 ${SHAPES[lobby.shape]} draft`,
+    subtitle: `${draftModeOf(lobby)} · hosted by ${mention(lobby.host_id)}`,
+    body: [field('Settings', settingLines(settingsOf(lobby), questions)), field('Leader bans', banLine(names, lobby.bans.map((b) => b.token)))],
+  };
+  if (lobby.draft_mode === 'blind') {
+    const picks = lobby.picks.map((p) => `${mention(p.player_id)} · ${nameOf(names, p.leader)}${p.by === 'auto' ? ' (auto pick)' : ''}`);
+    return [head, { tone: 'info', title: 'Blind picks', body: [text(picks.join('\n'))] }];
+  }
+  return [
+    head,
+    ...lobby.pools.map((pool): Panel => ({
+      tone: 'info',
+      title: pool.player_id ? mention(pool.player_id) : `Team ${pool.team}`,
+      body: [
+        text(
+          pool.player_id
+            ? pickLines(names, pool.leaders)
+            : `-# ${teamOf(lobby.players, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`,
+        ),
+      ],
+    })),
+  ];
 }
+
+const BROWSE: Readonly<Record<string, string>> = { live: '', voting: ' · voting on bans', picking: ' · picking blind' };
 
 // /lobby browse: every open lobby here, linked to its post.
 export function openLobbiesPanel(lobbies: readonly Lobby[]): Panel {
   const line = (l: Lobby): string => {
     const post = l.message_id ? ` · [open](https://discord.com/channels/${l.guild_id}/${l.channel_id}/${l.message_id})` : '';
-    return `**${SHAPES[l.shape]}** · ${l.players.length}/${l.seats}${l.vote ? ' · voting' : ''} · hosted by ${mention(l.host_id)}${post}`;
+    return `**${SHAPES[l.shape]}** · ${l.players.length}/${l.seats}${BROWSE[l.phase] ?? ''} · hosted by ${mention(l.host_id)}${post}`;
   };
   return {
     tone: 'info',
@@ -203,7 +229,7 @@ export const draftOf = (lobby: Lobby): EditorDraft => ({
   lobby,
   view: 'main',
   shape: lobby.shape,
-  settings: fixedOf(lobby),
+  settings: settingsOf(lobby),
   bans: lobby.bans.map((b) => b.token),
   teams: {},
   removed: [],
@@ -215,12 +241,7 @@ export const editOf = (d: EditorDraft): LobbyEdit => ({ shape: d.shape, settings
 const seatsOf = (d: EditorDraft): Seat[] =>
   d.lobby.players.filter((p) => !d.removed.includes(p.discord_id)).map((p) => ({ ...p, team: d.teams[p.discord_id] ?? p.team }));
 
-export function withSetting(d: EditorDraft, question: string, value: string): EditorDraft {
-  const settings: Record<string, string> = { ...d.settings };
-  if (value === NOT_FIXED) delete settings[question];
-  else settings[question] = value;
-  return { ...d, settings };
-}
+export const withSetting = (d: EditorDraft, question: string, value: string): EditorDraft => ({ ...d, settings: { ...d.settings, [question]: value } });
 
 export const withShape = (d: EditorDraft, shape: LobbyShape): EditorDraft => ({ ...d, shape });
 export const withBans = (d: EditorDraft, bans: readonly string[]): EditorDraft => ({ ...d, bans: [...new Set(bans)] });
@@ -236,7 +257,7 @@ export const withView = (d: EditorDraft, view: EditorView): EditorDraft => ({ ..
 const sizesLike = (shape: LobbyShape): readonly LobbyShape[] => SIZES.find((sizes) => sizes.includes(shape)) ?? [shape];
 
 function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: CivNames): Panel {
-  const live = d.lobby.live;
+  const live = d.lobby.phase !== 'setup';
   const lobby = d.lobby;
   const changes = [
     ...(d.removed.length ? [`Removing ${d.removed.map(mention).join(', ')}`] : []),
@@ -271,17 +292,14 @@ function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Pa
     row(
       new StringSelectMenuBuilder()
         .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
-        .addOptions(
-          { label: fit(`${q.title}: not fixed`, 100), value: NOT_FIXED, default: d.settings[q.id] === undefined },
-          ...q.options.map((o) => ({ label: fit(`${q.title}: ${o.label}`, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } })),
-        ),
+        .addOptions(q.options.map((o) => ({ label: fit(`${q.title}: ${o.label}`, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
     ),
   );
   return {
     tone: 'info',
     surface: 'lobby',
     title: 'Game settings',
-    subtitle: 'Fix any setting; the rest are voted',
+    subtitle: 'Every setting, and how the lobby drafts',
     actions: [...menus, row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
   };
 }
