@@ -4,16 +4,18 @@ import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } f
 import { channel, customId, field, fit, mention, nameOf, row as inBody, text, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
+// In the order /lobby host offers them.
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
+  duel: 'Duel',
   'ffa-8': 'FFA, 8 seats',
   'ffa-10': 'FFA, 10 seats',
   'ffa-12': 'FFA, 12 seats',
   'ffa-14': 'FFA, 14 seats',
-  duel: 'Duel',
   'teamer-2v2': 'Teamer 2v2',
   'teamer-3v3': 'Teamer 3v3',
   'teamer-4v4': 'Teamer 4v4',
   'teamer-5v5': 'Teamer 5v5',
+  'teamer-2v2v2': 'Teamer 2v2v2',
   'teamer-2v2v2v2': 'Teamer 2v2v2v2',
 };
 const DRAFT_MODES: Readonly<Record<string, string>> = { standard: 'Standard', random: 'Random', blind: 'Blind' };
@@ -23,6 +25,7 @@ const SIZES: readonly (readonly LobbyShape[])[] = [
   ['ffa-8', 'ffa-10', 'ffa-12', 'ffa-14'],
   ['duel'],
   ['teamer-2v2', 'teamer-3v3', 'teamer-4v4', 'teamer-5v5'],
+  ['teamer-2v2v2'],
   ['teamer-2v2v2v2'],
 ];
 const SEATS: Readonly<Record<LobbyShape, number>> = {
@@ -35,6 +38,7 @@ const SEATS: Readonly<Record<LobbyShape, number>> = {
   'teamer-3v3': 6,
   'teamer-4v4': 8,
   'teamer-5v5': 10,
+  'teamer-2v2v2': 6,
   'teamer-2v2v2v2': 8,
 };
 
@@ -264,9 +268,10 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
   const live = d.lobby.phase !== 'setup';
   const lobby = d.lobby;
   const unset = unsetOf(d.settings, questions).length;
+  const optional = 'Optional: **Leader bans** to ban leaders, and **Lobby settings** to change the seats or move and remove players.';
   const guide = unset
-    ? `Set every game setting with **Game settings**, then **Confirm**. ${unset} still to set. Leader bans are optional; **Lobby settings** changes the seats.`
-    : 'Every setting is set. **Confirm** opens the lobby to players; leader bans are optional.';
+    ? `Set each game setting under **Game settings**, then press **Confirm** (${unset} still to set). ${optional}`
+    : `Every game setting is set: press **Confirm** to open the lobby to players. ${optional}`;
   const changes = [
     ...(d.removed.length ? [`Removing ${d.removed.map(mention).join(', ')}`] : []),
     ...(Object.keys(d.teams).length ? [`Moving ${Object.entries(d.teams).map(([p, t]) => `${mention(p)} to Team ${t}`).join(', ')}`] : []),

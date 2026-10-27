@@ -10,6 +10,7 @@ import {
   lobbyBanForm,
   lobbyDraftPanels,
   lobbyLinkOf,
+  SHAPES,
   lobbyPanel,
   openLobbiesPanel,
   withBans,
@@ -135,7 +136,7 @@ test('in setup the editor confirms or cancels; once live it saves or reverts', (
   const setup = editorPanel(draftOf(lobby({ phase: 'setup' })), CTX);
   assert.equal(setup.title, 'Set up your lobby');
   assert.deepEqual(verbsOf(setup), ['view:settings', 'bans', 'view:lobby', 'confirm', 'discard']);
-  assert.match(textOf(setup), /Every setting is set\. \*\*Confirm\*\* opens the lobby/);
+  assert.match(textOf(setup), /Every game setting is set: press \*\*Confirm\*\* to open the lobby to players\. Optional: \*\*Leader bans\*\*/);
   const live = editorPanel(draftOf(lobby()), CTX);
   assert.equal(live.title, 'Edit your lobby');
   assert.deepEqual(verbsOf(live), ['view:settings', 'bans', 'view:lobby', 'done', 'revert']);
@@ -154,7 +155,7 @@ test('the draft holds every change until it is saved whole', () => {
 test('a new lobby starts blank: the host is told what to set, and Confirm waits for every setting', () => {
   const blank = draftOf(lobby({ phase: 'setup', settings: [], draft_mode: null }));
   const main = editorPanel(blank, CTX);
-  assert.match(textOf(main), /Set every game setting with \*\*Game settings\*\*, then \*\*Confirm\*\*\. 2 still to set\./);
+  assert.match(textOf(main), /Set each game setting under \*\*Game settings\*\*, then press \*\*Confirm\*\* \(2 still to set\)\. Optional: .*move and remove players\./);
   assert.match(textOf(main), /\u2b1c Huts: not set\n\u2b1c Map: not set/);
   type Button = Json & { disabled?: boolean };
   const confirm = () => (componentsOf(editorPanel(d, CTX)) as Button[]).find((c) => c.custom_id.includes(':confirm:'))!;
@@ -191,6 +192,14 @@ test('the lobby view resizes within the mode, moves onto teams with room and rem
   assert.deepEqual(editOf(withMove(moved, '300', 1)).teams, {});
   const crowded = teamer([['100', 1], ['200', 1], ['300', 1]], { shape: 'teamer-3v3', seats: 6 });
   assert.deepEqual(componentsOf(editorPanel(withView(draftOf(crowded), 'lobby'), CTX))[0]!.options!.map((o) => o.value), ['teamer-3v3', 'teamer-4v4', 'teamer-5v5']);
+});
+
+test('/lobby host offers Duel first, and 2v2v2 is three teams that never change size', () => {
+  assert.deepEqual(Object.keys(SHAPES).slice(0, 2), ['duel', 'ffa-8']);
+  const trio = teamer([['100', 1], ['200', 2], ['300', 3]], { shape: 'teamer-2v2v2', seats: 6, teams: 3 });
+  const menus = componentsOf(editorPanel(withView(draftOf(trio), 'lobby'), CTX));
+  assert.equal(menus.some((m) => m.custom_id.includes(':shape:')), false);
+  assert.deepEqual(menus[0]!.options!.map((o) => o.value), ['100:2', '100:3', '200:1', '200:3', '300:1', '300:2']);
 });
 
 test('browse links each open lobby to its post', () => {

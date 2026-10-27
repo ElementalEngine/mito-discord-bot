@@ -1459,7 +1459,7 @@ export interface components {
              * Shape
              * @enum {string}
              */
-            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2" | "teamer-2v2v2v2";
             /** Teams */
             teams?: {
                 [key: string]: number;
@@ -1506,7 +1506,7 @@ export interface components {
              * Shape
              * @enum {string}
              */
-            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2" | "teamer-2v2v2v2";
             /** Steam Link */
             steam_link?: string | null;
         };
@@ -1553,7 +1553,7 @@ export interface components {
              * Shape
              * @enum {string}
              */
-            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2v2";
+            shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2" | "teamer-2v2v2v2";
             /**
              * Status
              * @enum {string}
