@@ -29,7 +29,7 @@ export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyVi
   return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl) };
 }
 
-async function channelOf(client: Client, lobby: Lobby) {
+export async function channelOf(client: Client, lobby: Lobby) {
   const channel = await client.channels.fetch(lobby.channel_id);
   return channel?.isTextBased() && channel.isSendable() ? channel : null;
 }

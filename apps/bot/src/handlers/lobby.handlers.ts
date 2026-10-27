@@ -10,6 +10,7 @@ import type {
 import { ApiClient } from '../api/index.js';
 import type { Actor, Lobby, LobbyShape } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
+import { closeVote, countVote, openVote } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
 import { loadMembers, memberNames } from '../services/members.js';
 import { parseId } from '../ui/kit/index.js';
@@ -31,6 +32,7 @@ import {
   type EditorDraft,
   type EditorView,
 } from '../ui/panels/lobby.js';
+import { voteStatusPanel } from '../ui/panels/lobby-vote.js';
 import { defer, fail, holdPanel, refuse, replacePanel, respond } from '../ui/reply.js';
 import { isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
@@ -61,6 +63,7 @@ const ACTION: Readonly<Record<string, string>> = {
   [VERB.done]: 'save your changes',
   [VERB.confirm]: 'open the lobby',
   [VERB.discard]: 'cancel the lobby',
+  [VERB.finished]: 'finish voting',
 };
 
 const actorOf = (interaction: Interaction): Actor => ({ id: interaction.user.id });
@@ -178,16 +181,32 @@ async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Pr
   await onEditor(interaction, lobbyId, (draft) => withBans(withView(draft, 'main'), selectedIn(interaction, fields.leaders)));
 }
 
-// A press on the lobby's post: the change, then the post redrawn. A lobby the
-// change fills then starts itself, with the bot acting as its host.
+// A press on the lobby's post: the change, then the post redrawn. A cancelled
+// lobby's vote is cleared too.
 async function onPost(interaction: ButtonInteraction, lobbyId: string, change: () => Promise<Lobby>): Promise<void> {
   await holdPanel(interaction);
   await inLobbyTurn(lobbyId, async () => {
     const changed = await change();
-    await showLobby(interaction.client, changed, api, changed.status === 'done');
-    if (changed.status === 'open' && changed.players.length === changed.seats) {
-      await showLobby(interaction.client, await api.startLobby(lobbyId, { id: changed.host_id }), api, true);
-    }
+    await showLobby(interaction.client, changed, api);
+    if (changed.status === 'cancelled') await closeVote(interaction.client, changed);
+  });
+}
+
+// The host starts: the seats lock and the vote opens.
+async function start(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
+  await holdPanel(interaction);
+  await inLobbyTurn(lobbyId, async () => openVote(interaction.client, await api.startLobby(lobbyId, actorOf(interaction)), api));
+}
+
+// A player is done voting; once every player is, the vote is counted.
+async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
+  await holdPanel(interaction);
+  await inLobbyTurn(lobbyId, async () => {
+    const lobby = await api.finishVote(lobbyId, actorOf(interaction));
+    const vote = lobby.vote;
+    if (!vote) return;
+    await replacePanel(interaction, voteStatusPanel(lobby, vote));
+    if (lobby.players.every((p) => vote.finished.includes(p.discord_id))) await countVote(interaction.client, lobbyId, api);
   });
 }
 
@@ -208,7 +227,8 @@ async function onSelect(interaction: StringSelectMenuInteraction, verb: string, 
 async function onButton(interaction: ButtonInteraction, verb: string, lobbyId: string, arg: string): Promise<void> {
   if (verb === VERB.join) return onPost(interaction, lobbyId, () => api.joinLobby(lobbyId, actorOf(interaction)));
   if (verb === VERB.leave) return onPost(interaction, lobbyId, () => api.leaveLobby(lobbyId, actorOf(interaction)));
-  if (verb === VERB.start) return onPost(interaction, lobbyId, () => api.startLobby(lobbyId, actorOf(interaction)));
+  if (verb === VERB.start) return start(interaction, lobbyId);
+  if (verb === VERB.finished) return finishVoting(interaction, lobbyId);
   if (verb === VERB.cancel) return onPost(interaction, lobbyId, () => api.cancelLobby(lobbyId, { id: interaction.user.id, isStaff: isStaff(interaction) }));
   if (verb === VERB.edit) {
     await defer(interaction, 'private');

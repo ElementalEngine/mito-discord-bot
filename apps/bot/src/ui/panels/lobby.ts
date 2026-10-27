@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, text, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { customId, field, fit, mention, nameOf, text, when, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
@@ -56,7 +56,12 @@ export const VERB = {
   revert: 'revert',
   confirm: 'confirm',
   discard: 'discard',
+  finished: 'finished',
 } as const;
+
+// The vote's messages by key: its status, the bans, and one per open setting.
+export const VOTE_STATUS = 'status';
+export const VOTE_BANS = 'bans';
 
 // A setting the host leaves open, to be voted.
 export const NOT_FIXED = '-';
@@ -70,10 +75,10 @@ export function lobbyLinkOf(steamLink: string | null, redirectUrl: string): stri
   return m ? `${redirectUrl}/civ6/${m[1]}/${m[2]}` : null;
 }
 
-const button = (lobby: Lobby, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
+export const button = (lobby: Lobby, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
   new ButtonBuilder().setCustomId(customId('lobby', verb, lobby.id, ...args)).setLabel(label).setStyle(style);
 
-const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
+export const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
 
 type Seat = Readonly<{ discord_id: string; team: number | null }>;
 
@@ -107,34 +112,46 @@ const CLOSED: Readonly<Record<string, string>> = {
 
 export type LobbyView = Readonly<{ lobby: Lobby; names: CivNames; questions: readonly SettingQuestion[]; link: string | null }>;
 
-// The lobby's post, edited in place as it fills, drafts or closes.
+// Where the vote's players go: its status message, in the thread or channel.
+const voteLinkOf = (lobby: Lobby): string | null => {
+  const status = lobby.vote?.messages[VOTE_STATUS];
+  return lobby.vote?.channel_id && status ? `https://discord.com/channels/${lobby.guild_id}/${lobby.vote.channel_id}/${status}` : null;
+};
+
+// The lobby's post, edited in place as it fills, votes, drafts or closes.
 export function lobbyPanel({ lobby, names, questions, link }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
   if (lobby.status === 'cancelled') {
     return { tone: 'muted', surface: 'lobby', title, subtitle: CLOSED[lobby.cancel_reason ?? ''] ?? 'Closed', footer: `Hosted by ${mention(lobby.host_id)}` };
   }
   const open = lobby.status === 'open';
+  const vote = open ? lobby.vote : null;
+  const voteLink = voteLinkOf(lobby);
   const body = [
     ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
-    ...(lobby.rules ? [field('Host rules', lobby.rules)] : []),
+    ...(vote && voteLink ? [text(`### [Vote on the settings and bans](${voteLink})`)] : []),
     field(open ? 'Seats' : 'Players', seatLines(lobby)),
     field('Settings', settingLines(fixedOf(lobby), questions)),
     field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
   ];
-  const actions = [
-    row(
-      button(lobby, VERB.join, 'Join', ButtonStyle.Success),
-      button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
-      button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
-    ),
-    row(button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary), button(lobby, VERB.cancel, 'Cancel', ButtonStyle.Danger)),
-  ];
+  const cancel = button(lobby, VERB.cancel, 'Cancel', ButtonStyle.Danger);
+  const actions = vote
+    ? [row(cancel)]
+    : [
+        row(
+          button(lobby, VERB.join, 'Join', ButtonStyle.Success),
+          button(lobby, VERB.leave, 'Leave', ButtonStyle.Secondary),
+          button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
+        ),
+        row(button(lobby, VERB.edit, 'Edit lobby', ButtonStyle.Secondary), cancel),
+      ];
   const footer = `Hosted by ${mention(lobby.host_id)}`;
+  const draft = `${DRAFT_MODES[lobby.draft_mode as DraftMode] ?? lobby.draft_mode} draft`;
   return {
     tone: open ? 'info' : 'success',
     surface: 'lobby',
     title: open ? title : `${title}: drafted`,
-    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${DRAFT_MODES[lobby.draft_mode as DraftMode] ?? lobby.draft_mode} draft`,
+    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draft}${vote ? ` · voting until ${when(Date.parse(vote.ends_at), 't')}` : ''}`,
     body,
     ...(open ? { actions, footer: `${footer} · closes after 2.5 hours with no activity` } : { footer }),
   };
@@ -159,7 +176,7 @@ export function lobbyDraftPanels(lobby: Lobby, names: CivNames): Panel[] {
 export function openLobbiesPanel(lobbies: readonly Lobby[]): Panel {
   const line = (l: Lobby): string => {
     const post = l.message_id ? ` · [open](https://discord.com/channels/${l.guild_id}/${l.channel_id}/${l.message_id})` : '';
-    return `**${SHAPES[l.shape]}** · ${l.players.length}/${l.seats} · hosted by ${mention(l.host_id)}${post}`;
+    return `**${SHAPES[l.shape]}** · ${l.players.length}/${l.seats}${l.vote ? ' · voting' : ''} · hosted by ${mention(l.host_id)}${post}`;
   };
   return {
     tone: 'info',
@@ -240,7 +257,7 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
       row(
         button(lobby, VERB.view, 'Game settings', ButtonStyle.Secondary, 'settings'),
         button(lobby, VERB.bans, 'Leader bans', ButtonStyle.Secondary),
-        button(lobby, VERB.view, 'Lobby', ButtonStyle.Secondary, 'lobby'),
+        button(lobby, VERB.view, 'Lobby settings', ButtonStyle.Secondary, 'lobby'),
       ),
       live
         ? row(button(lobby, VERB.done, 'Done', ButtonStyle.Success), button(lobby, VERB.revert, 'Revert', ButtonStyle.Secondary))
@@ -311,7 +328,7 @@ function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Pa
   return {
     tone: 'info',
     surface: 'lobby',
-    title: 'Lobby',
+    title: 'Lobby settings',
     subtitle: `${SHAPES[d.shape]} · ${seats.length}/${SEATS[d.shape]} seated`,
     body: [text(seatLines(lobby, seats))],
     actions: [...menus, row(button(lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],

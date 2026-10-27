@@ -38,7 +38,6 @@ const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   channel_id: '2',
   message_id: '3',
   steam_link: LINK,
-  rules: null,
   players: [
     { discord_id: '100', team: null },
     { discord_id: '200', team: null },
@@ -46,6 +45,7 @@ const lobby = (fields: Partial<Lobby> = {}): Lobby => ({
   settings: [],
   bans: [],
   pools: [],
+  vote: null,
   cancel_reason: null,
   updated_at: '2026-10-26T12:00:00Z',
   ...fields,
@@ -74,17 +74,25 @@ test('a Civ6 lobby link goes out through the redirect; none, or any other, gives
 });
 
 test('a live lobby shows its link, seats, settings and bans, and the editor button', () => {
-  const panel = lobbyPanel(view(lobby({ rules: 'No early war', settings: [{ id: 'huts', value: 'x1_5', by: 'host' }], bans: [{ token: 'LEADER_A', kind: 'leader', by: 'host' }] })));
+  const panel = lobbyPanel(view(lobby({ settings: [{ id: 'huts', value: 'x1_5', by: 'host' }], bans: [{ token: 'LEADER_A', kind: 'leader', by: 'host' }] })));
   assert.equal(panel.title, 'Civ6 FFA, 8 seats lobby');
   assert.equal(panel.subtitle, '2/8 seats · Standard draft');
   const body = textOf(panel);
   assert.match(body, /\[Join the Steam lobby\]\(https:\/\/dev-lobbylink\.elementalengine\.net\/civ6\//);
   assert.match(body, /1\. <@100> \(host\)\n2\. <@200>/);
-  assert.match(body, /No early war/);
   assert.match(body, /\*\*Settings\*\*\nHuts: 1\.5x/);
   assert.match(body, /\*\*Leader bans\*\*\nAbe/);
   assert.deepEqual(verbsOf(panel), ['join', 'leave', 'start', 'edit', 'cancel']);
   assert.doesNotMatch(textOf(lobbyPanel(view(lobby({ steam_link: null })))), /Join the Steam lobby/);
+});
+
+test('a voting lobby links to its vote and offers only Cancel', () => {
+  const vote = { ends_at: '2026-10-27T12:10:00Z', channel_id: '9', messages: { status: '8' }, finished: [] };
+  const panel = lobbyPanel(view(lobby({ vote })));
+  assert.match(textOf(panel), /\[Vote on the settings and bans\]\(https:\/\/discord\.com\/channels\/1\/9\/8\)/);
+  assert.match(panel.subtitle ?? '', /voting until <t:1793103000:t>/);
+  assert.deepEqual(verbsOf(panel), ['cancel']);
+  assert.doesNotMatch(textOf(lobbyPanel(view(lobby({ vote: { ...vote, channel_id: null } })))), /Vote on/);
 });
 
 test('a drafted lobby keeps its link and loses its buttons; a cancelled one says why', () => {
@@ -153,6 +161,7 @@ test('the lobby view resizes within the mode, moves onto teams with room and rem
 
 test('browse links each open lobby to its post', () => {
   assert.match(textOf(openLobbiesPanel([lobby()])), /\*\*FFA, 8 seats\*\* · 2\/8 · hosted by <@100> · \[open\]\(https:\/\/discord\.com\/channels\/1\/2\/3\)/);
+  assert.match(textOf(openLobbiesPanel([lobby({ vote: { ends_at: '2026-10-27T12:10:00Z', channel_id: null, messages: {}, finished: [] } })])), /2\/8 · voting · hosted/);
   assert.match(textOf(openLobbiesPanel([])), /No lobby is open here/);
 });
 

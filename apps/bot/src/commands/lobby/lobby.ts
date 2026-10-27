@@ -13,7 +13,7 @@ const api = new ApiClient();
 
 export const data = new SlashCommandBuilder()
   .setName('lobby')
-  .setDescription('Host a Civ6 lobby: set it up, open it to players, then draft it.')
+  .setDescription('Host a Civ6 lobby: set it up, open it to players, vote, then draft.')
   .setContexts(InteractionContextType.Guild)
   .addSubcommand((sub) =>
     sub
@@ -33,8 +33,7 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(...(Object.keys(DRAFT_MODES) as DraftMode[]).map((value) => ({ name: DRAFT_MODES[value], value }))),
       )
-      .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120))
-      .addStringOption((o) => o.setName('rules').setDescription('Host rules, shown on the lobby').setMaxLength(500)),
+      .addStringOption((o) => o.setName('steam-link').setDescription('Optional: your Civ6 lobby link, steam://joinlobby/289070/...').setMaxLength(120)),
   )
   .addSubcommand((sub) => sub.setName('browse').setDescription('List the open lobbies here.'))
   .addSubcommand((sub) => sub.setName('cancel').setDescription('Cancel the lobby you host.'));
@@ -64,7 +63,6 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
       guild_id: interaction.guildId,
       channel_id: interaction.channelId,
       steam_link: steamLink,
-      rules: interaction.options.getString('rules')?.trim() || null,
     },
     { id: interaction.user.id },
   );

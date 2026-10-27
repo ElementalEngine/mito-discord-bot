@@ -106,6 +106,10 @@ const backendDefault =
 const lobbyLinkDefault =
   nodeEnv === 'production' ? 'https://prod-lobbylink.elementalengine.net' : 'https://dev-lobbylink.elementalengine.net';
 
+// Where a lobby votes while both are tried on dev: a thread off its post, or
+// its channel, the vote's messages cleared after.
+const lobbyVoteIn: 'thread' | 'channel' = env('LOBBY_VOTE_IN') === 'channel' ? 'channel' : 'thread';
+
 // Final config export
 export const config = {
   discord,
@@ -114,5 +118,6 @@ export const config = {
     serviceToken: env('BACKEND_SERVICE_TOKEN', ''),
   },
   lobbyLinkUrl: env('LOBBY_LINK_URL', lobbyLinkDefault),
+  lobbyVoteIn,
   env: nodeEnv,
 } as const;

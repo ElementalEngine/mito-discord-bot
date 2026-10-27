@@ -10,9 +10,11 @@ import type {
   DraftDeal,
   DraftRequest,
   Lobby,
+  LobbyBallot,
   LobbyEdit,
   LobbyRequest,
   SettingQuestion,
+  VotePlace,
   Actor,
   Match,
   MatchUpload,
@@ -237,9 +239,29 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/edit`, "PUT", host, edit);
   }
 
-  // A full lobby starts itself: the bot then acts as its host.
+  // The host starts: the seats lock and the vote opens.
   async startLobby(lobbyId: string, host: Actor): Promise<Lobby> {
     return this.lobbyCall(`${lobbyId}/start`, "POST", host);
+  }
+
+  // Where the vote is posted; the bot acts as the host.
+  async placeVote(lobbyId: string, host: Actor, place: VotePlace): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/vote`, "PUT", host, place);
+  }
+
+  async finishVote(lobbyId: string, player: Actor): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/finished`, "POST", player);
+  }
+
+  // The players' reactions, counted and the lobby drafted; the bot acts as the host.
+  async tallyVote(lobbyId: string, host: Actor, ballot: LobbyBallot): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/tally`, "POST", host, ballot);
+  }
+
+  // Votes past their time, left uncounted by a restart.
+  async votesDue(): Promise<Lobby[]> {
+    const res = await this.fetchWithRetry(this.lobbyUrl("votes-due"), { method: "GET" });
+    return (await this.parseJson(res)) as Lobby[];
   }
 
   async cancelLobby(lobbyId: string, actor: Actor): Promise<Lobby> {

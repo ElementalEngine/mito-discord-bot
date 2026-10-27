@@ -31,6 +31,8 @@ export type LobbyRequest = components['schemas']['LobbyRequest'];
 export type LobbyShape = LobbyRequest['shape'];
 export type Lobby = components['schemas']['LobbyView'];
 export type LobbyEdit = components['schemas']['LobbyEdit'];
+export type LobbyBallot = components['schemas']['LobbyBallot'];
+export type VotePlace = components['schemas']['VotePlace'];
 export type SettingQuestion = components['schemas']['SettingQuestion'];
 
 // The v2 match surface, as core-api declares it.
