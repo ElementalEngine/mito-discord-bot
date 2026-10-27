@@ -34,18 +34,20 @@ async function channelOf(client: Client, lobby: Lobby) {
   return channel?.isTextBased() && channel.isSendable() ? channel : null;
 }
 
-// Redraw the lobby's post.
+// Redraw the lobby's post; a cancelled lobby's post is removed.
 export async function showLobby(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   const channel = await channelOf(client, lobby);
-  if (channel && lobby.message_id) await editPanelById(channel, lobby.message_id, lobbyPanel(await lobbyViewOf(lobby, api)));
+  if (!channel || !lobby.message_id) return;
+  if (lobby.status === 'cancelled') await channel.messages.delete(lobby.message_id).catch(() => undefined);
+  else await editPanelById(channel, lobby.message_id, lobbyPanel(await lobbyViewOf(lobby, api)));
 }
 
-// The host confirms: the lobby's post goes up in its channel, and from then on
-// players join from it.
+// The host confirms: the lobby's post goes up in its channel, drawn live, and
+// from then on players join from it.
 export async function publishLobby(client: Client, lobby: Lobby, host: Actor, api: ApiClient): Promise<Lobby> {
   const channel = await channelOf(client, lobby);
   if (!channel) throw new Error(`lobby channel ${lobby.channel_id} is not one the bot can post in`);
-  const post = await postPanel(channel, lobbyPanel(await lobbyViewOf(lobby, api)));
+  const post = await postPanel(channel, lobbyPanel(await lobbyViewOf({ ...lobby, phase: 'live' }, api)));
   try {
     return await api.openLobby(lobby.id, host, post.id);
   } catch (error) {

@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { channel, customId, field, fit, mention, nameOf, text, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { channel, customId, field, fit, mention, nameOf, row as inBody, text, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
 import { banFields, pickLines } from './draft.js';
 
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
@@ -98,7 +98,7 @@ function settingLines(chosen: Readonly<Record<string, string>>, questions: reado
   return questions
     .map((q) => {
       const option = q.options.find((o) => o.id === chosen[q.id]);
-      return option ? `${option.emoji} ${q.title}: ${option.label}` : `${q.title}: ${chosen[q.id] ?? '—'}`;
+      return option ? `${option.emoji} ${q.title}: ${option.label}` : `\u2b1c ${q.title}: not set`;
     })
     .join('\n');
 }
@@ -107,7 +107,11 @@ const banLine = (names: CivNames, bans: readonly string[]): string => bans.map((
 
 const settingsOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
 
-const draftModeOf = (lobby: Lobby): string => `${DRAFT_MODES[lobby.draft_mode] ?? lobby.draft_mode} draft`;
+const draftModeOf = (lobby: Lobby): string => (lobby.draft_mode ? `${DRAFT_MODES[lobby.draft_mode] ?? lobby.draft_mode} draft` : 'Draft not set');
+
+// The settings the draft leaves unset; the lobby opens only once none are.
+const unsetOf = (settings: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): SettingQuestion[] =>
+  questions.filter((q) => settings[q.id] === undefined);
 
 const CLOSED: Readonly<Record<string, string>> = {
   host: 'Cancelled by the host',
@@ -259,6 +263,10 @@ const sizesLike = (shape: LobbyShape): readonly LobbyShape[] => SIZES.find((size
 function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: CivNames): Panel {
   const live = d.lobby.phase !== 'setup';
   const lobby = d.lobby;
+  const unset = unsetOf(d.settings, questions).length;
+  const guide = unset
+    ? `Set every game setting with **Game settings**, then **Confirm**. ${unset} still to set. Leader bans are optional; **Lobby settings** changes the seats.`
+    : 'Every setting is set. **Confirm** opens the lobby to players; leader bans are optional.';
   const changes = [
     ...(d.removed.length ? [`Removing ${d.removed.map(mention).join(', ')}`] : []),
     ...(Object.keys(d.teams).length ? [`Moving ${Object.entries(d.teams).map(([p, t]) => `${mention(p)} to Team ${t}`).join(', ')}`] : []),
@@ -269,6 +277,7 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
     title: live ? 'Edit your lobby' : 'Set up your lobby',
     subtitle: live ? 'Done saves your changes; Revert drops them' : 'Players see it once you confirm',
     body: [
+      ...(live ? [] : [text(guide)]),
       field('Size', `${SHAPES[d.shape]} · ${seatsOf(d).length}/${SEATS[d.shape]} seated`),
       field('Settings', settingLines(d.settings, questions)),
       field('Leader bans', banLine(names, d.bans)),
@@ -282,25 +291,32 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
       ),
       live
         ? row(button(lobby, VERB.done, 'Done', ButtonStyle.Success), button(lobby, VERB.revert, 'Revert', ButtonStyle.Secondary))
-        : row(button(lobby, VERB.confirm, 'Confirm', ButtonStyle.Success), button(lobby, VERB.discard, 'Cancel lobby', ButtonStyle.Danger)),
+        : row(button(lobby, VERB.confirm, 'Confirm', ButtonStyle.Success).setDisabled(unset > 0), button(lobby, VERB.discard, 'Cancel lobby', ButtonStyle.Danger)),
     ],
   };
 }
 
+// Each setting under its title, its menu showing the draft's choice.
 function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Panel {
-  const menus = questions.map((q) =>
-    row(
-      new StringSelectMenuBuilder()
-        .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
-        .addOptions(q.options.map((o) => ({ label: fit(`${q.title}: ${o.label}`, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
+  const unset = unsetOf(d.settings, questions).length;
+  const menus = questions.flatMap((q) => [
+    text(`**${q.title}**`),
+    inBody(
+      row(
+        new StringSelectMenuBuilder()
+          .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
+          .setPlaceholder('Choose\u2026')
+          .addOptions(q.options.map((o) => ({ label: fit(o.label, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
+      ),
     ),
-  );
+  ]);
   return {
     tone: 'info',
     surface: 'lobby',
     title: 'Game settings',
-    subtitle: 'Every setting, and how the lobby drafts',
-    actions: [...menus, row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
+    subtitle: unset ? `Every one must be set before the lobby opens; ${unset} still to set` : 'Every setting is set',
+    body: menus,
+    actions: [row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
   };
 }
 

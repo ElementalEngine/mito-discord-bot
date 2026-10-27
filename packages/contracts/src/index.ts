@@ -1523,7 +1523,7 @@ export interface components {
             /** Deadline */
             deadline: string | null;
             /** Draft Mode */
-            draft_mode: string;
+            draft_mode: string | null;
             /** Guild Id */
             guild_id: string;
             /** Host Id */

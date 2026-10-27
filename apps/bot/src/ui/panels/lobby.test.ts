@@ -69,7 +69,8 @@ const CTX = { questions: QUESTIONS, names: NAMES, playerNames: new Map([['100', 
 const view = (l: Lobby) => ({ lobby: l, names: NAMES, questions: QUESTIONS, link: lobbyLinkOf(l.steam_link, REDIRECT) });
 const textOf = (panel: Panel): string => (panel.body ?? []).map((b) => ('text' in b ? b.text : '')).join('\n');
 type Json = { custom_id: string; options?: { label: string; value: string; default?: boolean }[] };
-const componentsOf = (panel: Panel): Json[] => (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
+const rowsOf = (panel: Panel) => [...(panel.body ?? []).flatMap((b) => (b.kind === 'row' ? [b.row] : [])), ...(panel.actions ?? [])];
+const componentsOf = (panel: Panel): Json[] => rowsOf(panel).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
 const verbsOf = (panel: Panel): string[] => componentsOf(panel).map((c) => c.custom_id.split(':').slice(1).filter((_, i) => i !== 1).join(':'));
 
 test('a Civ6 lobby link goes out through the redirect; none, or any other, gives no link', () => {
@@ -134,6 +135,7 @@ test('in setup the editor confirms or cancels; once live it saves or reverts', (
   const setup = editorPanel(draftOf(lobby({ phase: 'setup' })), CTX);
   assert.equal(setup.title, 'Set up your lobby');
   assert.deepEqual(verbsOf(setup), ['view:settings', 'bans', 'view:lobby', 'confirm', 'discard']);
+  assert.match(textOf(setup), /Every setting is set\. \*\*Confirm\*\* opens the lobby/);
   const live = editorPanel(draftOf(lobby()), CTX);
   assert.equal(live.title, 'Edit your lobby');
   assert.deepEqual(verbsOf(live), ['view:settings', 'bans', 'view:lobby', 'done', 'revert']);
@@ -149,12 +151,29 @@ test('the draft holds every change until it is saved whole', () => {
   assert.match(textOf(main), /Removing <@200>/);
 });
 
-test('game settings are one menu each, showing the draft', () => {
-  const d = withView(withSetting(draftOf(lobby()), 'huts', 'x1_5'), 'settings');
-  const menus = componentsOf(editorPanel(d, CTX));
+test('a new lobby starts blank: the host is told what to set, and Confirm waits for every setting', () => {
+  const blank = draftOf(lobby({ phase: 'setup', settings: [], draft_mode: null }));
+  const main = editorPanel(blank, CTX);
+  assert.match(textOf(main), /Set every game setting with \*\*Game settings\*\*, then \*\*Confirm\*\*\. 2 still to set\./);
+  assert.match(textOf(main), /\u2b1c Huts: not set\n\u2b1c Map: not set/);
+  type Button = Json & { disabled?: boolean };
+  const confirm = () => (componentsOf(editorPanel(d, CTX)) as Button[]).find((c) => c.custom_id.includes(':confirm:'))!;
+  let d = withSetting(blank, 'huts', 'x1');
+  assert.equal(confirm().disabled, true);
+  d = withSetting(d, 'map', 'pangea');
+  assert.equal(confirm().disabled, false);
+});
+
+test('game settings show each title above its menu, with the chosen option picked', () => {
+  const blank = withView(draftOf(lobby({ phase: 'setup', settings: [] })), 'settings');
+  const panel = editorPanel(withSetting(blank, 'huts', 'x1_5'), CTX);
+  assert.deepEqual((panel.body ?? []).map((b) => b.kind), ['text', 'row', 'text', 'row']);
+  assert.deepEqual((panel.body ?? []).flatMap((b) => (b.kind === 'text' ? [b.text] : [])), ['**Huts**', '**Map**']);
+  assert.match(panel.subtitle ?? '', /1 still to set/);
+  const menus = componentsOf(panel);
   assert.deepEqual(menus.map((m) => m.custom_id.split(':').slice(1).filter((_, i) => i !== 1).join(':')), ['setting:huts', 'setting:map', 'view:main']);
-  assert.deepEqual(menus[0]!.options!.map((o) => [o.value, o.default]), [['x1', false], ['x1_5', true]]);
-  assert.equal(menus[1]!.options!.find((o) => o.default)?.value, 'pangea');
+  assert.deepEqual(menus[0]!.options!.map((o) => [o.label, o.default]), [['1x', false], ['1.5x', true]]);
+  assert.equal(menus[1]!.options!.some((o) => o.default), false);
 });
 
 test('the lobby view resizes within the mode, moves onto teams with room and removes anyone but the host', () => {
