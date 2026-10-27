@@ -196,7 +196,7 @@ test('game settings show each title above its menu, with the chosen option picke
   const panel = editorPanel(withSetting(blank, 'huts', 'x1_5'), CTX);
   assert.deepEqual((panel.body ?? []).map((b) => b.kind), ['text', 'row', 'text', 'row']);
   assert.deepEqual((panel.body ?? []).flatMap((b) => (b.kind === 'text' ? [b.text] : [])), ['**Huts**', '**Map**']);
-  assert.match(panel.subtitle ?? '', /1 still to set/);
+  assert.match(panel.subtitle ?? '', /Each pick is kept as you make it/);
   const menus = componentsOf(panel);
   assert.deepEqual(menus.map((m) => m.custom_id.split(':').slice(1).filter((_, i) => i !== 1).join(':')), ['setting:huts', 'setting:map', 'view:main']);
   assert.deepEqual(menus[0]!.options!.map((o) => [o.label, o.default]), [['1x', false], ['1.5x', true]]);

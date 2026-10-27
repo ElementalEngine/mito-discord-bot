@@ -16,19 +16,38 @@ const timers = new Map<string, NodeJS.Timeout>();
 
 export type Reaction = Readonly<{ id: string | null; name: string | null; users: readonly string[] }>;
 
-// The ban reactions as core-api counts them: per leader portrait, matched by
-// name, the players banning it. Other emoji and other people are left out.
-export function ballotOf(reactions: readonly Reaction[], lobby: Lobby, data: CivDataResponse): LobbyBallot {
+const keyOf = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Each leader under any name a server's emoji may give it: the portrait name,
+// the leader's own, or with the civ either side. A name two leaders share is dropped.
+function leadersByName(data: CivDataResponse): ReadonlyMap<string, string> {
+  const found = new Map<string, string | null>();
+  for (const l of data.leaders) {
+    const own = l.display ?? '';
+    const civ = l.civ_display ?? '';
+    for (const key of new Set([l.name, own, civ && own ? civ + own : '', civ && own ? own + civ : ''].filter(Boolean).map(keyOf))) {
+      found.set(key, found.has(key) && found.get(key) !== l.token ? null : l.token);
+    }
+  }
+  return new Map([...found].flatMap(([key, token]): [string, string][] => (token ? [[key, token]] : [])));
+}
+
+// The ban reactions per server leader emoji, matched by name: the players
+// banning each. Others are left out; custom emoji naming no leader come back.
+export function ballotOf(reactions: readonly Reaction[], lobby: Lobby, data: CivDataResponse): { ballot: LobbyBallot; unmatched: string[] } {
   const players = new Set(lobby.players.map((p) => p.discord_id));
-  const tokenOf: ReadonlyMap<string, string> = new Map(data.leaders.map((l) => [l.name, l.token]));
+  const tokenOf = leadersByName(data);
   const bans: Record<string, string[]> = {};
+  const unmatched: string[] = [];
   for (const { id, name, users } of reactions) {
-    const token = id && name ? tokenOf.get(name) : undefined;
+    if (!id || !name) continue;
+    const token = tokenOf.get(keyOf(name));
+    if (!token) unmatched.push(name);
     const voters = users.filter((u) => players.has(u));
     if (!token || !voters.length) continue;
     bans[token] = [...new Set([...(bans[token] ?? []), ...voters])];
   }
-  return { bans };
+  return { ballot: { bans }, unmatched };
 }
 
 // FFAs and duels draft in the FFA voting channel, teamers in the teamer one.
@@ -113,7 +132,9 @@ async function postDraft(client: Client, lobby: Lobby, place: SendableChannels |
 async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   const place = await placeOf(client, lobby);
   const reactions = place ? await banReactions(place, lobby.vote?.messages[VOTE_STATUS]) : [];
-  const dealt = await api.tallyVote(lobby.id, { id: lobby.host_id }, ballotOf(reactions, lobby, await civRows('civ6', api)));
+  const { ballot, unmatched } = ballotOf(reactions, lobby, await civRows('civ6', api));
+  if (unmatched.length) log.info('ban reactions naming no leader', lobby.id, unmatched.join(', '));
+  const dealt = await api.tallyVote(lobby.id, { id: lobby.host_id }, ballot);
   if (dealt.phase === 'picking' && place) return openPicks(client, dealt, place, api);
   if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
   await closeVote(client, dealt);
@@ -137,15 +158,14 @@ async function revealPicks(client: Client, lobby: Lobby, api: ApiClient): Promis
   await postDraft(client, shown, await placeOf(client, shown), api);
 }
 
-// In the lobby's turn, whichever step is due: a full lobby's vote opened at
-// the end of its countdown, a vote counted, or blind picks revealed.
-export async function advanceLobby(client: Client, lobbyId: string, api: ApiClient): Promise<void> {
-  dropTimer(lobbyId);
+// In the lobby's turn, the step that is due: a countdown's vote opened, a vote
+// counted, or blind picks revealed; a vote or the picks end early once all are done.
+export async function advanceLobby(client: Client, lobbyId: string, api: ApiClient, allDone = false): Promise<void> {
   const lobby = await api.lobby(lobbyId);
-  if (lobby.status !== 'open') return;
-  if (lobby.phase === 'live' && lobby.deadline && Date.parse(lobby.deadline) <= Date.now()) {
-    return openVote(client, await api.startLobby(lobby.id, { id: lobby.host_id }), api);
-  }
+  const due = !!lobby.deadline && Date.parse(lobby.deadline) <= Date.now();
+  if (lobby.status !== 'open' || !(due || (allDone && lobby.phase !== 'live'))) return;
+  dropTimer(lobbyId);
+  if (lobby.phase === 'live') return openVote(client, await api.startLobby(lobby.id, { id: lobby.host_id }), api);
   if (lobby.phase === 'voting') return countVote(client, lobby, api);
   if (lobby.phase === 'picking') return revealPicks(client, lobby, api);
 }

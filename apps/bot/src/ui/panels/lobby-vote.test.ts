@@ -45,7 +45,7 @@ test('the vote is one message: the optional bans, what a ban needs, the host ban
   assert.equal(panel.title, 'Bans vote: Civ6 FFA, 8 seats lobby');
   assert.match(panel.subtitle ?? '', /Closes <t:1793103000:R>/);
   const body = textOf(panel);
-  assert.match(body, /\*\*Optional: extra leader bans\*\*\nReact to this message with the server's leader emojis/);
+  assert.match(body, /### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis/);
   assert.match(body, /A ban lands with 2 of the 3 players/);
   assert.match(body, /\*\*Banned by the host\*\*\nAbe/);
   assert.match(body, /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);

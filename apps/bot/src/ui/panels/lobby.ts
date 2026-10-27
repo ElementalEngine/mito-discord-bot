@@ -299,9 +299,9 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
   };
 }
 
-// Each setting under its title, its menu showing the draft's choice.
+// Each setting under its title, its menu showing the draft's choice. A pick
+// is kept without redrawing, so quick picks never race a redraw.
 function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Panel {
-  const unset = unsetOf(d.settings, questions).length;
   const menus = questions.flatMap((q) => [
     text(`**${q.title}**`),
     inBody(
@@ -317,7 +317,7 @@ function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Pa
     tone: 'info',
     surface: 'lobby',
     title: 'Game settings',
-    subtitle: unset ? `Every one must be set before the lobby opens; ${unset} still to set` : 'Every setting is set',
+    subtitle: 'Each pick is kept as you make it. Press Back when done; every setting must be set to open the lobby.',
     body: menus,
     actions: [row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
   };

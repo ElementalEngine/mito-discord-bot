@@ -20,9 +20,8 @@ export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
     title: `Bans vote: Civ6 ${SHAPES[lobby.shape]} lobby`,
     subtitle: closes(lobby, 'finished'),
     body: [
-      field(
-        'Optional: extra leader bans',
-        `React to this message with the server's leader emojis to ban those leaders. A ban lands with ${need} of the ${lobby.players.length} players. Then press Finished.`,
+      text(
+        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A ban lands with ${need} of the ${lobby.players.length} players. Then press **Finished**.`,
       ),
       ...(hosts ? [field('Banned by the host', hosts)] : []),
       field('Players', ticks(lobby, new Set(lobby.vote?.finished ?? []))),

@@ -5,10 +5,10 @@ import { advanceLobby, closeVote } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, showLobby } from '../services/lobby.service.js';
 import { log } from '../utils/log.js';
 
-const INTERVAL_MS = 5 * 60_000;
+const INTERVAL_MS = 30_000;
 
-// Every five minutes: lobbies idle for 2.5 hours close, freeing their seats,
-// and votes or blind picks a restart left past their time are closed.
+// Every 30 seconds: idle lobbies close, freeing their seats, and a countdown,
+// vote or blind picks a restart left past its time moves on.
 export function startLobbyUpkeepJob(client: Client): () => void {
   const api = new ApiClient();
   let running = false;
