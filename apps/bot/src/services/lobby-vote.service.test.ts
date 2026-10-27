@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import type { SendableChannels } from 'discord.js';
+
 import type { CivDataResponse, Lobby } from '../api/types.js';
-import { ballotOf } from './lobby-vote.service.js';
+import { ballotOf, banReactions } from './lobby-vote.service.js';
 
 const lobby = { players: ['100', '200', '300'].map((discord_id) => ({ discord_id, team: null })) } as unknown as Lobby;
 const DATA = {
@@ -30,4 +32,14 @@ test('ban reactions become a ballot of players only, matched by the emoji name i
   );
   assert.deepEqual(ballot, { bans: { LEADER_GANDHI: ['100', '200', '300'], LEADER_TRAJAN: ['100'] } });
   assert.deepEqual(unmatched, ['Catherine', 'Nobody']);
+});
+
+test('the vote message is read fresh from Discord, since its cached copy never has reactions', async () => {
+  const reaction = { emoji: { id: '9', name: 'IndiaGandhi' }, users: { fetch: async () => new Map([['100', {}], ['200', {}]]) } };
+  const place = {
+    messages: {
+      fetch: async (o: { message: string; force?: boolean }) => ({ reactions: { cache: new Map(o.force ? [['9', reaction]] : []) } }),
+    },
+  } as unknown as SendableChannels;
+  assert.deepEqual(await banReactions(place, 'm1'), [{ id: '9', name: 'IndiaGandhi', users: ['100', '200'] }]);
 });

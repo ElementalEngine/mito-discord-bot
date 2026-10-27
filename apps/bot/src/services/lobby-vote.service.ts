@@ -111,8 +111,10 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
   await showLobby(client, placed, api);
 }
 
-async function banReactions(place: SendableChannels, messageId: string | undefined): Promise<Reaction[]> {
-  const message = messageId ? await place.messages.fetch(messageId).catch(() => null) : null;
+// The vote message's reactions, read fresh: the bot does not follow reaction
+// events, so its cached copy of the message never has any.
+export async function banReactions(place: SendableChannels, messageId: string | undefined): Promise<Reaction[]> {
+  const message = messageId ? await place.messages.fetch({ message: messageId, force: true }).catch(() => null) : null;
   const reactions: Reaction[] = [];
   for (const reaction of message?.reactions.cache.values() ?? []) {
     const users = await reaction.users.fetch();
@@ -162,7 +164,8 @@ async function revealPicks(client: Client, lobby: Lobby, api: ApiClient): Promis
 // counted, or blind picks revealed; a vote or the picks end early once all are done.
 export async function advanceLobby(client: Client, lobbyId: string, api: ApiClient, allDone = false): Promise<void> {
   const lobby = await api.lobby(lobbyId);
-  const due = !!lobby.deadline && Date.parse(lobby.deadline) <= Date.now();
+  // A second's grace, for a timer or a core-api clock a moment ahead of ours.
+  const due = !!lobby.deadline && Date.parse(lobby.deadline) <= Date.now() + 1_000;
   if (lobby.status !== 'open' || !(due || (allDone && lobby.phase !== 'live'))) return;
   dropTimer(lobbyId);
   if (lobby.phase === 'live') return openVote(client, await api.startLobby(lobby.id, { id: lobby.host_id }), api);
