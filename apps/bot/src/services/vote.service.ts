@@ -2,19 +2,22 @@ import type { Client, Message, MessageMentionOptions, SendableChannels } from 'd
 
 import type { ApiClient } from '../api/index.js';
 import type { CivDataResponse, SettingQuestion, Vote, VoteBallot } from '../api/types.js';
+import type { CivNames, Panel } from '../ui/kit/index.js';
 import { CIV_BANS, LEADER_BANS, VOTE_STATUS, questionPanel, voteBansPanel, voteBlindStatusPanel, voteDraftPanels, voteStatusPanel } from '../ui/panels/vote.js';
-import type { Panel } from '../ui/kit/index.js';
-import { editPanelById, postPanel } from '../ui/reply.js';
+import { deleteMessages, editPanel, editPanelById, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
 import { lobbySettings } from './lobby.service.js';
-import { ballotOf, reactionsOn, unwatchBans, watchBans } from './reactions.js';
+import { ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
+
+type BanKind = 'leader' | 'civ';
 
 const starterOf = (vote: Vote) => ({ id: vote.host_id });
 const playersOf = (vote: Vote): string[] => vote.players.map((p) => p.discord_id);
 const questionsOf = (vote: Vote, api: ApiClient): Promise<readonly SettingQuestion[]> => lobbySettings(vote.mode, api, vote.edition);
-const plain = (emoji: string): string => emoji.replace(/️/g, '');
+const banKindsOf = (vote: Vote): [string, BanKind][] => (vote.edition === 'civ7' ? [[LEADER_BANS, 'leader'], [CIV_BANS, 'civ']] : [[LEADER_BANS, 'leader']]);
+const plain = (emoji: string): string => emoji.replace(/\uFE0F/g, '');
 
 // Where the vote runs: where its messages were recorded, else where it started.
 async function placeOf(client: Client, vote: Vote): Promise<SendableChannels | null> {
@@ -23,67 +26,92 @@ async function placeOf(client: Client, vote: Vote): Promise<SendableChannels | n
   return channel?.isSendable() ? channel : null;
 }
 
-async function deleteMessages(place: SendableChannels, ids: readonly (string | undefined)[]): Promise<void> {
-  for (const id of ids) if (id) await place.messages.delete(id).catch(() => undefined);
-}
-
 // The vote moved on at its deadline, if it has one; any older timer dropped.
 function keepVoteTime(client: Client, vote: Vote, api: ApiClient): void {
   keepDeadline(vote.id, vote.status === 'open' ? vote.deadline : null, () => advanceVote(client, vote.id, api));
 }
 
-// The bans so far, sent in the vote's turn as reactions change; the bans
-// message is redrawn when one lands. A ban once landed stays.
-function watchVoteBans(client: Client, vote: Vote, messageId: string, kind: 'leader' | 'civ', data: CivDataResponse, api: ApiClient): void {
-  let landed = vote.bans.length;
-  watchBans(messageId, vote.id, async (reactions) => {
-    const { ballot } = ballotOf(reactions, playersOf(vote), kind === 'civ' ? data.civs : data.leaders);
-    const counted = await api.countVoteBans(vote.id, starterOf(vote), ballot);
-    if (counted.bans.length === landed) return;
-    landed = counted.bans.length;
-    const place = await placeOf(client, counted);
-    if (place) await editPanelById(place, messageId, voteBansPanel(counted, kind, await civNames(vote.edition, api)));
-  });
-}
-
-// Each setting's options added as reactions, so players need only click. It
-// runs outside the vote's turn: players may vote while it is still adding.
-async function seedReactions(messages: readonly [Message, SettingQuestion][]): Promise<void> {
-  for (const [message, question] of messages) {
-    for (const option of question.options) await message.react(option.emoji);
+// The players backing each of a setting's options, by its emoji.
+function backingOf(question: SettingQuestion, reactions: readonly Reaction[], players: ReadonlySet<string>): Record<string, string[]> {
+  const backing: Record<string, string[]> = {};
+  for (const reaction of reactions) {
+    const option = question.options.find((o) => !reaction.id && plain(o.emoji) === plain(reaction.name ?? ''));
+    const voters = reaction.users.filter((u) => players.has(u));
+    if (option && voters.length) backing[option.id] = [...new Set([...(backing[option.id] ?? []), ...voters])];
   }
+  return backing;
 }
 
-// The vote posted where it was started: its status, a message per setting,
-// then the bans. One that cannot be posted whole is taken down and cancelled.
+const bansOf = (reactions: readonly Reaction[], players: ReadonlySet<string>, kind: BanKind, data: CivDataResponse) =>
+  ballotOf(reactions, [...players], kind === 'civ' ? data.civs : data.leaders);
+
+// The reactions so far, sent in the vote's turn as they change: a setting or
+// ban a majority backs is won at once and stays won, and its message redrawn.
+function watchVote(vote: Vote, data: CivDataResponse, names: CivNames, api: ApiClient) {
+  const players = new Set(playersOf(vote));
+  let last = vote;
+  const count = async (ballot: VoteBallot, redraw: (now: Vote, before: Vote) => Promise<unknown>): Promise<void> => {
+    const before = last;
+    last = await api.countVoteSoFar(vote.id, starterOf(vote), ballot);
+    await redraw(last, before);
+  };
+  return {
+    question: (message: Message, question: SettingQuestion): void =>
+      watchReactions(message.id, vote.id, (reactions) =>
+        count({ settings: { [question.id]: backingOf(question, reactions, players) }, bans: {} }, async (now, before) => {
+          const won = now.settings.find((s) => s.id === question.id);
+          if (won && !before.settings.some((s) => s.id === question.id)) await editPanel(message, questionPanel(question, won.value));
+        }),
+      ),
+    bans: (message: Message, kind: BanKind): void =>
+      watchReactions(message.id, vote.id, (reactions) =>
+        count({ settings: {}, bans: bansOf(reactions, players, kind, data).ballot.bans }, async (now, before) => {
+          const landed = (v: Vote) => v.bans.filter((b) => b.kind === kind).length;
+          if (landed(now) !== landed(before)) await editPanel(message, voteBansPanel(now, kind, names));
+        }),
+      ),
+  };
+}
+
+// The vote posted: status, a message per setting, then bans. Options are added
+// as reactions while the next message posts; a vote not posted whole is cancelled.
 export async function postVote(client: Client, vote: Vote, place: SendableChannels, api: ApiClient): Promise<Vote> {
   const [questions, names, data] = await Promise.all([questionsOf(vote, api), civNames(vote.edition, api), civRows(vote.edition, api)]);
+  const watch = watchVote(vote, data, names, api);
   const posted: Message[] = [];
   const post = async (panel: Panel, pings?: MessageMentionOptions): Promise<Message> => {
     const message = await postPanel(place, panel, pings);
     posted.push(message);
     return message;
   };
+  let seeding = Promise.resolve();
+  const seed = (message: Message, question: SettingQuestion): void => {
+    seeding = seeding
+      .then(async () => {
+        for (const option of question.options) await message.react(option.emoji);
+      })
+      .catch((error: unknown) => log.warn('setting reactions not all added', vote.id, error instanceof Error ? error.message : error));
+  };
   try {
-    const status = await post(voteStatusPanel(vote), { users: playersOf(vote) });
-    const asked: [Message, SettingQuestion][] = [];
-    for (const question of questions) asked.push([await post(questionPanel(question)), question]);
-    const leaders = await post(voteBansPanel(vote, 'leader', names));
-    const civs = vote.edition === 'civ7' ? await post(voteBansPanel(vote, 'civ', names)) : null;
-    const messages = {
-      [VOTE_STATUS]: status.id,
-      ...Object.fromEntries(asked.map(([message, question]) => [question.id, message.id])),
-      [LEADER_BANS]: leaders.id,
-      ...(civs ? { [CIV_BANS]: civs.id } : {}),
-    };
+    const messages: Record<string, string> = { [VOTE_STATUS]: (await post(voteStatusPanel(vote), { users: playersOf(vote) })).id };
+    for (const question of questions) {
+      const message = await post(questionPanel(question));
+      messages[question.id] = message.id;
+      watch.question(message, question);
+      seed(message, question);
+    }
+    for (const [key, kind] of banKindsOf(vote)) {
+      const message = await post(voteBansPanel(vote, kind, names));
+      messages[key] = message.id;
+      watch.bans(message, kind);
+    }
     const placed = await api.placeVoteMessages(vote.id, starterOf(vote), { channel_id: place.id, messages });
-    watchVoteBans(client, placed, leaders.id, 'leader', data, api);
-    if (civs) watchVoteBans(client, placed, civs.id, 'civ', data, api);
     keepVoteTime(client, placed, api);
-    void seedReactions(asked).catch((error: unknown) => log.warn('setting reactions not all added', vote.id, error instanceof Error ? error.message : error));
     return placed;
   } catch (error) {
-    for (const message of posted) await message.delete().catch(() => undefined);
+    const ids = posted.map((m) => m.id);
+    unwatchReactions(ids);
+    await deleteMessages(place, ids);
     await api.cancelVote(vote.guild_id, vote.code, starterOf(vote)).catch(() => undefined);
     throw error;
   }
@@ -93,22 +121,16 @@ export async function postVote(client: Client, vote: Vote, place: SendableChanne
 // option by its emoji; per leader or civ, the players banning it.
 async function ballotFrom(vote: Vote, place: SendableChannels, questions: readonly SettingQuestion[], api: ApiClient): Promise<VoteBallot> {
   const players = new Set(playersOf(vote));
-  const settings: Record<string, Record<string, string[]>> = {};
-  for (const question of questions) {
-    const backing: Record<string, string[]> = {};
-    for (const reaction of await reactionsOn(place, vote.vote.messages[question.id])) {
-      const option = question.options.find((o) => !reaction.id && plain(o.emoji) === plain(reaction.name ?? ''));
-      const voters = reaction.users.filter((u) => players.has(u));
-      if (option && voters.length) backing[option.id] = [...new Set([...(backing[option.id] ?? []), ...voters])];
-    }
-    settings[question.id] = backing;
-  }
-  const data = await civRows(vote.edition, api);
-  const leaders = ballotOf(await reactionsOn(place, vote.vote.messages[LEADER_BANS]), [...players], data.leaders);
-  const civs = ballotOf(await reactionsOn(place, vote.vote.messages[CIV_BANS]), [...players], data.civs);
-  const unmatched = [...leaders.unmatched, ...civs.unmatched];
+  const ids = vote.vote.messages;
+  const [read, data] = await Promise.all([reactionsOn(place, Object.values(ids)), civRows(vote.edition, api)]);
+  const on = (key: string): Reaction[] => read.get(ids[key] ?? '') ?? [];
+  const bans = banKindsOf(vote).map(([key, kind]) => bansOf(on(key), players, kind, data));
+  const unmatched = bans.flatMap((b) => b.unmatched);
   if (unmatched.length) log.info('ban reactions naming nothing', vote.id, unmatched.join(', '));
-  return { settings, bans: { ...leaders.ballot.bans, ...civs.ballot.bans } };
+  return {
+    settings: Object.fromEntries(questions.map((q) => [q.id, backingOf(q, on(q.id), players)])),
+    bans: Object.fromEntries(bans.flatMap((b) => Object.entries(b.ballot.bans))),
+  };
 }
 
 // The draft posted where the vote was.
@@ -167,12 +189,12 @@ export async function showVoteStatus(client: Client, vote: Vote): Promise<void> 
   if (place && statusId) await editPanelById(place, statusId, vote.phase === 'picking' ? voteBlindStatusPanel(vote) : voteStatusPanel(vote));
 }
 
-// A counted, drafted or cancelled vote's messages deleted, and its bans no
-// longer watched.
+// A counted, drafted or cancelled vote's messages deleted, and no longer
+// watched.
 export async function closeVoteMessages(client: Client, vote: Vote): Promise<void> {
   const ids = Object.values(vote.vote.messages);
   dropDeadline(vote.id);
-  unwatchBans(ids);
+  unwatchReactions(ids);
   const place = await placeOf(client, vote);
   if (place) await deleteMessages(place, ids);
 }

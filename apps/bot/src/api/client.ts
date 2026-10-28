@@ -306,8 +306,8 @@ export class ApiClient {
     return this.voteCall(`${voteId}/finished`, "POST", player);
   }
 
-  // The ban reactions so far: a leader or civ reaching a majority is banned at once.
-  async countVoteBans(voteId: string, starter: Actor, ballot: LobbyBallot): Promise<Vote> {
+  // The reactions so far: a setting or ban a majority backs is won at once.
+  async countVoteSoFar(voteId: string, starter: Actor, ballot: VoteBallot): Promise<Vote> {
     return this.voteCall(`${voteId}/ballot`, "POST", starter, ballot);
   }
 

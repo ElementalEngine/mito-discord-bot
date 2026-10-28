@@ -832,11 +832,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Count Vote Bans
-         * @description The ban reactions so far, sent by the bot as the host: a leader or civ
-         *     reaching a majority is banned at once and stays banned.
+         * Count Vote So Far
+         * @description The reactions so far, sent by the bot as the host: a setting option or a
+         *     ban reaching a majority is won at once and stays won.
          */
-        post: operations["count_vote_bans_api_v2_match_setups_votes__vote_id__ballot_post"];
+        post: operations["count_vote_so_far_api_v2_match_setups_votes__vote_id__ballot_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2545,11 +2545,6 @@ export interface components {
             mode: "ffa" | "duel" | "teamer";
             /** Players */
             players: string[];
-            /**
-             * Teams
-             * @default 0
-             */
-            teams: number;
         };
         /** VoteView */
         VoteView: {
@@ -4238,7 +4233,7 @@ export interface operations {
             };
         };
     };
-    count_vote_bans_api_v2_match_setups_votes__vote_id__ballot_post: {
+    count_vote_so_far_api_v2_match_setups_votes__vote_id__ballot_post: {
         parameters: {
             query?: never;
             header: {
@@ -4252,7 +4247,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LobbyBallot"];
+                "application/json": components["schemas"]["VoteBallot"];
             };
         };
         responses: {

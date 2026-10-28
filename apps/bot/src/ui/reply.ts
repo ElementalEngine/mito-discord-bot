@@ -142,6 +142,15 @@ export async function editPanelById(channel: TextBasedChannel, id: string, panel
   return channel.messages.edit(id, asPanel(panel));
 }
 
+// Messages deleted in one call where the bot may manage messages, else each
+// on its own.
+export async function deleteMessages(channel: SendableChannels, ids: readonly (string | undefined)[]): Promise<void> {
+  const gone = ids.filter((id): id is string => Boolean(id));
+  if (!gone.length) return;
+  if ('bulkDelete' in channel && (await channel.bulkDelete(gone).then(() => true, () => false))) return;
+  await Promise.all(gone.map(async (id) => channel.messages.delete(id).catch(() => undefined)));
+}
+
 // A one-line private answer. Never throws: the interaction may have expired.
 export async function say(interaction: RepliableInteraction, tone: Tone, message: string): Promise<void> {
   await respond(interaction, notice(tone, message), 'private').catch((error: unknown) => {

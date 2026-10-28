@@ -17,13 +17,15 @@ export const CIV_BANS = 'civs';
 const button = (vote: Vote, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
   new ButtonBuilder().setCustomId(customId('vote', verb, vote.id, ...args)).setLabel(label).setStyle(style);
 
-// The game: edition, mode and teams, and civ7's starting age unless left out.
+// The game: edition and mode, and civ7's starting age unless left out.
 export function voteTitle(vote: Vote, withAge = true): string {
   const edition = vote.edition === 'civ6' ? 'Civ6' : 'Civ7';
-  const teams = vote.mode === 'teamer' ? `, ${vote.teams} teams` : '';
   const age = withAge && vote.edition === 'civ7' ? ` · ${vote.age ? AGES[vote.age] : 'every age'}` : '';
-  return `${edition} ${MODES[vote.mode]}${teams}${age}`;
+  return `${edition} ${MODES[vote.mode]}${age}`;
 }
+
+// A majority of the players: what wins a setting or lands a ban at once.
+const need = (vote: Vote): number => Math.floor(vote.players.length / 2) + 1;
 
 export const voteFooter = (vote: Vote): string => `Started by ${mention(vote.host_id)} · code ${vote.code}`;
 
@@ -37,7 +39,7 @@ export function voteStatusPanel(vote: Vote): Panel {
     subtitle: closes(vote, 'finished'),
     body: [
       text(
-        `### React on each setting below\nBack as many options as you like, or none: the most reactions win, and a setting nobody reacts on keeps its default. ${bans}. Then press **Finished**.`,
+        `### React on each setting below\nBack as many options as you like. An option backed by ${need(vote)} of the ${vote.players.length} players wins at once; the rest go to the most reactions once all finish, a tie settled at random. ${bans}. Then press **Finished**.`,
       ),
       field('Players', ticks(vote, new Set(vote.vote.finished))),
     ],
@@ -46,16 +48,23 @@ export function voteStatusPanel(vote: Vote): Panel {
   };
 }
 
-// One setting's message: its options, each by the emoji to react with.
-export function questionPanel(question: SettingQuestion): Panel {
-  const lines = question.options.map((o) => `${o.emoji} ${o.label}${o.id === question.default_option_id ? ' (default)' : ''}`);
-  return { tone: 'info', surface: 'vote', title: question.title, body: [text(lines.join('\n'))] };
+// One setting's message: its options, each by the emoji to react with, and the
+// one that won once a majority backs it.
+export function questionPanel(question: SettingQuestion, won?: string): Panel {
+  const winner = question.options.find((o) => o.id === won);
+  const lines = question.options.map((o) => (o === winner ? `✅ **${o.emoji} ${o.label}**` : `${o.emoji} ${o.label}`));
+  return {
+    tone: winner ? 'success' : 'info',
+    surface: 'vote',
+    title: question.title,
+    ...(winner ? { subtitle: `Won: ${winner.label}` } : {}),
+    body: [text(lines.join('\n'))],
+  };
 }
 
 // A bans message, for leaders or civ7's civs: react with the server's emojis.
 // A ban lands with a majority and stays; the bans so far show here.
 export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivNames): Panel {
-  const need = Math.floor(vote.players.length / 2) + 1;
   const named = (by: string): string =>
     vote.bans
       .filter((b) => b.kind === kind && b.by === by)
@@ -69,7 +78,7 @@ export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivName
     title: kind === 'civ' ? 'Civ bans' : 'Leader bans',
     body: [
       text(
-        `⬇️ React to this message with the server's ${what} emojis to ban them. A ${what} is banned once ${need} of the ${vote.players.length} players react, and stays banned.`,
+        `⬇️ React to this message with the server's ${what} emojis to ban them. A ${what} is banned once ${need(vote)} of the ${vote.players.length} players react, and stays banned.`,
       ),
       ...(voted ? [field('Banned by the vote', voted)] : []),
       ...(before ? [field('Banned before the vote', before)] : []),

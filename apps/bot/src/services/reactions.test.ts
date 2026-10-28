@@ -36,7 +36,7 @@ test('civ bans match a civ emoji by its name or display', () => {
   assert.deepEqual(ballot, { bans: { CIVILIZATION_ROME: ['100'] } });
 });
 
-test('a message is read fresh from Discord, and an emoji only the bot added is not read further', async () => {
+test('messages posted together are read in one go, any missing alone, and an emoji only the bot added is not read further', async () => {
   let reads = 0;
   const reaction = (id: string, count: number) => ({
     emoji: { id, name: `E${id}` },
@@ -44,14 +44,24 @@ test('a message is read fresh from Discord, and an emoji only the bot added is n
     me: true,
     users: { fetch: async () => (reads++, new Map([['bot', {}], ['100', {}]])) },
   });
+  const message = (...reactions: ReturnType<typeof reaction>[]) => ({ reactions: { cache: new Map(reactions.map((r) => [r.emoji.id, r])) } });
+  const asked: unknown[] = [];
   const place = {
     messages: {
-      fetch: async (o: { message: string; force?: boolean }) => ({ reactions: { cache: new Map(o.force ? [['9', reaction('9', 2)], ['8', reaction('8', 1)]] : []) } }),
+      fetch: async (o: { after?: string; message?: string; force?: boolean }) => {
+        asked.push(o);
+        return o.after ? new Map([['11', message(reaction('9', 2), reaction('8', 1))]]) : message(reaction('7', 3));
+      },
     },
   } as unknown as SendableChannels;
-  assert.deepEqual(await reactionsOn(place, 'm1'), [
-    { id: '9', name: 'E9', users: ['bot', '100'] },
-    { id: '8', name: 'E8', users: [] },
-  ]);
-  assert.equal(reads, 1);
+  const read = await reactionsOn(place, ['12', undefined, '11']);
+  assert.deepEqual(asked, [{ after: '10', limit: 100 }, { message: '12', force: true }]);
+  assert.deepEqual(Object.fromEntries(read), {
+    '12': [{ id: '7', name: 'E7', users: ['bot', '100'] }],
+    '11': [
+      { id: '9', name: 'E9', users: ['bot', '100'] },
+      { id: '8', name: 'E8', users: [] },
+    ],
+  });
+  assert.equal(reads, 2);
 });

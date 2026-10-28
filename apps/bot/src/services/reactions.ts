@@ -43,34 +43,43 @@ export function ballotOf(reactions: readonly Reaction[], players: readonly strin
   return { ballot: { bans }, unmatched };
 }
 
-// A message's reactions, read fresh from Discord rather than the cache. One
-// only the bot has added needs no read.
-export async function reactionsOn(place: SendableChannels, messageId: string | undefined): Promise<Reaction[]> {
-  const message = messageId ? await place.messages.fetch({ message: messageId, force: true }).catch(() => null) : null;
-  const reactions: Reaction[] = [];
-  for (const reaction of message?.reactions.cache.values() ?? []) {
-    const users = reaction.count <= (reaction.me ? 1 : 0) ? [] : [...(await reaction.users.fetch()).keys()];
-    reactions.push({ id: reaction.emoji.id, name: reaction.emoji.name, users });
-  }
-  return reactions;
+// Messages' reactions read fresh from Discord: several posted together in one
+// read, any not in it alone. Only reactions others added are read further.
+export async function reactionsOn(place: SendableChannels, messageIds: readonly (string | undefined)[]): Promise<Map<string, Reaction[]>> {
+  const ids = messageIds.filter((id): id is string => Boolean(id));
+  if (!ids.length) return new Map();
+  const after = (ids.map((id) => BigInt(id)).reduce((a, b) => (a < b ? a : b)) - 1n).toString();
+  const batch = ids.length > 1 ? await place.messages.fetch({ after, limit: 100 }).catch(() => null) : null;
+  const messages = await Promise.all(ids.map(async (id) => batch?.get(id) ?? place.messages.fetch({ message: id, force: true }).catch(() => null)));
+  const read = await Promise.all(
+    messages.map(async (message) =>
+      Promise.all(
+        [...(message?.reactions.cache.values() ?? [])].map(async (reaction): Promise<Reaction> => {
+          const users = reaction.count <= (reaction.me ? 1 : 0) ? [] : [...(await reaction.users.fetch()).keys()];
+          return { id: reaction.emoji.id, name: reaction.emoji.name, users };
+        }),
+      ),
+    ),
+  );
+  return new Map(ids.map((id, i) => [id, read[i] ?? []]));
 }
 
-// Each open ban message's reactions as they come in, counted without a read.
+// Each watched message's reactions as they come in, counted without a read.
 // A restart loses them; the final count reads Discord itself.
 type Watched = {
   setupId: string;
-  reactions: Map<string, { id: string; name: string; users: Set<string> }>;
+  reactions: Map<string, { id: string | null; name: string | null; users: Set<string> }>;
   count: (reactions: Reaction[]) => Promise<void>;
   timer?: NodeJS.Timeout;
 };
 const watched = new Map<string, Watched>();
 const COUNT_DELAY_MS = 1_000;
 
-export function watchBans(messageId: string, setupId: string, count: (reactions: Reaction[]) => Promise<void>): void {
+export function watchReactions(messageId: string, setupId: string, count: (reactions: Reaction[]) => Promise<void>): void {
   watched.set(messageId, { setupId, reactions: new Map(), count });
 }
 
-export function unwatchBans(messageIds: readonly (string | undefined)[]): void {
+export function unwatchReactions(messageIds: readonly (string | undefined)[]): void {
   for (const id of messageIds) {
     if (!id) continue;
     clearTimeout(watched.get(id)?.timer);
@@ -78,21 +87,22 @@ export function unwatchBans(messageIds: readonly (string | undefined)[]): void {
   }
 }
 
-// A ban reaction added or taken back; the count so far is sent, in its
-// setup's turn, a second after the last one, so a burst is one call.
-export function trackBanReaction(messageId: string, emoji: Emoji, userId: string, added: boolean): void {
-  const ban = watched.get(messageId);
-  if (!ban || !emoji.id || !emoji.name) return;
-  const reaction = ban.reactions.get(emoji.id) ?? { id: emoji.id, name: emoji.name, users: new Set<string>() };
+// A reaction added or taken back on a watched message; the count so far is
+// sent, in its setup's turn, a second after the last one, so a burst is one call.
+export function trackReaction(messageId: string, emoji: Emoji, userId: string, added: boolean): void {
+  const watch = watched.get(messageId);
+  const key = emoji.id ?? emoji.name;
+  if (!watch || !key) return;
+  const reaction = watch.reactions.get(key) ?? { id: emoji.id, name: emoji.name, users: new Set<string>() };
   if (added) reaction.users.add(userId);
   else reaction.users.delete(userId);
-  ban.reactions.set(emoji.id, reaction);
-  clearTimeout(ban.timer);
-  ban.timer = setTimeout(() => {
-    const reactions = [...ban.reactions.values()].map((r) => ({ ...r, users: [...r.users] }));
-    void inLobbyTurn(ban.setupId, () => (watched.has(messageId) ? ban.count(reactions) : Promise.resolve())).catch((error: unknown) =>
-      log.warn('ban count so far not sent', ban.setupId, error),
+  watch.reactions.set(key, reaction);
+  clearTimeout(watch.timer);
+  watch.timer = setTimeout(() => {
+    const reactions = [...watch.reactions.values()].map((r) => ({ ...r, users: [...r.users] }));
+    void inLobbyTurn(watch.setupId, () => (watched.has(messageId) ? watch.count(reactions) : Promise.resolve())).catch((error: unknown) =>
+      log.warn('reaction count so far not sent', watch.setupId, error),
     );
   }, COUNT_DELAY_MS);
-  ban.timer.unref();
+  watch.timer.unref();
 }

@@ -36,8 +36,9 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
     );
   }
   return sub
-    .addIntegerOption((o) => o.setName('teams').setDescription('Teamer only: how many teams (default 2)').setMinValue(2).setMaxValue(4))
-    .addStringOption((o) => o.setName('players').setDescription('Mention players to add, or to remove if they are in your voice channel').setMaxLength(500))
+    .addStringOption((o) =>
+      o.setName('players').setDescription('Your voice channel is in already. @mention others to add, or to take out, spaced apart').setMaxLength(1000),
+    )
     .addBooleanOption((o) => o.setName('bans').setDescription('True: pick bans in a form first'));
 }
 
@@ -63,13 +64,16 @@ function policyFor(edition: Edition) {
   } as const;
 }
 
-// The voters: everyone in the starter's voice channel, bots aside, with each
-// player mentioned added, or removed if they were in it.
+// The voters: the starter's voice channel, bots aside, with each player
+// mentioned added or taken out. A name typed without its mention is refused.
 function votersOf(interaction: ChatInputCommandInteraction<'cached'>): string[] {
   const voice = interaction.member.voice.channel;
   if (!voice) refuse('Join a voice channel first: its players are the voters.');
   const voters = new Set([...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.id));
-  for (const [, id] of (interaction.options.getString('players') ?? '').matchAll(MENTION)) {
+  const mentions = interaction.options.getString('players') ?? '';
+  const stray = mentions.replace(MENTION, ' ').replace(/[\s,]+/g, ' ').trim();
+  if (stray) refuse(`Pick each player from the @ list so they show as a mention; "${stray.slice(0, 50)}" is not one.`);
+  for (const id of new Set([...mentions.matchAll(MENTION)].map((m) => m[1]))) {
     if (id && !voters.delete(id)) voters.add(id);
   }
   if (voters.size < 2 || voters.size > MAX_VOTERS) refuse(`A vote takes 2 to ${MAX_VOTERS} players; this one has ${voters.size}.`);
@@ -82,7 +86,6 @@ function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: 
   return {
     edition,
     mode,
-    teams: mode === 'teamer' ? (interaction.options.getInteger('teams') ?? 2) : 0,
     age: edition === 'civ7' && age && age !== EVERY_AGE ? (age as Age) : null,
     guild_id: interaction.guildId,
     channel_id: interaction.channelId,
