@@ -6,6 +6,7 @@ import { handleReportInteraction } from '../handlers/report.handlers.js';
 import { handleRoomsInteraction } from '../handlers/rooms.handlers.js';
 import { handleHistoryInteraction } from '../handlers/history.handlers.js';
 import { handleSeasonInteraction } from '../handlers/season.handlers.js';
+import { handleVoteInteraction } from '../handlers/vote.handlers.js';
 import { handleSecretVoteInteraction } from '../interactions/secretvote.interactions.js';
 import { defer, fail, say } from '../ui/reply.js';
 
@@ -42,6 +43,7 @@ export async function execute(interaction: Interaction): Promise<void> {
     try {
       if (await handleDraftInteraction(interaction)) return;
       if (await handleLobbyInteraction(interaction)) return;
+      if (await handleVoteInteraction(interaction)) return;
       if (await handleReportInteraction(interaction)) return;
       if (await handleSecretVoteInteraction(interaction)) return;
       if (await handleHistoryInteraction(interaction)) return;

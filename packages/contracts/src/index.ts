@@ -459,7 +459,8 @@ export interface paths {
         put?: never;
         /**
          * Close Idle Lobbies
-         * @description Close every lobby idle past the limit, so the bot can mark their posts.
+         * @description Close every lobby idle past its limit, so the bot can remove their posts;
+         *     one left in setup, past the shorter one.
          */
         post: operations["close_idle_lobbies_api_v2_match_setups_lobbies_close_idle_post"];
         delete?: never;
@@ -500,6 +501,27 @@ export interface paths {
         get: operations["read_lobby_api_v2_match_setups_lobbies__lobby_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/lobbies/{lobby_id}/ballot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count Ballot
+         * @description The votes so far, sent by the bot as the host while the players vote: a
+         *     leader reaching a majority is banned at once and stays banned.
+         */
+        post: operations["count_ballot_api_v2_match_setups_lobbies__lobby_id__ballot_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -717,6 +739,204 @@ export interface paths {
         get: operations["settings_questions_api_v2_match_setups_settings__edition___game_type__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Vote
+         * @description A vote open at once, under a code no other open vote here has.
+         */
+        post: operations["start_vote_api_v2_match_setups_votes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Vote
+         * @description The host, or staff, cancel an open vote by its code.
+         */
+        post: operations["cancel_vote_api_v2_match_setups_votes_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Votes Due
+         * @description Votes and blind picks past their time, for the bot to move on.
+         */
+        get: operations["votes_due_api_v2_match_setups_votes_due_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Vote */
+        get: operations["read_vote_api_v2_match_setups_votes__vote_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/ballot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Count Vote Bans
+         * @description The ban reactions so far, sent by the bot as the host: a leader or civ
+         *     reaching a majority is banned at once and stays banned.
+         */
+        post: operations["count_vote_bans_api_v2_match_setups_votes__vote_id__ballot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/finished": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish Vote */
+        post: operations["finish_vote_api_v2_match_setups_votes__vote_id__finished_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Place Vote Messages
+         * @description Where the bot posted the vote's messages, then the blind picks', acting
+         *     as the host.
+         */
+        put: operations["place_vote_messages_api_v2_match_setups_votes__vote_id__messages_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pick In Vote
+         * @description A player's blind pick: a leader, and a civ on civ7.
+         */
+        post: operations["pick_in_vote_api_v2_match_setups_votes__vote_id__pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Vote Picks
+         * @description The blind picks revealed; the bot reveals, acting as the host, once all
+         *     have picked or the time is up.
+         */
+        post: operations["reveal_vote_picks_api_v2_match_setups_votes__vote_id__reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/match-setups/votes/{vote_id}/tally": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tally Vote
+         * @description Count the settings, the draft mode and the bans, and deal the draft. The
+         *     bot counts, acting as the host, once all finish or the time is up.
+         */
+        post: operations["tally_vote_api_v2_match_setups_votes__vote_id__tally_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1093,6 +1313,8 @@ export interface components {
              * @enum {string}
              */
             by: "player" | "auto";
+            /** Civ */
+            civ?: string | null;
             /** Leader */
             leader: string;
             /** Player Id */
@@ -1376,8 +1598,13 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
-        /** LeaderPick */
+        /**
+         * LeaderPick
+         * @description A blind pick: a leader, and a civ where the pool has civs.
+         */
         LeaderPick: {
+            /** Civ */
+            civ?: string | null;
             /** Leader */
             leader: string;
         };
@@ -1487,6 +1714,11 @@ export interface components {
          * @description A player's draft, or a team's when `player_id` is empty.
          */
         LobbyPool: {
+            /**
+             * Civs
+             * @default []
+             */
+            civs: string[];
             /** Leaders */
             leaders: string[];
             /** Player Id */
@@ -2243,6 +2475,36 @@ export interface components {
             type: string;
         };
         /**
+         * VoteBallot
+         * @description The players' reactions: per setting, the players backing each option;
+         *     per leader or civ, the players banning it.
+         */
+        VoteBallot: {
+            /** Bans */
+            bans?: {
+                [key: string]: string[];
+            };
+            /** Settings */
+            settings?: {
+                [key: string]: {
+                    [key: string]: string[];
+                };
+            };
+        };
+        /**
+         * VoteMessages
+         * @description Where the vote is posted: the channel, and its status, setting and ban
+         *     messages by name.
+         */
+        VoteMessages: {
+            /** Channel Id */
+            channel_id: string;
+            /** Messages */
+            messages: {
+                [key: string]: string;
+            };
+        };
+        /**
          * VotePlace
          * @description Where the bans vote, then the blind picks, are posted: the channel and
          *     the one message.
@@ -2254,6 +2516,99 @@ export interface components {
             messages: {
                 [key: string]: string;
             };
+        };
+        /**
+         * VoteRequest
+         * @description /vote: the players from a voice channel, the game, and the bans its
+         *     starter chose; everything else is voted on.
+         */
+        VoteRequest: {
+            /** Age */
+            age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
+            /** Channel Id */
+            channel_id: string;
+            /** Civ Bans */
+            civ_bans?: string[];
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "civ6" | "civ7";
+            /** Guild Id */
+            guild_id: string;
+            /** Leader Bans */
+            leader_bans?: string[];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "ffa" | "duel" | "teamer";
+            /** Players */
+            players: string[];
+            /**
+             * Teams
+             * @default 0
+             */
+            teams: number;
+        };
+        /** VoteView */
+        VoteView: {
+            /** Age */
+            age: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
+            /** Bans */
+            bans: components["schemas"]["SetupBan"][];
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Channel Id */
+            channel_id: string;
+            /** Code */
+            code: string;
+            /** Deadline */
+            deadline: string | null;
+            /** Draft Mode */
+            draft_mode: string | null;
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "civ6" | "civ7";
+            /** Guild Id */
+            guild_id: string;
+            /** Host Id */
+            host_id: string;
+            /** Id */
+            id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "ffa" | "duel" | "teamer";
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "voting" | "picking";
+            /** Picks */
+            picks: components["schemas"]["BlindPick"][];
+            /** Players */
+            players: components["schemas"]["LobbyPlayer"][];
+            /** Pools */
+            pools: components["schemas"]["LobbyPool"][];
+            /** Settings */
+            settings: components["schemas"]["ChosenSetting"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "done" | "cancelled";
+            /** Teams */
+            teams: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            vote: components["schemas"]["LobbyVote"];
         };
     };
     responses: never;
@@ -3314,6 +3669,44 @@ export interface operations {
             };
         };
     };
+    count_ballot_api_v2_match_setups_lobbies__lobby_id__ballot_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                lobby_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyBallot"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     edit_lobby_api_v2_match_setups_lobbies__lobby_id__edit_put: {
         parameters: {
             query?: never;
@@ -3695,6 +4088,363 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingQuestion"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_vote_api_v2_match_setups_votes_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_vote_api_v2_match_setups_votes_cancel_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    votes_due_api_v2_match_setups_votes_due_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_vote_api_v2_match_setups_votes__vote_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    count_vote_bans_api_v2_match_setups_votes__vote_id__ballot_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LobbyBallot"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finish_vote_api_v2_match_setups_votes__vote_id__finished_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    place_vote_messages_api_v2_match_setups_votes__vote_id__messages_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoteMessages"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pick_in_vote_api_v2_match_setups_votes__vote_id__pick_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaderPick"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reveal_vote_picks_api_v2_match_setups_votes__vote_id__reveal_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tally_vote_api_v2_match_setups_votes__vote_id__tally_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                vote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoteBallot"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoteView"];
                 };
             };
             /** @description Validation Error */

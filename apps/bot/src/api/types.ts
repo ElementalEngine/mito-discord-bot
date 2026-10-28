@@ -35,6 +35,12 @@ export type LobbyBallot = components['schemas']['LobbyBallot'];
 export type VotePlace = components['schemas']['VotePlace'];
 export type SettingQuestion = components['schemas']['SettingQuestion'];
 
+// A /vote, from its players' reactions to the draft.
+export type VoteRequest = components['schemas']['VoteRequest'];
+export type Vote = components['schemas']['VoteView'];
+export type VoteBallot = components['schemas']['VoteBallot'];
+export type VoteMessages = components['schemas']['VoteMessages'];
+
 // The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];
 export type MatchUpload = components['schemas']['UploadResponse'];

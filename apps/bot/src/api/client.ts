@@ -15,6 +15,10 @@ import type {
   LobbyRequest,
   SettingQuestion,
   VotePlace,
+  Vote,
+  VoteBallot,
+  VoteMessages,
+  VoteRequest,
   Actor,
   Match,
   MatchUpload,
@@ -282,6 +286,66 @@ export class ApiClient {
   // A lobby is cancelled by its code, by its host or by staff.
   async cancelLobby(guildId: string, code: string, actor: Actor): Promise<Lobby> {
     return this.lobbyCall("cancel", "POST", actor, { guild_id: guildId, code });
+  }
+
+  async startVote(body: VoteRequest, starter: Actor): Promise<Vote> {
+    return this.voteCall("", "POST", starter, body);
+  }
+
+  async vote(voteId: string): Promise<Vote> {
+    const res = await this.fetchWithRetry(this.voteUrl(voteId), { method: "GET" });
+    return (await this.parseJson(res)) as Vote;
+  }
+
+  // Where the vote's messages are posted, then the blind picks'; the bot acts as the starter.
+  async placeVoteMessages(voteId: string, starter: Actor, place: VoteMessages): Promise<Vote> {
+    return this.voteCall(`${voteId}/messages`, "PUT", starter, place);
+  }
+
+  async finishVoting(voteId: string, player: Actor): Promise<Vote> {
+    return this.voteCall(`${voteId}/finished`, "POST", player);
+  }
+
+  // The ban reactions so far: a leader or civ reaching a majority is banned at once.
+  async countVoteBans(voteId: string, starter: Actor, ballot: LobbyBallot): Promise<Vote> {
+    return this.voteCall(`${voteId}/ballot`, "POST", starter, ballot);
+  }
+
+  // Every reaction counted and the draft dealt; the bot acts as the starter.
+  async tallyVoteBallot(voteId: string, starter: Actor, ballot: VoteBallot): Promise<Vote> {
+    return this.voteCall(`${voteId}/tally`, "POST", starter, ballot);
+  }
+
+  async pickInVote(voteId: string, player: Actor, leader: string, civ: string | null): Promise<Vote> {
+    return this.voteCall(`${voteId}/pick`, "POST", player, { leader, ...(civ ? { civ } : {}) });
+  }
+
+  async revealVotePicks(voteId: string, starter: Actor): Promise<Vote> {
+    return this.voteCall(`${voteId}/reveal`, "POST", starter);
+  }
+
+  // Votes and blind picks past their time, left open by a restart.
+  async votesDue(): Promise<Vote[]> {
+    const res = await this.fetchWithRetry(this.voteUrl("due"), { method: "GET" });
+    return (await this.parseJson(res)) as Vote[];
+  }
+
+  // A vote is cancelled by its code, by its starter or by staff.
+  async cancelVote(guildId: string, code: string, actor: Actor): Promise<Vote> {
+    return this.voteCall("cancel", "POST", actor, { guild_id: guildId, code });
+  }
+
+  private voteUrl(path: string): string {
+    return `${this.base}/api/v2/match-setups/votes${path ? `/${path}` : ""}`;
+  }
+
+  private async voteCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Vote> {
+    const res = await this.fetchWithRetry(this.voteUrl(path), {
+      method,
+      headers: body === undefined ? actorHeaders(actor) : { ...json, ...actorHeaders(actor) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return (await this.parseJson(res)) as Vote;
   }
 
   private lobbyUrl(path: string): string {

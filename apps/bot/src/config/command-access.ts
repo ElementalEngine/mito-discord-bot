@@ -44,6 +44,8 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   draft: { roles: RANKED, channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'noviceCommands', 'cloudCommands'] },
   // Hosting checks its own channel by mode, so the command is open everywhere.
   lobby: { roles: RANKED, channels: null },
+  // civ6 and civ7 check their own voting channels; cancel runs anywhere.
+  vote: { roles: RANKED, channels: null },
   secretvote: { roles: RANKED, channels: COMMAND_CHANNELS },
 };
 

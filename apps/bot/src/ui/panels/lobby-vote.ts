@@ -4,10 +4,13 @@ import type { CivDataResponse, Lobby } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type CivNames, type Panel } from '../kit/index.js';
 import { SHAPES, VERB, button, lobbyFooter, row } from './lobby.js';
 
-const closes = (lobby: Lobby, done: string): string => `Closes ${lobby.deadline ? when(Date.parse(lobby.deadline), 'R') : 'soon'}, or once every player has ${done}`;
+type Timed = Readonly<{ deadline: string | null; players: Lobby['players'] }>;
 
-const ticks = (lobby: Lobby, done: ReadonlySet<string>): string =>
-  lobby.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
+export const closes = (setup: Timed, done: string): string =>
+  `Closes ${setup.deadline ? when(Date.parse(setup.deadline), 'R') : 'soon'}, or once every player has ${done}`;
+
+export const ticks = (setup: Timed, done: ReadonlySet<string>): string =>
+  setup.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
 
 // The bans vote, one message: what to do, the bans so far, who has finished,
 // and the button to finish. Players react on it.

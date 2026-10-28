@@ -126,14 +126,14 @@ test('a drafted lobby points to its draft', () => {
 const FOOTER = 'Hosted by <@100> · code K7Q2';
 
 test('a standard draft says its pool size, then posts each player or team pool to trade from', () => {
-  const ffa = lobbyDraftPanels(view(lobby({ status: 'done', pools: [{ player_id: '100', team: null, leaders: ['LEADER_A', 'LEADER_B'] }] })));
+  const ffa = lobbyDraftPanels(view(lobby({ status: 'done', pools: [{ player_id: '100', team: null, leaders: ['LEADER_A', 'LEADER_B'], civs: [] }] })));
   assert.equal(ffa[0]!.title, 'Civ6 FFA, 8 seats draft');
   assert.equal(ffa[0]!.subtitle, 'Standard draft · 2 leaders each');
   assert.match(textOf(ffa[0]!), /1️⃣ Huts: 1x/);
   assert.equal(ffa[1]!.title, '<@100>');
   assert.equal(textOf(ffa[1]!), 'Abe\nBea');
   assert.deepEqual(ffa.map((p) => p.footer), [FOOTER, FOOTER]);
-  const team = lobbyDraftPanels(view(teamer([['100', 1], ['200', 2], ['300', 1]], { pools: [{ player_id: null, team: 1, leaders: ['LEADER_A'] }] })));
+  const team = lobbyDraftPanels(view(teamer([['100', 1], ['200', 2], ['300', 1]], { pools: [{ player_id: null, team: 1, leaders: ['LEADER_A'], civs: [] }] })));
   assert.equal(team[0]!.subtitle, 'Standard draft · 1 leader a team');
   assert.equal(team[1]!.title, 'Team 1');
   assert.equal(textOf(team[1]!), '-# <@100>, <@300>\nAbe');
@@ -141,8 +141,8 @@ test('a standard draft says its pool size, then posts each player or team pool t
 
 test('a blind or random draft is one message, each player with their leader', () => {
   const picks = [
-    { player_id: '100', leader: 'LEADER_A', by: 'player' as const },
-    { player_id: '200', leader: 'LEADER_B', by: 'auto' as const },
+    { player_id: '100', leader: 'LEADER_A', civ: null, by: 'player' as const },
+    { player_id: '200', leader: 'LEADER_B', civ: null, by: 'auto' as const },
   ];
   const blind = lobbyDraftPanels(view(lobby({ draft_mode: 'blind', picks })));
   assert.equal(blind.length, 1);
@@ -150,8 +150,8 @@ test('a blind or random draft is one message, each player with their leader', ()
   assert.match(textOf(blind[0]!), /^\*\*Picks\*\*\n<@100> · Abe\n<@200> · Bea \(auto pick\)\n\*\*Settings\*\*/);
   assert.equal(blind[0]!.footer, FOOTER);
   const pools = [
-    { player_id: '100', team: 1, leaders: ['LEADER_B'] },
-    { player_id: '200', team: 2, leaders: ['LEADER_A'] },
+    { player_id: '100', team: 1, leaders: ['LEADER_B'], civs: [] },
+    { player_id: '200', team: 2, leaders: ['LEADER_A'], civs: [] },
   ];
   const random = lobbyDraftPanels(view(teamer([['100', 1], ['200', 2]], { draft_mode: 'random', pools })));
   assert.equal(random.length, 1);

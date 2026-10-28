@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { Actor, Lobby, SettingQuestion } from '../api/types.js';
+import type { Actor, CivVersion, Lobby, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
 import { lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
@@ -12,15 +12,17 @@ import { civNames } from './civ-names.js';
 // copy than the last.
 export const inLobbyTurn = serial();
 
-// The settings catalogue changes only by release, so one read per game type lasts.
+// The settings catalogue changes only by release, so one read per edition and
+// game type lasts.
 const questions = new Map<string, Promise<readonly SettingQuestion[]>>();
 
-export function lobbySettings(gameType: string, api: ApiClient): Promise<readonly SettingQuestion[]> {
-  const held = questions.get(gameType);
+export function lobbySettings(gameType: string, api: ApiClient, edition: CivVersion = 'civ6'): Promise<readonly SettingQuestion[]> {
+  const key = `${edition}:${gameType}`;
+  const held = questions.get(key);
   if (held) return held;
-  const read = api.lobbySettings('civ6', gameType);
-  questions.set(gameType, read);
-  void read.catch(() => questions.delete(gameType));
+  const read = api.lobbySettings(edition, gameType);
+  questions.set(key, read);
+  void read.catch(() => questions.delete(key));
   return read;
 }
 

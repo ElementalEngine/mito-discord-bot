@@ -1,8 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { channel, customId, field, fit, mention, nameOf, row as inBody, text, when, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
-import { banFields, pickLines } from './draft.js';
+import { channel, customId, field, fit, mention, row as inBody, text, when, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { banFields } from './draft.js';
+import { banLine, draftModeName, draftOutputPanels, settingLines } from './draft-output.js';
 
 // In the order /lobby host offers them.
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
@@ -18,7 +19,6 @@ export const SHAPES: Readonly<Record<LobbyShape, string>> = {
   'teamer-2v2v2': 'Teamer 2v2v2',
   'teamer-2v2v2v2': 'Teamer 2v2v2v2',
 };
-const DRAFT_MODES: Readonly<Record<string, string>> = { standard: 'Standard', random: 'Random', blind: 'Blind' };
 
 // A lobby keeps its mode and its number of teams; only its size changes.
 const SIZES: readonly (readonly LobbyShape[])[] = [
@@ -94,24 +94,10 @@ function seatLines(lobby: Lobby, players: readonly Seat[] = lobby.players): stri
   }).join('\n');
 }
 
-// Each setting with its option's emoji, as the host set it.
-function settingLines(chosen: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): string {
-  return questions
-    .map((q) => {
-      const option = q.options.find((o) => o.id === chosen[q.id]);
-      return option ? `${option.emoji} ${q.title}: ${option.label}` : `\u2b1c ${q.title}: not set`;
-    })
-    .join('\n');
-}
-
 // Every lobby message carries its host and code, so players can tell it is theirs.
 export const lobbyFooter = (lobby: Lobby): string => `Hosted by ${mention(lobby.host_id)} · code ${lobby.code}`;
 
-const banLine = (names: CivNames, bans: readonly string[]): string => bans.map((t) => nameOf(names, t)).join(' · ') || 'None';
-
 const settingsOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(lobby.settings.map((s) => [s.id, s.value]));
-
-const draftModeOf = (lobby: Lobby): string => (lobby.draft_mode ? `${DRAFT_MODES[lobby.draft_mode] ?? lobby.draft_mode} draft` : 'Draft not set');
 
 // The settings the draft leaves unset; the lobby opens only once none are.
 const unsetOf = (settings: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): SettingQuestion[] =>
@@ -154,7 +140,7 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView
     tone: open ? 'info' : 'success',
     surface: 'lobby',
     title: open ? title : `${title}: drafted`,
-    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draftModeOf(lobby)}`,
+    subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draftModeName(lobby.draft_mode)}`,
     body: [
       ...(live && lfgRole && !lobby.deadline ? [text(`<@&${lfgRole}> looking for players`)] : []),
       ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
@@ -170,36 +156,22 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView
   };
 }
 
-// The draft in the voting channel: one message for a blind or random draft; a
-// standard one's pool size, then each pool as its own message to trade from.
+// The draft in the voting channel, posted as every draft is.
 export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[] {
-  const game = [field('Settings', settingLines(settingsOf(lobby), questions)), field('Leader bans', banLine(names, lobby.bans.map((b) => b.token)))];
-  const head = { tone: 'info', surface: 'draft', title: `Civ6 ${SHAPES[lobby.shape]} draft`, footer: lobbyFooter(lobby) } as const;
-  const team = (team: number | null): string => (lobby.teams && team ? `Team ${team} · ` : '');
-  if (lobby.draft_mode === 'blind') {
-    const picks = lobby.picks.map((p) => `${mention(p.player_id)} · ${nameOf(names, p.leader)}${p.by === 'auto' ? ' (auto pick)' : ''}`);
-    return [{ ...head, subtitle: draftModeOf(lobby), body: [field('Picks', picks.join('\n')), ...game] }];
-  }
-  if (lobby.draft_mode === 'random') {
-    const picks = lobby.pools.map((p) => `${team(p.team)}${mention(p.player_id ?? '')} · ${nameOf(names, p.leaders[0] ?? '')}`);
-    return [{ ...head, subtitle: draftModeOf(lobby), body: [field('Picks', picks.join('\n')), ...game] }];
-  }
-  const size = lobby.pools[0]?.leaders.length ?? 0;
-  return [
-    { ...head, subtitle: `${draftModeOf(lobby)} · ${size} leader${size === 1 ? '' : 's'} ${lobby.teams ? 'a team' : 'each'}`, body: game },
-    ...lobby.pools.map((pool): Panel => ({
-      tone: 'info',
-      title: pool.player_id ? mention(pool.player_id) : `Team ${pool.team}`,
-      body: [
-        text(
-          pool.player_id
-            ? pickLines(names, pool.leaders)
-            : `-# ${teamOf(lobby.players, pool.team ?? 0).map(mention).join(', ')}\n${pickLines(names, pool.leaders)}`,
-        ),
-      ],
-      footer: lobbyFooter(lobby),
-    })),
-  ];
+  const out = {
+    title: `Civ6 ${SHAPES[lobby.shape]} draft`,
+    footer: lobbyFooter(lobby),
+    draftMode: lobby.draft_mode,
+    teams: lobby.teams,
+    players: lobby.players,
+    pools: lobby.pools,
+    picks: lobby.picks,
+    settings: settingsOf(lobby),
+    questions,
+    bans: lobby.bans,
+    banKinds: ['leader'],
+  } as const;
+  return draftOutputPanels(out, names);
 }
 
 const BROWSE: Readonly<Record<string, string>> = { live: '', voting: ' · voting on bans', picking: ' · picking blind' };

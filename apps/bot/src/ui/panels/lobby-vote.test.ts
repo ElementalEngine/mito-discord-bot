@@ -59,7 +59,7 @@ test('the vote is one message: the optional bans, what a ban needs, the bans so 
 });
 
 test('the blind draft shows who has locked in, and each player picks from it privately', () => {
-  const picking = lobby({ phase: 'picking', deadline: '2026-10-27T12:13:00Z', picks: [{ player_id: '200', leader: 'LEADER_C', by: 'player' }] });
+  const picking = lobby({ phase: 'picking', deadline: '2026-10-27T12:13:00Z', picks: [{ player_id: '200', leader: 'LEADER_C', civ: null, by: 'player' }] });
   const status = blindStatusPanel(picking);
   assert.match(status.subtitle ?? '', /Closes <t:1793103180:R>, or once every player has locked in/);
   assert.match(textOf(status), /Press \*\*Pick your leader\*\* to see your pool/);
@@ -70,8 +70,8 @@ test('the blind draft shows who has locked in, and each player picks from it pri
 
 test('a player sees their pool with each civ, chooses from it, then locks it in', () => {
   const pools = [
-    { player_id: '100', team: null, leaders: ['LEADER_B', 'LEADER_C'] },
-    { player_id: '200', team: null, leaders: ['LEADER_A'] },
+    { player_id: '100', team: null, leaders: ['LEADER_B', 'LEADER_C'], civs: [] },
+    { player_id: '200', team: null, leaders: ['LEADER_A'], civs: [] },
   ];
   const picking = lobby({ phase: 'picking', deadline: '2026-10-27T12:13:00Z', pools });
   type Lock = Json & { disabled?: boolean; options?: { description?: string }[] };
@@ -84,7 +84,7 @@ test('a player sees their pool with each civ, chooses from it, then locks it in'
   const chosen = componentsOf(blindPickPanel(picking, '100', NAMES, DATA, 'LEADER_C')) as Lock[];
   assert.equal(chosen[0]!.options!.find((o) => o.default)?.value, 'LEADER_C');
   assert.deepEqual([chosen[1]!.custom_id, chosen[1]!.label, chosen[1]!.disabled], ['lobby:lockin:652f1a2b3c4d5e6f7a8b9c0d:LEADER_C', 'Lock in Cy', false]);
-  const locked = blindPickPanel({ ...picking, picks: [{ player_id: '100', leader: 'LEADER_C', by: 'player' }] }, '100', NAMES, DATA);
+  const locked = blindPickPanel({ ...picking, picks: [{ player_id: '100', leader: 'LEADER_C', civ: null, by: 'player' }] }, '100', NAMES, DATA);
   assert.equal(locked.actions, undefined);
   assert.match(locked.subtitle ?? '', /Locked in: Cy/);
 });
