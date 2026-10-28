@@ -40,17 +40,20 @@ const textOf = (panel: Panel): string => (panel.body ?? []).map((b) => ('text' i
 type Json = { custom_id: string; label?: string; options?: { label: string; value: string; default?: boolean; emoji?: { id: string; name: string } }[] };
 const componentsOf = (panel: Panel): Json[] => (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
 
-test('the vote is one message: the optional bans, what a ban needs, the host bans, who has finished', () => {
+test('the vote is one message: the optional bans, what a ban needs, the bans so far, who has finished', () => {
   const panel = voteStatusPanel(lobby(), NAMES);
   assert.equal(panel.title, 'Bans vote: Civ6 FFA, 8 seats lobby');
   assert.match(panel.subtitle ?? '', /Closes <t:1793103000:R>/);
   const body = textOf(panel);
   assert.match(body, /### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis/);
-  assert.match(body, /A ban lands with 2 of the 3 players/);
+  assert.match(body, /A leader is banned once 2 of the 3 players react, and stays banned/);
   assert.match(body, /\*\*Banned by the host\*\*\nAbe/);
   assert.match(body, /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);
   assert.deepEqual(componentsOf(panel).map((c) => [c.custom_id, c.label]), [['lobby:finished:652f1a2b3c4d5e6f7a8b9c0d', 'Finished']]);
+  assert.doesNotMatch(body, /Banned by the vote/);
   assert.doesNotMatch(textOf(voteStatusPanel(lobby({ bans: [] }), NAMES)), /Banned by the host/);
+  const voted = textOf(voteStatusPanel(lobby({ bans: [{ token: 'LEADER_B', kind: 'leader', by: 'vote' }, { token: 'LEADER_A', kind: 'leader', by: 'host' }] }), NAMES));
+  assert.match(voted, /\*\*Banned by the vote\*\*\n<:Bea:55> Bea\n\*\*Banned by the host\*\*\nAbe/);
   assert.equal(panel.footer, FOOTER);
   container(panel);
 });

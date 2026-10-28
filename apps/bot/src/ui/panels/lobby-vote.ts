@@ -9,11 +9,12 @@ const closes = (lobby: Lobby, done: string): string => `Closes ${lobby.deadline 
 const ticks = (lobby: Lobby, done: ReadonlySet<string>): string =>
   lobby.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
 
-// The bans vote, one message: what to do, the host's bans, who has finished,
+// The bans vote, one message: what to do, the bans so far, who has finished,
 // and the button to finish. Players react on it.
 export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
   const need = Math.floor(lobby.players.length / 2) + 1;
-  const hosts = lobby.bans.map((b) => nameOf(names, b.token)).join(' \u00b7 ');
+  const named = (by: string): string => lobby.bans.filter((b) => b.by === by).map((b) => nameOf(names, b.token)).join(' \u00b7 ');
+  const [hosts, voted] = [named('host'), named('vote')];
   return {
     tone: 'info',
     surface: 'vote',
@@ -21,8 +22,9 @@ export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
     subtitle: closes(lobby, 'finished'),
     body: [
       text(
-        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A ban lands with ${need} of the ${lobby.players.length} players. Then press **Finished**.`,
+        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${need} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**.`,
       ),
+      ...(voted ? [field('Banned by the vote', voted)] : []),
       ...(hosts ? [field('Banned by the host', hosts)] : []),
       field('Players', ticks(lobby, new Set(lobby.vote?.finished ?? []))),
     ],

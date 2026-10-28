@@ -254,6 +254,11 @@ export class ApiClient {
     return this.lobbyCall(`${lobbyId}/finished`, "POST", player);
   }
 
+  // The ban reactions so far: a leader reaching a majority is banned at once.
+  async countBallot(lobbyId: string, host: Actor, ballot: LobbyBallot): Promise<Lobby> {
+    return this.lobbyCall(`${lobbyId}/ballot`, "POST", host, ballot);
+  }
+
   // The players' ban reactions, counted and the draft dealt; the bot acts as the host.
   async tallyVote(lobbyId: string, host: Actor, ballot: LobbyBallot): Promise<Lobby> {
     return this.lobbyCall(`${lobbyId}/tally`, "POST", host, ballot);

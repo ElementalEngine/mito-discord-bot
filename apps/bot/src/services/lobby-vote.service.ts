@@ -14,6 +14,12 @@ import { inLobbyTurn, lobbyViewOf, showLobby } from './lobby.service.js';
 // picks'. After a restart the upkeep job keeps it.
 const timers = new Map<string, NodeJS.Timeout>();
 
+// Each open vote's custom emoji reactions as they come in, by vote message. A
+// restart loses them; the final count reads Discord itself.
+type LiveVote = { lobby: Lobby; reactions: Map<string, { id: string; name: string; users: Set<string> }>; timer?: NodeJS.Timeout };
+const liveVotes = new Map<string, LiveVote>();
+const COUNT_DELAY_MS = 1_000;
+
 export type Reaction = Readonly<{ id: string | null; name: string | null; users: readonly string[] }>;
 
 const keyOf = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -103,12 +109,48 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
     const pings = { users: lobby.players.map((p) => p.discord_id) };
     const posted = await postPanel(place, voteStatusPanel(lobby, await civNames('civ6', api)), pings);
     placed = await placeMessage(lobby, place, posted, api);
+    liveVotes.set(posted.id, { lobby: placed, reactions: new Map() });
   } catch (error) {
     log.warn('lobby vote not opened, so it is counted now', lobby.id, error);
     return countVote(client, lobby, api);
   }
   keepTime(client, placed, api);
   await showLobby(client, placed, api);
+}
+
+function dropLiveVote(messageId: string | undefined): void {
+  clearTimeout(messageId ? liveVotes.get(messageId)?.timer : undefined);
+  if (messageId) liveVotes.delete(messageId);
+}
+
+// A ban reaction added or taken back on an open vote; the count so far is
+// sent a second after the last one, so a burst is one call.
+export function trackBanReaction(client: Client, messageId: string, emoji: Readonly<{ id: string | null; name: string | null }>, userId: string, added: boolean, api: ApiClient): void {
+  const vote = liveVotes.get(messageId);
+  if (!vote || !emoji.id || !emoji.name) return;
+  const reaction = vote.reactions.get(emoji.id) ?? { id: emoji.id, name: emoji.name, users: new Set<string>() };
+  if (added) reaction.users.add(userId);
+  else reaction.users.delete(userId);
+  vote.reactions.set(emoji.id, reaction);
+  clearTimeout(vote.timer);
+  vote.timer = setTimeout(() => {
+    void inLobbyTurn(vote.lobby.id, () => countSoFar(client, messageId, api)).catch((error: unknown) => log.warn('ban count so far not sent', vote.lobby.id, error));
+  }, COUNT_DELAY_MS);
+  vote.timer.unref();
+}
+
+// In the lobby's turn: the bans so far sent to core-api, and the vote message
+// redrawn when one lands. A ban once landed stays.
+async function countSoFar(client: Client, messageId: string, api: ApiClient): Promise<void> {
+  const vote = liveVotes.get(messageId);
+  if (!vote) return;
+  const reactions = [...vote.reactions.values()].map((r) => ({ ...r, users: [...r.users] }));
+  const { ballot } = ballotOf(reactions, vote.lobby, await civRows('civ6', api));
+  const counted = await api.countBallot(vote.lobby.id, { id: vote.lobby.host_id }, ballot);
+  const landed = counted.bans.length > vote.lobby.bans.length;
+  vote.lobby = counted;
+  const place = landed ? await placeOf(client, counted) : null;
+  if (place) await editPanelById(place, messageId, voteStatusPanel(counted, await civNames('civ6', api)));
 }
 
 // The vote message's reactions, read fresh: the bot does not follow reaction
@@ -149,6 +191,7 @@ async function openPicks(client: Client, lobby: Lobby, place: SendableChannels, 
   const posted = await postPanel(place, blindStatusPanel(lobby), { users: lobby.players.map((p) => p.discord_id) });
   const placed = await placeMessage(lobby, place, posted, api);
   keepTime(client, placed, api);
+  dropLiveVote(lobby.vote?.messages[VOTE_STATUS]);
   await deleteMessages(place, [lobby.vote?.messages[VOTE_STATUS]]);
   await showLobby(client, placed, api);
 }
@@ -188,6 +231,7 @@ export async function showBlindStatus(client: Client, lobby: Lobby): Promise<voi
 // the voting channel.
 export async function closeVote(client: Client, lobby: Lobby): Promise<void> {
   dropTimer(lobby.id);
+  dropLiveVote(lobby.vote?.messages[VOTE_STATUS]);
   const place = await placeOf(client, lobby);
   if (place) await deleteMessages(place, Object.values(lobby.vote?.messages ?? {}));
 }
