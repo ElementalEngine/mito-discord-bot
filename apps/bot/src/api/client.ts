@@ -339,26 +339,26 @@ export class ApiClient {
     return `${this.base}/api/v2/match-setups/votes${path ? `/${path}` : ""}`;
   }
 
-  private async voteCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Vote> {
-    const res = await this.fetchWithRetry(this.voteUrl(path), {
-      method,
-      headers: body === undefined ? actorHeaders(actor) : { ...json, ...actorHeaders(actor) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return (await this.parseJson(res)) as Vote;
+  private voteCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Vote> {
+    return this.actorCall<Vote>(this.voteUrl(path), method, actor, body);
   }
 
   private lobbyUrl(path: string): string {
     return `${this.base}/api/v2/match-setups/lobbies${path ? `/${path}` : ""}`;
   }
 
-  private async lobbyCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Lobby> {
-    const res = await this.fetchWithRetry(this.lobbyUrl(path), {
+  private lobbyCall(path: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<Lobby> {
+    return this.actorCall<Lobby>(this.lobbyUrl(path), method, actor, body);
+  }
+
+  // A match-setup change made as a player, or as the host the bot acts for.
+  private async actorCall<T>(url: string, method: "POST" | "PUT", actor: Actor, body?: unknown): Promise<T> {
+    const res = await this.fetchWithRetry(url, {
       method,
       headers: body === undefined ? actorHeaders(actor) : { ...json, ...actorHeaders(actor) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    return (await this.parseJson(res)) as Lobby;
+    return (await this.parseJson(res)) as T;
   }
 
   // C1. The reporter rules live in core-api; staff is asserted from here.

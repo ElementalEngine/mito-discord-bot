@@ -198,7 +198,7 @@ test('game settings show each title above its menu, with the chosen option picke
   assert.deepEqual((panel.body ?? []).flatMap((b) => (b.kind === 'text' ? [b.text] : [])), ['**Huts**', '**Map**']);
   assert.match(panel.subtitle ?? '', /Each pick is kept as you make it/);
   const menus = componentsOf(panel);
-  assert.deepEqual(menus.map((m) => m.custom_id.split(':').slice(1).filter((_, i) => i !== 1).join(':')), ['setting:huts', 'setting:map', 'view:main']);
+  assert.deepEqual(verbsOf(panel), ['setting:huts', 'setting:map', 'view:main']);
   assert.deepEqual(menus[0]!.options!.map((o) => [o.label, o.default]), [['1x', false], ['1.5x', true]]);
   assert.equal(menus[1]!.options!.some((o) => o.default), false);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { SendableChannels } from 'discord.js';
 
-import { ballotOf, reactionsOn } from './reactions.js';
+import { ballotOf, distrustReactions, reactionsOn, trackReaction, unwatchReactions, watchReactions } from './reactions.js';
 
 const PLAYERS = ['100', '200', '300'];
 const LEADERS = [
@@ -64,4 +64,25 @@ test('messages posted together are read in one go, any missing alone, and an emo
     ],
   });
   assert.equal(reads, 2);
+});
+
+test('a watched message is counted from what came in, unless a new session may have missed some', async () => {
+  let reads = 0;
+  const place = {
+    messages: {
+      cache: new Map([['21', {}]]),
+      fetch: async () => (reads++, { reactions: { cache: new Map() } }),
+    },
+  } as unknown as SendableChannels;
+  watchReactions('S1', '21', async () => undefined);
+  trackReaction('21', { id: null, name: '1️⃣' }, '100', true);
+  trackReaction('21', { id: null, name: '1️⃣' }, '200', true);
+  trackReaction('21', { id: null, name: '1️⃣' }, '200', false);
+  trackReaction('other', { id: null, name: '1️⃣' }, '300', true);
+  assert.deepEqual(Object.fromEntries(await reactionsOn(place, ['21'])), { '21': [{ id: null, name: '1️⃣', users: ['100'] }] });
+  assert.equal(reads, 0);
+  distrustReactions();
+  assert.deepEqual(Object.fromEntries(await reactionsOn(place, ['21'])), { '21': [] });
+  assert.equal(reads, 1);
+  unwatchReactions(['21']);
 });

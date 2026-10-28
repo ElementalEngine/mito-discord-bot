@@ -24,6 +24,10 @@ export const MODES: Readonly<Record<Mode, string>> = { ffa: 'FFA', teamer: 'Team
 export const AGES: Readonly<Record<Age, string>> = { AGE_ANTIQUITY: 'Antiquity', AGE_EXPLORATION: 'Exploration', AGE_MODERN: 'Modern' };
 export const BAN_FORM = 'bans';
 export const LABEL_FIELD = 'label';
+export const EVERY_AGE = 'all';
+// The slash-command choices for a mode, and for a starting age or every age.
+export const MODE_CHOICES = (Object.keys(MODES) as Mode[]).map((value) => ({ name: MODES[value], value }));
+export const AGE_CHOICES = [...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }];
 
 const MODE_CODES: Readonly<Record<Mode, string>> = { ffa: 'f', teamer: 't', duel: 'd' };
 const AGE_CODES: Readonly<Record<Age, string>> = { AGE_ANTIQUITY: 'a', AGE_EXPLORATION: 'e', AGE_MODERN: 'm' };
@@ -160,7 +164,7 @@ export function unpackForm(args: readonly string[], label: string): BanFormAnswe
   return { choice, about: { label: label.trim(), userId: idOf(args[1]), channelId: idOf(args[2]) } };
 }
 
-const editionLabel = (edition: Edition): string => (edition === 'civ6' ? 'Civ6' : 'Civ7');
+export const editionLabel = (edition: Edition): string => (edition === 'civ6' ? 'Civ6' : 'Civ7');
 
 const draftTitle = (choice: DraftChoice): string => `${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`;
 

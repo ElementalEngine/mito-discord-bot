@@ -1,4 +1,4 @@
-import { ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
+import { ButtonStyle, StringSelectMenuBuilder, type ButtonBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type CivNames, type Panel } from '../kit/index.js';
@@ -12,12 +12,36 @@ export const closes = (setup: Timed, done: string): string =>
 export const ticks = (setup: Timed, done: ReadonlySet<string>): string =>
   setup.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
 
+// A majority of the players: what lands a ban, or wins a setting, at once.
+export const majority = (setup: Timed): number => Math.floor(setup.players.length / 2) + 1;
+
+export const bannedBy = (bans: Lobby['bans'], names: CivNames, by: string, kind = 'leader'): string =>
+  bans
+    .filter((b) => b.kind === kind && b.by === by)
+    .map((b) => nameOf(names, b.token))
+    .join(' \u00b7 ');
+
+// A blind draft's message, where the vote's was: who has locked in, and the
+// button that shows each player their own pool, privately.
+export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, footer: string, pick: ButtonBuilder, what: string): Panel {
+  return {
+    tone: 'info',
+    surface: 'draft',
+    title,
+    subtitle: closes(setup, 'locked in'),
+    body: [
+      text(`Press **Pick your leader** to see your pool and lock in ${what}; only you see it. The picks are revealed together, and anyone without a pick by the deadline gets an auto pick.`),
+      field('Players', ticks(setup, new Set(setup.picks.map((p) => p.player_id)))),
+    ],
+    actions: [row(pick)],
+    footer,
+  };
+}
+
 // The bans vote, one message: what to do, the bans so far, who has finished,
 // and the button to finish. Players react on it.
 export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
-  const need = Math.floor(lobby.players.length / 2) + 1;
-  const named = (by: string): string => lobby.bans.filter((b) => b.by === by).map((b) => nameOf(names, b.token)).join(' \u00b7 ');
-  const [hosts, voted] = [named('host'), named('vote')];
+  const [hosts, voted] = [bannedBy(lobby.bans, names, 'host'), bannedBy(lobby.bans, names, 'vote')];
   return {
     tone: 'info',
     surface: 'vote',
@@ -25,7 +49,7 @@ export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
     subtitle: closes(lobby, 'finished'),
     body: [
       text(
-        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${need} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**.`,
+        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${majority(lobby)} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**.`,
       ),
       ...(voted ? [field('Banned by the vote', voted)] : []),
       ...(hosts ? [field('Banned by the host', hosts)] : []),
@@ -36,22 +60,8 @@ export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
   };
 }
 
-// The blind draft's message, where the vote's was: who has locked in, and the
-// button that shows each player their own pool, privately.
-export function blindStatusPanel(lobby: Lobby): Panel {
-  return {
-    tone: 'info',
-    surface: 'draft',
-    title: `Blind draft: Civ6 ${SHAPES[lobby.shape]} lobby`,
-    subtitle: closes(lobby, 'locked in'),
-    body: [
-      text('Press **Pick your leader** to see your pool and lock in a pick; only you see it. The picks are revealed together, and anyone without a pick by the deadline gets an auto pick.'),
-      field('Players', ticks(lobby, new Set(lobby.picks.map((p) => p.player_id)))),
-    ],
-    actions: [row(button(lobby, VERB.pick, 'Pick your leader', ButtonStyle.Primary))],
-    footer: lobbyFooter(lobby),
-  };
-}
+export const blindStatusPanel = (lobby: Lobby): Panel =>
+  blindStatus(lobby, `Blind draft: Civ6 ${SHAPES[lobby.shape]} lobby`, lobbyFooter(lobby), button(lobby, VERB.pick, 'Pick your leader', ButtonStyle.Primary), 'a pick');
 
 // A player's own pool, each leader with their civ, then chosen from the menu
 // and locked in. Once locked, it shows the pick until the reveal.

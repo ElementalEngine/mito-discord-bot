@@ -42,24 +42,24 @@ type Json = { custom_id: string; label?: string; disabled?: boolean; options?: {
 const componentsOf = (panel: Panel): Json[] => (panel.actions ?? []).flatMap((r) => r.components.map((c) => c.toJSON() as Json));
 
 test('the vote opens with what to do, who has finished, Finished, and its starter and code', () => {
-  const panel = voteStatusPanel(vote());
+  const panel = voteStatusPanel(vote(), [HUTS]);
   assert.equal(panel.title, 'Vote: Civ6 FFA');
   assert.match(panel.subtitle ?? '', /Closes <t:1793103000:R>, or once every player has finished/);
-  assert.match(textOf(panel), /### React on each setting below\n.*An option backed by 2 of the 3 players wins at once; the rest go to the most reactions once all finish, a tie settled at random/);
+  assert.match(textOf(panel), /### React on each setting below\n.*An option backed by 2 of the 3 players wins at once and its message is cleared; the rest go to the most reactions once all finish, a tie settled at random/);
+  assert.doesNotMatch(textOf(panel), /\*\*Won\*\*/);
   assert.match(textOf(panel), /⬜ <@100>\n✅ <@200>\n⬜ <@300>/);
   assert.deepEqual(componentsOf(panel).map((c) => [c.custom_id, c.label]), [['vote:finished:652f1a2b3c4d5e6f7a8b9c0d', 'Finished']]);
   assert.equal(panel.footer, FOOTER);
-  assert.equal(voteStatusPanel(vote({ edition: 'civ7', mode: 'teamer', teams: 2, age: 'AGE_MODERN' })).title, 'Vote: Civ7 Teamer · Modern');
+  assert.equal(voteStatusPanel(vote({ edition: 'civ7', mode: 'teamer', teams: 2, age: 'AGE_MODERN' }), [HUTS]).title, 'Vote: Civ7 Teamer · Modern');
   container(panel);
 });
 
-test('each setting is its own message, its options by the emoji to react with, and shows the one a majority won', () => {
+test('a setting a majority won shows on the status, and each setting is its own message', () => {
+  const won = voteStatusPanel(vote({ settings: [{ id: 'huts', value: 'x2', by: 'vote' }] }), [HUTS]);
+  assert.match(textOf(won), /\*\*Won\*\*\n✅ Goody Huts: 2️⃣ 2x/);
   const panel = questionPanel(HUTS);
-  assert.deepEqual([panel.title, panel.tone, panel.subtitle], ['Goody Huts', 'info', undefined]);
+  assert.deepEqual([panel.title, panel.tone], ['Goody Huts', 'info']);
   assert.equal(textOf(panel), '1️⃣ 1x\n2️⃣ 2x');
-  const won = questionPanel(HUTS, 'x2');
-  assert.deepEqual([won.tone, won.subtitle], ['success', 'Won: 2x']);
-  assert.equal(textOf(won), '1️⃣ 1x\n✅ **2️⃣ 2x**');
 });
 
 test('a bans message says what a ban needs and shows the bans so far, before and during the vote', () => {

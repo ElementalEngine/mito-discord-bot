@@ -3,8 +3,9 @@ import { ModalBuilder, type ButtonInteraction, type ChatInputCommandInteraction,
 import { ApiClient } from '../api/index.js';
 import type { Vote, VoteRequest } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
-import { inLobbyTurn } from '../services/lobby.service.js';
-import { advanceVote, postVote, showVoteStatus } from '../services/vote.service.js';
+import { inLobbyTurn, lobbySettings } from '../services/lobby.service.js';
+import { allFinished, allPicked, pickingBy } from '../services/setup.js';
+import { advanceVote, postVote, showBlindVoteStatus } from '../services/vote.service.js';
 import { customId, parseId } from '../ui/kit/index.js';
 import { banFieldIds, banFields } from '../ui/panels/draft.js';
 import { VOTE_VERB, voteBlindPickPanel, voteStatusPanel } from '../ui/panels/vote.js';
@@ -58,6 +59,7 @@ async function submitBans(interaction: ModalSubmitInteraction, key: string): Pro
   waiting.delete(key);
   if (!held || held.until < Date.now()) refuse('This form has expired. Run /vote again.');
   const { request } = held;
+  await defer(interaction, 'private');
   const fields = banFieldIds({ edition: request.edition, age: request.age ?? null }, await civRows(request.edition, api));
   await startVote(interaction, { ...request, leader_bans: selectedIn(interaction, fields.leaders), civ_bans: selectedIn(interaction, fields.civs) });
 }
@@ -67,17 +69,12 @@ async function finishVoting(interaction: ButtonInteraction, voteId: string): Pro
   await holdPanel(interaction);
   await inLobbyTurn(voteId, async () => {
     const vote = await api.finishVoting(voteId, actorOf(interaction));
-    await replacePanel(interaction, voteStatusPanel(vote));
-    if (vote.players.every((p) => vote.vote.finished.includes(p.discord_id))) await advanceVote(interaction.client, voteId, api, true);
+    await replacePanel(interaction, voteStatusPanel(vote, await lobbySettings(vote.mode, api, vote.edition)));
+    if (allFinished(vote)) await advanceVote(interaction.client, voteId, api, true);
   });
 }
 
-async function pickingVote(voteId: string, playerId: string): Promise<Vote> {
-  const vote = await api.vote(voteId);
-  if (vote.status !== 'open' || vote.phase !== 'picking') refuse('The blind picks are closed.');
-  if (!vote.pools.some((p) => p.player_id === playerId)) refuse("Only the vote's players pick.");
-  return vote;
-}
+const pickingVote = async (voteId: string, playerId: string): Promise<Vote> => pickingBy(await api.vote(voteId), playerId, 'vote');
 
 // A blind drafter's own pool, privately.
 async function showPool(interaction: ButtonInteraction, voteId: string): Promise<void> {
@@ -99,8 +96,8 @@ async function lockIn(interaction: ButtonInteraction, voteId: string, leader: st
   await inLobbyTurn(voteId, async () => {
     const vote = await api.pickInVote(voteId, actorOf(interaction), leader, civ ?? null);
     await replacePanel(interaction, voteBlindPickPanel(vote, interaction.user.id, await civNames(vote.edition, api)));
-    await showVoteStatus(interaction.client, vote);
-    if (vote.pools.every((pool) => vote.picks.some((p) => p.player_id === pool.player_id))) await advanceVote(interaction.client, voteId, api, true);
+    await showBlindVoteStatus(interaction.client, vote);
+    if (allPicked(vote)) await advanceVote(interaction.client, voteId, api, true);
   });
 }
 

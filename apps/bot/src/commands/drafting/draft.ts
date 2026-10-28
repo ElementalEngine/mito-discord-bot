@@ -9,14 +9,13 @@ import { ApiClient } from '../../api/index.js';
 import { config } from '../../config.js';
 import { civNames, civRows } from '../../services/civ-names.js';
 import { postDraft } from '../../services/draft.service.js';
-import { AGES, MODES, banForm, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
+import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, banForm, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
 import { defer, fail, refuse } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { postAboutOf, withPostOptions } from '../../utils/post-options.js';
 
 const api = new ApiClient();
 const MAX_DRAFTS: Readonly<Record<Edition, number>> = { civ6: 14, civ7: 10 };
-const EVERY_AGE = 'all';
 
 // A quick draft: the counts, whether to ban first, and what it is for.
 // Settings and seats belong to a hosted game.
@@ -29,7 +28,7 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
         .setName('mode')
         .setDescription('Game mode')
         .setRequired(true)
-        .addChoices(...(Object.keys(MODES) as Mode[]).map((value) => ({ name: MODES[value], value }))),
+        .addChoices(...MODE_CHOICES),
     )
     .addIntegerOption((o) =>
       o.setName('drafts').setDescription('Number of drafts: one per player, or one per team').setRequired(true).setMinValue(2).setMaxValue(MAX_DRAFTS[edition]),
@@ -45,7 +44,7 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
           .setName('age')
           .setDescription('Starting age')
           .setRequired(true)
-          .addChoices(...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }),
+          .addChoices(...AGE_CHOICES),
       );
   }
   const banned = edition === 'civ6' ? 'leaders' : 'leaders and civs';

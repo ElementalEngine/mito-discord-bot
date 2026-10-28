@@ -354,7 +354,7 @@ export function editorPanel(d: EditorDraft, ctx: EditorContext): Panel {
 
 export const closedEditor = (message: string): Panel => ({ tone: 'muted', surface: 'lobby', title: 'Lobby editor closed', body: [text(message)] });
 
-// /draft's ban menus, with the draft's bans ticked.
+// The host's ban form: /draft's ban menus, with the lobby's bans ticked.
 export function lobbyBanForm(d: EditorDraft, data: CivDataResponse, names: CivNames): ModalBuilder {
   return new ModalBuilder()
     .setCustomId(customId('lobby', VERB.bansForm, d.lobby.id))

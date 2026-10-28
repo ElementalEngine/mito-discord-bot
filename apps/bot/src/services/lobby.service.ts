@@ -33,8 +33,8 @@ export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyVi
 }
 
 async function channelOf(client: Client, lobby: Lobby) {
-  const channel = await client.channels.fetch(lobby.channel_id);
-  return channel?.isTextBased() && channel.isSendable() ? channel : null;
+  const channel = await client.channels.fetch(lobby.channel_id).catch(() => null);
+  return channel?.isSendable() ? channel : null;
 }
 
 // Redraw the lobby's post; a cancelled lobby's post is removed.

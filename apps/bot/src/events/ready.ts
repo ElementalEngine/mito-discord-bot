@@ -2,7 +2,7 @@ import { Events } from 'discord.js';
 import type { Client } from 'discord.js';
 import { deployCommands } from '../deploy.js';
 import { checkCommandAccess } from '../services/command-access.service.js';
-import { loadAppEmojis } from '../services/civ-names.js';
+import { civNames, loadAppEmojis } from '../services/civ-names.js';
 import { startJobs } from '../jobs/index.js';
 import { log } from '../utils/log.js';
 
@@ -20,5 +20,7 @@ export async function execute(client: Client): Promise<void> {
     log.warn('command access not checked', error instanceof Error ? error.message : error);
   });
   await loadAppEmojis(client);
+  // Civ data read now, so no ban form waits on it inside Discord's 3 seconds.
+  void Promise.all([civNames('civ6'), civNames('civ7')]);
   startJobs(client);
 }

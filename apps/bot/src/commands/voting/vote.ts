@@ -6,33 +6,32 @@ import { config } from '../../config.js';
 import { openBansForm, startVote } from '../../handlers/vote.handlers.js';
 import { inLobbyTurn } from '../../services/lobby.service.js';
 import { closeVoteMessages } from '../../services/vote.service.js';
-import { AGES, MODES, type Age, type Edition, type Mode } from '../../ui/panels/draft.js';
+import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, editionLabel, type Age, type Edition, type Mode } from '../../ui/panels/draft.js';
 import { defer, fail, refuse, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 const api = new ApiClient();
-const EVERY_AGE = 'all';
 const MENTION = /<@!?(\d{17,20})>/g;
 const MAX_VOTERS = 14;
 
 function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
   sub
     .setName(edition)
-    .setDescription(`Vote on a ${edition === 'civ6' ? 'Civ6' : 'Civ7'} game's settings, draft mode and bans with your voice channel.`)
+    .setDescription(`Vote on a ${editionLabel(edition)} game's settings, draft mode and bans with your voice channel.`)
     .addStringOption((o) =>
       o
         .setName('mode')
         .setDescription('Game mode')
         .setRequired(true)
-        .addChoices(...(Object.keys(MODES) as Mode[]).map((value) => ({ name: MODES[value], value }))),
+        .addChoices(...MODE_CHOICES),
     );
   if (edition === 'civ7') {
     sub.addStringOption((o) =>
       o
         .setName('age')
         .setDescription('Starting age (default: every age)')
-        .addChoices(...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }),
+        .addChoices(...AGE_CHOICES),
     );
   }
   return sub
@@ -81,11 +80,10 @@ function votersOf(interaction: ChatInputCommandInteraction<'cached'>): string[] 
 }
 
 function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: Edition): VoteRequest {
-  const mode = interaction.options.getString('mode', true) as Mode;
   const age = interaction.options.getString('age');
   return {
     edition,
-    mode,
+    mode: interaction.options.getString('mode', true) as Mode,
     age: edition === 'civ7' && age && age !== EVERY_AGE ? (age as Age) : null,
     guild_id: interaction.guildId,
     channel_id: interaction.channelId,

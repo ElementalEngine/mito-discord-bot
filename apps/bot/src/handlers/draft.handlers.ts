@@ -19,9 +19,9 @@ export async function handleDraftInteraction(interaction: Interaction): Promise<
     const form = id?.verb === BAN_FORM ? unpackForm(id.args, typedIn(interaction, LABEL_FIELD)) : null;
     if (!form) refuse('This form is out of date. Run /draft again.');
     const { choice, about } = form;
+    await defer(interaction, 'public');
     const fields = banFieldIds(choice, await civRows(choice.edition, api));
     const bans = { leaders: selectedIn(interaction, fields.leaders), civs: selectedIn(interaction, fields.civs) };
-    await defer(interaction, 'public');
     await postDraft(interaction, choice, bans, about, api);
   } catch (error) {
     await fail(interaction, error, 'deal the draft', { customId: interaction.customId });

@@ -14,6 +14,7 @@ import { civNames, civRows } from '../services/civ-names.js';
 import { advanceLobby, keepTime, openVote, showBlindStatus } from '../services/lobby-vote.service.js';
 import { inLobbyTurn, lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
 import { loadMembers, memberNames } from '../services/members.js';
+import { allFinished, allPicked, pickingBy } from '../services/setup.js';
 import { parseId, type CivNames } from '../ui/kit/index.js';
 import { banFieldIds } from '../ui/panels/draft.js';
 import {
@@ -120,12 +121,12 @@ export async function openEditor(interaction: ChatInputCommandInteraction, lobby
 
 // The editor this press came from, its clock restarted. A press opening a form
 // keeps the closer it had: it has no panel of its own to close.
-function sessionOf(interaction: EditorPress, lobbyId: string, ms = IDLE_MS): Session {
+function sessionOf(interaction: EditorPress, lobbyId: string, form = false): Session {
   const held = sessions.get(lobbyId);
   const messageId = interaction.message?.id ?? '';
   if (held?.saving) refuse('Your changes are being saved. Try again in a moment.');
-  const closer = ms === FORM_MS ? undefined : closerFor(interaction, lobbyId, messageId);
-  if (!held || held.messageId !== messageId || !editors.touch(lobbyId, messageId, ms, closer)) {
+  const closer = form ? undefined : closerFor(interaction, lobbyId, messageId);
+  if (!held || held.messageId !== messageId || !editors.touch(lobbyId, messageId, form ? FORM_MS : IDLE_MS, closer)) {
     refuse('This editor has closed. Open it again with /lobby edit.');
   }
   return held;
@@ -206,7 +207,7 @@ async function pickSetting(interaction: StringSelectMenuInteraction, lobbyId: st
 }
 
 async function openBans(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
-  const { draft, rows, names } = sessionOf(interaction, lobbyId, FORM_MS);
+  const { draft, rows, names } = sessionOf(interaction, lobbyId, true);
   await interaction.showModal(lobbyBanForm(draft, rows, names));
 }
 
@@ -233,16 +234,11 @@ async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Pr
   await inLobbyTurn(lobbyId, async () => {
     const lobby = await api.finishVote(lobbyId, actorOf(interaction));
     await replacePanel(interaction, voteStatusPanel(lobby, await civNames('civ6', api)));
-    if (lobby.players.every((p) => lobby.vote?.finished.includes(p.discord_id))) await advanceLobby(interaction.client, lobbyId, api, true);
+    if (allFinished(lobby)) await advanceLobby(interaction.client, lobbyId, api, true);
   });
 }
 
-async function pickingLobby(lobbyId: string, playerId: string): Promise<Lobby> {
-  const lobby = await api.lobby(lobbyId);
-  if (lobby.status !== 'open' || lobby.phase !== 'picking') refuse('The blind picks are closed.');
-  if (!lobby.pools.some((p) => p.player_id === playerId)) refuse("Only the lobby's players pick.");
-  return lobby;
-}
+const pickingLobby = async (lobbyId: string, playerId: string): Promise<Lobby> => pickingBy(await api.lobby(lobbyId), playerId, 'lobby');
 
 // A player's pool panel, from cached civ data.
 async function poolPanel(lobby: Lobby, playerId: string, leader?: string) {
@@ -271,7 +267,7 @@ async function lockIn(interaction: ButtonInteraction, lobbyId: string, leader: s
     const lobby = await api.pickLeader(lobbyId, actorOf(interaction), leader);
     await replacePanel(interaction, await poolPanel(lobby, interaction.user.id));
     await showBlindStatus(interaction.client, lobby);
-    if (lobby.pools.every((pool) => lobby.picks.some((p) => p.player_id === pool.player_id))) await advanceLobby(interaction.client, lobbyId, api, true);
+    if (allPicked(lobby)) await advanceLobby(interaction.client, lobbyId, api, true);
   });
 }
 

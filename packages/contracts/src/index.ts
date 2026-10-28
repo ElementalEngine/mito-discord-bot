@@ -776,7 +776,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel Vote
-         * @description The host, or staff, cancel an open vote by its code.
+         * @description The starter, or staff, cancel an open vote by its code.
          */
         post: operations["cancel_vote_api_v2_match_setups_votes_cancel_post"];
         delete?: never;
@@ -1662,7 +1662,7 @@ export interface components {
         };
         /**
          * LobbyCancel
-         * @description A lobby is cancelled by its code, by its host or by staff.
+         * @description A lobby or vote is cancelled by its code, by its host or by staff.
          */
         LobbyCancel: {
             /** Code */

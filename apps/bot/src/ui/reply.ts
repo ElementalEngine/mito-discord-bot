@@ -95,8 +95,8 @@ export async function respondMore(interaction: RepliableInteraction, panel: Pane
 
 type PanelPress = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 
-// Acknowledge a press on a private panel without answering it yet; the panel
-// is then rewritten with replacePanel.
+// Acknowledge a press without answering it yet; its panel may then be
+// rewritten with replacePanel.
 export async function holdPanel(interaction: PanelPress): Promise<void> {
   holding.add(interaction);
   await interaction.deferUpdate();
@@ -109,8 +109,8 @@ export async function updatePanel(interaction: ButtonInteraction | AnySelectMenu
 }
 
 // A message rewritten as a panel, clearing whatever it showed before.
-function asPanel(panel: Panel, allowedMentions: MessageMentionOptions = NO_PINGS): MessageEditOptions {
-  return { content: null, embeds: [], flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions };
+function asPanel(panel: Panel): MessageEditOptions {
+  return { content: null, embeds: [], flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions: NO_PINGS };
 }
 
 // The interaction's own message rewritten: the panel a press was held on, or a
@@ -119,8 +119,7 @@ export async function replacePanel(interaction: RepliableInteraction, panel: Pan
   await interaction.editReply(asPanel(panel));
 }
 
-// A panel posted to a channel, or an earlier message rewritten as one, rather
-// than an answer to an interaction.
+// A panel posted to a channel, rather than an answer to an interaction.
 export async function postPanel(
   channel: SendableChannels,
   panel: Panel,
@@ -129,12 +128,9 @@ export async function postPanel(
   return channel.send({ flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions });
 }
 
-export async function editPanel(
-  message: Message,
-  panel: Panel,
-  allowedMentions: MessageMentionOptions = NO_PINGS,
-): Promise<Message> {
-  return message.edit(asPanel(panel, allowedMentions));
+// An earlier message rewritten as a panel.
+export async function editPanel(message: Message, panel: Panel): Promise<Message> {
+  return message.edit(asPanel(panel));
 }
 
 // The same for a message known only by its id: one call, with no fetch first.

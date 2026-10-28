@@ -2,15 +2,14 @@ import { ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js'
 
 import type { SettingQuestion, Vote } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
-import { AGES, MODES } from './draft.js';
+import { AGES, MODES, editionLabel } from './draft.js';
 import { draftOutputPanels } from './draft-output.js';
 import { row } from './lobby.js';
-import { closes, ticks } from './lobby-vote.js';
+import { bannedBy, blindStatus, closes, majority, ticks } from './lobby-vote.js';
 
 export const VOTE_VERB = { finished: 'finished', pick: 'pick', leader: 'leader', civ: 'civ', lockIn: 'lockin' } as const;
 
-// The vote's messages by name: its status, each setting by its id, and bans.
-export const VOTE_STATUS = 'status';
+// The vote's ban messages by name, beside its status and each setting by id.
 export const LEADER_BANS = 'leaders';
 export const CIV_BANS = 'civs';
 
@@ -18,20 +17,21 @@ const button = (vote: Vote, verb: string, label: string, style: ButtonStyle, ...
   new ButtonBuilder().setCustomId(customId('vote', verb, vote.id, ...args)).setLabel(label).setStyle(style);
 
 // The game: edition and mode, and civ7's starting age unless left out.
-export function voteTitle(vote: Vote, withAge = true): string {
-  const edition = vote.edition === 'civ6' ? 'Civ6' : 'Civ7';
+function voteTitle(vote: Vote, withAge = true): string {
   const age = withAge && vote.edition === 'civ7' ? ` · ${vote.age ? AGES[vote.age] : 'every age'}` : '';
-  return `${edition} ${MODES[vote.mode]}${age}`;
+  return `${editionLabel(vote.edition)} ${MODES[vote.mode]}${age}`;
 }
 
-// A majority of the players: what wins a setting or lands a ban at once.
-const need = (vote: Vote): number => Math.floor(vote.players.length / 2) + 1;
+const voteFooter = (vote: Vote): string => `Started by ${mention(vote.host_id)} · code ${vote.code}`;
 
-export const voteFooter = (vote: Vote): string => `Started by ${mention(vote.host_id)} · code ${vote.code}`;
-
-// The vote's first message: what to do, who has finished, and Finished.
-export function voteStatusPanel(vote: Vote): Panel {
+// The vote's first message: what to do, the settings won so far, who has
+// finished, and Finished.
+export function voteStatusPanel(vote: Vote, questions: readonly SettingQuestion[]): Panel {
   const bans = vote.edition === 'civ7' ? 'Ban leaders and civs on the bans messages' : 'Ban leaders on the bans message';
+  const won = questions.flatMap((q) => {
+    const option = q.options.find((o) => o.id === vote.settings.find((s) => s.id === q.id)?.value);
+    return option ? [`✅ ${q.title}: ${option.emoji} ${option.label}`] : [];
+  });
   return {
     tone: 'info',
     surface: 'vote',
@@ -39,8 +39,9 @@ export function voteStatusPanel(vote: Vote): Panel {
     subtitle: closes(vote, 'finished'),
     body: [
       text(
-        `### React on each setting below\nBack as many options as you like. An option backed by ${need(vote)} of the ${vote.players.length} players wins at once; the rest go to the most reactions once all finish, a tie settled at random. ${bans}. Then press **Finished**.`,
+        `### React on each setting below\nBack as many options as you like. An option backed by ${majority(vote)} of the ${vote.players.length} players wins at once and its message is cleared; the rest go to the most reactions once all finish, a tie settled at random. ${bans}. Then press **Finished**.`,
       ),
+      ...(won.length ? [field('Won', won.join('\n'))] : []),
       field('Players', ticks(vote, new Set(vote.vote.finished))),
     ],
     actions: [row(button(vote, VOTE_VERB.finished, 'Finished', ButtonStyle.Success))],
@@ -48,29 +49,16 @@ export function voteStatusPanel(vote: Vote): Panel {
   };
 }
 
-// One setting's message: its options, each by the emoji to react with, and the
-// one that won once a majority backs it.
-export function questionPanel(question: SettingQuestion, won?: string): Panel {
-  const winner = question.options.find((o) => o.id === won);
-  const lines = question.options.map((o) => (o === winner ? `✅ **${o.emoji} ${o.label}**` : `${o.emoji} ${o.label}`));
-  return {
-    tone: winner ? 'success' : 'info',
-    surface: 'vote',
-    title: question.title,
-    ...(winner ? { subtitle: `Won: ${winner.label}` } : {}),
-    body: [text(lines.join('\n'))],
-  };
+// One setting's message: its options, each by the emoji to react with.
+export function questionPanel(question: SettingQuestion): Panel {
+  const lines = question.options.map((o) => `${o.emoji} ${o.label}`);
+  return { tone: 'info', surface: 'vote', title: question.title, body: [text(lines.join('\n'))] };
 }
 
 // A bans message, for leaders or civ7's civs: react with the server's emojis.
 // A ban lands with a majority and stays; the bans so far show here.
 export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivNames): Panel {
-  const named = (by: string): string =>
-    vote.bans
-      .filter((b) => b.kind === kind && b.by === by)
-      .map((b) => nameOf(names, b.token))
-      .join(' · ');
-  const [voted, before] = [named('vote'), named('host')];
+  const [voted, before] = [bannedBy(vote.bans, names, 'vote', kind), bannedBy(vote.bans, names, 'host', kind)];
   const what = kind === 'civ' ? 'civ' : 'leader';
   return {
     tone: 'info',
@@ -78,7 +66,7 @@ export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivName
     title: kind === 'civ' ? 'Civ bans' : 'Leader bans',
     body: [
       text(
-        `⬇️ React to this message with the server's ${what} emojis to ban them. A ${what} is banned once ${need(vote)} of the ${vote.players.length} players react, and stays banned.`,
+        `⬇️ React to this message with the server's ${what} emojis to ban them. A ${what} is banned once ${majority(vote)} of the ${vote.players.length} players react, and stays banned.`,
       ),
       ...(voted ? [field('Banned by the vote', voted)] : []),
       ...(before ? [field('Banned before the vote', before)] : []),
@@ -86,23 +74,14 @@ export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivName
   };
 }
 
-// The blind draft's message, where the vote's were: who has locked in, and
-// the button that shows each player their own pool, privately.
-export function voteBlindStatusPanel(vote: Vote): Panel {
-  const what = vote.edition === 'civ7' ? 'a leader and a civ' : 'a leader';
-  return {
-    tone: 'info',
-    surface: 'draft',
-    title: `Blind draft: ${voteTitle(vote)}`,
-    subtitle: closes(vote, 'locked in'),
-    body: [
-      text(`Press **Pick your leader** to see your pool and lock in ${what}; only you see it. The picks are revealed together, and anyone without a pick by the deadline gets an auto pick.`),
-      field('Players', ticks(vote, new Set(vote.picks.map((p) => p.player_id)))),
-    ],
-    actions: [row(button(vote, VOTE_VERB.pick, 'Pick your leader', ButtonStyle.Primary))],
-    footer: voteFooter(vote),
-  };
-}
+export const voteBlindStatusPanel = (vote: Vote): Panel =>
+  blindStatus(
+    vote,
+    `Blind draft: ${voteTitle(vote)}`,
+    voteFooter(vote),
+    button(vote, VOTE_VERB.pick, 'Pick your leader', ButtonStyle.Primary),
+    vote.edition === 'civ7' ? 'a leader and a civ' : 'a leader',
+  );
 
 function menu(vote: Vote, verb: string, placeholder: string, tokens: readonly string[], names: CivNames, chosen: string | undefined, other: string | undefined): StringSelectMenuBuilder {
   return new StringSelectMenuBuilder()
