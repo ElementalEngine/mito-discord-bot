@@ -1,7 +1,7 @@
 import { ButtonStyle, StringSelectMenuBuilder, type ButtonBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type CivNames, type Panel } from '../kit/index.js';
+import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { SHAPES, VERB, button, lobbyFooter, row } from './lobby.js';
 
 type Timed = Readonly<{ deadline: string | null; players: Lobby['players'] }>;
@@ -21,9 +21,9 @@ export const bannedBy = (bans: Lobby['bans'], names: CivNames, by: string, kind 
     .map((b) => nameOf(names, b.token))
     .join(' \u00b7 ');
 
-// A blind draft's message, where the vote's was: who has locked in, and the
-// button that shows each player their own pool, privately.
-export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, footer: string, pick: ButtonBuilder, what: string): Panel {
+// A blind draft's message, where the vote's was: who has locked in, anything
+// else to keep in view, and the button that shows each player their own pool.
+export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, footer: string, pick: ButtonBuilder, what: string, more: readonly Block[] = []): Panel {
   return {
     tone: 'info',
     surface: 'draft',
@@ -32,6 +32,7 @@ export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, 
     body: [
       text(`Press **Pick your leader** to see your pool and lock in ${what}; only you see it. The picks are revealed together, and anyone without a pick by the deadline gets an auto pick.`),
       field('Players', ticks(setup, new Set(setup.picks.map((p) => p.player_id)))),
+      ...more,
     ],
     actions: [row(pick)],
     footer,

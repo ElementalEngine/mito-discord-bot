@@ -90,7 +90,9 @@ test('a civ7 blind pick takes a leader and a civ, each menu keeping the other, t
   assert.deepEqual([both[2]!.custom_id, both[2]!.label, both[2]!.disabled], ['vote:lockin:652f1a2b3c4d5e6f7a8b9c0d:LEADER_B:CIV_Y', 'Lock in Bea · Yor', false]);
   const locked = voteBlindPickPanel({ ...picking, picks: [{ player_id: '100', leader: 'LEADER_B', civ: 'CIV_Y', by: 'player' }] }, '100', NAMES);
   assert.match(locked.subtitle ?? '', /Locked in: Bea · Yor/);
-  assert.match(textOf(voteBlindStatusPanel(picking)), /lock in a leader and a civ/);
+  const status = textOf(voteBlindStatusPanel({ ...picking, settings: [{ id: 'huts', value: 'x2', by: 'vote' }] }, [HUTS]));
+  assert.match(status, /lock in a leader and a civ/);
+  assert.match(status, /\*\*Settings\*\*\n2️⃣ Goody Huts: 2x/);
 });
 
 test("a vote's draft is posted as every draft is, with civ7's civs", () => {

@@ -3,7 +3,7 @@ import { ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js'
 import type { SettingQuestion, Vote } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
 import { AGES, MODES, editionLabel } from './draft.js';
-import { draftOutputPanels } from './draft-output.js';
+import { draftOutputPanels, settingLines } from './draft-output.js';
 import { row } from './lobby.js';
 import { bannedBy, blindStatus, closes, majority, ticks } from './lobby-vote.js';
 
@@ -74,13 +74,15 @@ export function voteBansPanel(vote: Vote, kind: 'leader' | 'civ', names: CivName
   };
 }
 
-export const voteBlindStatusPanel = (vote: Vote): Panel =>
+// The blind draft's message, with the settings the vote chose kept in view.
+export const voteBlindStatusPanel = (vote: Vote, questions: readonly SettingQuestion[]): Panel =>
   blindStatus(
     vote,
     `Blind draft: ${voteTitle(vote)}`,
     voteFooter(vote),
     button(vote, VOTE_VERB.pick, 'Pick your leader', ButtonStyle.Primary),
     vote.edition === 'civ7' ? 'a leader and a civ' : 'a leader',
+    [field('Settings', settingLines(Object.fromEntries(vote.settings.map((s) => [s.id, s.value])), questions))],
   );
 
 function menu(vote: Vote, verb: string, placeholder: string, tokens: readonly string[], names: CivNames, chosen: string | undefined, other: string | undefined): StringSelectMenuBuilder {

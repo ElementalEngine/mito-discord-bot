@@ -135,8 +135,8 @@ async function postVoteDraft(vote: Vote, place: SendableChannels | null, api: Ap
 // In the vote's turn, once all finish or time is up: everything counted and
 // the draft dealt. A blind draft's message then replaces the vote's messages.
 async function countVote(client: Client, vote: Vote, api: ApiClient): Promise<void> {
-  const place = await placeOf(client, vote);
-  const ballot = place ? await ballotFrom(vote, place, await questionsOf(vote, api), api) : { settings: {}, bans: {} };
+  const [place, questions] = await Promise.all([placeOf(client, vote), questionsOf(vote, api)]);
+  const ballot = place ? await ballotFrom(vote, place, questions, api) : { settings: {}, bans: {} };
   // A tally that landed but whose answer was lost is read back, so the draft still posts.
   const dealt = await api.tallyVoteBallot(vote.id, starterOf(vote), ballot).catch(async (error: unknown) => {
     const now = await api.vote(vote.id);
@@ -146,7 +146,7 @@ async function countVote(client: Client, vote: Vote, api: ApiClient): Promise<vo
   await closeVoteMessages(client, vote);
   if (dealt.status === 'cancelled') return;
   if (dealt.phase === 'picking' && place) {
-    const status = await postPanel(place, voteBlindStatusPanel(dealt), { users: playersOf(dealt) });
+    const status = await postPanel(place, voteBlindStatusPanel(dealt, questions), { users: playersOf(dealt) });
     const placed = await recorded(status, () => api.placeVoteMessages(dealt.id, starterOf(dealt), { channel_id: place.id, messages: { [VOTE_STATUS]: status.id } }));
     return keepVoteTime(client, placed, api);
   }
@@ -172,10 +172,10 @@ export async function advanceVote(client: Client, voteId: string, api: ApiClient
 }
 
 // Who has locked in, on the blind draft's message.
-export async function showBlindVoteStatus(client: Client, vote: Vote): Promise<void> {
-  const place = await placeOf(client, vote);
+export async function showBlindVoteStatus(client: Client, vote: Vote, api: ApiClient): Promise<void> {
+  const [place, questions] = await Promise.all([placeOf(client, vote), questionsOf(vote, api)]);
   const statusId = vote.vote.messages[VOTE_STATUS];
-  if (place && statusId) await editPanelById(place, statusId, voteBlindStatusPanel(vote));
+  if (place && statusId) await editPanelById(place, statusId, voteBlindStatusPanel(vote, questions));
 }
 
 // A counted, drafted or cancelled vote's messages deleted, and no longer

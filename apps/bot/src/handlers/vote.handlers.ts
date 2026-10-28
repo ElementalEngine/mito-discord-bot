@@ -96,7 +96,7 @@ async function lockIn(interaction: ButtonInteraction, voteId: string, leader: st
   await inLobbyTurn(voteId, async () => {
     const vote = await api.pickInVote(voteId, actorOf(interaction), leader, civ ?? null);
     await replacePanel(interaction, voteBlindPickPanel(vote, interaction.user.id, await civNames(vote.edition, api)));
-    await showBlindVoteStatus(interaction.client, vote);
+    await showBlindVoteStatus(interaction.client, vote, api);
     if (allPicked(vote)) await advanceVote(interaction.client, voteId, api, true);
   });
 }
