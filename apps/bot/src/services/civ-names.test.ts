@@ -5,7 +5,7 @@ import type { Client } from 'discord.js';
 
 import type { ApiClient } from '../api/index.js';
 import type { CivDataResponse } from '../api/types.js';
-import { civNames, editionOf, forgetCivNames, loadAppEmojis } from './civ-names.js';
+import { checkPortraits, civNames, editionOf, forgetCivNames, loadAppEmojis } from './civ-names.js';
 
 const data = {
   edition: 'civ6',
@@ -55,6 +55,14 @@ test('portraits come from the bot emoji by name, and refresh cached names', asyn
   } as unknown as Client;
   await loadAppEmojis(client);
   assert.equal((await civNames('civ6', api, 1)).get('LEADER_SHAKA'), '<:Shaka:9> Shaka');
+});
+
+test('startup names each leader and civ the bot has no emoji for', async () => {
+  const client = { application: { emojis: { fetch: async () => new Map([['9', { id: '9', name: 'Shaka' }]]) } } } as unknown as Client;
+  await loadAppEmojis(client);
+  const civ7 = { ...data, edition: 'civ7', leaders: [{ token: 'LEADER_AUGUSTUS', name: 'Augustus' }], civs: [{ token: 'CIVILIZATION_ROME', name: 'Roman' }] };
+  const api = { getCivData: async (edition: string) => (edition === 'civ7' ? civ7 : data) } as unknown as ApiClient;
+  assert.deepEqual(await checkPortraits(api), ['Augustus', 'Roman']);
 });
 
 test('the edition comes from the match game', () => {

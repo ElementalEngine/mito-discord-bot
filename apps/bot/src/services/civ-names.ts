@@ -57,6 +57,22 @@ export async function civRows(edition: CivEditionKey, api = new ApiClient()): Pr
   return cache.get(edition)?.data ?? api.getCivData(edition);
 }
 
+// Both editions read, and any leader or civ the bot has no emoji for named:
+// it shows without a portrait until an emoji of that name is added.
+export async function checkPortraits(api = new ApiClient()): Promise<string[]> {
+  const editions = await Promise.all(
+    (['civ6', 'civ7'] as const).map(async (edition) => {
+      await civNames(edition, api);
+      return civRows(edition, api);
+    }),
+  );
+  const rows = editions.flatMap((data) => [...data.leaders, ...data.civs]);
+  const missing = rows.map((row) => row.name).filter((name) => !emojis.has(name));
+  if (missing.length) log.warn(`Portraits missing for ${missing.length} of ${rows.length}: ${missing.join(', ')}`);
+  else log.info(`Portraits found for all ${rows.length} leaders and civs`);
+  return missing;
+}
+
 export function editionOf(game: string): CivEditionKey {
   return game.toLowerCase() === 'civ7' ? 'civ7' : 'civ6';
 }
