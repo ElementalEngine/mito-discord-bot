@@ -13,6 +13,7 @@ import {
 
 import { ApiClient } from '../api/index.js';
 import type { Match, SeatEdit } from '../api/types.js';
+import { refreshLeaderboards } from '../jobs/update-leaderboard.js';
 import { syncRankRoles } from '../services/rank-role.service.js';
 import { civNames, editionOf } from '../services/civ-names.js';
 import {
@@ -146,6 +147,7 @@ const posted = new Set<string>();
 
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await api.approve(matchId, { id: interaction.user.id });
+  refreshLeaderboards(interaction.client, match.game);
   editors.close(matchId);
   if (posted.has(matchId)) {
     await say(interaction, 'muted', 'This report is already approved.');

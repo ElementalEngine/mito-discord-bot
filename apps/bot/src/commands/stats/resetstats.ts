@@ -3,6 +3,7 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
 import { config } from '../../config.js';
+import { refreshLeaderboards } from '../../jobs/update-leaderboard.js';
 import { syncRankRoles } from '../../services/rank-role.service.js';
 import { resetPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
@@ -43,6 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (error instanceof ApiError && error.status === 404) refuse(`<@${target.id}> has no ${civVersion} ${mode} stats to reset.`);
     throw error;
   });
+  refreshLeaderboards(interaction.client, civVersion);
   await respond(interaction, resetPanel(before), 'public');
   if (interaction.guild) await syncRankRoles(interaction.guild, before.affected_players, `reset ${target.id}`);
 }

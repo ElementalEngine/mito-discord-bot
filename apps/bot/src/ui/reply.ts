@@ -128,6 +128,15 @@ export async function postPanel(
   return channel.send({ flags: MessageFlags.IsComponentsV2, components: [container(panel)], allowedMentions });
 }
 
+// Plain text, for the leaderboards' fixed-width tables; it never pings.
+export async function postText(channel: SendableChannels, content: string): Promise<Message> {
+  return channel.send({ content, allowedMentions: NO_PINGS });
+}
+
+export async function editText(message: Message, content: string): Promise<Message> {
+  return message.edit({ content, allowedMentions: NO_PINGS });
+}
+
 // An earlier message rewritten as a panel.
 export async function editPanel(message: Message, panel: Panel): Promise<Message> {
   return message.edit(asPanel(panel));

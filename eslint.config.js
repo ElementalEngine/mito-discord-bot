@@ -16,7 +16,6 @@ const KIT_ONLY = [
 const LEGACY_UI = [
   'apps/bot/src/commands/voting/secretvote.ts',
   'apps/bot/src/interactions/secretvote.interactions.ts',
-  'apps/bot/src/jobs/update-leaderboard.ts',
   'apps/bot/src/services/secretvote/runtime/message-ops.service.ts',
   'apps/bot/src/ui/embeds/secretvote.ts',
 ];

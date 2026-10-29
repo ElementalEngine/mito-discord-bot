@@ -1,6 +1,7 @@
 import type { Interaction } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
+import { refreshLeaderboards } from '../jobs/update-leaderboard.js';
 import { notice, parseId } from '../ui/kit/index.js';
 import { SEASON, labelFromId, seasonCancelledPanel, seasonStartedPanel } from '../ui/panels/season.js';
 import { fail, holdPanel, refuse, replacePanel } from '../ui/reply.js';
@@ -29,6 +30,7 @@ export async function handleSeasonInteraction(interaction: Interaction): Promise
     await replacePanel(interaction, notice('muted', 'Starting the new season. This takes a few seconds.'));
     started = true;
     const rolled = await api.startNextSeason(edition === 'civ7' ? 'civ7' : 'civ6', labelFromId(label), interaction.user.id);
+    refreshLeaderboards(interaction.client, rolled.edition);
     await replacePanel(interaction, seasonStartedPanel(rolled));
     await logAction(interaction, 'season-new', { edition, closed: rolled.closed, opened: rolled.opened, backup: rolled.backup });
   } catch (error) {
