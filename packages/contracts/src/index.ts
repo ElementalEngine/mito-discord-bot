@@ -1372,8 +1372,6 @@ export interface components {
             age_pool: string;
             /** Display */
             display?: string | null;
-            /** Emoji Id */
-            emoji_id?: string | null;
             /** Name */
             name: string;
             /** Token */
@@ -1616,8 +1614,6 @@ export interface components {
             civ_display?: string | null;
             /** Display */
             display?: string | null;
-            /** Emoji Id */
-            emoji_id?: string | null;
             /** Name */
             name: string;
             /** Token */

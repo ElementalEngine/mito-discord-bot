@@ -10,7 +10,7 @@ import { civNames, editionOf, forgetCivNames, loadAppEmojis } from './civ-names.
 const data = {
   edition: 'civ6',
   leader_data_version: 3,
-  leaders: [{ token: 'LEADER_SHAKA', name: 'Shaka', display: 'Shaka', emoji_id: null }],
+  leaders: [{ token: 'LEADER_SHAKA', name: 'Shaka', display: 'Shaka' }],
   civs: [],
 } as unknown as CivDataResponse;
 
