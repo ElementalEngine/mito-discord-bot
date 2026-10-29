@@ -29,7 +29,8 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
     sub.addStringOption((o) =>
       o
         .setName('age')
-        .setDescription('Starting age (default: every age)')
+        .setDescription('Starting age, or All')
+        .setRequired(true)
         .addChoices(...AGE_CHOICES),
     );
   }

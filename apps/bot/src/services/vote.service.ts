@@ -40,22 +40,20 @@ function backingOf(question: SettingQuestion, reactions: readonly Reaction[], pl
   return backing;
 }
 
-const bansOf = (reactions: readonly Reaction[], players: ReadonlySet<string>, kind: BanKind, data: CivDataResponse) =>
-  ballotOf(reactions, [...players], kind === 'civ' ? data.civs : data.leaders);
-
 const landed = (vote: Vote, kind: BanKind): number => vote.bans.filter((b) => b.kind === kind).length;
 
-// The ballot from the reactions on each of the vote's messages, by name: per
-// setting not yet won, the players backing each option; per ban, its backers.
+// The ballot from each message's reactions, by name: per setting not yet won,
+// the backers of each option; per ban, from either bans message, its backers.
 function voteBallot(vote: Vote, reactionsOf: (key: string) => readonly Reaction[], questions: readonly SettingQuestion[], data: CivDataResponse) {
   const players = new Set(playersOf(vote));
   const open = questions.filter((q) => !vote.settings.some((s) => s.id === q.id));
-  const bans = banKindsOf(vote).map(([key, kind]) => bansOf(reactionsOf(key), players, kind, data));
+  const banned = banKindsOf(vote).flatMap(([key]) => reactionsOf(key));
+  const bans = ballotOf(banned, [...players], [...data.leaders, ...data.civs]);
   const ballot: VoteBallot = {
     settings: Object.fromEntries(open.map((q) => [q.id, backingOf(q, reactionsOf(q.id), players)])),
-    bans: Object.fromEntries(bans.flatMap((b) => Object.entries(b.ballot.bans))),
+    bans: bans.ballot.bans,
   };
-  return { ballot, unmatched: bans.flatMap((b) => b.unmatched) };
+  return { ballot, unmatched: bans.unmatched };
 }
 
 // The vote posted: status, a message per setting, then bans, each setting's
