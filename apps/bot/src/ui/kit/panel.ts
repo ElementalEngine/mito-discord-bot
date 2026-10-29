@@ -1,12 +1,10 @@
 import {
   ContainerBuilder,
   FileBuilder,
-  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   TextDisplayBuilder,
   type ActionRowBuilder,
-  type ButtonBuilder,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 
@@ -18,14 +16,12 @@ import { SURFACES, TONES, type Surface, type Tone } from './tone.js';
 export type Block =
   | Readonly<{ kind: 'text'; text: string }>
   | Readonly<{ kind: 'divider'; large: boolean }>
-  | Readonly<{ kind: 'aside'; text: string; button: ButtonBuilder }>
   | Readonly<{ kind: 'file'; name: string }>
   | Readonly<{ kind: 'row'; row: ButtonRow }>;
 
 export const text = (body: string): Block => ({ kind: 'text', text: body });
 export const divider = (large = false): Block => ({ kind: 'divider', large });
 export const field = (name: string, value: string): Block => text(`**${name}**\n${value || '\u2014'}`);
-export const aside = (body: string, button: ButtonBuilder): Block => ({ kind: 'aside', text: body, button });
 // An attachment sent with the message, shown where the block sits.
 export const file = (name: string): Block => ({ kind: 'file', name });
 // Buttons or a menu placed among the blocks, rather than at the panel's end.
@@ -68,7 +64,7 @@ export function blocksOf(panel: Panel): Block[] {
 export function componentCount(blocks: readonly Block[], actions: readonly ButtonRow[] = []): number {
   let n = 1;
   for (const block of blocks) {
-    n += block.kind === 'aside' ? 3 : block.kind === 'row' ? 1 + block.row.components.length : 1;
+    n += block.kind === 'row' ? 1 + block.row.components.length : 1;
   }
   for (const row of actions) n += 1 + row.components.length;
   return n;
@@ -117,13 +113,6 @@ export function container(panel: Panel): ContainerBuilder {
           new SeparatorBuilder()
             .setDivider(true)
             .setSpacing(block.large ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small),
-        );
-        break;
-      case 'aside':
-        box.addSectionComponents(
-          new SectionBuilder()
-            .addTextDisplayComponents(new TextDisplayBuilder().setContent(block.text))
-            .setButtonAccessory(block.button),
         );
         break;
       case 'file':

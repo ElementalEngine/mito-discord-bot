@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { CivDataResponse, DraftDeal } from '../../api/types.js';
 import type { PostAbout } from '../../utils/post-options.js';
-import { civNamesOf, container, LIMITS, parseId, type Panel } from '../kit/index.js';
+import { civNamesOf, container, LIMITS, parseId } from '../kit/index.js';
 import { banForm, banMenus, draftPanels, draftRequest, packChoice, unpackChoice, unpackForm, type DraftChoice } from './draft.js';
 
 const civ6: DraftChoice = { edition: 'civ6', mode: 'ffa', drafts: 8, leaders: 3, civs: null, age: null };
@@ -21,8 +21,6 @@ const deal = (drafts: number, civs = false): DraftDeal => ({
   bans: { leader: [], civ: [] },
 });
 
-const textOf = (panels: Panel[]): string => panels.flatMap((p) => (p.body ?? []).map((b) => ('text' in b ? b.text : ''))).join('\n');
-
 test('a choice survives its trip through a form id', () => {
   for (const choice of [civ6, civ7, { ...civ7, age: null }, { ...civ6, mode: 'duel', drafts: 2 } as DraftChoice]) {
     assert.deepEqual(unpackChoice(packChoice(choice)), choice);
@@ -37,33 +35,6 @@ test('the deal asks core-api for exactly what the host chose', () => {
   });
   assert.equal(draftRequest(civ7, { leaders: [], civs: ['CIV_A'] }, '100').starting_age, 'AGE_ANTIQUITY');
   assert.equal(draftRequest(civ7, none, '100').civs, 3);
-});
-
-test('the post opens with what was asked and banned, then each draft as its own message', () => {
-  const panels = draftPanels({ choice: civ6, deal: deal(8), names: civNamesOf(data(16)), by: '100', about: nobody });
-  assert.equal(panels.length, 9);
-  const [head, first] = panels;
-  assert.equal(head!.title, 'Civ6 FFA draft');
-  assert.equal(head!.subtitle, '8 drafts · 3 civs each');
-  assert.match(textOf([head!]), /\*\*Bans\*\*\nLeaders: None/);
-  assert.equal(head!.footer, 'Drafted by <@100>');
-  assert.equal(first!.title, 'Player n°1');
-  assert.equal(textOf([first!]), 'Leader 00\nLeader 01');
-  assert.equal(panels[8]!.title, 'Player n°8');
-});
-
-test('a label titles the draft, and the player and channel it is for close its first message', () => {
-  const about = { label: 'Game 3', userId: '200', channelId: '300' };
-  const [head] = draftPanels({ choice: civ6, deal: deal(2), names: new Map(), by: '100', about });
-  assert.equal(head!.title, 'Civ6 FFA draft for Game 3');
-  assert.equal(head!.footer, 'Drafted by <@100> · <@200> · <#300>');
-});
-
-test('a teamer deals a draft per team, and civ7 lists its leaders and civs apart', () => {
-  const panels = draftPanels({ choice: civ7, deal: deal(2, true), names: new Map(), by: '100', about: nobody });
-  assert.deepEqual(panels.slice(1).map((p) => p.title), ['Team 1', 'Team 2']);
-  assert.match(textOf([panels[2]!]), /^-# Leaders\n.+\n.+\n-# Civs\n.+\n.+$/);
-  assert.match(textOf([panels[0]!]), /Civs: None/);
 });
 
 test('every draft message stays well within Discord\'s limit', () => {

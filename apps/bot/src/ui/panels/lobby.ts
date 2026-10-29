@@ -115,7 +115,7 @@ const voteLinkOf = (lobby: Lobby): string | null => {
 
 function whereItDrafts(lobby: Lobby): Block[] {
   const voteLink = voteLinkOf(lobby);
-  if (lobby.status === 'done' && lobby.vote?.channel_id) return [text(`### Drafted in ${channel(lobby.vote.channel_id)}`)];
+  if (lobby.status === 'done') return [text(`### Drafted in ${channel(lobby.vote?.channel_id ?? lobby.channel_id)}`)];
   if (lobby.phase === 'voting' && voteLink) return [text(`### [Voting on bans](${voteLink})`)];
   if (lobby.phase === 'picking' && voteLink) return [text(`### [Picking blind](${voteLink})`)];
   return [];

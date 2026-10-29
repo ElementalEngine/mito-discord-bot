@@ -74,7 +74,8 @@ async function postLobbyDraft(client: Client, lobby: Lobby, place: SendableChann
 // In the lobby's turn, once all finish or time is up: the bans counted and the
 // draft dealt.
 async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
-  const place = await placeOf(client, lobby);
+  // A vote that never opened drafts in the lobby's own channel.
+  const place = (await placeOf(client, lobby)) ?? (await sendableIn(client, lobby.channel_id));
   const messageId = lobby.vote?.messages[VOTE_STATUS];
   const reactions = place && messageId ? ((await reactionsOn(place, [messageId])).get(messageId) ?? []) : [];
   const { ballot, unmatched } = ballotOf(reactions, lobby.players.map((p) => p.discord_id), (await civRows('civ6', api)).leaders);
