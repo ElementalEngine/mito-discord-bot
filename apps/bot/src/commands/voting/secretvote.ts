@@ -1,19 +1,11 @@
-import {
-  InteractionContextType,
-  MessageFlags,
-  SlashCommandBuilder,
-  type ChatInputCommandInteraction,
-  type GuildMember,
-  type SendableChannels,
-} from 'discord.js';
+import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
 import { config } from '../../config.js';
-import { EMOJI_CONFIRM, EMOJI_ERROR, EMOJI_FAIL } from '../../config/constants.js';
-import { startSecretVote } from '../../services/secretvote/secretvote.service.js';
-import type { SecretVoteAction } from '../../types/secretvote.types.js';
+import { startSecretVote } from '../../handlers/secret-vote.handlers.js';
+import { ACTIONS, type Action } from '../../services/secret-vote.js';
+import { refuse } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { buildVoiceChannelVoters } from '../../utils/voice-channel-voters.js';
-import { log } from '../../utils/log.js';
+import { playersOption, votersOf } from '../../utils/voters.js';
 
 const ACCESS_POLICY = {
   allowedChannelIds: [
@@ -25,170 +17,27 @@ const ACCESS_POLICY = {
   ],
 } as const;
 
-async function replyEphemeral(
-  interaction: ChatInputCommandInteraction,
-  content: string
-): Promise<void> {
-  const base = { content, allowedMentions: { parse: [] as const } } as const;
-  try {
-    if (interaction.deferred) {
-      await interaction.editReply(base);
-      return;
-    }
-
-    const payload = { ...base, flags: MessageFlags.Ephemeral } as const;
-    if (interaction.replied) {
-      await interaction.followUp(payload);
-      return;
-    }
-    await interaction.reply(payload);
-  } catch {
-    // swallow
-  }
-}
-
-async function getMember(
-  interaction: ChatInputCommandInteraction
-): Promise<GuildMember | null> {
-  if (!interaction.inGuild() || !interaction.guild) return null;
-  if (interaction.inCachedGuild()) return interaction.member;
-  try {
-    return await interaction.guild.members.fetch(interaction.user.id);
-  } catch {
-    return null;
-  }
-}
-
-function clampLine(text: string, max: number): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim();
-  if (oneLine.length <= max) return oneLine;
-  return `${oneLine.slice(0, max - 1)}…`;
-}
-
 export const data = new SlashCommandBuilder()
   .setName('secretvote')
-  .setDescription('Start a private YES/NO vote for your voice channel.')
+  .setDescription('A secret YES/NO vote for your voice channel, open for 2 minutes.')
   .setContexts(InteractionContextType.Guild)
-  .addStringOption((opt) =>
-    opt
+  .addStringOption((o) =>
+    o
       .setName('action')
-      .setDescription('Vote type')
+      .setDescription('What is voted on')
       .setRequired(true)
-      .addChoices(
-        { name: 'CC', value: 'CC' },
-        { name: 'Irrel', value: 'Irrel' },
-        { name: 'Remap', value: 'Remap' },
-        { name: 'Scrap', value: 'Scrap' }
-      )
+      .addChoices(...ACTIONS.map((a) => ({ name: a, value: a }))),
   )
-  .addIntegerOption((opt) =>
-    opt
-      .setName('turn')
-      .setDescription('Turn number')
-      .setRequired(true)
-      .setMinValue(1)
-      .setMaxValue(9999)
-  )
-  .addStringOption((opt) =>
-    opt
-      .setName('details')
-      .setDescription('Free-text description (e.g., "cc order: adam, jeff, tim")')
-      .setRequired(true)
-  )
-  .addStringOption((opt) =>
-    opt
-      .setName('mentions')
-      .setDescription('Optional: mention users to add/remove from voters')
-      .setRequired(false)
-  );
+  .addIntegerOption((o) => o.setName('turn').setDescription('The game turn').setRequired(true).setMinValue(1).setMaxValue(9999))
+  .addStringOption((o) => o.setName('details').setDescription('What it is for, such as "CC order: adam, jeff, tim"').setRequired(true).setMaxLength(500))
+  .addStringOption(playersOption);
 
-export async function execute(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  try {
-    if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
-
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-    const member = await getMember(interaction);
-    if (!member) {
-      await replyEphemeral(interaction, `${EMOJI_ERROR} Unable to resolve your member info.`);
-      return;
-    }
-
-    const voiceChannel = member.voice.channel;
-    if (!voiceChannel) {
-      await replyEphemeral(interaction, `${EMOJI_FAIL} Join a voice channel first, then run /secretvote.`);
-      return;
-    }
-
-    const action = interaction.options.getString('action', true) as SecretVoteAction;
-    const turn = interaction.options.getInteger('turn', true);
-    const details = interaction.options.getString('details', true);
-    const mentions = interaction.options.getString('mentions', false);
-
-    if (action === 'Remap' && turn > 10) {
-      await replyEphemeral(
-        interaction,
-        `${EMOJI_FAIL} Remap votes can only be requested on or before **turn 10** (you provided turn **${turn}**).`
-      );
-      return;
-    }
-
-    const guild = interaction.guild;
-    if (!guild) {
-      await replyEphemeral(interaction, `${EMOJI_ERROR} This command must be used in a server.`);
-      return;
-    }
-
-    const { voters } = await buildVoiceChannelVoters(guild, voiceChannel, mentions);
-    if (voters.length < 2) {
-      await replyEphemeral(
-        interaction,
-        `${EMOJI_FAIL} A secret vote requires at least **2** eligible voters.\n` +
-          `Current voters: **${voters.length}** (after voice + mention adjustments).`
-      );
-      return;
-    }
-
-    const channel = interaction.channel;
-    if (!channel || !channel.isTextBased() || !('send' in channel)) {
-      await replyEphemeral(interaction, `${EMOJI_ERROR} I can't post the vote status in this channel.`);
-      return;
-    }
-
-    const res = await startSecretVote({
-      guild,
-      commandChannel: channel as SendableChannels,
-      voiceChannelId: voiceChannel.id,
-      host: interaction.user,
-      action,
-      turn,
-      details,
-      voters,
-    });
-
-    if (!res.ok) {
-      await replyEphemeral(interaction, res.message);
-      return;
-    }
-
-    const summary = [
-      `${EMOJI_CONFIRM} Secret vote started (2 minutes)`,
-      `Action: ${action} • Turn: ${turn}`,
-      `Details: ${clampLine(details, 800)}`,
-      `Started by: <@${interaction.user.id}>`,
-    ].join('\n');
-
-    await replyEphemeral(interaction, summary);
-  } catch (err) {
-    log.error('secretvote failed', {
-      err,
-      guildId: interaction.guildId ?? null,
-      channelId: interaction.channelId,
-      userId: interaction.user.id,
-    });
-
-    await replyEphemeral(interaction, `${EMOJI_ERROR} Secret vote failed due to an unexpected error.`);
-  }
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.inCachedGuild()) refuse('Secret votes are run in a server.');
+  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  const action = interaction.options.getString('action', true) as Action;
+  const turn = interaction.options.getInteger('turn', true);
+  if (action === 'Remap' && turn > 10) refuse(`A remap is voted on by turn 10; this is turn ${turn}.`);
+  const details = interaction.options.getString('details', true);
+  await startSecretVote(interaction, { action, turn, details, hostId: interaction.user.id, ...votersOf(interaction) });
 }

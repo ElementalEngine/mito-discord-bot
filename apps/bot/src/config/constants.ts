@@ -1,15 +1,5 @@
 import type { CivEdition } from './types.js';
 
-// - Discord limits + Helpers
-export const MENTION_ID_REGEX = /<@!?(\d{17,20})>/;
-
-// - Emojis (Unicode only — safe everywhere)
-export const EMOJI_QUESTION = '❓' as const;
-export const EMOJI_CONFIRM = '✅' as const;
-export const EMOJI_ERROR = '⚠️' as const;
-export const EMOJI_FAIL = '‼️' as const;
-export const EMOJI_SECRET_VOTE = '🔎' as const;
-
 // ─ Rank defs 
 export const RANK_DEFS_CIV6 = [
   { name: 'Deity_3_STAR', threshold: 2400, color: '#ff0000' },

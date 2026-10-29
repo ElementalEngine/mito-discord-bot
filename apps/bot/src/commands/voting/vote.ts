@@ -10,10 +10,9 @@ import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, editionLabel, type Age, type Edit
 import { defer, fail, refuse, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
+import { playersOption, votersOf } from '../../utils/voters.js';
 
 const api = new ApiClient();
-const MENTION = /<@!?(\d{17,20})>/g;
-const MAX_VOTERS = 14;
 
 function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
   sub
@@ -35,9 +34,7 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): Slash
     );
   }
   return sub
-    .addStringOption((o) =>
-      o.setName('players').setDescription('Your voice channel is in already. @mention others to add, or to take out, spaced apart').setMaxLength(1000),
-    )
+    .addStringOption(playersOption)
     .addBooleanOption((o) => o.setName('bans').setDescription('True: pick bans in a form first'));
 }
 
@@ -63,22 +60,6 @@ function policyFor(edition: Edition) {
   } as const;
 }
 
-// The voters: the starter's voice channel, bots aside, with each player
-// mentioned added or taken out. A name typed without its mention is refused.
-function votersOf(interaction: ChatInputCommandInteraction<'cached'>): string[] {
-  const voice = interaction.member.voice.channel;
-  if (!voice) refuse('Join a voice channel first: its players are the voters.');
-  const voters = new Set([...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.id));
-  const mentions = interaction.options.getString('players') ?? '';
-  const stray = mentions.replace(MENTION, ' ').replace(/[\s,]+/g, ' ').trim();
-  if (stray) refuse(`Pick each player from the @ list so they show as a mention; "${stray.slice(0, 50)}" is not one.`);
-  for (const id of new Set([...mentions.matchAll(MENTION)].map((m) => m[1]))) {
-    if (id && !voters.delete(id)) voters.add(id);
-  }
-  if (voters.size < 2 || voters.size > MAX_VOTERS) refuse(`A vote takes 2 to ${MAX_VOTERS} players; this one has ${voters.size}.`);
-  return [...voters];
-}
-
 function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: Edition): VoteRequest {
   const age = interaction.options.getString('age');
   return {
@@ -87,7 +68,7 @@ function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: 
     age: edition === 'civ7' && age && age !== EVERY_AGE ? (age as Age) : null,
     guild_id: interaction.guildId,
     channel_id: interaction.channelId,
-    players: votersOf(interaction),
+    players: votersOf(interaction).voters,
     leader_bans: [],
     civ_bans: [],
   };

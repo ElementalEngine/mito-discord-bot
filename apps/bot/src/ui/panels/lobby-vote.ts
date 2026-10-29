@@ -4,7 +4,7 @@ import type { CivDataResponse, Lobby } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { SHAPES, VERB, button, lobbyFooter, row } from './lobby.js';
 
-type Timed = Readonly<{ deadline: string | null; players: Lobby['players'] }>;
+type Timed = Readonly<{ deadline: string | null; players: readonly Readonly<{ discord_id: string }>[] }>;
 
 export const closes = (setup: Timed, done: string): string =>
   `Closes ${setup.deadline ? when(Date.parse(setup.deadline), 'R') : 'soon'}, or once every player has ${done}`;
