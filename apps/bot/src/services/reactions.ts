@@ -1,6 +1,6 @@
 import type { SendableChannels } from 'discord.js';
 
-import type { LobbyBallot } from '../api/types.js';
+import type { LobbyBallot, SettingQuestion } from '../api/types.js';
 import { log } from '../utils/log.js';
 import { inSetupTurn } from './turns.js';
 
@@ -44,6 +44,19 @@ export function ballotOf(reactions: readonly Reaction[], players: readonly strin
     bans[token] = [...new Set([...(bans[token] ?? []), ...backing])];
   }
   return { ballot: { bans }, unmatched };
+}
+
+const plain = (emoji: string): string => emoji.replace(/\uFE0F/g, '');
+
+// The players backing each of a setting's options, by its emoji.
+export function backingOf(question: SettingQuestion, reactions: readonly Reaction[], players: ReadonlySet<string>): Record<string, string[]> {
+  const backing: Record<string, string[]> = {};
+  for (const reaction of reactions) {
+    const option = question.options.find((o) => !reaction.id && plain(o.emoji) === plain(reaction.name ?? ''));
+    const voters = reaction.users.filter((u) => players.has(u));
+    if (option && voters.length) backing[option.id] = [...new Set([...(backing[option.id] ?? []), ...voters])];
+  }
+  return backing;
 }
 
 // What came in on each watched message, by its setup, so a count needs no

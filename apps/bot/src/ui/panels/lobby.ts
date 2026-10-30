@@ -3,7 +3,7 @@ import { ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder } fro
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
 import { channel, customId, field, fit, inBody, mention, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { banFields } from './draft.js';
-import { banLine, draftModeName, draftOutputPanels, settingLines } from './draft-output.js';
+import { PUT_TO_VOTE, VOTE_EMOJI, banLine, draftModeName, draftOutputPanels, settingLines } from './draft-output.js';
 
 // In the order /lobby host offers them.
 export const SHAPES: Readonly<Record<LobbyShape, string>> = {
@@ -115,7 +115,7 @@ const voteLinkOf = (lobby: Lobby): string | null => {
 function whereItDrafts(lobby: Lobby): Block[] {
   const voteLink = voteLinkOf(lobby);
   if (lobby.status === 'done') return [text(`### Drafted in ${channel(lobby.vote?.channel_id ?? lobby.channel_id)}`)];
-  if (lobby.phase === 'voting' && voteLink) return [text(`### [Voting on bans](${voteLink})`)];
+  if (lobby.phase === 'voting' && voteLink) return [text(`### [Voting](${voteLink})`)];
   if (lobby.phase === 'picking' && voteLink) return [text(`### [Picking blind](${voteLink})`)];
   return [];
 }
@@ -134,7 +134,7 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView
       button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
     ),
   ];
-  const countdown = live && lobby.deadline ? [text(`### Full: the bans vote starts ${when(Date.parse(lobby.deadline), 'R')}\n-# Or sooner, when the host presses Start.`)] : [];
+  const countdown = live && lobby.deadline ? [text(`### Full: the vote starts ${when(Date.parse(lobby.deadline), 'R')}\n-# Or sooner, when the host presses Start.`)] : [];
   return {
     tone: open ? 'info' : 'success',
     surface: 'lobby',
@@ -173,7 +173,7 @@ export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[
   return draftOutputPanels(out, names);
 }
 
-const BROWSE: Readonly<Record<string, string>> = { live: '', voting: ' · voting on bans', picking: ' · picking blind' };
+const BROWSE: Readonly<Record<string, string>> = { live: '', voting: ' · voting', picking: ' · picking blind' };
 
 // /lobby browse: every open lobby here, linked to its post.
 export function openLobbiesPanel(lobbies: readonly Lobby[]): Panel {
@@ -270,8 +270,8 @@ function mainView(d: EditorDraft, questions: readonly SettingQuestion[], names: 
   };
 }
 
-// Each setting under its title, its menu showing the draft's choice. A pick
-// is kept without redrawing, so quick picks never race a redraw.
+// Each setting under its title, its menu showing the draft's choice, with
+// Put to vote first. A pick is kept without redrawing, so quick picks never race a redraw.
 function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Panel {
   const menus = questions.flatMap((q) => [
     text(`**${q.title}**`),
@@ -279,14 +279,17 @@ function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Pa
       new StringSelectMenuBuilder()
         .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
         .setPlaceholder('Choose\u2026')
-        .addOptions(q.options.map((o) => ({ label: fit(o.label, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
+        .addOptions(
+          { label: 'Put to vote', value: PUT_TO_VOTE, description: 'The players vote on it with the bans', default: d.settings[q.id] === PUT_TO_VOTE, emoji: { name: VOTE_EMOJI } },
+          ...q.options.map((o) => ({ label: fit(o.label, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } })),
+        ),
     ),
   ]);
   return {
     tone: 'info',
     surface: 'lobby',
     title: 'Game settings',
-    subtitle: 'Each pick is kept as you make it. Press Back when done; every setting must be set to open the lobby.',
+    subtitle: 'Each pick is kept as you make it. Put to vote leaves a setting to the players, voted on with the bans. Press Back when done.',
     body: menus,
     actions: [row(button(d.lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
   };

@@ -519,7 +519,7 @@ export interface paths {
         /**
          * Count Ballot
          * @description The votes so far, sent by the bot as the host while the players vote: a
-         *     leader reaching a majority is banned at once and stays banned.
+         *     leader or a setting option reaching a majority wins at once and stays won.
          */
         post: operations["count_ballot_api_v2_match_setups_lobbies__lobby_id__ballot_post"];
         delete?: never;
@@ -695,8 +695,8 @@ export interface paths {
         put?: never;
         /**
          * Tally Vote
-         * @description Count the bans and deal the draft. The bot counts, acting as the host,
-         *     once all finish or the time is up.
+         * @description Settle the settings put to the vote, count the bans and deal the draft.
+         *     The bot counts, acting as the host, once all finish or the time is up.
          */
         post: operations["tally_vote_api_v2_match_setups_lobbies__lobby_id__tally_post"];
         delete?: never;
@@ -1698,12 +1698,19 @@ export interface components {
         };
         /**
          * LobbyBallot
-         * @description The players' reactions: per leader, the players banning it.
+         * @description The players' reactions: per setting put to the vote, the players backing
+         *     each option; per leader, the players banning it.
          */
         LobbyBallot: {
             /** Bans */
             bans: {
                 [key: string]: string[];
+            };
+            /** Settings */
+            settings?: {
+                [key: string]: {
+                    [key: string]: string[];
+                };
             };
         };
         /**
@@ -2552,8 +2559,8 @@ export interface components {
         };
         /**
          * VotePlace
-         * @description Where the bans vote, then the blind picks, are posted: the channel and
-         *     the one message.
+         * @description Where the bans vote, then the blind picks, are posted: the channel, the
+         *     status message, and one message per setting put to the vote.
          */
         VotePlace: {
             /** Channel Id */

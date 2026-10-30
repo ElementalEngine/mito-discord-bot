@@ -17,6 +17,7 @@ import {
   withShape,
   withView,
 } from './lobby.js';
+import { bansVotePanel, votedOn } from './lobby-vote.js';
 
 const LINK = 'steam://joinlobby/289070/109775241000000000/76561198000000000';
 const REDIRECT = 'https://dev-lobbylink.elementalengine.net';
@@ -84,7 +85,7 @@ test("a live lobby pings the LFG role until full, then counts down to its vote; 
   assert.match(open, /\*\*From the host\*\*\nno novices/);
   assert.doesNotMatch(open, /Full: the bans vote/);
   const full = textOf(lobbyPanel(view(lobby({ deadline: '2026-10-27T12:10:00Z' }), '77')));
-  assert.match(full, /### Full: the bans vote starts <t:1793103000:R>\n-# Or sooner, when the host presses Start\./);
+  assert.match(full, /### Full: the vote starts <t:1793103000:R>\n-# Or sooner, when the host presses Start\./);
   assert.doesNotMatch(full, /<@&77>|From the host/);
 });
 
@@ -126,4 +127,27 @@ test('every lobby panel fits Discord, and the ban form ticks the draft’s bans'
   assert.equal(form.components.length, 4);
   const ticked = form.components.flatMap((c) => (c as unknown as { component: { options: { value: string; default?: boolean }[] } }).component.options.filter((o) => o.default).map((o) => o.value));
   assert.deepEqual(ticked, ['LEADER_3']);
+});
+
+test('every setting can be put to the vote, and the lobby says which are', () => {
+  const settings = withView(withSetting(draftOf(lobby({ phase: 'setup' })), 'map', 'vote'), 'settings');
+  const [huts, map] = componentsOf(editorPanel(settings, CTX)).filter((c) => c.custom_id.includes(':setting:'));
+  assert.deepEqual(huts?.options?.map((o) => o.value), ['vote', 'x1', 'x1_5']);
+  assert.equal(map?.options?.find((o) => o.default)?.value, 'vote');
+  const voting = lobby({ draft_mode: 'vote', settings: [{ id: 'huts', value: 'x1', by: 'host' }, { id: 'map', value: 'vote', by: 'default' }] });
+  const post = lobbyPanel(view(voting));
+  assert.match(textOf(post), /Map: put to the vote/);
+  assert.match(post.subtitle ?? '', /Draft mode put to the vote/);
+});
+
+test('the vote names the settings put to it and shows each one won', () => {
+  const asked = lobby({ phase: 'voting', settings: [{ id: 'huts', value: 'vote', by: 'host' }, { id: 'map', value: 'vote', by: 'default' }] });
+  const open = bansVotePanel(asked, NAMES, QUESTIONS);
+  assert.match(open.title ?? '', /^Vote: /);
+  assert.match(textOf(open), /Settings put to the vote.*2 of the 2 players wins at once/s);
+  assert.deepEqual(votedOn(asked, QUESTIONS).map((q) => q.id), ['huts', 'map']);
+  const won = lobby({ ...asked, settings: [{ id: 'huts', value: 'x1_5', by: 'vote' }, { id: 'map', value: 'vote', by: 'default' }] });
+  assert.match(textOf(bansVotePanel(won, NAMES, QUESTIONS)), /\*\*Won\*\*\n2️⃣ Huts: 1\.5x/);
+  assert.deepEqual(votedOn(won, QUESTIONS).map((q) => q.id), ['map']);
+  assert.match(bansVotePanel(lobby({ phase: 'voting' }), NAMES, QUESTIONS).title ?? '', /^Bans vote: /);
 });

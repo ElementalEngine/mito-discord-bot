@@ -1,7 +1,8 @@
 import { ButtonStyle, StringSelectMenuBuilder, type ButtonBuilder } from 'discord.js';
 
-import type { CivDataResponse, Lobby } from '../../api/types.js';
+import type { CivDataResponse, Lobby, SettingQuestion } from '../../api/types.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
+import { PUT_TO_VOTE, settingLines } from './draft-output.js';
 import { SHAPES, VERB, button, lobbyFooter } from './lobby.js';
 
 type Timed = Readonly<{ deadline: string | null; players: readonly Readonly<{ discord_id: string }>[] }>;
@@ -39,16 +40,31 @@ export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, 
   };
 }
 
-// The bans vote, one message: what to do, the bans so far, who has finished,
-// and the button to finish. Players react on it.
-export function bansVotePanel(lobby: Lobby, names: CivNames): Panel {
+// The settings the host put to the vote that the players have yet to settle.
+export const votedOn = (lobby: Lobby, questions: readonly SettingQuestion[]): SettingQuestion[] =>
+  questions.filter((q) => lobby.settings.some((s) => s.id === q.id && s.value === PUT_TO_VOTE));
+
+// The vote's status message: the settings put to the vote and those won, the
+// extra bans, who has finished, and the button to finish. Bans are reactions on it.
+export function bansVotePanel(lobby: Lobby, names: CivNames, questions: readonly SettingQuestion[]): Panel {
   const [hosts, voted] = [bannedBy(lobby.bans, names, 'host'), bannedBy(lobby.bans, names, 'vote')];
+  const asked = questions.filter((q) => lobby.settings.some((s) => s.id === q.id && (s.value === PUT_TO_VOTE || s.by === 'vote')));
+  const won = asked.filter((q) => !votedOn(lobby, questions).includes(q));
+  const settings = asked.length
+    ? [
+        text(
+          `### Settings put to the vote\nReact on each setting below. An option backed by ${majority(lobby)} of the ${lobby.players.length} players wins at once; the rest go to the most reactions when the vote closes.`,
+        ),
+        ...(won.length ? [field('Won', settingLines(Object.fromEntries(lobby.settings.map((s) => [s.id, s.value])), won))] : []),
+      ]
+    : [];
   return {
     tone: 'info',
     surface: 'vote',
-    title: `Bans vote: Civ6 ${SHAPES[lobby.shape]} lobby`,
+    title: `${asked.length ? 'Vote' : 'Bans vote'}: Civ6 ${SHAPES[lobby.shape]} lobby`,
     subtitle: closes(lobby, 'finished'),
     body: [
+      ...settings,
       text(
         `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${majority(lobby)} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**.`,
       ),

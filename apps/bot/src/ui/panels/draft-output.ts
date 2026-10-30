@@ -4,12 +4,20 @@ import { pickLines } from './draft.js';
 
 const DRAFT_MODES: Readonly<Record<string, string>> = { standard: 'Standard', random: 'Random', blind: 'Blind' };
 
-export const draftModeName = (mode: string | null): string => (mode ? `${DRAFT_MODES[mode] ?? mode} draft` : 'Draft not set');
+// A lobby setting its host leaves to the players, settled with the bans vote.
+export const PUT_TO_VOTE = 'vote';
+export const VOTE_EMOJI = '\u{1F5F3}\uFE0F';
+
+export function draftModeName(mode: string | null): string {
+  if (mode === PUT_TO_VOTE) return 'Draft mode put to the vote';
+  return mode ? `${DRAFT_MODES[mode] ?? mode} draft` : 'Draft not set';
+}
 
 // Each setting with its option's emoji, as chosen; one not chosen yet says so.
 export function settingLines(chosen: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): string {
   return questions
     .map((q) => {
+      if (chosen[q.id] === PUT_TO_VOTE) return `${VOTE_EMOJI} ${q.title}: put to the vote`;
       const option = q.options.find((o) => o.id === chosen[q.id]);
       return option ? `${option.emoji} ${q.title}: ${option.label}` : `⬜ ${q.title}: not set`;
     })

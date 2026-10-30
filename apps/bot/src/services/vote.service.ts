@@ -10,7 +10,7 @@ import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
 import { lobbySettings } from './lobby.service.js';
-import { BAN_HINT, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
+import { BAN_HINT, backingOf, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
 import { closeMessages, recorded, sendableIn } from './setup.js';
 
 type BanKind = 'leader' | 'civ';
@@ -19,7 +19,6 @@ const starterOf = (vote: Vote) => ({ id: vote.host_id });
 const playersOf = (vote: Vote): string[] => vote.players.map((p) => p.discord_id);
 const questionsOf = (vote: Vote, api: ApiClient): Promise<readonly SettingQuestion[]> => lobbySettings(vote.mode, api, vote.edition);
 const banKindsOf = (vote: Vote): [string, BanKind][] => (vote.edition === 'civ7' ? [[LEADER_BANS, 'leader'], [CIV_BANS, 'civ']] : [[LEADER_BANS, 'leader']]);
-const plain = (emoji: string): string => emoji.replace(/\uFE0F/g, '');
 
 // Where the vote runs: where its messages were recorded, else where it started.
 const placeOf = (client: Client, vote: Vote): Promise<SendableChannels | null> => sendableIn(client, vote.vote.channel_id ?? vote.channel_id);
@@ -27,17 +26,6 @@ const placeOf = (client: Client, vote: Vote): Promise<SendableChannels | null> =
 // The vote moved on at its deadline, if it has one; any older timer dropped.
 function keepVoteTime(client: Client, vote: Vote, api: ApiClient): void {
   keepDeadline(vote.id, vote.status === 'open' ? vote.deadline : null, () => advanceVote(client, vote.id, api));
-}
-
-// The players backing each of a setting's options, by its emoji.
-function backingOf(question: SettingQuestion, reactions: readonly Reaction[], players: ReadonlySet<string>): Record<string, string[]> {
-  const backing: Record<string, string[]> = {};
-  for (const reaction of reactions) {
-    const option = question.options.find((o) => !reaction.id && plain(o.emoji) === plain(reaction.name ?? ''));
-    const voters = reaction.users.filter((u) => players.has(u));
-    if (option && voters.length) backing[option.id] = [...new Set([...(backing[option.id] ?? []), ...voters])];
-  }
-  return backing;
 }
 
 const landed = (vote: Vote, kind: BanKind): number => vote.bans.filter((b) => b.kind === kind).length;

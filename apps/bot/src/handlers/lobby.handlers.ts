@@ -234,7 +234,8 @@ async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Pr
   await holdPanel(interaction);
   await inSetupTurn(lobbyId, async () => {
     const lobby = await api.finishVote(lobbyId, actorOf(interaction));
-    await replacePanel(interaction, bansVotePanel(lobby, await civNames('civ6', api)));
+    const [names, questions] = await Promise.all([civNames('civ6', api), lobbySettings(lobby.mode, api)]);
+    await replacePanel(interaction, bansVotePanel(lobby, names, questions));
     if (allFinished(lobby)) await advanceLobby(interaction.client, lobbyId, api, true);
   });
 }
