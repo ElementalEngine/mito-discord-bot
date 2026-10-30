@@ -3,17 +3,17 @@ import { ModalBuilder, type ButtonInteraction, type ChatInputCommandInteraction,
 import { ApiClient } from '../api/index.js';
 import type { Vote, VoteRequest } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
-import { inLobbyTurn, lobbySettings } from '../services/lobby.service.js';
+import { lobbySettings } from '../services/lobby.service.js';
+import { inSetupTurn } from '../services/turns.js';
 import { allFinished, allPicked, pickingBy } from '../services/setup.js';
 import { advanceVote, postVote, showBlindVoteStatus } from '../services/vote.service.js';
 import { customId, parseId } from '../ui/kit/index.js';
-import { banFieldIds, banFields } from '../ui/panels/draft.js';
+import { BAN_FORM, banFieldIds, banFields } from '../ui/panels/draft.js';
 import { VOTE_VERB, voteBlindPickPanel, voteStatusPanel } from '../ui/panels/vote.js';
 import { defer, fail, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { selectedIn } from '../utils/modal-fields.js';
 
 const api = new ApiClient();
-const BAN_FORM = 'bans';
 const FORM_MS = 10 * 60_000;
 
 // A vote waiting on its starter's bans form, by the command that opened it.
@@ -37,7 +37,7 @@ export async function startVote(interaction: ChatInputCommandInteraction | Modal
   const place = interaction.channel;
   if (!place?.isSendable()) refuse('The vote cannot be posted in this channel.');
   const vote = await api.startVote(request, actorOf(interaction));
-  await inLobbyTurn(vote.id, () => postVote(interaction.client, vote, place, api));
+  await inSetupTurn(vote.id, () => postVote(interaction.client, vote, place, api));
   await say(interaction, 'success', `The vote is open below, for ${vote.players.length} players. Its code is ${vote.code}.`);
 }
 
@@ -67,7 +67,7 @@ async function submitBans(interaction: ModalSubmitInteraction, key: string): Pro
 // A player is done voting; once every player is, the vote is counted.
 async function finishVoting(interaction: ButtonInteraction, voteId: string): Promise<void> {
   await holdPanel(interaction);
-  await inLobbyTurn(voteId, async () => {
+  await inSetupTurn(voteId, async () => {
     const vote = await api.finishVoting(voteId, actorOf(interaction));
     await replacePanel(interaction, voteStatusPanel(vote, await lobbySettings(vote.mode, api, vote.edition)));
     if (allFinished(vote)) await advanceVote(interaction.client, voteId, api, true);
@@ -93,7 +93,7 @@ async function choose(interaction: StringSelectMenuInteraction, voteId: string, 
 // The pick locked in; once every player has, the picks are revealed.
 async function lockIn(interaction: ButtonInteraction, voteId: string, leader: string, civ: string | undefined): Promise<void> {
   await holdPanel(interaction);
-  await inLobbyTurn(voteId, async () => {
+  await inSetupTurn(voteId, async () => {
     const vote = await api.pickInVote(voteId, actorOf(interaction), leader, civ ?? null);
     await replacePanel(interaction, voteBlindPickPanel(vote, interaction.user.id, await civNames(vote.edition, api)));
     await showBlindVoteStatus(interaction.client, vote, api);

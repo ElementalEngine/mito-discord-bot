@@ -4,7 +4,7 @@ import { rollPanel } from '../../ui/panels/misc.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { drawDistinct } from '../../utils/draw.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { POST_POLICY, postAboutOf, tagPing, withPostOptions } from '../../utils/post-options.js';
+import { postAboutOf, tagPing, withPostOptions } from '../../utils/post-options.js';
 
 const MAX = 100;
 
@@ -18,7 +18,7 @@ export const data = withPostOptions(
 );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, POST_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const count = interaction.options.getInteger('count', true);
   const max = interaction.options.getInteger('max') ?? count;
   if (count > max) refuse(`Cannot draw ${count} different numbers from 1 to ${max}. Raise max or lower count.`);

@@ -44,13 +44,14 @@ test('staff is asserted only when the actor is staff', async () => {
   assert.equal(calls[1]?.headers.get('x-actor-is-staff'), null);
 });
 
-test('a contest carries its reason; a revert carries nothing', async () => {
+test('a contest carries its reason; a revert carries who reverted', async () => {
   const { client, calls } = recorder();
   await client.contest(ID, 'wrong order', { id: '9' });
-  await client.revert(ID);
+  await client.revert(ID, { id: '7', isStaff: true });
   assert.equal(calls[0]?.url, `http://core/api/v2/matches/${ID}/contest`);
   assert.deepEqual(JSON.parse(String(calls[0]?.body)), { reason: 'wrong order' });
   assert.equal(calls[1]?.url, `http://core/api/v2/matches/${ID}/revert`);
+  assert.equal(calls[1]?.headers.get('x-actor-discord-id'), '7');
   assert.equal(calls[1]?.body, undefined);
 });
 

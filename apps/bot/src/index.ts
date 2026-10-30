@@ -9,7 +9,6 @@ async function main(): Promise<void> {
     await initClient();
 
     await client.login(config.discord.token);
-    log.info(`✅ Discord client ready as ${client.user?.tag ?? 'Unknown'}`);
   } catch (error) {
     log.error('Fatal error starting app:', error);
     process.exit(1);

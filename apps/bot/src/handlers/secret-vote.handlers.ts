@@ -1,7 +1,7 @@
 import type { ButtonInteraction, ChatInputCommandInteraction, Interaction } from 'discord.js';
 
 import { dropDeadline, keepDeadline } from '../services/deadlines.js';
-import { inLobbyTurn } from '../services/lobby.service.js';
+import { inSetupTurn } from '../services/turns.js';
 import { castIn, closeSecretVote, isOpen, openSecretVote, type Choice, type SecretVote } from '../services/secret-vote.js';
 import { parseId } from '../ui/kit/index.js';
 import { secretResultPanel, secretVotePanel } from '../ui/panels/secret-vote.js';
@@ -35,7 +35,7 @@ async function close(id: string): Promise<void> {
 function redraw(vote: SecretVote): void {
   if (queued.has(vote.id)) return;
   queued.add(vote.id);
-  void inLobbyTurn(vote.id, async () => {
+  void inSetupTurn(vote.id, async () => {
     queued.delete(vote.id);
     if (isOpen(vote.id) && !allIn(vote)) await replacePanel(vote.reply, secretVotePanel(vote));
   }).catch((error: unknown) => log.warn('secret vote not redrawn', vote.id, error));
@@ -45,7 +45,7 @@ function redraw(vote: SecretVote): void {
 async function cast(interaction: ButtonInteraction, id: string, choice: Choice): Promise<void> {
   const vote = castIn(id, interaction.user.id, choice);
   await say(interaction, 'success', `You voted ${choice.toUpperCase()}. Only you can see this.`);
-  if (allIn(vote)) await inLobbyTurn(id, () => close(id));
+  if (allIn(vote)) await inSetupTurn(id, () => close(id));
   else redraw(vote);
 }
 

@@ -98,7 +98,7 @@ const discord = {
     // Pinged when a lobby asks for players.
     civ6Lfg: env('ROLE_CIV6_LFG'),
   },
-  
+
   rankRoles,
 };
 

@@ -1,5 +1,5 @@
 import { log } from '../utils/log.js';
-import { inLobbyTurn } from './lobby.service.js';
+import { inSetupTurn } from './turns.js';
 
 // Each open lobby's or vote's deadline. After a restart the upkeep job keeps it.
 const timers = new Map<string, NodeJS.Timeout>();
@@ -15,7 +15,7 @@ export function keepDeadline(id: string, deadline: string | null, advance: () =>
   if (!deadline) return;
   const ms = Math.max(0, Date.parse(deadline) - Date.now() || 0);
   const timer = setTimeout(() => {
-    void inLobbyTurn(id, advance).catch((error: unknown) => log.error('not moved on at its deadline', id, error));
+    void inSetupTurn(id, advance).catch((error: unknown) => log.error('not moved on at its deadline', id, error));
   }, ms);
   timer.unref();
   timers.set(id, timer);

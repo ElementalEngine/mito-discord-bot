@@ -1,8 +1,7 @@
 import { ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import { resultOf, ruleOf, type Choice, type SecretVote } from '../../services/secret-vote.js';
-import { customId, field, mention, type Block, type Panel } from '../kit/index.js';
-import { row } from './lobby.js';
+import { customId, field, mention, row, type Block, type Panel } from '../kit/index.js';
 import { closes, ticks } from './lobby-vote.js';
 
 const CC_VETO = 'Anyone using a veto DMs the host in game chat within 2 minutes; with no veto, the CC passes.';

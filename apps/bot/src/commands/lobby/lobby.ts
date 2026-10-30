@@ -5,7 +5,8 @@ import type { LobbyShape } from '../../api/types.js';
 import { config } from '../../config.js';
 import { openEditor } from '../../handlers/lobby.handlers.js';
 import { closeVote } from '../../services/lobby-vote.service.js';
-import { inLobbyTurn, showLobby } from '../../services/lobby.service.js';
+import { showLobby } from '../../services/lobby.service.js';
+import { inSetupTurn } from '../../services/turns.js';
 import { SHAPES, lobbyLinkOf, openLobbiesPanel } from '../../ui/panels/lobby.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
@@ -43,8 +44,7 @@ export const data = new SlashCommandBuilder()
 
 // The lobby opens in setup, seen only by its host in their editor.
 async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
-  const policy = { allowedChannelIds: [config.discord.channels.civ6LobbyLinks], requiredRoleIds: [config.discord.roles.civ6Rank], allowDeveloperOverride: true };
-  if (!(await ensureCommandAccess(interaction, policy))) return;
+  if (!(await ensureCommandAccess(interaction, [config.discord.channels.civ6LobbyLinks]))) return;
   const steamLink = interaction.options.getString('steam-link')?.trim() || null;
   if (steamLink && !lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
     refuse('That is not a Civ6 lobby link. Paste the steam://joinlobby/289070/... link of your lobby, or leave it out.');
@@ -88,7 +88,7 @@ async function cancel(interaction: ChatInputCommandInteraction<'cached' | 'raw'>
   await defer(interaction, 'private');
   const code = interaction.options.getString('code', true);
   const cancelled = await api.cancelLobby(interaction.guildId, code, { id: interaction.user.id, isStaff: isStaff(interaction) });
-  await inLobbyTurn(cancelled.id, async () => {
+  await inSetupTurn(cancelled.id, async () => {
     const now = await api.lobby(cancelled.id);
     await showLobby(interaction.client, now, api);
     await closeVote(interaction.client, now);

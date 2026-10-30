@@ -13,5 +13,7 @@ export const editionOption = (opt: SlashCommandStringOption): SlashCommandString
 // civ6 reads as Civ6.
 export const editionName = (civVersion: string): string => civVersion.replace(/^civ/i, 'Civ');
 
-export const editionOf = (interaction: ChatInputCommandInteraction): CivVersion =>
-  interaction.options.getString('edition', true) === 'civ7' ? 'civ7' : 'civ6';
+// CIV7 and civ7 are civ7; anything else is civ6.
+export const versionOf = (game: string): CivVersion => (game.toLowerCase() === 'civ7' ? 'civ7' : 'civ6');
+
+export const editionOf = (interaction: ChatInputCommandInteraction): CivVersion => versionOf(interaction.options.getString('edition', true));

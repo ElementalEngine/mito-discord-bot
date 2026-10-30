@@ -1,21 +1,5 @@
 import { ChannelType, type ChatInputCommandInteraction, type MessageMentionOptions, type SharedSlashCommandOptions } from 'discord.js';
 
-import { config } from '../config.js';
-
-// /roll and /mapseed post where players set up a game.
-export const POST_POLICY = {
-  allowedChannelIds: [
-    config.discord.channels.botTesting,
-    config.discord.channels.civ6Commands,
-    config.discord.channels.civ7Commands,
-    config.discord.channels.cloudCommands,
-    config.discord.channels.civ6ffaVote,
-    config.discord.channels.civ6teamerVote,
-  ],
-  requiredRoleIds: [config.discord.roles.civ6Rank, config.discord.roles.civ7Rank, config.discord.roles.civCloud],
-  allowDeveloperOverride: true,
-} as const;
-
 export type PostAbout = Readonly<{ label: string; userId: string | null; channelId: string | null }>;
 
 export const LABEL_MAX = 120;

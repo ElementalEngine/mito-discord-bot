@@ -4,7 +4,7 @@ import type { ApiClient } from '../api/index.js';
 import type { Lobby } from '../api/types.js';
 import { config } from '../config.js';
 import { VOTE_STATUS, lobbyDraftPanels } from '../ui/panels/lobby.js';
-import { blindStatusPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
+import { blindStatusPanel, bansVotePanel } from '../ui/panels/lobby-vote.js';
 import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
@@ -39,7 +39,7 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
   try {
     const place = await votingChannel(client, lobby);
     const pings = { users: lobby.players.map((p) => p.discord_id) };
-    const posted = await postPanel(place, voteStatusPanel(lobby, await civNames('civ6', api)), pings);
+    const posted = await postPanel(place, bansVotePanel(lobby, await civNames('civ6', api)), pings);
     placed = await recorded(posted, () => placeMessage(lobby, place, posted, api));
     watchVoteBans(client, placed, posted.id, api);
     void posted.react(BAN_HINT).catch(() => undefined);
@@ -61,7 +61,7 @@ function watchVoteBans(client: Client, lobby: Lobby, messageId: string, api: Api
     if (counted.bans.length === landed) return;
     landed = counted.bans.length;
     const place = await placeOf(client, counted);
-    if (place) await editPanelById(place, messageId, voteStatusPanel(counted, await civNames('civ6', api)));
+    if (place) await editPanelById(place, messageId, bansVotePanel(counted, await civNames('civ6', api)));
   });
 }
 

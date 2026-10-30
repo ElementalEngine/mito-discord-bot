@@ -6,20 +6,23 @@ import {
 } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
+import type { CivVersion } from '../../api/types.js';
 import { config } from '../../config.js';
+import type { Mode } from '../../config/constants.js';
 import { civNames, civRows } from '../../services/civ-names.js';
 import { postDraft } from '../../services/draft.service.js';
-import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, banForm, type Age, type DraftChoice, type Edition, type Mode } from '../../ui/panels/draft.js';
+import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, banForm, type Age, type DraftChoice } from '../../ui/panels/draft.js';
 import { defer, fail, refuse } from '../../ui/reply.js';
+import { versionOf } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { postAboutOf, withPostOptions } from '../../utils/post-options.js';
 
 const api = new ApiClient();
-const MAX_DRAFTS: Readonly<Record<Edition, number>> = { civ6: 14, civ7: 10 };
+const MAX_DRAFTS: Readonly<Record<CivVersion, number>> = { civ6: 14, civ7: 10 };
 
 // A quick draft: the counts, whether to ban first, and what it is for.
 // Settings and seats belong to a hosted game.
-function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
+function subcommand(sub: SlashCommandSubcommandBuilder, edition: CivVersion): SlashCommandSubcommandBuilder {
   sub
     .setName(edition)
     .setDescription(edition === 'civ6' ? 'Deal Civ6 drafts.' : 'Deal Civ7 drafts of leaders and civs.')
@@ -62,16 +65,12 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) => subcommand(sub, 'civ6'))
   .addSubcommand((sub) => subcommand(sub, 'civ7'));
 
-function policyFor(edition: Edition) {
+function channelsFor(edition: CivVersion): string[] {
   const c = config.discord.channels;
-  return {
-    allowedChannelIds: edition === 'civ6' ? [c.botTesting, c.civ6Commands, c.noviceCommands, c.cloudCommands] : [c.botTesting, c.civ7Commands],
-    requiredRoleIds: [config.discord.roles.civ6Rank, config.discord.roles.civ7Rank, config.discord.roles.civCloud],
-    allowDeveloperOverride: true,
-  } as const;
+  return edition === 'civ6' ? [c.botTesting, c.civ6Commands, c.noviceCommands, c.cloudCommands] : [c.botTesting, c.civ7Commands];
 }
 
-function choiceOf(interaction: ChatInputCommandInteraction, edition: Edition): DraftChoice {
+function choiceOf(interaction: ChatInputCommandInteraction, edition: CivVersion): DraftChoice {
   const o = interaction.options;
   const age = edition === 'civ7' ? o.getString('age', true) : EVERY_AGE;
   return {
@@ -88,8 +87,8 @@ function choiceOf(interaction: ChatInputCommandInteraction, edition: Edition): D
 // a form must be the command's first answer, so nothing is deferred before it.
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const edition: Edition = interaction.options.getSubcommand(true) === 'civ7' ? 'civ7' : 'civ6';
-    if (!(await ensureCommandAccess(interaction, policyFor(edition)))) return;
+    const edition = versionOf(interaction.options.getSubcommand(true));
+    if (!(await ensureCommandAccess(interaction, channelsFor(edition)))) return;
     const choice = choiceOf(interaction, edition);
     if (choice.mode === 'duel' && choice.drafts !== 2) refuse('A duel is two drafts. Set drafts to 2.');
     const about = postAboutOf(interaction);

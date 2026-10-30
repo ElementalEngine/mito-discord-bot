@@ -6,7 +6,6 @@ import { roomPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
 
@@ -19,7 +18,7 @@ export const data = new SlashCommandBuilder()
 export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const civVersion = editionOf(interaction);
   if (!(interaction.member instanceof GuildMember) || !interaction.guild) refuse('Run /roomranks in the server, not in a DM.');
   const voice = interaction.member.voice.channel;

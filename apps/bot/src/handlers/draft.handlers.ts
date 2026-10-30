@@ -13,10 +13,11 @@ const api = new ApiClient();
 // The ban form's answer: its id carries the draft and who and where it is
 // for, its fields the bans and the label.
 export async function handleDraftInteraction(interaction: Interaction): Promise<boolean> {
-  if (!interaction.isModalSubmit() || !interaction.customId.startsWith('draft:')) return false;
+  if (!interaction.isModalSubmit()) return false;
+  const id = parseId(interaction.customId);
+  if (id?.surface !== 'draft') return false;
   try {
-    const id = parseId(interaction.customId);
-    const form = id?.verb === BAN_FORM ? unpackForm(id.args, typedIn(interaction, LABEL_FIELD)) : null;
+    const form = id.verb === BAN_FORM ? unpackForm(id.args, typedIn(interaction, LABEL_FIELD)) : null;
     if (!form) refuse('This form is out of date. Run /draft again.');
     const { choice, about } = form;
     await defer(interaction, 'public');

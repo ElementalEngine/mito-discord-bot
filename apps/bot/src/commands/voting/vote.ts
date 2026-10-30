@@ -1,23 +1,25 @@
 import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction, type SlashCommandSubcommandBuilder } from 'discord.js';
 
 import { ApiClient } from '../../api/index.js';
-import type { VoteRequest } from '../../api/types.js';
+import type { CivVersion, VoteRequest } from '../../api/types.js';
 import { config } from '../../config.js';
+import type { Mode } from '../../config/constants.js';
 import { openBansForm, startVote } from '../../handlers/vote.handlers.js';
-import { inLobbyTurn } from '../../services/lobby.service.js';
+import { inSetupTurn } from '../../services/turns.js';
 import { closeVoteMessages } from '../../services/vote.service.js';
-import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, editionLabel, type Age, type Edition, type Mode } from '../../ui/panels/draft.js';
+import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, type Age } from '../../ui/panels/draft.js';
 import { defer, fail, refuse, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
+import { editionName, versionOf } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { playersOption, votersOf } from '../../utils/voters.js';
 
 const api = new ApiClient();
 
-function subcommand(sub: SlashCommandSubcommandBuilder, edition: Edition): SlashCommandSubcommandBuilder {
+function subcommand(sub: SlashCommandSubcommandBuilder, edition: CivVersion): SlashCommandSubcommandBuilder {
   sub
     .setName(edition)
-    .setDescription(`Vote on a ${editionLabel(edition)} game's settings, draft mode and bans with your voice channel.`)
+    .setDescription(`Vote on a ${editionName(edition)} game's settings, draft mode and bans with your voice channel.`)
     .addStringOption((o) =>
       o
         .setName('mode')
@@ -52,16 +54,12 @@ export const data = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('code').setDescription("The vote's code").setRequired(true).setMaxLength(8)),
   );
 
-function policyFor(edition: Edition) {
+function channelsFor(edition: CivVersion): string[] {
   const c = config.discord.channels;
-  return {
-    allowedChannelIds: edition === 'civ6' ? [c.botTesting, c.civ6ffaVote, c.civ6teamerVote] : [c.botTesting, c.civ7ffaVote, c.civ7teamerVote],
-    requiredRoleIds: [config.discord.roles.civ6Rank, config.discord.roles.civ7Rank, config.discord.roles.civCloud],
-    allowDeveloperOverride: true,
-  } as const;
+  return edition === 'civ6' ? [c.botTesting, c.civ6ffaVote, c.civ6teamerVote] : [c.botTesting, c.civ7ffaVote, c.civ7teamerVote];
 }
 
-function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: Edition): VoteRequest {
+function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: CivVersion): VoteRequest {
   const age = interaction.options.getString('age');
   return {
     edition,
@@ -79,7 +77,7 @@ async function cancel(interaction: ChatInputCommandInteraction<'cached'>): Promi
   await defer(interaction, 'private');
   const code = interaction.options.getString('code', true);
   const cancelled = await api.cancelVote(interaction.guildId, code, { id: interaction.user.id, isStaff: isStaff(interaction) });
-  await inLobbyTurn(cancelled.id, async () => closeVoteMessages(interaction.client, await api.vote(cancelled.id)));
+  await inSetupTurn(cancelled.id, async () => closeVoteMessages(interaction.client, await api.vote(cancelled.id)));
   await say(interaction, 'success', `Vote ${cancelled.code} is cancelled.`);
 }
 
@@ -92,8 +90,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   try {
     if (!interaction.inCachedGuild()) refuse('Votes are run in a server.');
     if (sub === 'cancel') return await cancel(interaction);
-    const edition: Edition = sub === 'civ7' ? 'civ7' : 'civ6';
-    if (!(await ensureCommandAccess(interaction, policyFor(edition)))) return;
+    const edition = versionOf(sub);
+    if (!(await ensureCommandAccess(interaction, channelsFor(edition)))) return;
     const request = requestOf(interaction, edition);
     if (interaction.options.getBoolean('bans')) return await openBansForm(interaction, request);
     await startVote(interaction, request);

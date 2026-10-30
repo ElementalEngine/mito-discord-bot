@@ -3,8 +3,8 @@ import {
   FileBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
+  ActionRowBuilder,
   TextDisplayBuilder,
-  type ActionRowBuilder,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 
@@ -24,10 +24,10 @@ export const divider = (large = false): Block => ({ kind: 'divider', large });
 export const field = (name: string, value: string): Block => text(`**${name}**\n${value || '\u2014'}`);
 // An attachment sent with the message, shown where the block sits.
 export const file = (name: string): Block => ({ kind: 'file', name });
-// Buttons or a menu placed among the blocks, rather than at the panel's end.
-export const row = (actions: ButtonRow): Block => ({ kind: 'row', row: actions });
-
 export type ButtonRow = ActionRowBuilder<MessageActionRowComponentBuilder>;
+// Buttons or a menu in one row: a panel's actions, or a block among the body's.
+export const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
+export const inBody = (...items: MessageActionRowComponentBuilder[]): Block => ({ kind: 'row', row: row(...items) });
 
 export type Panel = Readonly<{
   tone: Tone;

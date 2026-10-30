@@ -2,10 +2,9 @@ import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
 import { config } from '../config.js';
-import { closeEditor } from '../handlers/report.handlers.js';
 import { publishApproved } from '../services/approval.service.js';
 import { syncRankRoles } from '../services/rank-role.service.js';
-import { inTurn } from '../services/report.service.js';
+import { closeEditor, inTurn } from '../services/report.service.js';
 import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 60 * 60_000;

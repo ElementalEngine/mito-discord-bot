@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import type {
   CivVersion,
@@ -12,7 +12,7 @@ import type {
   TeamGenResponse,
   UserStatsResponse,
 } from '../../api/types.js';
-import { RANK_DEFS_CIV6 } from '../../config/constants.js';
+import { MODES, MODE_NAMES, modeName, rankOf } from '../../config/constants.js';
 import {
   customId,
   divider,
@@ -20,6 +20,7 @@ import {
   iconOf,
   mention,
   plainNameOf,
+  row,
   signed,
   text,
   when,
@@ -30,12 +31,6 @@ import {
 import { editionName } from '../../utils/edition.js';
 import { mapLabel, ordinal } from './report.js';
 
-const MODES = ['ffa', 'teamer', 'duel'] as const;
-const MODE_LABEL: ReadonlyMap<string, string> = new Map([
-  ['ffa', 'FFA'],
-  ['teamer', 'Teamer'],
-  ['duel', 'Duel'],
-]);
 const LABEL_W = 12;
 const COL_W = 7;
 const DASH = '\u2014';
@@ -63,7 +58,7 @@ const LINES: readonly Line[] = [
 // One table per stat set: modes across, counters down. A mode with no games
 // is a column of dashes.
 export function statTable(set: StatSet): string {
-  const head = ''.padEnd(LABEL_W) + MODES.map((m) => (MODE_LABEL.get(m) ?? m).padStart(COL_W)).join('');
+  const head = ''.padEnd(LABEL_W) + MODES.map((m) => MODE_NAMES[m].padStart(COL_W)).join('');
   const body = LINES.map(
     (line) =>
       line.label.padEnd(LABEL_W) +
@@ -75,16 +70,15 @@ export function statTable(set: StatSet): string {
   return ['```', head, ...body, '```'].join('\n');
 }
 
-const rankOf = (mu: number | null | undefined) =>
-  mu == null || !Number.isFinite(mu) ? undefined : RANK_DEFS_CIV6.find((r) => mu >= r.threshold);
+const rankIfAny = (mu: number | null | undefined) => (mu == null || !Number.isFinite(mu) ? undefined : rankOf(mu));
 
 // The panel takes the colour of the rank the lifetime FFA rating reaches.
 export function rankAccent(mu: number | null | undefined): number | undefined {
-  const rank = rankOf(mu);
+  const rank = rankIfAny(mu);
   return rank ? Number.parseInt(rank.color.slice(1), 16) : undefined;
 }
 
-export const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.name.replace(/_(\d)_STAR$/, ' $1\u2605') ?? null;
+export const rankName = (mu: number | null | undefined): string | null => rankIfAny(mu)?.name.replace(/_(\d)_STAR$/, ' $1\u2605') ?? null;
 
 const MAP_W = 16;
 const MAX_MAPS = 10;
@@ -190,7 +184,7 @@ export function roomPanel(pages: readonly string[], page: number, of: RoomOf, pl
     ...(pages.length > 1
       ? {
           actions: [
-            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+            row(
               roomButton(of, Math.max(0, at - 1), 'Previous', at === 0),
               roomButton(of, Math.min(pages.length - 1, at + 1), 'Next', at === pages.length - 1),
             ),
@@ -228,7 +222,7 @@ function pickOf(g: HistoryGame, civVersion: string, names: CivNames): string {
 }
 
 export function historyLine(g: HistoryGame, civVersion: string, names: CivNames): string {
-  const mode = MODE_LABEL.get(g.game_mode.toLowerCase()) ?? (g.game_mode || DASH);
+  const mode = g.game_mode ? modeName(g.game_mode.toLowerCase()) : DASH;
   const parts = [when(new Date(g.reported_at), 'd'), resultOf(g), mode, pickOf(g, civVersion, names), mapLabel(g.map_type), signed(g.delta)];
   if (g.subbed_in) parts.push('subbed in');
   return parts.join(' \u00b7 ');
@@ -260,7 +254,7 @@ export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivName
     ...(paged
       ? {
           actions: [
-            new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+            row(
               pageButton(of, Math.max(0, history.page - 1), 'Newer', history.page === 0),
               pageButton(of, history.page + 1, 'Older', !history.has_more),
             ),

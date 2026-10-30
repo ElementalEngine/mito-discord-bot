@@ -1,11 +1,12 @@
 import { MessageFlags, type Client, type Message, type SendableChannels } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { Leaderboard } from '../data/types.js';
-import { leaderboardsList } from '../data/leaderboards-list.data.js';
+import { modeName } from '../config/constants.js';
+import { leaderboardsList, type Leaderboard } from '../data/leaderboards.js';
 import { container } from '../ui/kit/index.js';
 import { PAGES, boardPanels } from '../ui/panels/leaderboard.js';
 import { deleteMessages, editPanel, postPanel } from '../ui/reply.js';
+import { editionName } from '../utils/edition.js';
 import { log } from '../utils/log.js';
 
 const api = new ApiClient();
@@ -18,8 +19,7 @@ const PLACEHOLDER_TEXT = 'Placeholder for leaderboard entry.';
 const OURS = /^(`Rank|`#|Last updated:|```)/;
 const UPDATED = 'Last updated';
 
-const TYPES: Readonly<Record<string, string>> = { PBC: 'Cloud', realtime: 'Realtime' };
-const MODES: Readonly<Record<string, string>> = { ffa: 'FFA', duel: 'Duel', teamer: 'Teamer', combined: 'Combined' };
+const TYPES: Readonly<Record<Leaderboard['game_type'], string>> = { PBC: 'Cloud', realtime: 'Realtime' };
 
 // What a panel shows, but for the time it was last updated, as Discord holds it.
 function shown(components: readonly { toJSON(): unknown }[]): string {
@@ -58,11 +58,11 @@ async function boardOf(client: Client, binding: Leaderboard): Promise<Board | nu
 
 // The board's name: edition, type and mode, then Lifetime or its season.
 export const boardName = (binding: Leaderboard): string =>
-  `${binding.game === 'civ7' ? 'Civ7' : 'Civ6'} ${TYPES[binding.game_type] ?? binding.game_type} ${MODES[binding.game_mode] ?? binding.game_mode}`;
+  `${editionName(binding.game)} ${TYPES[binding.game_type]} ${modeName(binding.game_mode)}`;
 
 async function titleOf(binding: Leaderboard): Promise<string> {
   if (!binding.is_seasonal) return `${boardName(binding)} \u00b7 Lifetime`;
-  const season = await api.getSeason(binding.game === 'civ7' ? 'civ7' : 'civ6').then((s) => s.label, () => 'Season');
+  const season = await api.getSeason(binding.game).then((s) => s.label, () => 'Season');
   return `${boardName(binding)} \u00b7 ${season}`;
 }
 

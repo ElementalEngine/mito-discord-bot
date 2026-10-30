@@ -2,7 +2,6 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
-import { config } from '../../config.js';
 import { refreshLeaderboards } from '../../jobs/update-leaderboard.js';
 import { syncRankRoles } from '../../services/rank-role.service.js';
 import { resetPanel } from '../../ui/panels/stats.js';
@@ -12,18 +11,6 @@ import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { modeOf, modeOption } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
-
-const ACCESS_POLICY = {
-  allowedChannelIds: [
-    config.discord.channels.botTesting,
-  ],
-  requiredRoleIds: [
-    config.discord.roles.admin,
-    config.discord.roles.noviceManager,
-  ],
-  allowDeveloperOverride: true,
-  allowModeratorOverride: false,
-} as const;
 
 export const data = new SlashCommandBuilder()
   .setName('resetstats')
@@ -36,7 +23,7 @@ export const data = new SlashCommandBuilder()
 export const visibility = 'public';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const civVersion = editionOf(interaction);
   const mode = modeOf(interaction);
   const target = interaction.options.getUser('user', true);

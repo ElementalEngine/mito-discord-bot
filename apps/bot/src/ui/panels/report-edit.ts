@@ -1,5 +1,4 @@
 import {
-  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   LabelBuilder,
@@ -7,7 +6,6 @@ import {
   StringSelectMenuBuilder,
   UserSelectMenuBuilder,
   type APISelectMenuOption,
-  type MessageActionRowComponentBuilder,
 } from 'discord.js';
 
 import type { Match, SeatEdit } from '../../api/types.js';
@@ -15,11 +13,11 @@ import {
   customId,
   divider,
   fit,
+  inBody,
   mention,
   notice,
   plainNameOf,
   portraitOf,
-  row,
   text,
   type Block,
   type CivNames,
@@ -148,7 +146,7 @@ const button = (matchId: string, verb: string, label: string, style: ButtonStyle
   new ButtonBuilder().setCustomId(customId('report', verb, matchId, ...args)).setLabel(label).setStyle(style);
 
 const rowsOf = (buttons: readonly ButtonBuilder[]): Block[] =>
-  pagesOf(buttons).map((five) => row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(five)));
+  pagesOf(buttons).map((five) => inBody(...five));
 
 // The private panel a report is fixed from: one seat at a time, then in
 // bulk; a tie and civs are staff's, as core-api requires.
@@ -278,7 +276,7 @@ function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
           return { ...option, label: fit(`${place} \u00b7 ${option.label}`, 100), default: u.id === holder.id };
         }),
       );
-    const menuRow = row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    const menuRow = inBody(menu);
     return headed ? [text(`**${place} place**`), menuRow] : [menuRow];
   });
   const hint = 'Pick who finished in each place. The one you pick swaps places with whoever was there.';
@@ -317,7 +315,7 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
     const menu = new UserSelectMenuBuilder()
       .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n), String(draft.rev)))
       .setPlaceholder(fit(headed ? now : `${seat} \u00b7 ${now}`, 150));
-    const menuRow = row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    const menuRow = inBody(menu);
     return headed ? [text(`**${seat}**`), menuRow] : [menuRow];
   });
   const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
@@ -520,7 +518,7 @@ function choiceRows(matchId: string, names: CivNames, seat: Numbered, kind: 'lea
           return { label: fit(plainNameOf(names, t), 100), value: t, default: t === current, ...(emoji ? { emoji } : {}) };
         }),
       );
-    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    return inBody(menu);
   });
 }
 
@@ -542,7 +540,7 @@ function civsPanel(draft: Draft, names: CivNames, members: Members): Panel {
     text(seats.map((s) => seatLine(match, s, names)).join('\n')),
     divider(),
     text(`**Seat ${seat.n}** \u00b7 ${unknown ? `${MARK.civ} not in the civ data: \`${unknown}\`` : 'pick another to change it'}`),
-    row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pickSeat)),
+    inBody(pickSeat),
     ...(menus.length ? menus : [text('The civ data is unavailable right now. Try again in a moment.')]),
   ]);
 }

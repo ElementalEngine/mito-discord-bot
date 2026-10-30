@@ -1,6 +1,4 @@
-import type { CivEdition } from './types.js';
-
-// ─ Rank defs 
+// ─ Rank defs
 export const RANK_DEFS_CIV6 = [
   { name: 'Deity_3_STAR', threshold: 2400, color: '#ff0000' },
   { name: 'Deity_2_STAR', threshold: 2200, color: '#e60000' },
@@ -17,6 +15,8 @@ export const RANK_DEFS_CIV6 = [
 ] as const;
 
 export type RankNames = (typeof RANK_DEFS_CIV6)[number]['name'];
+// The rank a rating reaches; none below Scout's floor.
+export const rankOf = (mu: number) => RANK_DEFS_CIV6.find((r) => mu >= r.threshold);
 
 // - Report defs
 export const CIV_SAVE = {
@@ -24,8 +24,17 @@ export const CIV_SAVE = {
     CIV6: '.civ6save',
     CIV7: '.civ7save',
   },
-  MAX_BYTES: 12 * 1024 * 1024, 
+  MAX_BYTES: 12 * 1024 * 1024,
 } as const;
 
-export type { CivEdition } from './types.js';
+// The save file's game, as core-api names it.
+export type CivEdition = 'CIV6' | 'CIV7';
 export const expectedExt = (edition: CivEdition) => CIV_SAVE.EXT[edition];
+
+// - Game modes
+export type Mode = 'ffa' | 'teamer' | 'duel';
+export const MODES: readonly Mode[] = ['ffa', 'teamer', 'duel'];
+export const MODE_NAMES: Readonly<Record<Mode | 'combined', string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel', combined: 'Combined' };
+const names: Readonly<Record<string, string>> = MODE_NAMES;
+// A mode as shown; one not known is shown as it came.
+export const modeName = (mode: string): string => names[mode] ?? mode;

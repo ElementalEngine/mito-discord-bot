@@ -4,11 +4,11 @@ import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
 import type { MatchUpload } from '../../api/types.js';
 import { config } from '../../config.js';
-import type { CivEdition } from '../../config/types.js';
+import type { CivEdition } from '../../config/constants.js';
 import { inTurn, refreshReport, viewOf } from '../../services/report.service.js';
 import { notice } from '../../ui/kit/index.js';
 import { duplicateText, isAssigned, playerIds, reportPanel, seatsOf } from '../../ui/panels/report.js';
-import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
+import { defer, fail, respond, say } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { log } from '../../utils/log.js';
 import { logAction } from '../../utils/log-command.js';
@@ -16,15 +16,6 @@ import { downloadAttachment, validateSaveAttachment } from '../../utils/save-att
 
 const api = new ApiClient();
 const uploads = config.discord.channels;
-
-const ACCESS_POLICY = {
-  allowedChannelIds: [
-    uploads.civ6realtimeUploads,
-    uploads.civ7realtimeUploads,
-    uploads.civ6cloudUploads,
-    uploads.civ7cloudUploads,
-  ],
-} as const;
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
@@ -37,10 +28,10 @@ export const data = new SlashCommandBuilder()
 // The channel decides the edition and the mode. The report is the deferred
 // reply itself, so its message id is known before the upload is stored.
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   // A thread passes the access check through its parent, but the report must
   // live where it is found again: the uploads channel itself.
-  if (!ACCESS_POLICY.allowedChannelIds.some((id) => id === interaction.channelId)) {
+  if (interaction.channel?.isThread()) {
     await say(interaction, 'refused', 'Run /report-game in the uploads channel itself, not in a thread.');
     return;
   }
@@ -49,11 +40,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const cloud = interaction.channelId === uploads.civ6cloudUploads || interaction.channelId === uploads.civ7cloudUploads;
   const edition: CivEdition = civ6 ? 'CIV6' : 'CIV7';
   try {
-    try {
-      validateSaveAttachment(save, edition);
-    } catch (error) {
-      refuse(error instanceof Error ? error.message : 'That file is not a save.');
-    }
+    validateSaveAttachment(save, edition);
     // The save downloads while Discord takes the deferral, so neither waits on the other.
     const download = downloadAttachment(save.url);
     download.catch(() => undefined);

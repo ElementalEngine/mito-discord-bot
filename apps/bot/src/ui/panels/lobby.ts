@@ -1,7 +1,7 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, type MessageActionRowComponentBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { channel, customId, field, fit, mention, row as inBody, text, when, type Block, type ButtonRow, type CivNames, type Panel } from '../kit/index.js';
+import { channel, customId, field, fit, inBody, mention, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { banFields } from './draft.js';
 import { banLine, draftModeName, draftOutputPanels, settingLines } from './draft-output.js';
 
@@ -79,7 +79,6 @@ export function lobbyLinkOf(steamLink: string | null, redirectUrl: string): stri
 export const button = (lobby: Lobby, verb: string, label: string, style: ButtonStyle, ...args: string[]): ButtonBuilder =>
   new ButtonBuilder().setCustomId(customId('lobby', verb, lobby.id, ...args)).setLabel(label).setStyle(style);
 
-export const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
 
 type Seat = Readonly<{ discord_id: string; team: number | null }>;
 
@@ -277,12 +276,10 @@ function settingsView(d: EditorDraft, questions: readonly SettingQuestion[]): Pa
   const menus = questions.flatMap((q) => [
     text(`**${q.title}**`),
     inBody(
-      row(
-        new StringSelectMenuBuilder()
-          .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
-          .setPlaceholder('Choose\u2026')
-          .addOptions(q.options.map((o) => ({ label: fit(o.label, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
-      ),
+      new StringSelectMenuBuilder()
+        .setCustomId(customId('lobby', VERB.setting, d.lobby.id, q.id))
+        .setPlaceholder('Choose\u2026')
+        .addOptions(q.options.map((o) => ({ label: fit(o.label, 100), value: o.id, default: d.settings[q.id] === o.id, emoji: { name: o.emoji } }))),
     ),
   ]);
   return {
@@ -304,7 +301,7 @@ function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Pa
   const sizes = sizesLike(d.shape).filter(fits);
   const menus: Block[] = [];
   const titled = (title: string, menu: StringSelectMenuBuilder): void => {
-    menus.push(text(`**${title}**`), inBody(row(menu)));
+    menus.push(text(`**${title}**`), inBody(menu));
   };
   if (sizes.length > 1) {
     titled(

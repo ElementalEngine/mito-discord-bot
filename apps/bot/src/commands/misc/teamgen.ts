@@ -6,12 +6,11 @@ import { teamsPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { editionOf, editionOption } from '../../utils/edition.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { normalizePlayerList } from '../../utils/player-list.js';
-import { MAX_PLAYERS, STATS_POLICY } from '../../utils/stats-options.js';
+import { MAX_PLAYERS } from '../../utils/stats-options.js';
+import { idsIn } from '../../utils/voters.js';
 
 const api = new ApiClient();
 
-const SNOWFLAKE = /^\d{17,20}$/;
 
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
@@ -31,11 +30,8 @@ export const visibility = 'public';
 // has no voice channel, so its players are listed.
 function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): string[] {
   if (cloud) {
-    const listed = normalizePlayerList(interaction.options.getString('discord-ids') ?? '')
-      .split(' ')
-      .filter((id) => SNOWFLAKE.test(id));
-    if (listed.length < 2) refuse('List at least two players in discord-ids, as mentions or ids.');
-    const players = [...new Set(listed)];
+    const players = idsIn(interaction.options.getString('discord-ids') ?? '');
+    if (players.length < 2) refuse('List at least two players in discord-ids, as mentions or ids.');
     if (players.length > MAX_PLAYERS) refuse(`List at most ${MAX_PLAYERS} players.`);
     return players;
   }
@@ -49,7 +45,7 @@ function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): st
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const civVersion = editionOf(interaction);
   const cloud = interaction.channelId === config.discord.channels.cloudCommands;
   const ids = playersOf(interaction, cloud);

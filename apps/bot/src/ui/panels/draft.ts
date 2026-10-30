@@ -1,18 +1,18 @@
 import { LabelBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 
-import type { CivDataResponse, DraftDeal, DraftRequest } from '../../api/types.js';
+import type { CivDataResponse, CivVersion, DraftDeal, DraftRequest } from '../../api/types.js';
+import { MODES, MODE_NAMES, type Mode } from '../../config/constants.js';
+import { editionName } from '../../utils/edition.js';
 import { LABEL_MAX, type PostAbout } from '../../utils/post-options.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
 import { taggedFooter } from './misc.js';
 
-export type Edition = 'civ6' | 'civ7';
-export type Mode = 'ffa' | 'teamer' | 'duel';
 export type Age = 'AGE_ANTIQUITY' | 'AGE_EXPLORATION' | 'AGE_MODERN';
 
 // What the host chose. `leaders` and `civs` are per draft; civ6 deals leaders
 // only, and a civ7 age of null is every age.
 export type DraftChoice = Readonly<{
-  edition: Edition;
+  edition: CivVersion;
   mode: Mode;
   drafts: number;
   leaders: number;
@@ -20,13 +20,12 @@ export type DraftChoice = Readonly<{
   age: Age | null;
 }>;
 
-export const MODES: Readonly<Record<Mode, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' };
 export const AGES: Readonly<Record<Age, string>> = { AGE_ANTIQUITY: 'Antiquity', AGE_EXPLORATION: 'Exploration', AGE_MODERN: 'Modern' };
 export const BAN_FORM = 'bans';
 export const LABEL_FIELD = 'label';
 export const EVERY_AGE = 'all';
 // The slash-command choices for a mode, and for a starting age or every age.
-export const MODE_CHOICES = (Object.keys(MODES) as Mode[]).map((value) => ({ name: MODES[value], value }));
+export const MODE_CHOICES = MODES.map((value) => ({ name: MODE_NAMES[value], value }));
 export const AGE_CHOICES = [...(Object.keys(AGES) as Age[]).map((value) => ({ name: AGES[value], value })), { name: 'All', value: EVERY_AGE }];
 
 const MODE_CODES: Readonly<Record<Mode, string>> = { ffa: 'f', teamer: 't', duel: 'd' };
@@ -47,7 +46,7 @@ export function packChoice(choice: DraftChoice): string {
 export function unpackChoice(packed: string): DraftChoice | null {
   const m = PACKED.exec(packed);
   if (!m) return null;
-  const edition: Edition = m[1] === '6' ? 'civ6' : 'civ7';
+  const edition: CivVersion = m[1] === '6' ? 'civ6' : 'civ7';
   const mode = (Object.keys(MODE_CODES) as Mode[]).find((k) => MODE_CODES[k] === m[2])!;
   const age = (Object.keys(AGE_CODES) as Age[]).find((k) => AGE_CODES[k] === m[6]) ?? null;
   return {
@@ -151,7 +150,7 @@ export function banForm(choice: DraftChoice, about: PostAbout, data: CivDataResp
   if (menus.length > MENUS_PER_FORM) throw new Error('too many leaders and civs to ban in one form');
   return new ModalBuilder()
     .setCustomId(customId('draft', BAN_FORM, packChoice(choice), about.userId ?? NONE, about.channelId ?? NONE))
-    .setTitle(fit(`Bans for your ${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`, 45))
+    .setTitle(fit(`Bans for your ${editionName(choice.edition)} ${MODE_NAMES[choice.mode]} draft`, 45))
     .addLabelComponents(...menus, labelField(about.label));
 }
 
@@ -164,9 +163,7 @@ export function unpackForm(args: readonly string[], label: string): BanFormAnswe
   return { choice, about: { label: label.trim(), userId: idOf(args[1]), channelId: idOf(args[2]) } };
 }
 
-export const editionLabel = (edition: Edition): string => (edition === 'civ6' ? 'Civ6' : 'Civ7');
-
-const draftTitle = (choice: DraftChoice): string => `${editionLabel(choice.edition)} ${MODES[choice.mode]} draft`;
+const draftTitle = (choice: DraftChoice): string => `${editionName(choice.edition)} ${MODE_NAMES[choice.mode]} draft`;
 
 function sizes(choice: DraftChoice): string {
   if (choice.edition === 'civ6') return `${choice.drafts} drafts \u00b7 ${choice.leaders} civs each`;

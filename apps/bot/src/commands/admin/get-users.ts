@@ -2,7 +2,6 @@ import { AttachmentBuilder, InteractionContextType, SlashCommandBuilder, type Ch
 
 import { membersPanel } from '../../ui/panels/misc.js';
 import { refuse, respond } from '../../ui/reply.js';
-import { DEVELOPER_ONLY } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 
 export const data = new SlashCommandBuilder()
@@ -16,7 +15,7 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const visibility = 'private';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, DEVELOPER_ONLY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const guild = interaction.guild;
   if (!guild) refuse('Run this in the server, not in a DM.');
 

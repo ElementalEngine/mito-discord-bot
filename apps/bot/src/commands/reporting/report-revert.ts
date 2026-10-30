@@ -24,10 +24,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (!isAdminOrDeveloper(interaction)) refuse('Only an admin or a developer can revert a report.');
     await defer(interaction, 'public');
     const matchId = interaction.options.getString('match-id', true).trim();
-    const match = await api.revert(matchId);
+    const match = await api.revert(matchId, { id: interaction.user.id, isStaff: true });
     refreshLeaderboards(interaction.client, match.game);
-    await respond(interaction, revertedPanel(match), 'public');
-    await showReverted(interaction.client, match);
+    await respond(interaction, revertedPanel(match, interaction.user.id), 'public');
+    await showReverted(interaction.client, match, interaction.user.id);
     if (interaction.guild) await syncRankRoles(interaction.guild, match.affected_players, matchId);
     await logAction(interaction, 'report-revert', { matchId });
   } catch (error) {

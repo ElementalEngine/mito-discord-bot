@@ -1,223 +1,72 @@
-import {
-  Guild,
-  PermissionsBitField,
-  type GuildMember,
-  type Role,
-} from 'discord.js';
+import { PermissionsBitField, type Guild, type GuildMember, type Role } from 'discord.js';
 
+import type { AffectedPlayerRating } from '../api/types.js';
 import { config } from '../config.js';
-import { RANK_DEFS_CIV6, type RankNames } from '../config/constants.js';
+import { RANK_DEFS_CIV6, rankOf, type RankNames } from '../config/constants.js';
 import { log } from '../utils/log.js';
-
-export type AffectedPlayerRating = {
-  discord_id: string;
-  rating_mu: number;
-};
-
-const RANK_DEFS = RANK_DEFS_CIV6;
-
-function pickRankName(mu: number): RankNames {
-  const score = Number.isFinite(mu) ? mu : -Infinity;
-  for (const def of RANK_DEFS) {
-    if (score >= def.threshold) return def.name;
-  }
-  return 'Scout';
-}
-
-function uniqueRatings(input: readonly AffectedPlayerRating[]): AffectedPlayerRating[] {
-  const best = new Map<string, number>();
-  for (const r of input) {
-    const did = String(r.discord_id);
-    const mu = Number(r.rating_mu);
-    if (!did || !Number.isFinite(mu)) continue;
-    const prev = best.get(did);
-    if (prev === undefined || mu > prev) best.set(did, mu);
-  }
-  return [...best.entries()].map(([discord_id, rating_mu]) => ({ discord_id, rating_mu }));
-}
-
-function configuredRankRoleIds(): Record<RankNames, string> {
-  return config.discord.rankRoles;
-}
-
-function collectManagedRoles(guild: Guild): {
-  byName: Map<RankNames, Role>;
-  managedIds: Set<string>;
-  missingConfig: RankNames[];
-  missingInGuild: RankNames[];
-} {
-  const idsByName = configuredRankRoleIds();
-
-  const byName = new Map<RankNames, Role>();
-  const managedIds = new Set<string>();
-  const missingConfig: RankNames[] = [];
-  const missingInGuild: RankNames[] = [];
-
-  for (const def of RANK_DEFS) {
-    const name = def.name;
-    const id = idsByName[name];
-    if (!id) {
-      missingConfig.push(name);
-      continue;
-    }
-
-    const role = guild.roles.cache.get(id);
-    if (!role) {
-      missingInGuild.push(name);
-      continue;
-    }
-
-    byName.set(name, role);
-    managedIds.add(role.id);
-  }
-
-  return { byName, managedIds, missingConfig, missingInGuild };
-}
-
-async function fetchMember(guild: Guild, discordId: string): Promise<GuildMember | null> {
-  const cached = guild.members.cache.get(discordId);
-  if (cached) return cached;
-
-  try {
-    return await guild.members.fetch(discordId);
-  } catch {
-    return null;
-  }
-}
-
-async function ensureBotCanManageRoles(guild: Guild): Promise<boolean> {
-  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
-  if (!me) return false;
-
-  return me.permissions.has(PermissionsBitField.Flags.ManageRoles);
-}
-
-async function applyRankRole(
-  guild: Guild,
-  member: GuildMember,
-  desired: Role,
-  managedRoleIds: ReadonlySet<string>,
-): Promise<void> {
-  const currentManaged = member.roles.cache.filter((r) => managedRoleIds.has(r.id));
-  const hasDesired = currentManaged.has(desired.id);
-
-  const toRemove = currentManaged
-    .filter((r) => r.id !== desired.id)
-    .map((r) => r.id);
-
-  if (hasDesired && toRemove.length === 0) return;
-
-  if (!desired.editable) {
-    log.warn(
-      `[rank-roles] Cannot assign desired role due to hierarchy: guild=${guild.id} role=${desired.id}`,
-    );
-    return;
-  }
-
-  if (toRemove.length > 0) {
-    const removable = toRemove.filter((id) => {
-      const role = guild.roles.cache.get(id);
-      return Boolean(role?.editable);
-    });
-
-    if (removable.length !== toRemove.length) {
-      log.warn(
-        `[rank-roles] Some roles not removable due to hierarchy: guild=${guild.id} member=${member.id}`,
-      );
-    }
-
-    if (removable.length > 0) {
-      await member.roles.remove(removable).catch((e: unknown) => {
-        log.warn(
-          `[rank-roles] Failed to remove roles: guild=${guild.id} member=${member.id}`,
-          e,
-        );
-      });
-    }
-  }
-
-  if (!hasDesired) {
-    await member.roles.add(desired.id).catch((e: unknown) => {
-      log.warn(
-        `[rank-roles] Failed to add role: guild=${guild.id} member=${member.id} role=${desired.id}`,
-        e,
-      );
-    });
-  }
-}
-
-async function runBounded<T>(
-  items: readonly T[],
-  concurrency: number,
-  worker: (item: T) => Promise<void>,
-): Promise<void> {
-  const limit = Math.max(1, Math.min(concurrency, 10));
-  let idx = 0;
-
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (idx < items.length) {
-      const cur = items[idx];
-      idx += 1;
-      await worker(cur);
-    }
-  });
-
-  await Promise.all(runners);
-}
 
 // Each player's rank role, from the rating core-api says it follows, after an
 // approve, a revert or a reset. A failure is logged; the caller carries on.
-export async function syncRankRoles(
-  guild: Guild,
-  affectedPlayers: readonly AffectedPlayerRating[] | null | undefined,
-  context: string,
-): Promise<void> {
-  if (!affectedPlayers?.length) return;
-  await setRankRoles(guild, affectedPlayers).catch((error: unknown) => {
+export async function syncRankRoles(guild: Guild, affected: readonly AffectedPlayerRating[] | null | undefined, context: string): Promise<void> {
+  if (!affected?.length) return;
+  await setRankRoles(guild, affected).catch((error: unknown) => {
     log.warn('rank roles not synced', context, error instanceof Error ? error.message : error);
   });
 }
 
-async function setRankRoles(
-  guild: Guild,
-  affectedPlayers: readonly AffectedPlayerRating[],
-  opts: { concurrency?: number } = {},
-): Promise<void> {
+// The rank roles the guild holds, by rank name; the ones it lacks are logged.
+function rankRoles(guild: Guild): Map<RankNames, Role> {
+  const roles = new Map<RankNames, Role>();
+  const missing: string[] = [];
+  for (const { name } of RANK_DEFS_CIV6) {
+    const role = guild.roles.cache.get(config.discord.rankRoles[name]);
+    if (role) roles.set(name, role);
+    else missing.push(name);
+  }
+  if (missing.length) log.warn(`rank roles not set up in guild ${guild.id}: ${missing.join(', ')}`);
+  return roles;
+}
 
-  const canManage = await ensureBotCanManageRoles(guild);
-  if (!canManage) {
-    log.warn(`[rank-roles] Missing ManageRoles permission: guild=${guild.id}`);
+// A player's best rating, where one approve moved them more than once.
+function bestRatings(affected: readonly AffectedPlayerRating[]): Map<string, number> {
+  const best = new Map<string, number>();
+  for (const { discord_id, rating_mu } of affected) {
+    if (Number.isFinite(rating_mu) && rating_mu > (best.get(discord_id) ?? -Infinity)) best.set(discord_id, rating_mu);
+  }
+  return best;
+}
+
+async function setRankRoles(guild: Guild, affected: readonly AffectedPlayerRating[]): Promise<void> {
+  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  if (!me?.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+    log.warn(`rank roles need Manage Roles in guild ${guild.id}`);
     return;
   }
-
-  const { byName, managedIds, missingConfig, missingInGuild } = collectManagedRoles(guild);
-  if (missingConfig.length > 0) {
-    log.warn(`[rank-roles] Missing rank role IDs in config: ${missingConfig.join(', ')}`);
-  }
-  if (missingInGuild.length > 0) {
-    log.warn(`[rank-roles] Rank roles not found in guild: ${missingInGuild.join(', ')}`);
-  }
-
-  if (byName.size === 0 || managedIds.size === 0) return;
-
-  const unique = uniqueRatings(affectedPlayers);
-
-  await runBounded(unique, opts.concurrency ?? 3, async ({ discord_id, rating_mu }) => {
-    const member = await fetchMember(guild, discord_id);
-    if (!member) {
-      log.warn(`[rank-roles] Member not found: guild=${guild.id} member=${discord_id}`);
-      return;
+  const roles = rankRoles(guild);
+  if (!roles.size) return;
+  const managed = new Set([...roles.values()].map((r) => r.id));
+  for (const [discordId, mu] of bestRatings(affected)) {
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    const wanted = roles.get((rankOf(mu) ?? RANK_DEFS_CIV6.at(-1)!).name);
+    if (!member || !wanted) {
+      log.warn(`rank role not applied: member ${discordId} ${member ? 'has no role for their rank' : 'not in the guild'}`);
+      continue;
     }
+    await applyRankRole(member, wanted, managed).catch((error: unknown) => {
+      log.warn(`rank role not applied: member ${discordId}`, error instanceof Error ? error.message : error);
+    });
+  }
+}
 
-    const targetRank = pickRankName(rating_mu);
-    const desiredRole = byName.get(targetRank);
-    if (!desiredRole) {
-      log.warn(
-        `[rank-roles] Desired role missing: guild=${guild.id} rank=${targetRank} member=${discord_id}`,
-      );
-      return;
-    }
-
-    await applyRankRole(guild, member, desiredRole, managedIds);
-  });
+// The member keeps the one rank role they are due; the others the bot manages go.
+async function applyRankRole(member: GuildMember, wanted: Role, managed: ReadonlySet<string>): Promise<void> {
+  const held = member.roles.cache.filter((r) => managed.has(r.id));
+  const extra = held.filter((r) => r.id !== wanted.id);
+  if (held.has(wanted.id) && !extra.size) return;
+  if (!wanted.editable || extra.some((r) => !r.editable)) {
+    log.warn(`rank roles above the bot's in guild ${member.guild.id}: member ${member.id} left as they are`);
+    return;
+  }
+  if (extra.size) await member.roles.remove(extra.map((r) => r.id));
+  if (!held.has(wanted.id)) await member.roles.add(wanted.id);
 }

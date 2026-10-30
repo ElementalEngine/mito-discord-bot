@@ -15,9 +15,11 @@ import { ApiClient } from '../api/index.js';
 import type { Match, SeatEdit } from '../api/types.js';
 import { publishApproved } from '../services/approval.service.js';
 import { syncRankRoles } from '../services/rank-role.service.js';
-import { civNames, editionOf } from '../services/civ-names.js';
+import { civNames } from '../services/civ-names.js';
 import {
+  closeEditor,
   editorOf,
+  editors,
   historyChannelId,
   inTurn,
   refreshReport,
@@ -49,9 +51,11 @@ import {
 import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
 import { Refusal, defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
-import { idleCloser, type Closer } from '../utils/idle.js';
+import { versionOf } from '../utils/edition.js';
+import type { Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
 import { logAction } from '../utils/log-command.js';
+import { selectedIn } from '../utils/modal-fields.js';
 
 const api = new ApiClient();
 const CONTEST_FORM = 'contestform';
@@ -59,7 +63,6 @@ const REASON = 'reason';
 
 // One open editor per report, so two never edit at once. It closes after two
 // minutes idle (ten with a form out), and always before its token expires.
-const editors = idleCloser();
 const IDLE_MS = 2 * 60_000;
 const FORM_MS = 10 * 60_000;
 const TOKEN_MS = 14 * 60_000;
@@ -139,9 +142,6 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
   await defer(interaction, 'private');
   await inTurn(matchId, () => approveInTurn(interaction, matchId));
 }
-
-// An approved report's open editor closes; its unsaved changes are refused.
-export const closeEditor = (matchId: string): void => editors.close(matchId);
 
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await api.approve(matchId, { id: interaction.user.id });
@@ -260,7 +260,7 @@ async function openForm(
   if (!editors.touch(matchId, interaction.message.id, FORM_MS)) refuse(EDITOR_CLOSED);
   const [match, names] = await beforeForm(
     interaction,
-    api.match(matchId).then(async (m) => [m, await civNames(editionOf(m.game), api)] as const),
+    api.match(matchId).then(async (m) => [m, await civNames(versionOf(m.game), api)] as const),
   );
   const form = build(match, names, memberNames(interaction.guild, playerIds(match)));
   if (!form) refuse(nothing);
@@ -337,7 +337,7 @@ async function draft(
       const match = await api.match(matchId);
       held = { kind, base: match, now: match, rev: held?.rev ?? 0, focus: 0 };
     }
-    const names = await civNames(editionOf(held.now.game), api);
+    const names = await civNames(versionOf(held.now.game), api);
     if (!step && kind === 'civs') held = { ...held, focus: civFocus(held.now, names) };
     const next = step ? step(held, names) : held;
     if (typeof next === 'string') await say(interaction, 'refused', next);
@@ -364,10 +364,6 @@ async function saveDraft(interaction: ButtonInteraction, matchId: string): Promi
     drafts.delete(matchId);
   });
 }
-
-const selected = (interaction: ModalSubmitInteraction, field: string): readonly string[] =>
-  interaction.fields.getStringSelectValues(field);
-
 
 export async function handleReportInteraction(interaction: Interaction): Promise<boolean> {
   if (!interaction.isButton() && !interaction.isModalSubmit() && !interaction.isStringSelectMenu() && !interaction.isUserSelectMenu()) {
@@ -417,17 +413,18 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isButton() && id.verb === EDIT.back) {
       await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.subForm) {
-      const seat = Number(selected(interaction, FIELD.seat)[0]);
+      const seat = Number(selectedIn(interaction, [FIELD.seat])[0]);
       const came = picked(interaction, FIELD.came);
       await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => {
         const edits = subEdits(m, seat, came);
         return typeof edits === 'string' ? refuse(edits) : edits;
       });
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
-      await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
+      await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selectedIn(interaction, [FIELD.quits])));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
-      const place = Number(selected(interaction, FIELD.place)[0]);
-      const tied = selected(interaction, FIELD.tied).map(Number);
+      const place = Number(selectedIn(interaction, [FIELD.place])[0]);
+      const tied = selectedIn(interaction, [FIELD.tied]).map(Number);
+      if (!Number.isInteger(place) || !tied.length) refuse('Pick a place and the seats tied there.');
       await submit(interaction, matchId, 'set-tie', 'Those are already tied there.', (m) => tieEdits(m, place, tied));
     } else {
       await say(interaction, 'refused', 'That control is out of date. Open the report again.');

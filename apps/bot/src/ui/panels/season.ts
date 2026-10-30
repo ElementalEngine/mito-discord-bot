@@ -1,18 +1,17 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import type { CivVersion, SeasonPreview, SeasonRolled } from '../../api/types.js';
-import { editionName } from '../../utils/edition.js';
-import { customId, notice, text, when, type Panel } from '../kit/index.js';
+import { modeName } from '../../config/constants.js';
+import { editionName, versionOf } from '../../utils/edition.js';
+import { customId, notice, row, text, when, type Panel } from '../kit/index.js';
 
 export const SEASON = { surface: 'season', start: 'start', cancel: 'cancel' } as const;
-
-const MODE: Readonly<Record<string, string>> = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel', combined: 'combined' };
 
 // rt_ffa reads as Realtime FFA, pbc_teamer as Cloud Teamer.
 export function collectionName(name: string): string {
   const [kind = '', mode = ''] = name.split('_');
   const where = kind === 'pbc' ? 'Cloud' : kind === 'rt' ? 'Realtime' : kind;
-  return `${where} ${MODE[mode] ?? mode}`.trim();
+  return `${where} ${modeName(mode)}`.trim();
 }
 
 const total = (records: Readonly<Record<string, number>>): number => Object.values(records).reduce((a, b) => a + b, 0);
@@ -36,7 +35,7 @@ const button = (verb: string, edition: CivVersion, label: string, title: string,
 // What starting the next season does, before it does it. The panel is private
 // to the developer who asked, so the buttons are theirs alone.
 export function seasonPreviewPanel(preview: SeasonPreview): Panel {
-  const edition = preview.edition === 'civ7' ? 'civ7' : 'civ6';
+  const edition = versionOf(preview.edition);
   return {
     tone: 'info',
     surface: 'season',
@@ -50,7 +49,7 @@ export function seasonPreviewPanel(preview: SeasonPreview): Panel {
       text('Lifetime stats, match history and rank roles stay as they are.'),
     ],
     actions: [
-      new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+      row(
         button(SEASON.start, edition, preview.label, `Start ${preview.next_label}`, ButtonStyle.Danger),
         button(SEASON.cancel, edition, preview.label, 'Cancel', ButtonStyle.Secondary),
       ),

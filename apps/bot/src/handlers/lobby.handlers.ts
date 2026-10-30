@@ -12,9 +12,10 @@ import { ApiClient } from '../api/index.js';
 import type { Actor, CivDataResponse, Lobby, LobbyShape, SettingQuestion } from '../api/types.js';
 import { civNames, civRows } from '../services/civ-names.js';
 import { advanceLobby, keepTime, openVote, showBlindStatus } from '../services/lobby-vote.service.js';
-import { inLobbyTurn, lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
+import { lobbySettings, publishLobby, showLobby } from '../services/lobby.service.js';
 import { loadMembers, memberNames } from '../services/members.js';
 import { allFinished, allPicked, pickingBy } from '../services/setup.js';
+import { inSetupTurn } from '../services/turns.js';
 import { parseId, type CivNames } from '../ui/kit/index.js';
 import { banFieldIds } from '../ui/panels/draft.js';
 import {
@@ -34,7 +35,7 @@ import {
   type EditorDraft,
   type EditorView,
 } from '../ui/panels/lobby.js';
-import { blindPickPanel, voteStatusPanel } from '../ui/panels/lobby-vote.js';
+import { blindPickPanel, bansVotePanel } from '../ui/panels/lobby-vote.js';
 import { defer, fail, holdPanel, refuse, replacePanel, respond, updatePanel } from '../ui/reply.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -83,7 +84,7 @@ const actorOf = (interaction: Interaction): Actor => ({ id: interaction.user.id 
 // host. One a newer editor replaced just says so.
 const closerFor = (interaction: ChatInputCommandInteraction | EditorPress, lobbyId: string, messageId: string): Closer => ({
   close: () =>
-    inLobbyTurn(lobbyId, async () => {
+    inSetupTurn(lobbyId, async () => {
       const held = sessions.get(lobbyId);
       if (!held) return;
       if (held.messageId !== messageId) return replacePanel(interaction, closedEditor('You opened the editor again, so this one closed.'));
@@ -140,7 +141,7 @@ async function inEditorTurn(interaction: EditorPress, lobbyId: string, work: (se
   sessions.set(lobbyId, { ...session, saving: true });
   try {
     await holdPanel(interaction);
-    await inLobbyTurn(lobbyId, async () => {
+    await inSetupTurn(lobbyId, async () => {
       const held = sessions.get(lobbyId);
       if (mine(held)) await work(held);
     });
@@ -220,7 +221,7 @@ async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Pr
 // Start opens the bans vote; a full lobby's countdown opens it at its end.
 async function onPost(interaction: ButtonInteraction, lobbyId: string, change: () => Promise<Lobby>): Promise<void> {
   await holdPanel(interaction);
-  await inLobbyTurn(lobbyId, async () => {
+  await inSetupTurn(lobbyId, async () => {
     const changed = await change();
     if (changed.phase === 'voting') return openVote(interaction.client, changed, api);
     await showLobby(interaction.client, changed, api);
@@ -231,9 +232,9 @@ async function onPost(interaction: ButtonInteraction, lobbyId: string, change: (
 // A player is done voting; once every player is, the vote is counted.
 async function finishVoting(interaction: ButtonInteraction, lobbyId: string): Promise<void> {
   await holdPanel(interaction);
-  await inLobbyTurn(lobbyId, async () => {
+  await inSetupTurn(lobbyId, async () => {
     const lobby = await api.finishVote(lobbyId, actorOf(interaction));
-    await replacePanel(interaction, voteStatusPanel(lobby, await civNames('civ6', api)));
+    await replacePanel(interaction, bansVotePanel(lobby, await civNames('civ6', api)));
     if (allFinished(lobby)) await advanceLobby(interaction.client, lobbyId, api, true);
   });
 }
@@ -263,7 +264,7 @@ async function chooseLeader(interaction: StringSelectMenuInteraction, lobbyId: s
 // The pick locked in; once every player has, the picks are revealed.
 async function lockIn(interaction: ButtonInteraction, lobbyId: string, leader: string): Promise<void> {
   await holdPanel(interaction);
-  await inLobbyTurn(lobbyId, async () => {
+  await inSetupTurn(lobbyId, async () => {
     const lobby = await api.pickLeader(lobbyId, actorOf(interaction), leader);
     await replacePanel(interaction, await poolPanel(lobby, interaction.user.id));
     await showBlindStatus(interaction.client, lobby);

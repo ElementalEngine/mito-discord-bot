@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { leaderboardsList } from '../data/leaderboards-list.data.js';
+import { leaderboardsList } from '../data/leaderboards.js';
 import { boardName } from './update-leaderboard.js';
 
 test('every board is named by its edition, type and mode, never by a raw key', () => {

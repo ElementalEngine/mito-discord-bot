@@ -94,9 +94,7 @@ export class ApiClient {
   ): Promise<BatchStatsResponse> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/batch`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
+      headers: json,
       body: JSON.stringify({
         civ_version: civVersion,
         game_type: gameType,
@@ -158,9 +156,7 @@ export class ApiClient {
   ): Promise<TeamGenResponse> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/stats/team-gen`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
+      headers: json,
       body: JSON.stringify({
         civ_version: civVersion,
         game_type: gameType,
@@ -190,7 +186,7 @@ export class ApiClient {
   async dealDraft(body: DraftRequest): Promise<DraftDeal> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/match-setups/draft`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: json,
       body: JSON.stringify(body)
     });
 
@@ -431,8 +427,11 @@ export class ApiClient {
     });
   }
 
-  async revert(matchId: string): Promise<Match> {
-    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/revert`, { method: "POST" });
+  async revert(matchId: string, actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/revert`, {
+      method: "POST",
+      headers: actorHeaders(actor),
+    });
     return (await this.parseJson(res)) as Match;
   }
 

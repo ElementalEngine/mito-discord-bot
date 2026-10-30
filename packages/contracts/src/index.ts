@@ -1774,7 +1774,7 @@ export interface components {
         };
         /**
          * LobbyRequest
-         * @description /lobby host. The host is the acting player; the settings start blank.
+         * @description /lobby host. The host is the acting player; the settings start at their defaults.
          */
         LobbyRequest: {
             /** Channel Id */
@@ -2404,15 +2404,6 @@ export interface components {
             suspended: boolean;
             /** Suspended Roles */
             suspended_roles: string[];
-        };
-        /** TeamGenRequest */
-        TeamGenRequest: {
-            /** Civ Version */
-            civ_version: string;
-            /** Discord Ids */
-            discord_ids: string[];
-            /** Game Type */
-            game_type: string;
         };
         /** TeamGenResponse */
         TeamGenResponse: {
@@ -4897,8 +4888,9 @@ export interface operations {
     revert_match_api_v2_matches__match_id__revert_post: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 authorization?: string | null;
+                "x-actor-discord-id": string;
             };
             path: {
                 match_id: string;
@@ -5150,7 +5142,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TeamGenRequest"];
+                "application/json": components["schemas"]["BatchStatsRequest"];
             };
         };
         responses: {

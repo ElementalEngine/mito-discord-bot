@@ -4,7 +4,6 @@ import { ApiClient } from '../../api/index.js';
 import { pingPanel, type Reach } from '../../ui/panels/misc.js';
 import { respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
-import { STATS_POLICY } from '../../utils/stats-options.js';
 
 const api = new ApiClient();
 
@@ -16,7 +15,7 @@ export const data = new SlashCommandBuilder()
 export const visibility = 'private';
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, STATS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const started = Date.now();
   const league: Reach = await api.ping().then(
     ({ dbMs }) => ({ ok: true, ms: Date.now() - started, dbMs }),

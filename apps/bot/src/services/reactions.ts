@@ -2,7 +2,7 @@ import type { SendableChannels } from 'discord.js';
 
 import type { LobbyBallot } from '../api/types.js';
 import { log } from '../utils/log.js';
-import { inLobbyTurn } from './lobby.service.js';
+import { inSetupTurn } from './turns.js';
 
 export type Reaction = Readonly<{ id: string | null; name: string | null; users: readonly string[] }>;
 export type Emoji = Readonly<{ id: string | null; name: string | null }>;
@@ -126,7 +126,7 @@ export function trackReaction(messageId: string, emoji: Emoji, userId: string, a
   tracked.set(key, reaction);
   clearTimeout(watch.timer);
   watch.timer = setTimeout(() => {
-    void inLobbyTurn(setupId, async () => {
+    void inSetupTurn(setupId, async () => {
       if (watches.get(setupId) === watch) await watch.count(new Map([...watch.messages].map(([id, t]) => [id, listed(t)])));
     }).catch((error: unknown) => log.warn('reaction count so far not sent', setupId, error));
   }, COUNT_DELAY_MS);

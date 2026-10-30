@@ -1,13 +1,12 @@
 import type { components } from '@cpl/contracts';
-import type { CivEdition } from '../config/types.js';
+import type { CivEdition } from '../config/constants.js';
 export type GameMode = 'realtime' | 'cloud';
-export type Edition = CivEdition;
 
 export type LeaderboardRanking = components['schemas']['LeaderboardRankingResponse'];
 
 // ── Stats (/api/v2/stats)
 
-export type CivVersion = Lowercase<Edition>;
+export type CivVersion = Lowercase<CivEdition>;
 export type StatsGameType = GameMode;
 export type StatRow = components['schemas']['StatRowV2'];
 export type StatSet = components['schemas']['StatSetV2'];
@@ -43,6 +42,7 @@ export type VoteMessages = components['schemas']['VoteMessages'];
 
 // The v2 match surface, as core-api declares it.
 export type Match = components['schemas']['MatchResponse'];
+export type AffectedPlayerRating = components['schemas']['AffectedPlayerRating'];
 export type MatchUpload = components['schemas']['UploadResponse'];
 export type SeatEdit = components['schemas']['SeatPatchIn'];
 export type SubQuota = components['schemas']['SubQuotaResponse'];

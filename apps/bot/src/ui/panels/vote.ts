@@ -1,10 +1,11 @@
 import { ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } from 'discord.js';
 
 import type { SettingQuestion, Vote } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, type CivNames, type Panel } from '../kit/index.js';
-import { AGES, MODES, editionLabel } from './draft.js';
+import { modeName } from '../../config/constants.js';
+import { editionName } from '../../utils/edition.js';
+import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, row, text, type CivNames, type Panel } from '../kit/index.js';
+import { AGES } from './draft.js';
 import { draftOutputPanels, settingLines } from './draft-output.js';
-import { row } from './lobby.js';
 import { bannedBy, blindStatus, closes, majority, ticks } from './lobby-vote.js';
 
 export const VOTE_VERB = { finished: 'finished', pick: 'pick', leader: 'leader', civ: 'civ', lockIn: 'lockin' } as const;
@@ -19,7 +20,7 @@ const button = (vote: Vote, verb: string, label: string, style: ButtonStyle, ...
 // The game: edition and mode, and civ7's starting age unless left out.
 function voteTitle(vote: Vote, withAge = true): string {
   const age = withAge && vote.edition === 'civ7' ? ` · ${vote.age ? AGES[vote.age] : 'every age'}` : '';
-  return `${editionLabel(vote.edition)} ${MODES[vote.mode]}${age}`;
+  return `${editionName(vote.edition)} ${modeName(vote.mode)}${age}`;
 }
 
 const voteFooter = (vote: Vote): string => `Started by ${mention(vote.host_id)} · code ${vote.code}`;

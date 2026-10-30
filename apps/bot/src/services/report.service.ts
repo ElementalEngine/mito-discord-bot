@@ -7,14 +7,20 @@ import type { Panel } from '../ui/kit/index.js';
 import { editorPanel } from '../ui/panels/report-edit.js';
 import { isAssigned, playerIds, seatsOf, type ReportView } from '../ui/panels/report.js';
 import { editPanelById } from '../ui/reply.js';
+import { versionOf } from '../utils/edition.js';
+import { idleCloser } from '../utils/idle.js';
 import { log } from '../utils/log.js';
 import { serial } from '../utils/serial.js';
-import { civNames, editionOf } from './civ-names.js';
+import { civNames } from './civ-names.js';
 import { loadMembers, memberNames } from './members.js';
 
 // Writes to one report take turns, from the editor, approve, contest or a
 // repeated upload, so none redraws it from an older copy than the last.
 export const inTurn = serial();
+
+// The one open editor per report; approving closes it and refuses its unsaved changes.
+export const editors = idleCloser();
+export const closeEditor = (matchId: string): void => editors.close(matchId);
 
 // Everything a report panel shows beside the match: display names and, while
 // pending, each sub's quota. A quota that cannot be read is left off.
@@ -31,20 +37,20 @@ export async function viewOf(match: Match, api = new ApiClient()): Promise<Repor
     ),
   );
   const quotas = new Map(read.filter((q): q is SubQuota => q !== null).map((q): [string, SubQuota] => [q.discord_id, q]));
-  return { match, names: await civNames(editionOf(match.game), api), quotas };
+  return { match, names: await civNames(versionOf(match.game), api), quotas };
 }
 
 // Reports are uploaded, and their history kept, per edition and per mode.
 export function uploadChannelId(match: Match): string {
   const c = config.discord.channels;
-  const civ7 = editionOf(match.game) === 'civ7';
+  const civ7 = versionOf(match.game) === 'civ7';
   if (match.is_cloud) return civ7 ? c.civ7cloudUploads : c.civ6cloudUploads;
   return civ7 ? c.civ7realtimeUploads : c.civ6realtimeUploads;
 }
 
 export function historyChannelId(match: Match): string {
   const c = config.discord.channels;
-  const civ7 = editionOf(match.game) === 'civ7';
+  const civ7 = versionOf(match.game) === 'civ7';
   if (match.is_cloud) return civ7 ? c.civ7cloudReportingHistory : c.civ6cloudReportingHistory;
   return civ7 ? c.civ7realtimeReportingHistory : c.civ6realtimeReportingHistory;
 }
@@ -78,6 +84,6 @@ export async function refreshReport(client: Client, match: Match, panel: Panel):
 // the forms it opens can name them at once.
 export async function editorOf(guild: Guild | null, match: Match, staff: boolean, api: ApiClient): Promise<Panel> {
   const ids = playerIds(match);
-  const [names] = await Promise.all([civNames(editionOf(match.game), api), loadMembers(guild, ids)]);
+  const [names] = await Promise.all([civNames(versionOf(match.game), api), loadMembers(guild, ids)]);
   return editorPanel(match, names, memberNames(guild, ids), staff);
 }

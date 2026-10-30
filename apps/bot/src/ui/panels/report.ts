@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type MessageActionRowComponentBuilder } from 'discord.js';
+import { ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import type { Match, MatchUpload, SubQuota } from '../../api/types.js';
 import {
@@ -7,6 +7,7 @@ import {
   iconOf,
   mention,
   pretty,
+  row,
   signed,
   text,
   when,
@@ -173,7 +174,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
 }
 
 function reportButtons(matchId: string): ButtonRow {
-  return new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
+  return row(
     new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(reportId('approve', matchId)).setLabel('Approve').setStyle(ButtonStyle.Success),
   );
@@ -230,18 +231,18 @@ export function contestedPanel(matchId: string, reason: string): Panel {
     surface: 'report',
     title: 'You contested this report',
     body: [text(`${MARK.contest} ${reason}`), text('If the report is fixed now, withdraw your contest so it can be approved.')],
-    actions: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(withdraw)],
+    actions: [row(withdraw)],
   };
 }
 
-export function revertedPanel(match: Match): Panel {
+export function revertedPanel(match: Match, by: string): Panel {
   const players = playerIds(match).map(mention).join(' \u00b7 ');
   return {
     tone: 'muted',
     surface: 'report',
     title: `${reportLabel(match)} result reverted`,
     subtitle: `Match \`${match.match_id}\``,
-    body: [text(`Ratings are restored for ${players}.`)],
+    body: [text(`Reverted by ${mention(by)}. Ratings are restored for ${players}.`)],
   };
 }
 

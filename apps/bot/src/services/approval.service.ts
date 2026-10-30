@@ -41,10 +41,10 @@ export async function publishApproved(client: Client, match: Match, api: ApiClie
 }
 
 // A reverted result's history post says so, where its post was recorded.
-export async function showReverted(client: Client, match: Match): Promise<void> {
+export async function showReverted(client: Client, match: Match, by: string): Promise<void> {
   const history = match.history_message_id ? await sendableIn(client, historyChannelId(match)) : null;
   if (!history || !match.history_message_id) return;
-  await editPanelById(history, match.history_message_id, revertedPanel(match)).catch((error: unknown) =>
+  await editPanelById(history, match.history_message_id, revertedPanel(match, by)).catch((error: unknown) =>
     log.warn('history post not redrawn', match.match_id, reason(error)),
   );
 }

@@ -1,8 +1,8 @@
 import { ButtonStyle, StringSelectMenuBuilder, type ButtonBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
-import { SHAPES, VERB, button, lobbyFooter, row } from './lobby.js';
+import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
+import { SHAPES, VERB, button, lobbyFooter } from './lobby.js';
 
 type Timed = Readonly<{ deadline: string | null; players: readonly Readonly<{ discord_id: string }>[] }>;
 
@@ -41,7 +41,7 @@ export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, 
 
 // The bans vote, one message: what to do, the bans so far, who has finished,
 // and the button to finish. Players react on it.
-export function voteStatusPanel(lobby: Lobby, names: CivNames): Panel {
+export function bansVotePanel(lobby: Lobby, names: CivNames): Panel {
   const [hosts, voted] = [bannedBy(lobby.bans, names, 'host'), bannedBy(lobby.bans, names, 'vote')];
   return {
     tone: 'info',

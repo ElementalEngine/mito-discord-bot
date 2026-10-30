@@ -1,16 +1,14 @@
 import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { CivDataResponse } from '../api/types.js';
+import type { CivDataResponse, CivVersion } from '../api/types.js';
 import { civNamesOf, type CivNames } from '../ui/kit/index.js';
 import { log } from '../utils/log.js';
-
-export type CivEditionKey = 'civ6' | 'civ7';
 
 const TTL_MS = 10 * 60_000;
 let emojis: ReadonlyMap<string, string> = new Map();
 // Names built with an older emoji set are stale, however recent.
-const cache = new Map<CivEditionKey, { at: number; emojis: typeof emojis; names: CivNames; data: CivDataResponse }>();
+const cache = new Map<CivVersion, { at: number; emojis: typeof emojis; names: CivNames; data: CivDataResponse }>();
 
 // The bot's own emoji by name, read once at startup. Without them names
 // show without portraits; nothing else changes.
@@ -26,7 +24,7 @@ export async function loadAppEmojis(client: Client): Promise<void> {
 
 // What players call each leader and civ, from core-api's civ data. Names past
 // their time are served at once and refreshed behind; a failure keeps them.
-export async function civNames(edition: CivEditionKey, api = new ApiClient(), now = Date.now()): Promise<CivNames> {
+export async function civNames(edition: CivVersion, api = new ApiClient(), now = Date.now()): Promise<CivNames> {
   const held = cache.get(edition);
   if (held && held.emojis === emojis) {
     if (now - held.at >= TTL_MS) {
@@ -38,7 +36,7 @@ export async function civNames(edition: CivEditionKey, api = new ApiClient(), no
   return fetchNames(edition, api, now);
 }
 
-async function fetchNames(edition: CivEditionKey, api: ApiClient, now: number): Promise<CivNames> {
+async function fetchNames(edition: CivVersion, api: ApiClient, now: number): Promise<CivNames> {
   const held = cache.get(edition);
   try {
     const own = emojis;
@@ -53,7 +51,7 @@ async function fetchNames(edition: CivEditionKey, api: ApiClient, now: number): 
 }
 
 // The edition's leaders and civs as core-api serves them, cached with the names.
-export async function civRows(edition: CivEditionKey, api = new ApiClient()): Promise<CivDataResponse> {
+export async function civRows(edition: CivVersion, api = new ApiClient()): Promise<CivDataResponse> {
   return cache.get(edition)?.data ?? api.getCivData(edition);
 }
 
@@ -71,10 +69,6 @@ export async function checkPortraits(api = new ApiClient()): Promise<string[]> {
   if (missing.length) log.warn(`Portraits missing for ${missing.length} of ${rows.length}: ${missing.join(', ')}`);
   else log.info(`Portraits found for all ${rows.length} leaders and civs`);
   return missing;
-}
-
-export function editionOf(game: string): CivEditionKey {
-  return game.toLowerCase() === 'civ7' ? 'civ7' : 'civ6';
 }
 
 export function forgetCivNames(): void {

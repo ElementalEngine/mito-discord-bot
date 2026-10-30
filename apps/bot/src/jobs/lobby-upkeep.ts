@@ -3,7 +3,8 @@ import type { Client } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import { advanceLobby, closeVote } from '../services/lobby-vote.service.js';
 import { advanceVote } from '../services/vote.service.js';
-import { inLobbyTurn, showLobby } from '../services/lobby.service.js';
+import { showLobby } from '../services/lobby.service.js';
+import { inSetupTurn } from '../services/turns.js';
 import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 30_000;
@@ -18,16 +19,16 @@ export function startLobbyUpkeepJob(client: Client): () => void {
     running = true;
     try {
       for (const lobby of await api.closeIdleLobbies()) {
-        await inLobbyTurn(lobby.id, async () => {
+        await inSetupTurn(lobby.id, async () => {
           await showLobby(client, lobby, api);
           await closeVote(client, lobby);
         }).catch((error: unknown) => log.warn('idle lobby post not updated', lobby.id, error));
       }
       for (const lobby of await api.lobbiesDue()) {
-        await inLobbyTurn(lobby.id, () => advanceLobby(client, lobby.id, api)).catch((error: unknown) => log.warn('due lobby not advanced', lobby.id, error));
+        await inSetupTurn(lobby.id, () => advanceLobby(client, lobby.id, api)).catch((error: unknown) => log.warn('due lobby not advanced', lobby.id, error));
       }
       for (const vote of await api.votesDue()) {
-        await inLobbyTurn(vote.id, () => advanceVote(client, vote.id, api)).catch((error: unknown) => log.warn('due vote not advanced', vote.id, error));
+        await inSetupTurn(vote.id, () => advanceVote(client, vote.id, api)).catch((error: unknown) => log.warn('due vote not advanced', vote.id, error));
       }
     } catch (error) {
       log.error('lobby upkeep tick failed', error);

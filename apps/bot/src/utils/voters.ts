@@ -3,7 +3,11 @@ import type { ChatInputCommandInteraction, SlashCommandStringOption } from 'disc
 import { refuse } from '../ui/reply.js';
 
 const MENTION = /<@!?(\d{17,20})>/g;
+const ID = /<@!?(\d{17,20})>|\b(\d{17,20})\b/g;
 const MAX_VOTERS = 14;
+
+// Players written as mentions or bare ids, in order, each once.
+export const idsIn = (listed: string): string[] => [...new Set([...listed.matchAll(ID)].map((m) => m[1] ?? m[2]!))];
 
 export const playersOption = (o: SlashCommandStringOption): SlashCommandStringOption =>
   o.setName('players').setDescription('Your voice channel is in already. @mention others to add, or to take out, spaced apart').setMaxLength(1000);

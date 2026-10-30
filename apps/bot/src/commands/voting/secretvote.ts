@@ -1,21 +1,10 @@
 import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 
-import { config } from '../../config.js';
 import { startSecretVote } from '../../handlers/secret-vote.handlers.js';
 import { ACTIONS, type Action } from '../../services/secret-vote.js';
 import { refuse } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { playersOption, votersOf } from '../../utils/voters.js';
-
-const ACCESS_POLICY = {
-  allowedChannelIds: [
-    config.discord.channels.botTesting,
-    config.discord.channels.civ6Commands,
-    config.discord.channels.civ7Commands,
-    config.discord.channels.cloudCommands,
-    config.discord.channels.noviceCommands,
-  ],
-} as const;
 
 export const data = new SlashCommandBuilder()
   .setName('secretvote')
@@ -34,7 +23,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) refuse('Secret votes are run in a server.');
-  if (!(await ensureCommandAccess(interaction, ACCESS_POLICY))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const action = interaction.options.getString('action', true) as Action;
   const turn = interaction.options.getInteger('turn', true);
   if (action === 'Remap' && turn > 10) refuse(`A remap is voted on by turn 10; this is turn ${turn}.`);
