@@ -84,7 +84,7 @@ export function rankAccent(mu: number | null | undefined): number | undefined {
   return rank ? Number.parseInt(rank.color.slice(1), 16) : undefined;
 }
 
-const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.name.replace(/_(\d)_STAR$/, ' $1\u2605') ?? null;
+export const rankName = (mu: number | null | undefined): string | null => rankOf(mu)?.name.replace(/_(\d)_STAR$/, ' $1\u2605') ?? null;
 
 const MAP_W = 16;
 const MAX_MAPS = 10;

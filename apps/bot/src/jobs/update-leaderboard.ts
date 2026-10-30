@@ -1,10 +1,11 @@
-import type { Client, Message, SendableChannels } from 'discord.js';
+import { MessageFlags, escapeMarkdown, type Client, type Guild, type Message, type SendableChannels } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { LeaderboardRanking } from '../api/types.js';
 import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.data.js';
-import { editText, postText } from '../ui/reply.js';
+import { container, fit, mention } from '../ui/kit/index.js';
+import { PAGES, boardPanels } from '../ui/panels/leaderboard.js';
+import { deleteMessages, editPanel, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 
 const api = new ApiClient();
@@ -12,98 +13,27 @@ const api = new ApiClient();
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A burst of approvals redraws each board once, this long after the last.
 const SETTLE_MS = 5_000;
-const ROWS_PER_MESSAGE = 10;
-const RANK_MESSAGES = 10;
-const MESSAGES = RANK_MESSAGES + 2;
+// The text boards these panels replaced: deleted when a board is first read.
 const PLACEHOLDER_TEXT = 'Placeholder for leaderboard entry.';
 const OURS = /^(`Rank|`#|Last updated:|```)/;
-const RANKS = `\`\`\`\n${[
-  'Ranks:',
-  'Deity ***   2400+',
-  'Deity **    2200 - 2399',
-  'Deity       2000 - 2199',
-  'Immortal    1800 - 1999',
-  'Emperor     1600 - 1799',
-  'King        1500 - 1599',
-  'Prince      1400 - 1499',
-  'Warlord     1300 - 1399',
-  'Chieftain   1200 - 1299',
-  'Settler     1100 - 1199',
-  'Builder     1000 - 1099',
-  'Scout          0 - 999',
-].join('\n\t')}\`\`\``;
+const UPDATED = 'Last updated';
 
-/**
- * Two layouts, and the split is measured rather than chosen.
- *
- * `first` is the win count. `wins` counts games where the rating went up,
- * which is about half of all games in every mode by construction -- so the
- * old `wins / games` printed roughly 50% for every player on every board,
- * and `games - wins` was never a loss count (D164, section 4 item 70).
- *
- * Across 340k games duel has `wins == first` exactly and teamer agrees
- * 99.87% of the time, so head-to-head boards show one pair of columns. In
- * FFA and combined the two are five times apart, so both are shown and the
- * rating-gain counter is labelled as a gain, never as a win.
- */
-export function getLeaderboardMessage(
-  leaderboardRanking: LeaderboardRanking,
-  gameMode: string,
-  startIdx: number,
-  endIdx: number
-): string {
-  const headToHead = gameMode === 'duel' || gameMode === 'teamer';
+const TYPES: Readonly<Record<string, string>> = { PBC: 'Cloud', Realtime: 'Realtime' };
+const MODES: Readonly<Record<string, string>> = { ffa: 'FFA', duel: 'Duel', teamer: 'Teamer', combined: 'Combined' };
 
-  let message = '';
-  if (startIdx === 0) {
-    message += headToHead
-      ? `\`Rank   Skill\t[wins - loss]\tWin%\`\n`
-      : `\`Rank   Skill\tGames\t 1st\tWin%\t   ^\`\n`;
-  }
-
-  const rankings = leaderboardRanking.rankings;
-  for (let i = startIdx; i < endIdx; i++) {
-    const entry = rankings[i];
-    if (!entry) {
-      message += `\`#${i + 1}\`\n`;
-      continue;
-    }
-
-    const rank = String(`#${i + 1}`).padEnd(4);
-    const discordId = entry.discord_id;
-
-    const rating = String(Math.round(entry.rating)).padStart(4);
-
-    const games = entry.games_played;
-    const first = entry.first;
-
-    const winPct = games > 0 ? ((first / games) * 100).toFixed(1) : '0.0';
-    const winPctStr = `${winPct}%`.padEnd(6);
-
-    if (headToHead) {
-      const losses = Math.max(0, games - first);
-      const record = `[${String(first).padStart(4)} - ${String(losses).padEnd(4)}]`;
-      message += `\`${rank}\t${rating}\t${record}\t${winPctStr}\`\t<@${discordId}>\n`;
-      continue;
-    }
-
-    const gamesStr = String(games).padStart(5);
-    const firstStr = String(first).padStart(4);
-    const gains = String(entry.wins).padStart(4);
-    message += `\`${rank}\t${rating}\t${gamesStr}\t${firstStr}\t${winPctStr}\t${gains}\`\t<@${discordId}>\n`;
-  }
-
-  return message;
+// What a panel shows, but for the time it was last updated, as Discord holds it.
+function shown(components: readonly { toJSON(): unknown }[]): string {
+  const json = JSON.stringify(components.map((c) => c.toJSON()));
+  return [...json.matchAll(/"content":"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]).filter((t) => !t!.includes(UPDATED)).join('\n');
 }
 
-// Each board's thread and its messages as last seen, so a redraw edits only
-// the messages whose text changed. The daily sweep reads them afresh.
+// Each board's thread and its panels as last seen, so a redraw edits only the
+// panels whose text changed. The daily sweep reads them afresh.
 type Board = { thread: SendableChannels; messages: Message[] };
 const boards = new Map<string, Board>();
 
-const same = (a: string, b: string): boolean => a.trim() === b.trim();
-
-// A board's twelve messages, read from its thread; any missing are posted.
+// A board's panels, read from its thread; the old text boards there are
+// deleted and any missing panels posted.
 async function boardOf(client: Client, binding: Leaderboard): Promise<Board | null> {
   const held = boards.get(binding.thread_id);
   if (held) return held;
@@ -113,33 +43,67 @@ async function boardOf(client: Client, binding: Leaderboard): Promise<Board | nu
     return null;
   }
   const fetched = await thread.messages.fetch({ limit: 100 });
-  const messages = [...fetched.values()]
-    .filter((m) => m.author.id === client.user?.id && (m.content === PLACEHOLDER_TEXT || OURS.test(m.content)))
-    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-    .slice(-MESSAGES);
-  while (messages.length < MESSAGES) messages.push(await postText(thread, PLACEHOLDER_TEXT));
+  const mine = [...fetched.values()].filter((m) => m.author.id === client.user?.id).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const old = mine.filter((m) => !m.flags.has(MessageFlags.IsComponentsV2) && (m.content === PLACEHOLDER_TEXT || OURS.test(m.content)));
+  if (old.length) {
+    if (thread.isThread() && thread.archived) await thread.setArchived(false);
+    await deleteMessages(thread, old.map((m) => m.id));
+    log.info(`leaderboard ${binding.name}: ${old.length} old text message(s) removed`);
+  }
+  const messages = mine.filter((m) => m.flags.has(MessageFlags.IsComponentsV2)).slice(-PAGES);
   const board = { thread, messages };
   boards.set(binding.thread_id, board);
   return board;
 }
 
-// A board redrawn from core-api's ranking: only changed messages are edited,
-// and nothing is sent when nothing changed.
+// Server names for the board; one whose fetch answered and who is not in the
+// server has left, and anyone unread while Discord is slow is mentioned.
+async function namesOf(guild: Guild | null, ids: readonly string[]): Promise<Map<string, string>> {
+  if (!guild) return new Map();
+  const missing = ids.filter((id) => !guild.members.cache.has(id));
+  const answered = !missing.length || (await guild.members.fetch({ user: missing, time: 5_000 }).then(() => true, () => false));
+  return new Map(
+    ids.map((id): [string, string] => {
+      const member = guild.members.cache.get(id);
+      if (member) return [id, escapeMarkdown(fit(member.displayName, 32))];
+      return [id, answered ? '*former member*' : mention(id)];
+    }),
+  );
+}
+
+async function titleOf(binding: Leaderboard): Promise<string> {
+  const edition = binding.game === 'civ7' ? 'Civ7' : 'Civ6';
+  const board = `${edition} ${TYPES[binding.game_type] ?? binding.game_type} ${MODES[binding.game_mode] ?? binding.game_mode}`;
+  if (!binding.is_seasonal) return `${board} \u00b7 Lifetime`;
+  const season = await api.getSeason(binding.game === 'civ7' ? 'civ7' : 'civ6').then((s) => s.label, () => 'Season');
+  return `${board} \u00b7 ${season}`;
+}
+
+// A board redrawn from core-api's ranking: only changed panels are edited,
+// with the last re-stamped, and nothing is sent when nothing changed.
 async function redraw(client: Client, binding: Leaderboard): Promise<void> {
   const board = await boardOf(client, binding);
   if (!board) return;
   const ranking = await api.getLeaderboardRanking(binding.game, binding.game_type, binding.game_mode, binding.is_seasonal, binding.is_combined);
-  const texts = [
-    ...Array.from({ length: RANK_MESSAGES }, (_, i) => getLeaderboardMessage(ranking, binding.game_mode, i * ROWS_PER_MESSAGE, (i + 1) * ROWS_PER_MESSAGE)),
-    RANKS,
-  ];
-  const changed = texts.flatMap((text, i) => (same(board.messages[i]?.content ?? '', text) ? [] : [i]));
-  if (!changed.length) return;
+  const guild = 'guild' in board.thread ? (board.thread.guild as Guild) : null;
+  const names = await namesOf(guild, ranking.rankings.map((r) => r.discord_id));
+  const panels = boardPanels({ title: await titleOf(binding), mode: binding.game_mode, ranking, names, updated: new Date() });
+  const changed = panels.flatMap((panel, i) => {
+    const message = board.messages[i];
+    return message && shown(message.components) === shown([container(panel)]) ? [] : [i];
+  });
+  const extra = board.messages.slice(panels.length);
+  if (!changed.length && !extra.length) return;
   // Discord refuses edits in an archived thread.
   if (board.thread.isThread() && board.thread.archived) await board.thread.setArchived(false);
-  for (const i of changed) board.messages[i] = await editText(board.messages[i]!, texts[i]!);
-  board.messages[MESSAGES - 1] = await editText(board.messages[MESSAGES - 1]!, `Last updated: <t:${Math.floor(Date.now() / 1000)}:F>`);
-  log.info(`leaderboard ${binding.name}: ${changed.length} message(s) redrawn`);
+  // A board that shrank, as after a season reset, loses its trailing panels.
+  if (extra.length) await deleteMessages(board.thread, extra.map((m) => m.id));
+  board.messages = board.messages.slice(0, panels.length);
+  for (const i of new Set([...changed, panels.length - 1])) {
+    const message = board.messages[i];
+    board.messages[i] = message ? await editPanel(message, panels[i]!) : await postPanel(board.thread, panels[i]!);
+  }
+  log.info(`leaderboard ${binding.name}: ${changed.length} panel(s) redrawn, ${extra.length} removed`);
 }
 
 async function redrawSafely(client: Client, binding: Leaderboard): Promise<void> {
