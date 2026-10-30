@@ -302,14 +302,16 @@ function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Pa
   const fits = (s: LobbyShape): boolean =>
     SEATS[s] >= seats.length && Array.from({ length: lobby.teams }, (_, i) => teamOf(seats, i + 1).length).every((n) => n <= SEATS[s] / lobby.teams);
   const sizes = sizesLike(d.shape).filter(fits);
-  const menus: ButtonRow[] = [];
+  const menus: Block[] = [];
+  const titled = (title: string, menu: StringSelectMenuBuilder): void => {
+    menus.push(text(`**${title}**`), inBody(row(menu)));
+  };
   if (sizes.length > 1) {
-    menus.push(
-      row(
-        new StringSelectMenuBuilder()
-          .setCustomId(customId('lobby', VERB.shape, lobby.id))
-          .addOptions(sizes.map((s) => ({ label: SHAPES[s], value: s, default: s === d.shape }))),
-      ),
+    titled(
+      'Lobby size',
+      new StringSelectMenuBuilder()
+        .setCustomId(customId('lobby', VERB.shape, lobby.id))
+        .addOptions(sizes.map((s) => ({ label: SHAPES[s], value: s, default: s === d.shape }))),
     );
   }
   if (lobby.teams) {
@@ -320,18 +322,17 @@ function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Pa
         .map((team) => ({ label: fit(`${nameOfPlayer(p.discord_id)} to Team ${team}`, 100), value: `${p.discord_id}:${team}` })),
     );
     if (moves.length) {
-      menus.push(row(new StringSelectMenuBuilder().setCustomId(customId('lobby', VERB.move, lobby.id)).setPlaceholder('Move a player').addOptions(moves.slice(0, 25))));
+      titled('Move a player', new StringSelectMenuBuilder().setCustomId(customId('lobby', VERB.move, lobby.id)).setPlaceholder('Choose\u2026').addOptions(moves.slice(0, 25)));
     }
   }
   const others = seats.filter((p) => p.discord_id !== lobby.host_id);
   if (others.length) {
-    menus.push(
-      row(
-        new StringSelectMenuBuilder()
-          .setCustomId(customId('lobby', VERB.kick, lobby.id))
-          .setPlaceholder('Remove a player')
-          .addOptions(others.slice(0, 25).map((p) => ({ label: fit(nameOfPlayer(p.discord_id), 100), value: p.discord_id }))),
-      ),
+    titled(
+      'Remove a player',
+      new StringSelectMenuBuilder()
+        .setCustomId(customId('lobby', VERB.kick, lobby.id))
+        .setPlaceholder('Choose\u2026')
+        .addOptions(others.slice(0, 25).map((p) => ({ label: fit(nameOfPlayer(p.discord_id), 100), value: p.discord_id }))),
     );
   }
   return {
@@ -339,8 +340,8 @@ function lobbyView(d: EditorDraft, playerNames: ReadonlyMap<string, string>): Pa
     surface: 'lobby',
     title: 'Lobby settings',
     subtitle: `${SHAPES[d.shape]} · ${seats.length}/${SEATS[d.shape]} seated`,
-    body: [text(seatLines(lobby, seats))],
-    actions: [...menus, row(button(lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
+    body: [text(seatLines(lobby, seats)), ...menus],
+    actions: [row(button(lobby, VERB.view, 'Back', ButtonStyle.Secondary, 'main'))],
   };
 }
 

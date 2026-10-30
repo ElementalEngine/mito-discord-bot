@@ -2296,7 +2296,12 @@ export interface components {
         /** SettingQuestion */
         SettingQuestion: {
             /** Default Option Id */
-            default_option_id: string;
+            default_option_id: string | null;
+            /**
+             * Host Only
+             * @default false
+             */
+            host_only: boolean;
             /** Id */
             id: string;
             /** Options */

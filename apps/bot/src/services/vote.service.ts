@@ -96,7 +96,8 @@ export async function postVote(client: Client, vote: Vote, place: SendableChanne
   };
   try {
     await post(VOTE_STATUS, voteStatusPanel(vote, questions), { users: playersOf(vote) });
-    for (const question of questions) seed(await post(question.id, questionPanel(question)), question);
+    // A setting the vote starts with set, such as a host-only one, is not asked.
+    for (const question of questions.filter((q) => !vote.settings.some((s) => s.id === q.id))) seed(await post(question.id, questionPanel(question)), question);
     for (const [key, kind] of banKindsOf(vote)) void (await post(key, voteBansPanel(vote, kind, names))).react(BAN_HINT).catch(() => undefined);
     keepVoteTime(client, await api.placeVoteMessages(vote.id, starterOf(vote), { channel_id: place.id, messages }), api);
   } catch (error) {

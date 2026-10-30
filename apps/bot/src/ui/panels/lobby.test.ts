@@ -60,8 +60,8 @@ const teamer = (players: [string, number][], fields: Partial<Lobby> = {}): Lobby
   lobby({ shape: 'teamer-2v2', mode: 'teamer', seats: 4, teams: 2, players: players.map(([discord_id, team]) => ({ discord_id, team })), ...fields });
 
 const QUESTIONS: SettingQuestion[] = [
-  { id: 'huts', title: 'Huts', default_option_id: 'x1', options: [{ id: 'x1', label: '1x', emoji: '1️⃣' }, { id: 'x1_5', label: '1.5x', emoji: '2️⃣' }] },
-  { id: 'map', title: 'Map', default_option_id: 'pangea', options: [{ id: 'pangea', label: 'Pangaea', emoji: '🌐' }] },
+  { id: 'huts', title: 'Huts', default_option_id: 'x1', host_only: false, options: [{ id: 'x1', label: '1x', emoji: '1️⃣' }, { id: 'x1_5', label: '1.5x', emoji: '2️⃣' }] },
+  { id: 'map', title: 'Map', default_option_id: 'pangea', host_only: false, options: [{ id: 'pangea', label: 'Pangaea', emoji: '🌐' }] },
 ];
 const NAMES = new Map([['LEADER_A', 'Abe'], ['LEADER_B', 'Bea']]);
 const CTX = { questions: QUESTIONS, names: NAMES, playerNames: new Map([['100', 'Host'], ['200', 'Ann'], ['300', 'Bo']]) };
