@@ -34,12 +34,10 @@ function subcommand(sub: SlashCommandSubcommandBuilder, edition: CivVersion): Sl
     )
     .addIntegerOption((o) =>
       o.setName('drafts').setDescription('Number of drafts: one per player, or one per team').setRequired(true).setMinValue(2).setMaxValue(MAX_DRAFTS[edition]),
-    );
-  if (edition === 'civ6') {
-    sub.addIntegerOption((o) => o.setName('civs').setDescription('Civs per draft').setRequired(true).setMinValue(1));
-  } else {
+    )
+    .addIntegerOption((o) => o.setName('leaders').setDescription('Leaders per draft').setRequired(true).setMinValue(1));
+  if (edition === 'civ7') {
     sub
-      .addIntegerOption((o) => o.setName('leaders').setDescription('Leaders per draft').setRequired(true).setMinValue(1))
       .addIntegerOption((o) => o.setName('civs').setDescription('Civs per draft').setRequired(true).setMinValue(1))
       .addStringOption((o) =>
         o
@@ -71,7 +69,7 @@ function choiceOf(interaction: ChatInputCommandInteraction, edition: CivVersion)
     edition,
     mode: o.getString('mode', true) as Mode,
     drafts: o.getInteger('drafts', true),
-    leaders: edition === 'civ6' ? o.getInteger('civs', true) : o.getInteger('leaders', true),
+    leaders: o.getInteger('leaders', true),
     civs: edition === 'civ7' ? o.getInteger('civs', true) : null,
     age: age === EVERY_AGE ? null : (age as Age),
   };

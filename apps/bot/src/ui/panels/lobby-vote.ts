@@ -53,7 +53,7 @@ export function bansVotePanel(lobby: Lobby, names: CivNames, questions: readonly
   const settings = asked.length
     ? [
         text(
-          `### Settings put to the vote\nReact on each setting below. An option backed by ${majority(lobby)} of the ${lobby.players.length} players wins at once; the rest go to the most reactions when the vote closes.`,
+          `### Settings put to the vote\nReact on each setting below. An option backed by ${majority(lobby)} of the ${lobby.players.length} players wins at once; the rest go to the most reactions when the vote closes, and the bot settles a tie.`,
         ),
         ...(won.length ? [field('Won', settingLines(Object.fromEntries(lobby.settings.map((s) => [s.id, s.value])), won))] : []),
       ]

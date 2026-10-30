@@ -40,7 +40,7 @@ export function voteStatusPanel(vote: Vote, questions: readonly SettingQuestion[
     subtitle: closes(vote, 'finished'),
     body: [
       text(
-        `### React on each setting below\nBack as many options as you like. An option backed by ${majority(vote)} of the ${vote.players.length} players wins at once and its message is cleared; the rest go to the most reactions once all finish, a tie settled at random. ${bans}. Then press **Finished**.`,
+        `### React on each setting below\nBack as many options as you like. An option backed by ${majority(vote)} of the ${vote.players.length} players wins at once and its message is cleared; the rest go to the most reactions once all finish, and the bot settles a tie. ${bans}. Then press **Finished**.`,
       ),
       ...(won.length ? [field('Won', won.join('\n'))] : []),
       field('Players', ticks(vote, new Set(vote.vote.finished))),
