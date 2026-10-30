@@ -18,7 +18,7 @@ const PLACEHOLDER_TEXT = 'Placeholder for leaderboard entry.';
 const OURS = /^(`Rank|`#|Last updated:|```)/;
 const UPDATED = 'Last updated';
 
-const TYPES: Readonly<Record<string, string>> = { PBC: 'Cloud', Realtime: 'Realtime' };
+const TYPES: Readonly<Record<string, string>> = { PBC: 'Cloud', realtime: 'Realtime' };
 const MODES: Readonly<Record<string, string>> = { ffa: 'FFA', duel: 'Duel', teamer: 'Teamer', combined: 'Combined' };
 
 // What a panel shows, but for the time it was last updated, as Discord holds it.
@@ -56,12 +56,14 @@ async function boardOf(client: Client, binding: Leaderboard): Promise<Board | nu
   return board;
 }
 
+// The board's name: edition, type and mode, then Lifetime or its season.
+export const boardName = (binding: Leaderboard): string =>
+  `${binding.game === 'civ7' ? 'Civ7' : 'Civ6'} ${TYPES[binding.game_type] ?? binding.game_type} ${MODES[binding.game_mode] ?? binding.game_mode}`;
+
 async function titleOf(binding: Leaderboard): Promise<string> {
-  const edition = binding.game === 'civ7' ? 'Civ7' : 'Civ6';
-  const board = `${edition} ${TYPES[binding.game_type] ?? binding.game_type} ${MODES[binding.game_mode] ?? binding.game_mode}`;
-  if (!binding.is_seasonal) return `${board} \u00b7 Lifetime`;
+  if (!binding.is_seasonal) return `${boardName(binding)} \u00b7 Lifetime`;
   const season = await api.getSeason(binding.game === 'civ7' ? 'civ7' : 'civ6').then((s) => s.label, () => 'Season');
-  return `${board} \u00b7 ${season}`;
+  return `${boardName(binding)} \u00b7 ${season}`;
 }
 
 // A board redrawn from core-api's ranking: only changed panels are edited,

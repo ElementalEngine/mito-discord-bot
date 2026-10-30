@@ -109,7 +109,7 @@ export function voteBlindPickPanel(vote: Vote, playerId: string, names: CivNames
   const pool = vote.pools.find((p) => p.player_id === playerId);
   const withCivs = (pool?.civs.length ?? 0) > 0;
   const ready = leader && (civ || !withCivs);
-  const label = ready ? `Lock in ${fit(plainNameOf(names, leader), 40)}${civ ? ` · ${fit(plainNameOf(names, civ), 40)}` : ''}` : 'Lock in';
+  const label = ready ? fit(`Lock in ${plainNameOf(names, leader)}${civ ? ` · ${plainNameOf(names, civ)}` : ''}`, 80) : 'Lock in';
   const lockIn = button(vote, VOTE_VERB.lockIn, label, ButtonStyle.Success, ...(ready ? [leader, ...(civ ? [civ] : [])] : [])).setDisabled(!ready);
   const lines = (tokens: readonly string[]): string => tokens.map((t) => nameOf(names, t)).join('\n');
   return {
