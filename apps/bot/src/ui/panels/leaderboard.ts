@@ -7,6 +7,8 @@ import { rankAccent, rankName } from './stats.js';
 export const PAGE_ROWS = 25;
 export const PAGES = 4;
 const SHOWN = PAGE_ROWS * PAGES;
+// Rows go in blocks of five: Discord cut the last row of one long text block.
+const BLOCK_ROWS = 5;
 
 const MEDALS = ['\u{1f947}', '\u{1f948}', '\u{1f949}'];
 const RANK_KEY = `Ranks: ${RANK_DEFS_CIV6.map((r) => `${rankName(r.threshold)} ${r.threshold || ''}`.trim()).join(' \u00b7 ')}`;
@@ -17,8 +19,6 @@ export type BoardView = Readonly<{
   title: string;
   mode: string;
   ranking: LeaderboardRanking;
-  // Each player's name as shown; anyone missing is mentioned.
-  names: ReadonlyMap<string, string>;
   updated: Date;
 }>;
 
@@ -32,7 +32,7 @@ function headingLine(h2h: boolean): string {
 }
 
 // Win% is 1st places over games; the rating-gain counter is not a win.
-function rowLine(at: number, entry: Entry, h2h: boolean, name: string): string {
+function rowLine(at: number, entry: Entry, h2h: boolean): string {
   const games = entry.games_played;
   const first = entry.first;
   const pct = `${games > 0 ? ((first / games) * 100).toFixed(1) : '0.0'}%`;
@@ -40,7 +40,7 @@ function rowLine(at: number, entry: Entry, h2h: boolean, name: string): string {
   const cells = [`#${at + 1}`.padEnd(4), String(Math.round(entry.rating)).padStart(5), ...counts, pct.padStart(6)];
   const medal = MEDALS[at] ? `${MEDALS[at]} ` : '';
   const rank = rankName(entry.rating);
-  return `${chips(cells)} \u2014 ${medal}**${name}**${rank ? ` \u00b7 *${rank}*` : ''}`;
+  return `${chips(cells)} \u2014 ${medal}${mention(entry.discord_id)}${rank ? ` \u00b7 *${rank}*` : ''}`;
 }
 
 // The board as its messages, one per 25 players up to four: column headings on
@@ -53,8 +53,11 @@ export function boardPanels(view: BoardView): Panel[] {
   return Array.from({ length: pages }, (_, page) => {
     const start = page * PAGE_ROWS;
     const shown = rows.slice(start, start + PAGE_ROWS);
+    const lines = shown.map((e, i) => rowLine(start + i, e, h2h));
     const body: Block[] = shown.length
-      ? [text([headingLine(h2h), ...shown.map((e, i) => rowLine(start + i, e, h2h, view.names.get(e.discord_id) ?? mention(e.discord_id)))].join('\n'))]
+      ? Array.from({ length: Math.ceil(lines.length / BLOCK_ROWS) }, (_, b) =>
+          text([...(b === 0 ? [headingLine(h2h)] : []), ...lines.slice(b * BLOCK_ROWS, (b + 1) * BLOCK_ROWS)].join('\n')),
+        )
       : [text('No rated games yet.')];
     const last = page === pages - 1;
     if (last) body.push(text(`-# ${RANK_KEY}`));

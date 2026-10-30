@@ -1,9 +1,9 @@
-import { MessageFlags, escapeMarkdown, type Client, type Guild, type Message, type SendableChannels } from 'discord.js';
+import { MessageFlags, type Client, type Message, type SendableChannels } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
 import type { Leaderboard } from '../data/types.js';
 import { leaderboardsList } from '../data/leaderboards-list.data.js';
-import { container, fit, mention } from '../ui/kit/index.js';
+import { container } from '../ui/kit/index.js';
 import { PAGES, boardPanels } from '../ui/panels/leaderboard.js';
 import { deleteMessages, editPanel, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
@@ -56,21 +56,6 @@ async function boardOf(client: Client, binding: Leaderboard): Promise<Board | nu
   return board;
 }
 
-// Server names for the board; one whose fetch answered and who is not in the
-// server has left, and anyone unread while Discord is slow is mentioned.
-async function namesOf(guild: Guild | null, ids: readonly string[]): Promise<Map<string, string>> {
-  if (!guild) return new Map();
-  const missing = ids.filter((id) => !guild.members.cache.has(id));
-  const answered = !missing.length || (await guild.members.fetch({ user: missing, time: 5_000 }).then(() => true, () => false));
-  return new Map(
-    ids.map((id): [string, string] => {
-      const member = guild.members.cache.get(id);
-      if (member) return [id, escapeMarkdown(fit(member.displayName, 32))];
-      return [id, answered ? '*former member*' : mention(id)];
-    }),
-  );
-}
-
 async function titleOf(binding: Leaderboard): Promise<string> {
   const edition = binding.game === 'civ7' ? 'Civ7' : 'Civ6';
   const board = `${edition} ${TYPES[binding.game_type] ?? binding.game_type} ${MODES[binding.game_mode] ?? binding.game_mode}`;
@@ -85,9 +70,7 @@ async function redraw(client: Client, binding: Leaderboard): Promise<void> {
   const board = await boardOf(client, binding);
   if (!board) return;
   const ranking = await api.getLeaderboardRanking(binding.game, binding.game_type, binding.game_mode, binding.is_seasonal, binding.is_combined);
-  const guild = 'guild' in board.thread ? (board.thread.guild as Guild) : null;
-  const names = await namesOf(guild, ranking.rankings.map((r) => r.discord_id));
-  const panels = boardPanels({ title: await titleOf(binding), mode: binding.game_mode, ranking, names, updated: new Date() });
+  const panels = boardPanels({ title: await titleOf(binding), mode: binding.game_mode, ranking, updated: new Date() });
   const changed = panels.flatMap((panel, i) => {
     const message = board.messages[i];
     return message && shown(message.components) === shown([container(panel)]) ? [] : [i];
