@@ -357,7 +357,7 @@ export class ApiClient {
     return (await this.parseJson(res)) as T;
   }
 
-  // C1. The reporter rules live in core-api; staff is asserted from here.
+  // Who may report is core-api's rule; the bot names the uploader.
   async uploadMatch(file: Buffer, filename: string, actorId: string, isCloud: boolean, messageId: string): Promise<MatchUpload> {
     const form = new FormData();
     form.append("file", new File([new Uint8Array(file)], filename));

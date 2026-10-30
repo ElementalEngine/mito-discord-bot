@@ -132,6 +132,7 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.civSeat]: 'show that seat',
   [EDIT.civPick]: 'pick that civ',
   [EDIT.back]: 'go back to the editor',
+  [EDIT.page]: 'turn the page',
   [EDIT.done]: 'close the editor',
 };
 
@@ -394,6 +395,8 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.orderPick) {
       const holder = Number(id.args[2]);
       await draft(interaction, matchId, 'order', (d) => ({ ...d, now: withOrderPick(d.now, at, holder, Number(interaction.values[0])) }));
+    } else if (interaction.isButton() && id.verb === EDIT.page && (id.args[1] === 'order' || id.args[1] === 'assign')) {
+      await draft(interaction, matchId, id.args[1], (d) => ({ ...d, focus: Number(id.args[2]) }));
     } else if (interaction.isButton() && id.verb === EDIT.save) {
       await saveDraft(interaction, matchId);
     } else if (interaction.isButton() && id.verb === EDIT.quits) {

@@ -40,7 +40,7 @@ function blue(text: string): string {
   return `${ANSI_BLUE}${text}${ANSI_RESET}`;
 }
 
-function computeNameWidth(names: readonly string[]): number {
+function nameWidth(names: readonly string[]): number {
   const maxLen = names.reduce((acc, n) => Math.max(acc, n.length), 0);
   return Math.min(NAME_MAX_W, Math.max(NAME_MIN_W, maxLen, 'Name'.length));
 }
@@ -57,7 +57,7 @@ function computeWidths<T extends { name: string }>(
   getCols: (row: T) => ModeCols
 ): Widths {
   const names = rows.map((r) => clampName(r.name, NAME_MAX_W));
-  const nameW = computeNameWidth(names);
+  const nameW = nameWidth(names);
 
   const header = { ffa: 'FFA', teamer: 'Teamer', duel: 'Duel' } as const;
   const modeWidths = {
@@ -76,7 +76,7 @@ function computeWidths<T extends { name: string }>(
   return { name: nameW, ...modeWidths };
 }
 
-function buildSeparator(widths: Widths): string {
+function separator(widths: Widths): string {
   const nameSeg = '-'.repeat(widths.name + 1);
   const ffaSeg = '-'.repeat(widths.ffa + 2);
   const teamerSeg = '-'.repeat(widths.teamer + 2);
@@ -120,7 +120,7 @@ function renderTable<T extends { name: string }>(
   const lines: string[] = [];
 
   lines.push(buildHeader(widths));
-  lines.push(buildSeparator(widths));
+  lines.push(separator(widths));
   for (const r of rows) lines.push(buildRow(r.name, getCols(r), widths));
 
   return wrapAnsi(lines);

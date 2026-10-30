@@ -222,7 +222,6 @@ export function duplicateText(upload: MatchUpload): string {
   return `This save is already reported, as match ${id}, and is waiting for approval.`;
 }
 
-// What a revert leaves behind: whose ratings were restored.
 // A player who has contested is offered to take it back instead of a second contest.
 export function contestedPanel(matchId: string, reason: string): Panel {
   const withdraw = new ButtonBuilder().setCustomId(reportId('withdraw', matchId)).setLabel('Withdraw my contest').setStyle(ButtonStyle.Secondary);
@@ -235,6 +234,7 @@ export function contestedPanel(matchId: string, reason: string): Panel {
   };
 }
 
+// What a revert leaves behind: who reverted and whose ratings were restored.
 export function revertedPanel(match: Match, by: string): Panel {
   const players = playerIds(match).map(mention).join(' \u00b7 ');
   return {

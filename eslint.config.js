@@ -32,7 +32,7 @@ export default [
       ...tseslint.configs.recommended.rules,
       ...prettier.rules,
 
-      // Keep lint low-friction. Warnings don't fail.
+      // CI runs with --max-warnings=0; a leading underscore marks a name kept on purpose.
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
@@ -43,9 +43,6 @@ export default [
         },
       ],
 
-      // Legacy code compatibility (don’t force a repo-wide refactor right now)
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
   // A promise is awaited, returned or marked void, so no failure goes unseen.

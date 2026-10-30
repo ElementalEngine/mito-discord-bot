@@ -53,9 +53,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const problems = checkManifests(loadManifests(root));
   if (problems.length) {
-    console.error('D12 version-pin check failed:');
+    console.error('version-pin check failed:');
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log(`D12 version-pin check passed (${MANIFESTS.length} manifests)`);
+  console.log(`version-pin check passed (${MANIFESTS.length} manifests)`);
 }

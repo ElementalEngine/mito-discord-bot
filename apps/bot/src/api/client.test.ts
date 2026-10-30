@@ -35,7 +35,7 @@ test("a transport failure is retried on GET only", () => {
 });
 
 test("an unenveloped 5xx follows the transport rule", () => {
-  // v1 today: HTTPException with a bare string, no retryable to honour.
+  // A bare string from FastAPI: no retryable to honour.
   const err = new ApiError("HTTP 500", 500, { detail: "boom" });
   assert.equal(decide(client, err, "GET"), true);
   assert.equal(decide(client, err, "PUT"), false);

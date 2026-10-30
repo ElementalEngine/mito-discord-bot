@@ -28,7 +28,7 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Version pins (D12)
+      - name: Version pins
         run: npm run pins
 
       - name: Build

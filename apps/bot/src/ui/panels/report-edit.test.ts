@@ -172,8 +172,18 @@ test('up to ten seats, each place and seat menu has its own heading', () => {
   const assign = JSON.stringify(container(panelOf('assign', ffa, new Map(), new Map([[B, 'Bo']]))).toJSON());
   assert.match(assign, /\*\*Seat 3 \u00b7 Shaka\*\*.*"placeholder":"unassigned \(save: Gandhi fan\)"/);
   assert.match(assign, /"placeholder":"now Bo"/);
-  // Twelve seats would pass Discord's 40 components with headings, so the menus carry them.
-  assert.doesNotMatch(JSON.stringify(container(panelOf('assign', cloud)).toJSON()), /\*\*Seat 1/);
+});
+
+test('past ten seats every menu keeps its heading, and the seats split into pages', () => {
+  for (const kind of ['assign', 'order'] as const) {
+    const first = container(panelOf(kind, cloud, new Map(), new Map(), cloud, 0)).toJSON();
+    const json = JSON.stringify(first);
+    assert.equal((json.match(/"custom_id":"report:(assign|order)pick:/g) ?? []).length, 6);
+    assert.match(json, kind === 'assign' ? /\*\*Seat 1 \u00b7/ : /\*\*1st place\*\*/);
+    assert.match(json, new RegExp(`"custom_id":"report:page:[^:]+:${kind}:1".*"label":"Next page \\(1/2\\)"`));
+    const second = JSON.stringify(container(panelOf(kind, cloud, new Map(), new Map(), cloud, 1)).toJSON());
+    assert.match(second, kind === 'assign' ? /\*\*Seat 12 \u00b7/ : /\*\*12th place\*\*/);
+  }
 });
 
 // A cloud game: twelve seats, none of them known to the save.
@@ -185,19 +195,18 @@ test('unassigned seats come first in Assign, keeping their seat numbers', () => 
   assert.deepEqual(order, ['3', '1', '2']);
 });
 
-test('a cloud game\'s twelve seats are assigned in one panel, then saved at once', () => {
+test('a cloud game\'s twelve seats are assigned across its pages, then saved at once', () => {
   const names = new Map([['LEADER_SHAKA', 'Shaka']]);
-  const json = JSON.stringify(container(panelOf('assign', cloud, names)).toJSON());
-  assert.equal((json.match(/"custom_id":"report:assignpick:/g) ?? []).length, 12);
-  assert.match(json, /"placeholder":"Seat 1 \u00b7 Shaka \u00b7 unassigned"/);
+  const json = JSON.stringify(container(panelOf('assign', cloud, names, new Map(), cloud, 0)).toJSON());
+  assert.match(json, /\*\*Seat 1 \u00b7 Shaka\*\*.*"placeholder":"unassigned"/);
   assert.match(json, /"label":"Nothing to save","style":3,"disabled":true/);
   const draft = withAssignPick(cloud, withAssignPick(cloud, cloud, 1, A) as Match, 2, B) as Match;
   assert.deepEqual(draftEdits(cloud, draft), [
     { seat: 0, discord_id: A },
     { seat: 1, discord_id: B },
   ]);
-  const shown = JSON.stringify(container(panelOf('assign', draft, names, new Map([[A, 'Calcifer']]), cloud)).toJSON());
-  assert.match(shown, /Seat 1 \u00b7 Shaka \u00b7 now Calcifer/);
+  const shown = JSON.stringify(container(panelOf('assign', draft, names, new Map([[A, 'Calcifer']]), cloud, 0)).toJSON());
+  assert.match(shown, /"placeholder":"now Calcifer"/);
   assert.match(shown, new RegExp(`Not saved yet:\\*\\* Seat 1 \u2192 <@${A}> \u00b7 Seat 2 \u2192 <@${B}>.*"label":"Save 2 changes"`));
   // Moved to another empty seat, the seat left goes back to empty.
   assert.deepEqual(draftEdits(cloud, withAssignPick(cloud, draft, 3, A) as Match), [
@@ -209,11 +218,23 @@ test('a cloud game\'s twelve seats are assigned in one panel, then saved at once
   assert.equal(withAssignPick(ffa, ffa, 3, A), `<@${A}> has seat 1. Give seat 1 another player first.`);
 });
 
-test('a game past fifteen seats still fits, the rest set one seat at a time', () => {
-  const big = match(Array.from({ length: 17 }, (_, i) => player({ discord_id: `-${i + 1}`, placement: i, team: i })));
-  for (const panel of [panelOf('assign', big), panelOf('order', big)]) {
-    const json = JSON.stringify(container(panel).toJSON());
-    assert.match(json, /Only the first 15 seats can be set here/);
+test('every page keeps within Discord\'s 40 components, however big the game', () => {
+  const count = (node: unknown): number =>
+    node && typeof node === 'object'
+      ? ('type' in node ? 1 : 0) + Object.values(node).reduce((n: number, v) => n + count(v), 0)
+      : 0;
+  for (const size of [10, 12, 14, 21]) {
+    const big = match(Array.from({ length: size }, (_, i) => player({ discord_id: `-${i + 1}`, placement: i, team: i })));
+    for (const kind of ['assign', 'order'] as const) {
+      const pages = Math.ceil(size / 10);
+      const seen = new Set<string>();
+      for (let page = 0; page < pages; page++) {
+        const json = container(panelOf(kind, big, new Map(), new Map(), big, page)).toJSON();
+        assert.ok(count(json) <= 40, `${kind} ${size} seats, page ${page}: ${count(json)}`);
+        for (const m of JSON.stringify(json).matchAll(/"custom_id":"report:(?:assign|order)pick:[^:]+:(\d+):/g)) seen.add(m[1]!);
+      }
+      assert.equal(seen.size, size, `${kind} ${size} seats`);
+    }
   }
 });
 

@@ -1,153 +1,119 @@
-<!-- Banner Image -->
 <p align="center">
-  <img src="(assets\CPL_Bot_-_Graphic.png)" alt="MitoCiv Banner" width="100%" />
+  <img src="assets/CPL_Bot_-_Graphic.png" alt="Mite" width="100%" />
 </p>
 
-<!-- Badges -->
 <p align="center">
-  <b>MitoCiv Bot</b><br>
-  <i>The Discord Bot that Fuels Competitive Civ VI & VII Communities</i><br><br>
-  <img src="https://img.shields.io/badge/Status-Active-success" alt="Status" />
-  <img src="https://img.shields.io/badge/Version-1.5.0-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/Discord-Slash%20Commands-7289da" alt="Discord Slash Commands" />
-  <img src="https://img.shields.io/badge/Tech-Node.js%20%7C%20TypeScript%20%7C%20MongoDB-lightgrey" alt="Tech Stack" />
+  <b>Mite</b><br>
+  <i>Drafts, lobbies, reporting and rankings for the Civilization Players League</i><br><br>
+  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version 2.0.0" />
+  <img src="https://img.shields.io/badge/node-24-339933" alt="Node 24" />
+  <img src="https://img.shields.io/badge/discord.js-14.27-5865F2" alt="discord.js 14.27" />
+  <img src="https://img.shields.io/badge/license-Apache--2.0-lightgrey" alt="Apache-2.0" />
 </p>
 
----
+Mite runs the game side of the CPL Discord server for Civilization VI and VII. Players set up a game with it, play, then upload the save. Mite reads the result, lets the players check it, and once it is approved moves everyone's TrueSkill rating, rank role and leaderboard place.
 
-# MitoCiv – The Discord Bot that Fuels Competitive Civ VI & VII Communities
+## Contents
 
-MitoCiv is a powerhouse Discord bot designed to **streamline and energize competitive Civilization VI and VII gameplay**.  
-From **civilization drafting** to **TrueSkill2-based rankings** and **dynamic leaderboards**, MitoCiv automates the setup and post-game processes that matter most to competitive players and communities.
+- [What it does](#what-it-does)
+- [Commands](#commands)
+- [How it works](#how-it-works)
+- [Running it](#running-it)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [License](#license)
 
----
+## What it does
 
-## Table of Contents
-1. [Features](#features)
-2. [Game Modes & Draft Types](#game-modes--draft-types)
-3. [Commands](#commands)
-4. [Preview](#preview)
-5. [Technology Stack](#technology-stack)
-6. [Integrations](#integrations)
-7. [Availability & Deployment](#availability-&-deployment)
-8. [Contributing](#contributing)
-9. [Special Thanks](#️-special-thanks)
+**Before the game**
+- **Drafts.** `/draft` deals each player or team a pool of leaders (and civs, for Civ7), with optional bans picked in a form first.
+- **Lobbies.** `/lobby host` sets up a Civ6 lobby with its settings, opens it to players, runs a bans vote by reactions, then deals the draft: standard, random or blind picks.
+- **Voice-channel votes.** `/vote` puts every setting, the draft mode and the bans to the players in your voice channel, then deals the draft.
+- **Small tools.** Balanced teams from ratings, turn orders, coin flips, map seeds and secret yes/no votes.
 
-[Back to Top](#mitociv--the-discord-bot-that-fuels-competitive-civ-vi--vii-communities)
+**After the game**
+- **Reporting from the save.** `/report-game` takes a `.Civ6Save` or `.Civ7Save`. The placements, leaders and civs come from the file.
+- **Fixing a report.** The reporter or staff can set the order, assign players, subs and quits, mark ties and fix civs before anything is rated.
+- **Contest and approve.** Any player in the game can contest. Staff approve, and a report needing no staff is approved on its own 48 hours after upload.
+- **Ratings that follow.** An approved result updates TrueSkill ratings, lifetime and seasonal stats, rank roles and the 20 leaderboard threads. A revert undoes all of it and names who reverted.
 
----
-
-## Features
-- **Civilization Draft System** – Supports FFA, Teamers, Blind/Monkey, Dynamic 9/3/1, All Random, and custom formats.  
-- **TrueSkill2 Ranking System** – Player performance tracking with dynamic skill ratings.  
-- **Game Lobby Integration** – Automatic lobby link generation and enforcement of host rules.  
-- **Dynamic Leaderboards** – Includes Hall of Fame (HoF), seasonal rankings, and detailed player stats.  
-- **Utility Tools** – Quick random number generation, coin flips, and map seed generation.  
-- **Discord-Optimized** – Slash commands, embeds, buttons, and dialog modals.  
-- **Configurable** – Server admins can tweak settings, roles, and language with `/config`.  
-- **Up-to-Date** - Accords to latest Civilization VI & Civilization VII versions. 
-- **Community-Tested** – Trusted by X+ users in Civilization communities.  
-
-[Back to Top](#table-of-contents)
-
----
-
-## Game Modes & Draft Types
-### **Game Modes**
-- **FFA** – Free-for-all matches.
-- **Teamers** – 2v2, 3v3, etc.
-- **Duel** – 1v1 competitive format.
-- **PBC (Play by Cloud)** – Asynchronous cloud-based games.
-
-### **Draft Types**
-- **Blind** – Hidden picks revealed after drafting.  
-- **All Random** – Randomly assigned civilizations.  
-- **CWC** – Civilization World Cup-style bans/picks.  
-- **Dynamic** – Real-time evolving draft pools.  
-- **Draft2** – Two-phase drafts (ban/pick).  
-- **Snake** – Snake order picks (1→N, then N→1).  
-
-[Back to Top](#table-of-contents)
-
----
+**Stats**
+- `/stats` and `/stats-history` for any player, `/roomranks` for everyone in your voice channel.
 
 ## Commands
 
-| **Command**         | **Description**                                             | **Example**                     |
-|---------------------|-------------------------------------------------------------|---------------------------------|
-| `/config`           | Configure server settings (roles, language, values).        | `/config language en`           |
-| `/draft <mode>`     | Start a draft session with chosen format.                   | `/draft blind`                  |
-| `/leaderboard`      | View current rankings or Hall of Fame.                      | `/leaderboard`                  |
-| `/stats @user`      | View detailed stats for a user.                             | `/stats @player`                |
-| `/random`           | Generate a random number or map seed.                       | `/random 1-100`                 |
-| `/coinflip`         | Flip a coin for quick decisions.                            | `/coinflip`                     |
+| Command | What it does | Who |
+|---|---|---|
+| `/draft civ6` · `/draft civ7` | Deal drafts, with optional bans | that game's rank role (Civ6 also Cloud) |
+| `/lobby host` · `edit` · `browse` · `cancel` | Host and run a Civ6 lobby | Civ6 Ranked |
+| `/vote civ6` · `/vote civ7` · `/vote cancel` | Vote on a game with your voice channel | that game's rank role |
+| `/secretvote` | A secret yes/no vote, open for 2 minutes | any rank role |
+| `/teamgen` | Two balanced teams from ratings | any rank role |
+| `/roll` · `/coinflip` · `/mapseed` | Turn orders and picks, a coin, a map seed | any rank role |
+| `/report-game` | Report a finished game from its save | any rank role |
+| `/report-edit` · `/report-remove` | Fix or remove a report still waiting | its reporter, or staff |
+| `/report-revert` | Undo an approved result | admins and developers |
+| `/stats` · `/stats-history` · `/roomranks` | Ratings, records and recent games | any rank role |
+| `/ping` · `/resetstats` · `/season-new` · `/get-users` | Staff tools | staff only, hidden from everyone else |
 
-[Back to Top](#table-of-contents)
+Moderators and developers pass every rank-role check. The table above lives in [`config/command-access.ts`](apps/bot/src/config/command-access.ts): the bot enforces it, and at startup logs any place where Discord's Integrations settings differ from it.
 
----
+## How it works
 
-## Preview
-Below are example previews of MitoCiv’s features:
+```
+Discord ──▶ Mite ──HTTPS, service token──▶ core-api ──▶ MongoDB Atlas
+```
 
-### **Draft Flow**
-![Draft Flow](DRAFT_IMAGE_PLACEHOLDER)
+Mite holds no data of its own. Every read and write goes through [core-api](https://github.com/ElementalEngine/core-api-backend), which parses the saves, owns the rules and the ratings, and is the only service that talks to the database.
 
-### **Player Statistics**
-![Player Stats](STATS_IMAGE_PLACEHOLDER)
+- **One client.** [`api/client.ts`](apps/bot/src/api/client.ts) is the only place Mite calls core-api: native `fetch`, a timeout on every call, Mite's Bearer token, and retries only where core-api's error says `retryable`.
+- **Typed from the spec.** Request and response types are generated from core-api's `openapi.json` into [`packages/contracts`](packages/contracts), so a changed route is a type error here, not a surprise in production.
+- **Components V2 panels.** Every message is a panel built from one small kit in [`ui/kit`](apps/bot/src/ui/kit). Lint refuses legacy embeds.
+- **Background jobs.** Leaderboard redraws, auto-approval and lobby upkeep run in [`jobs`](apps/bot/src/jobs). Each starts when the bot is ready and stops on shutdown.
 
-### **Leaderboard**
-![Leaderboard](LEADERBOARD_IMAGE_PLACEHOLDER)
+## Running it
 
-[Back to Top](#table-of-contents)
+Mite is a private bot for the CPL server: it needs core-api and the league's database behind it, so it is not set up for self-hosting.
 
----
+```bash
+npm ci                      # Node 24.18 or later
+npm run dev -w apps/bot     # watch mode, reads apps/bot/.env.development
+npm run verify              # typecheck, lint, tests, version pins, build
+npm run build && npm start -w apps/bot
+```
 
-## Technology Stack
-- **Languages & Frameworks:** Node.js, TypeScript, FastAPI (Python microservices)  
-- **Libraries:** discord.js, Express  
-- **Database:** MongoDB  
-- **APIs:** Steam Web API, civ-save-phase API  
-- **Other Tools:** Node.js `--watch` + TypeScript watch (`tsc -w`), ESLint, npm  
+Slash commands are deployed to the guild at every start.
 
-[Back to Top](#table-of-contents)
+When core-api's routes change, refresh the contracts from the core-api checkout at `/opt/development/apps/core-api-backend`:
 
----
+```bash
+npm run vendor:contracts    # copies openapi.json, stamps PROVENANCE, regenerates types
+```
 
-## Integrations
-- **AuthBot** – Authentication & player identity linking.  
-- **Lady Justice** – Community moderation & fair-play enforcement.  
-- **Civ Save Phase API** – Automatic game result detection from save files.  
+## Configuration
 
-[Back to Top](#table-of-contents)
+Copy [`apps/bot/.env.example`](apps/bot/.env.example) to `apps/bot/.env.development` (or `.env.production`) and fill it in: the bot token, Mite's core-api token, and the server's channel and role ids. The file says what each one is for.
 
----
+## Project layout
 
-## Availability & Deployment
-> **Note:** MitoCiv Bot is a **private bot** and not available for public self-hosting.  
-It requires access to a centralized database for leaderboards and statistics.
+```
+apps/bot/src
+  api/        the core-api client and its types
+  commands/   one file per slash command
+  config/     constants and the command-access table
+  data/       the leaderboard threads
+  events/     Discord gateway events
+  handlers/   buttons, menus and forms
+  jobs/       background work
+  services/   the work behind commands and handlers
+  ui/         the panel kit, panels and text layouts
+  utils/      small shared helpers
+packages/contracts   types generated from core-api's spec
+scripts/             contract generation and the version-pin check
+```
 
-### Developer Commands
-- Ensure Node.js 24.4.1 is active (e.g. `node -v`).
-- Install: `npm ci`
-- Dev (watch): `npm run dev`
-- Verify (pre-deploy gate): `npm run verify`
-- Build + run (prod): `npm run build && npm start`
-- Deploy commands: `npm run build && npm run deploy`
+## License
 
-[Back to Top](#table-of-contents)
+[Apache-2.0](LICENSE).
 
----
-
-## Contributing
-We welcome **feedback, bug reports, and translations**.   
-- **Translate:** Contact us to localize MitoCiv into other languages.  
-- **Report Bugs:** Open an issue on GitHub with clear steps to reproduce.  
-
-[Back to Top](#table-of-contents)
-
----
-
-## ❤️ Special Thanks
-Special thanks to **Calcifer**, **Ms. Busysnail**, and the wider Civilization community for support and feedback.
- 
-[Back to Top](#table-of-contents)
+Thanks to **Calcifer**, **Ms. Busysnail** and the wider Civilization community for their support and feedback.

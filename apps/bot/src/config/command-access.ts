@@ -38,7 +38,7 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   resetstats: { roles: ['admin', 'noviceManager', 'developer'], channels: ['botTesting'], staffOnly: true },
   teamgen: { roles: RANKED, channels: COMMAND_CHANNELS },
   coinflip: { roles: RANKED, channels: COMMAND_CHANNELS },
-  ping: { roles: RANKED, channels: COMMAND_CHANNELS },
+  ping: { roles: ['admin', 'moderator', 'developer'], channels: ['botTesting'], staffOnly: true },
   roll: {
     roles: RANKED,
     channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'civ6ffaVote', 'civ6teamerVote'],

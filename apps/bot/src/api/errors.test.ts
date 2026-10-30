@@ -22,8 +22,7 @@ test("reads the bare shape LadyJustice tolerates", () => {
   assert.equal(parseApiError({ error: ENVELOPE })?.code, "NOT_FOUND");
 });
 
-test("a v1 error is not an envelope", () => {
-  // What Mite actually receives today: HTTPException(400, str(exc)).
+test("a bare FastAPI error is not an envelope", () => {
   assert.equal(parseApiError({ detail: "Match id is not a valid ObjectId" }), null);
 });
 

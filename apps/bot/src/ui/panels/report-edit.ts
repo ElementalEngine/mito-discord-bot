@@ -43,6 +43,7 @@ export const EDIT = {
   civPick: 'civpick',
   back: 'back',
   done: 'done',
+  page: 'page',
 } as const;
 export const FIELD = {
   seat: 'seat',
@@ -196,14 +197,19 @@ export function closedEditor(draft?: 'saved' | Readonly<{ notSaved: string }>): 
 // draft of the match; Save sends the whole draft as one edit.
 export type DraftKind = 'order' | 'assign' | 'civs';
 // `rev` goes into each menu's id, so Discord redraws every menu from the
-// draft rather than keeping a pick it was shown; `focus` is the civ seat.
+// draft rather than keeping a pick it was shown; `focus` is the civ seat, or the page.
 export type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match; rev: number; focus: number }>;
 
-const MENUS_MAX = 15;
-// A heading per menu costs a component, so only up to ten seats keep within 40.
+// A heading and its menu cost three of a message's 40 components, so a page
+// holds ten; a bigger game is split into even pages.
 const HEADED_MAX = 10;
-const pastMenus = (count: number): Block[] =>
-  count > MENUS_MAX ? [text(`Only the first ${MENUS_MAX} seats can be set here.`)] : [];
+const pagesFor = (count: number): number => Math.ceil(count / HEADED_MAX);
+const pageOf = <T>(items: readonly T[], page: number): readonly T[] => {
+  const pages = pagesFor(items.length);
+  const size = Math.ceil(items.length / pages);
+  const at = page % pages;
+  return items.slice(at * size, (at + 1) * size);
+};
 
 // What Save sends: each seat whose player, place, quit mark, leader or civ the
 // draft changed.
@@ -239,7 +245,7 @@ function pendingLine(draft: Draft, names: CivNames): string | null {
   return changes.length ? `**Not saved yet:** ${changes.join(' \u00b7 ')}` : null;
 }
 
-function draftFrame(draft: Draft, names: CivNames, title: string, body: readonly Block[]): Panel {
+function draftFrame(draft: Draft, names: CivNames, title: string, body: readonly Block[], pages = 1): Panel {
   const id = draft.now.match_id;
   const changed = draftEdits(draft.base, draft.now).length;
   const save = button(id, EDIT.save, changed ? `Save ${changed} change${changed === 1 ? '' : 's'}` : 'Nothing to save', ButtonStyle.Success)
@@ -250,9 +256,12 @@ function draftFrame(draft: Draft, names: CivNames, title: string, body: readonly
     surface: 'report',
     title: `${title}: ${reportLabel(draft.now)} report`,
     subtitle: `Match \`${id}\` \u00b7 nothing is saved until you press Save`,
-    body: [...body, ...(pending ? [text(pending)] : []), divider(), ...rowsOf([save, button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)])],
+    body: [...body, ...(pending ? [text(pending)] : []), divider(), ...rowsOf([save, ...(pages > 1 ? [pageButton(draft, pages)] : []), button(id, EDIT.back, 'Back to the editor', ButtonStyle.Secondary)])],
   };
 }
+
+const pageButton = (draft: Draft, pages: number): ButtonBuilder =>
+  button(draft.now.match_id, EDIT.page, `Next page (${(draft.focus % pages) + 1}/${pages})`, ButtonStyle.Secondary, draft.kind, String(((draft.focus % pages) + 1) % pages));
 
 export function draftPanel(draft: Draft, names: CivNames, members: Members): Panel {
   if (draft.kind === 'order') return orderPanel(draft, names, members);
@@ -264,8 +273,7 @@ export function draftPanel(draft: Draft, names: CivNames, members: Members): Pan
 function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
   const match = draft.now;
   const units = unitsOf(match);
-  const headed = units.length <= HEADED_MAX;
-  const menus = units.slice(0, MENUS_MAX).flatMap((holder) => {
+  const menus = pageOf(units, draft.focus).flatMap((holder) => {
     const at = holder.seats[0]?.player.placement ?? 0;
     const place = ordinal(at + 1);
     const menu = new StringSelectMenuBuilder()
@@ -276,11 +284,10 @@ function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
           return { ...option, label: fit(`${place} \u00b7 ${option.label}`, 100), default: u.id === holder.id };
         }),
       );
-    const menuRow = inBody(menu);
-    return headed ? [text(`**${place} place**`), menuRow] : [menuRow];
+    return [text(`**${place} place**`), inBody(menu)];
   });
   const hint = 'Pick who finished in each place. The one you pick swaps places with whoever was there.';
-  return draftFrame(draft, names, 'Set order', [text(hint), ...menus, ...pastMenus(units.length)]);
+  return draftFrame(draft, names, 'Set order', [text(hint), ...menus], pagesFor(units.length));
 }
 
 // The draft with `unit` moved into place `at`, trading with the one there: the
@@ -299,14 +306,14 @@ export function withOrderPick(match: Match, at: number, holder: number, unit: nu
   return { ...match, players };
 }
 
-// One menu per seat, labelled with the seat and who has it now, unassigned
-// seats first. Discord's member menu searches the whole server as a name is typed.
+// One menu per seat, labelled with the seat and who has it now, seats empty in
+// the saved report first. Discord's member menu searches the server as a name is typed.
 function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
   const match = draft.now;
   const seats = numbered(match);
-  const shown = [...seats.filter((s) => !idOf(s.player)), ...seats.filter((s) => idOf(s.player))];
-  const headed = seats.length <= HEADED_MAX;
-  const menus = shown.slice(0, MENUS_MAX).flatMap((s) => {
+  const known = (s: Numbered): boolean => Boolean(idOf(draft.base.players[s.index] ?? s.player));
+  const shown = [...seats.filter((s) => !known(s)), ...seats.filter(known)];
+  const menus = pageOf(shown, draft.focus).flatMap((s) => {
     const id = idOf(s.player);
     const save = s.player.user_name ? ` (save: ${s.player.user_name})` : '';
     const name = id ? members.get(id) : undefined;
@@ -314,12 +321,11 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
     const seat = `Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))}`;
     const menu = new UserSelectMenuBuilder()
       .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n), String(draft.rev)))
-      .setPlaceholder(fit(headed ? now : `${seat} \u00b7 ${now}`, 150));
-    const menuRow = inBody(menu);
-    return headed ? [text(`**${seat}**`), menuRow] : [menuRow];
+      .setPlaceholder(fit(now, 150));
+    return [text(`**${seat}**`), inBody(menu)];
   });
   const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
-  return draftFrame(draft, names, 'Assign players', [text(hint), ...menus, ...pastMenus(seats.length)]);
+  return draftFrame(draft, names, 'Assign players', [text(hint), ...menus], pagesFor(seats.length));
 }
 
 // The draft with `id` in seat n: someone with another seat swaps with this

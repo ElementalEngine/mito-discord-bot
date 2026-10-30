@@ -35,8 +35,8 @@ const LABEL_W = 12;
 const COL_W = 7;
 const DASH = '\u2014';
 
-// A win is a game that raised the rating, as v1 counted it: an FFA finish
-// high enough is a win, and so is every sub-in.
+// A win is a game that raised the rating: an FFA finish high enough, and
+// every sub-in.
 const COUNTERS_NOTE = 'Wins are games that raised your skill. 1st place is finishing first.';
 
 type Line = Readonly<{ label: string; cell: (row: StatRow) => string }>;
