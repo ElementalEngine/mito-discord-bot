@@ -18,7 +18,8 @@ import {
 
 type Player = Match['players'][number];
 
-export type ReportVerb = 'contest' | 'approve';
+export type ReportVerb = 'contest' | 'approve' | 'withdraw';
+export const WITHDRAW = 'withdraw';
 export const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
 
 // The marks a seat carries beside its player, and that the staff notes use.
@@ -221,6 +222,18 @@ export function duplicateText(upload: MatchUpload): string {
 }
 
 // What a revert leaves behind: whose ratings were restored.
+// A player who has contested is offered to take it back instead of a second contest.
+export function contestedPanel(matchId: string, reason: string): Panel {
+  const withdraw = new ButtonBuilder().setCustomId(reportId('withdraw', matchId)).setLabel('Withdraw my contest').setStyle(ButtonStyle.Secondary);
+  return {
+    tone: 'info',
+    surface: 'report',
+    title: 'You contested this report',
+    body: [text(`${MARK.contest} ${reason}`), text('If the report is fixed now, withdraw your contest so it can be approved.')],
+    actions: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(withdraw)],
+  };
+}
+
 export function revertedPanel(match: Match): Panel {
   const players = playerIds(match).map(mention).join(' \u00b7 ');
   return {

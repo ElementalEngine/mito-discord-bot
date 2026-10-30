@@ -406,6 +406,31 @@ export class ApiClient {
     return (await this.parseJson(res)) as Match;
   }
 
+  async withdrawContest(matchId: string, actor: Actor): Promise<Match> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/contest`, {
+      method: "DELETE",
+      headers: actorHeaders(actor),
+    });
+    return (await this.parseJson(res)) as Match;
+  }
+
+  // Approves, as the actor, the reports that need no staff 48 hours after upload.
+  async autoApprove(actor: Actor): Promise<Match[]> {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/auto-approve`, {
+      method: "POST",
+      headers: actorHeaders(actor),
+    });
+    return (await this.parseJson(res)) as Match[];
+  }
+
+  async recordHistoryPost(matchId: string, messageId: string): Promise<void> {
+    await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/history-post`, {
+      method: "PUT",
+      headers: json,
+      body: JSON.stringify({ message_id: messageId }),
+    });
+  }
+
   async revert(matchId: string): Promise<Match> {
     const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/revert`, { method: "POST" });
     return (await this.parseJson(res)) as Match;

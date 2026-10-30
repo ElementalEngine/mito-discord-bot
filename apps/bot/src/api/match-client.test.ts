@@ -76,3 +76,19 @@ test('an upload is multipart, with the reporter as actor', async () => {
   assert.equal(body.get('discord_message_id'), '555');
   assert.equal(out.repeated, false);
 });
+
+test('a contest is withdrawn by its player, the bot auto-approves, and a history post is recorded', async () => {
+  const { client, calls } = recorder([]);
+  await client.withdrawContest(ID, { id: '9' });
+  await client.autoApprove({ id: '1' });
+  await client.recordHistoryPost(ID, '555');
+  assert.deepEqual(
+    calls.map((c) => [c.method, c.url, c.headers.get('x-actor-discord-id')]),
+    [
+      ['DELETE', `http://core/api/v2/matches/${ID}/contest`, '9'],
+      ['POST', 'http://core/api/v2/matches/auto-approve', '1'],
+      ['PUT', `http://core/api/v2/matches/${ID}/history-post`, null],
+    ],
+  );
+  assert.deepEqual(JSON.parse(String(calls[2]?.body)), { message_id: '555' });
+});

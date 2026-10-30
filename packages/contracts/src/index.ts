@@ -960,6 +960,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/matches/auto-approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Auto Approve Due
+         * @description Approves, as the actor, every report that needs no staff 48 hours after
+         *     its upload.
+         */
+        post: operations["auto_approve_due_api_v2_matches_auto_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/matches/leaderboard": {
         parameters: {
             query?: never;
@@ -1040,6 +1061,30 @@ export interface paths {
         put?: never;
         /** Contest Match */
         post: operations["contest_match_api_v2_matches__match_id__contest_post"];
+        /**
+         * Withdraw Contest
+         * @description A player takes back their own contest.
+         */
+        delete: operations["withdraw_contest_api_v2_matches__match_id__contest_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/matches/{match_id}/history-post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record History Post
+         * @description The approved result's post, so a revert can redraw it.
+         */
+        put: operations["record_history_post_api_v2_matches__match_id__history_post_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1596,6 +1641,11 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
+        /** HistoryPost */
+        HistoryPost: {
+            /** Message Id */
+            message_id: string;
+        };
         /**
          * LeaderPick
          * @description A blind pick: a leader, and a civ where the pool has civs.
@@ -1890,6 +1940,8 @@ export interface components {
             game: string;
             /** Game Mode */
             game_mode: string;
+            /** History Message Id */
+            history_message_id?: string | null;
             /** Is Cloud */
             is_cloud: boolean;
             /** Map Type */
@@ -2422,6 +2474,8 @@ export interface components {
             game: string;
             /** Game Mode */
             game_mode: string;
+            /** History Message Id */
+            history_message_id?: string | null;
             /** Is Cloud */
             is_cloud: boolean;
             /** Map Type */
@@ -4485,6 +4539,38 @@ export interface operations {
             };
         };
     };
+    auto_approve_due_api_v2_matches_auto_approve_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_leaderboard_api_v2_matches_leaderboard_get: {
         parameters: {
             query: {
@@ -4683,6 +4769,75 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MatchResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_contest_api_v2_matches__match_id__contest_delete: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_history_post_api_v2_matches__match_id__history_post_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryPost"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -13,11 +13,10 @@ import {
 
 import { ApiClient } from '../api/index.js';
 import type { Match, SeatEdit } from '../api/types.js';
-import { refreshLeaderboards } from '../jobs/update-leaderboard.js';
+import { publishApproved } from '../services/approval.service.js';
 import { syncRankRoles } from '../services/rank-role.service.js';
 import { civNames, editionOf } from '../services/civ-names.js';
 import {
-  deleteReportMessages,
   editorOf,
   historyChannelId,
   inTurn,
@@ -29,7 +28,6 @@ import { channel as channelMention, customId, mention, notice, parseId, type Civ
 import {
   EDIT,
   FIELD,
-  QUIT,
   civFocus,
   closedEditor,
   draftEdits,
@@ -37,8 +35,8 @@ import {
   EDITOR_CLOSED,
   quitEdits,
   quitsForm,
-  seatEdits,
-  seatForm,
+  subEdits,
+  subForm,
   tieEdits,
   tieForm,
   withAssignPick,
@@ -48,8 +46,8 @@ import {
   type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
-import { playerIds, reportPanel } from '../ui/panels/report.js';
-import { Refusal, defer, editPanel, fail, failureOf, holdPanel, postPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
+import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
+import { Refusal, defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { idleCloser, type Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -115,8 +113,9 @@ const ACTION: Readonly<Record<string, string>> = {
   approve: 'approve the report',
   contest: 'open the contest form',
   [CONTEST_FORM]: 'record your contest',
-  [EDIT.seat]: 'open the seat form',
-  [EDIT.seatForm]: 'save the seat',
+  [WITHDRAW]: 'withdraw your contest',
+  [EDIT.sub]: 'open the sub form',
+  [EDIT.subForm]: 'save the sub',
   [EDIT.order]: 'open the order panel',
   [EDIT.orderPick]: 'move that place',
   [EDIT.assign]: 'open the assign panel',
@@ -141,39 +140,18 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
   await inTurn(matchId, () => approveInTurn(interaction, matchId));
 }
 
-// Results this process has posted. core-api answers a repeated approve with
-// the approved match, so a press after a lost answer can still post it, once.
-const posted = new Set<string>();
+// An approved report's open editor closes; its unsaved changes are refused.
+export const closeEditor = (matchId: string): void => editors.close(matchId);
 
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await api.approve(matchId, { id: interaction.user.id });
-  refreshLeaderboards(interaction.client, match.game);
-  editors.close(matchId);
-  if (posted.has(matchId)) {
+  closeEditor(matchId);
+  const published = await publishApproved(interaction.client, match, api);
+  if (published === 'already') {
     await say(interaction, 'muted', 'This report is already approved.');
     return;
   }
-  const view = await viewOf(match, api);
-  const history = await interaction.client.channels.fetch(historyChannelId(match)).catch(() => null);
-  // Posted and shown approved at once; the report is deleted only after both,
-  // so one that cannot be deleted has no buttons left.
-  const [inHistory] = await Promise.all([
-    history?.isSendable()
-      ? postPanel(history, reportPanel(view), { users: playerIds(match) }).then(
-          () => true,
-          (error: unknown) => {
-            log.warn('approved result not posted', matchId, error instanceof Error ? error.message : error);
-            return false;
-          },
-        )
-      : false,
-    editPanel(interaction.message, reportPanel(view)).catch(() => undefined),
-  ]);
-  if (inHistory) {
-    posted.add(matchId);
-    await deleteReportMessages(interaction.client, match);
-  }
-  const where = inHistory ? `The result is in ${channelMention(historyChannelId(match))}.` : 'The result stays on the report.';
+  const where = published === 'posted' ? `The result is in ${channelMention(historyChannelId(match))}.` : 'The result stays on the report.';
   await say(interaction, 'success', `Approved. ${where}`);
   // Rank roles follow; the approver need not wait for them.
   if (interaction.guild) await syncRankRoles(interaction.guild, match.affected_players, matchId);
@@ -185,6 +163,11 @@ async function approveInTurn(interaction: ButtonInteraction, matchId: string): P
 async function openContest(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await beforeForm(interaction, api.match(matchId));
   if (!playerIds(match).includes(interaction.user.id)) refuse('Only players in this match can contest it.');
+  const mine = match.contest_report_list.find((c) => c.contestor_discord_id === interaction.user.id);
+  if (mine) {
+    await respond(interaction, contestedPanel(matchId, mine.reason), 'private');
+    return;
+  }
   const reason = new TextInputBuilder()
     .setCustomId(REASON)
     .setStyle(TextInputStyle.Paragraph)
@@ -219,6 +202,18 @@ async function submitContest(interaction: ModalSubmitInteraction, matchId: strin
     await say(interaction, 'failed', 'Your contest is recorded, but the report could not be updated.');
   }
   await logAction(interaction, 'contest', { matchId, reason });
+}
+
+// A contest is taken back by its own player, once the report is fixed.
+async function withdrawContest(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  await holdPanel(interaction);
+  const shown = await inTurn(matchId, async () => {
+    const match = await api.withdrawContest(matchId, { id: interaction.user.id });
+    return refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)));
+  });
+  const said = shown ? 'Your contest is withdrawn.' : 'Your contest is withdrawn, but the report could not be updated.';
+  await replacePanel(interaction, notice(shown ? 'success' : 'failed', said));
+  await logAction(interaction, 'withdraw-contest', { matchId });
 }
 
 // Done closes the editor at once, as going idle would, unsaved changes saved.
@@ -381,17 +376,17 @@ export async function handleReportInteraction(interaction: Interaction): Promise
   const id = parseId(interaction.customId);
   if (id?.surface !== 'report') return false;
   const matchId = id.args[0] ?? '';
-  // The seat number of a seat form, civ pick or assign pick; for an order
+  // The seat number of a civ pick or assign pick; for an order
   // pick, the place it sets (0 is 1st).
   const at = Number(id.args[1] ?? 0);
   try {
     if (interaction.isButton() && id.verb === 'approve') await approve(interaction, matchId);
     else if (interaction.isButton() && id.verb === 'contest') await openContest(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === CONTEST_FORM) await submitContest(interaction, matchId);
+    else if (interaction.isButton() && id.verb === WITHDRAW) await withdrawContest(interaction, matchId);
     else if (interaction.isButton() && id.verb === EDIT.done) await done(interaction, matchId);
-    else if (interaction.isStringSelectMenu() && id.verb === EDIT.seat) {
-      await openForm(interaction, matchId, (m, _n, members) => seatForm(m, Number(interaction.values[0]), members));
-    } else if (interaction.isButton() && id.verb === EDIT.assign) {
+    else if (interaction.isButton() && id.verb === EDIT.sub) await openForm(interaction, matchId, subForm);
+    else if (interaction.isButton() && id.verb === EDIT.assign) {
       await draft(interaction, matchId, 'assign');
     } else if (interaction.isUserSelectMenu() && id.verb === EDIT.assignPick) {
       await draft(interaction, matchId, 'assign', (d) => {
@@ -421,19 +416,10 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       });
     } else if (interaction.isButton() && id.verb === EDIT.back) {
       await back(interaction, matchId);
-    } else if (interaction.isModalSubmit() && id.verb === EDIT.seatForm) {
-      const choice = {
-        player: picked(interaction, FIELD.player),
-        place: Number(selected(interaction, FIELD.finished)[0]),
-        shown: Number(id.args[2]),
-        quit: selected(interaction, FIELD.quit).includes(QUIT.player),
-        left: picked(interaction, FIELD.left),
-        leftQuit: selected(interaction, FIELD.quit).includes(QUIT.left),
-      };
-      await submit(interaction, matchId, 'edit-seat', 'Nothing changed on that seat.', (m) => {
-        const edits = seatEdits(m, at, choice);
-        return typeof edits === 'string' ? refuse(edits) : edits;
-      });
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.subForm) {
+      const seat = Number(selected(interaction, FIELD.seat)[0]);
+      const left = picked(interaction, FIELD.left);
+      await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => subEdits(m, seat, left));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {

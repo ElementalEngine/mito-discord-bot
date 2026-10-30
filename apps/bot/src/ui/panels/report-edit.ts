@@ -29,8 +29,8 @@ import { MARK, civOf, isAssigned, isTeamer, ordinal, reportLabel, seatsOf, unkno
 
 // The editor's verbs and the form fields they read.
 export const EDIT = {
-  seat: 'seat',
-  seatForm: 'seatform',
+  sub: 'sub',
+  subForm: 'subform',
   assign: 'assign',
   assignPick: 'assignpick',
   order: 'order',
@@ -47,17 +47,12 @@ export const EDIT = {
   done: 'done',
 } as const;
 export const FIELD = {
-  player: 'player',
-  finished: 'finished',
-  quit: 'quit',
+  seat: 'seat',
   left: 'left',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
 } as const;
-
-// The seat form's quit menu: the seat's player, and the player a sub replaced.
-export const QUIT = { player: 'player', left: 'left' } as const;
 
 // A row holds five buttons.
 const PAGE = 5;
@@ -100,8 +95,6 @@ function unitsOf(match: Match): Unit[] {
   return units.sort((a, b) => place(a) - place(b) || a.id - b.id);
 }
 
-const unitIdOf = (match: Match, s: Numbered): number => (isTeamer(match) ? s.player.team + 1 : s.n);
-
 // Each unit's place, as edits move units around.
 type Places = Map<number, number>;
 const placesOf = (units: readonly Unit[]): Places => new Map(units.map((u) => [u.id, u.seats[0]?.player.placement ?? 0]));
@@ -120,13 +113,6 @@ function placeEdits(units: readonly Unit[], places: Places): SeatEdit[] {
   );
 }
 
-// Edits for one seat, gathered into one, as core-api takes a seat once.
-function merged(edits: readonly SeatEdit[]): SeatEdit[] {
-  const bySeat = new Map<number, SeatEdit>();
-  for (const e of edits) bySeat.set(e.seat, { ...bySeat.get(e.seat), ...e });
-  return [...bySeat.values()];
-}
-
 function seatOption(s: Numbered, names: CivNames, members: Members): APISelectMenuOption {
   const emoji = portraitOf(names, leaderOf(s));
   return {
@@ -142,9 +128,6 @@ function unitOption(match: Match, u: Unit, names: CivNames, members: Members): A
   const players = u.seats.map((s) => nameIn(s.player, members)).join(', ');
   return { label: `Team ${u.id}`, description: fit(players, 100), value: String(u.id) };
 }
-
-const unitName = (match: Match, u: Unit, members: Members): string =>
-  isTeamer(match) ? `Team ${u.id}` : nameIn(u.seats[0]!.player, members);
 
 function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const p = s.player;
@@ -167,35 +150,32 @@ const button = (matchId: string, verb: string, label: string, style: ButtonStyle
 const rowsOf = (buttons: readonly ButtonBuilder[]): Block[] =>
   pagesOf(buttons).map((five) => row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(five)));
 
-// The private panel a report is fixed from: one seat at a time from the menu,
-// places, players and quits in bulk, and below, what only staff may do.
+// The private panel a report is fixed from: one seat at a time, then in
+// bulk; a tie and civs are staff's, as core-api requires.
 export function editorPanel(match: Match, names: CivNames, members: Members, asStaff: boolean): Panel {
   const seats = numbered(match);
   const id = match.match_id;
-  const pick = new StringSelectMenuBuilder()
-    .setCustomId(customId('report', EDIT.seat, id))
-    .setPlaceholder('Edit one seat: player, place, quit or sub\u2026')
-    .addOptions(seats.map((s) => seatOption(s, names, members)));
-  const main = [
+  const single = [
+    button(id, EDIT.sub, 'Assign a sub', ButtonStyle.Secondary),
+    ...(asStaff && unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
+    ...(asStaff ? [button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary)] : []),
+  ];
+  const bulk = [
     button(id, EDIT.order, 'Set order', ButtonStyle.Primary),
     button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
     button(id, EDIT.quits, 'Quits', ButtonStyle.Secondary),
   ];
   const body: Block[] = [
     text(seats.map((s) => seatLine(match, s, names)).join('\n')),
-    row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(pick)),
+    divider(),
+    text('**Single edits**'),
+    ...rowsOf(single),
     divider(),
     text('**Bulk edits**'),
-    ...rowsOf(main),
+    ...rowsOf(bulk),
+    divider(),
+    ...rowsOf([button(id, EDIT.done, 'Done', ButtonStyle.Success)]),
   ];
-  if (asStaff) {
-    const staff = [
-      ...(unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
-      button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary),
-    ];
-    body.push(divider(), text('**Staff actions**'), ...rowsOf(staff));
-  }
-  body.push(divider(), ...rowsOf([button(id, EDIT.done, 'Done', ButtonStyle.Success)]));
   return {
     tone: 'info',
     surface: 'report',
@@ -223,7 +203,7 @@ export type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match; rev: nu
 
 const MENUS_MAX = 15;
 const pastMenus = (count: number): Block[] =>
-  count > MENUS_MAX ? [text(`Seats past ${MENUS_MAX} are set from **Edit one seat**.`)] : [];
+  count > MENUS_MAX ? [text(`Only the first ${MENUS_MAX} seats can be set here.`)] : [];
 
 // What Save sends: each seat whose player, place, quit mark, leader or civ the
 // draft changed.
@@ -356,129 +336,37 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
   return { ...match, players };
 }
 
-// One seat's whole state in one form: who played it, where it finished,
-// who they replaced if they came in as a sub, and who quit.
-export function seatForm(match: Match, n: number, members: Members): ModalBuilder | null {
-  const seat = numbered(match).find((s) => s.n === n);
-  if (!seat) return null;
-  const units = unitsOf(match);
-  const places = placesOf(units);
-  const mine = places.get(unitIdOf(match, seat));
-  const finished = new StringSelectMenuBuilder()
-    .setCustomId(FIELD.finished)
-    .setRequired(true)
-    .addOptions(
-      [...new Set(places.values())].map((place) => ({
-        label: ordinal(place + 1),
-        description: fit(`Now: ${units.filter((u) => places.get(u.id) === place).map((u) => unitName(match, u, members)).join(', ')}`, 100),
-        value: String(place),
-        default: place === mine,
-      })),
-    );
-  const player = new UserSelectMenuBuilder().setCustomId(FIELD.player).setMinValues(1).setMaxValues(1).setRequired(true);
-  const playerId = idOf(seat.player);
-  if (playerId) player.setDefaultUsers(playerId);
-  const left = new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false);
-  const leftId = idOf(seat.leaver);
-  if (leftId) left.setDefaultUsers(leftId);
-  const quitter = new StringSelectMenuBuilder()
-    .setCustomId(FIELD.quit)
-    .setMinValues(0)
-    .setMaxValues(2)
-    .setRequired(false)
-    .setPlaceholder('Nobody quit')
-    // A form cannot redraw itself, so the options name the boxes, not people.
-    .addOptions(
-      {
-        label: 'Player in seat quit',
-        description: 'The player in the first box left early',
-        value: QUIT.player,
-        default: seat.player.quit,
-      },
-      {
-        label: 'Player subbed out quit',
-        description: 'The player in the subbed out box left early',
-        value: QUIT.left,
-        default: seat.leaver?.quit ?? false,
-      },
-    );
+// A sub on one seat: the seat, and who left it. A form cannot redraw, so the
+// seat's current sub is not shown; an empty box clears it.
+export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.seatForm, match.match_id, String(n), String(mine ?? 0)))
-    .setTitle(fit(`Seat ${seat.n}: ${nameIn(seat.player, members)}`, 45))
+    .setCustomId(customId('report', EDIT.subForm, match.match_id))
+    .setTitle('Assign a sub')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Player')
-        .setDescription('Who was in this seat at the end of the game.')
-        .setUserSelectMenuComponent(player),
-      new LabelBuilder()
-        .setLabel('Place')
-        .setDescription(isTeamer(match) ? 'Where the team finished. Whoever has that place swaps with them.' : 'Where they finished. Whoever has that place swaps with them.')
-        .setStringSelectMenuComponent(finished),
+        .setLabel('Seat')
+        .setDescription('The seat a sub came in to, with who finished in it.')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.seat)
+            .setRequired(true)
+            .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
+        ),
       new LabelBuilder()
         .setLabel('Player subbed out (optional)')
-        .setDescription('Only if someone left and the player above took their seat.')
-        .setUserSelectMenuComponent(left),
-      new LabelBuilder()
-        .setLabel('Did they quit? (optional)')
-        .setDescription('Pick everyone who quit. You can pick both.')
-        .setStringSelectMenuComponent(quitter),
+        .setDescription('Who left that seat. Leave empty to clear its sub.')
+        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false)),
     );
 }
 
-// `shown` is the place the form opened with: only a change from it moves the
-// seat, so a form open while others edit does not undo their moves. `quit` is
-// the seat player's; `leftQuit`, when given, is the quit of the player who left.
-export type SeatChoice = Readonly<{
-  player: string | null;
-  place: number;
-  shown: number;
-  quit: boolean;
-  left: string | null;
-  leftQuit?: boolean;
-}>;
-
-// Only what changed is sent; an empty "came in for" leaves an unregistered
-// leaver as it is. A player or place taken from another seat is swapped.
-export function seatEdits(match: Match, n: number, chosen: SeatChoice): SeatEdit[] | string {
-  const seats = numbered(match);
-  const seat = seats.find((s) => s.n === n);
+// Only a changed sub is sent: a new player who left, or none to clear it.
+export function subEdits(match: Match, n: number, left: string | null): SeatEdit[] {
+  const seat = numbered(match).find((s) => s.n === n);
   if (!seat) return [];
-  const edit: SeatEdit = { seat: seat.index };
-  const swap: SeatEdit[] = [];
-  const current = idOf(seat.player);
-  let quit = chosen.quit;
-  if (chosen.player && chosen.player !== current) {
-    edit.discord_id = chosen.player;
-    const other = seats.find((s) => s !== seat && idOf(s.player) === chosen.player);
-    // An empty seat has no player to give back, and a seat is never emptied.
-    if (other && !current) return `${mention(chosen.player)} has seat ${other.n}. Give seat ${other.n} another player first.`;
-    if (other && current) {
-      // Players trade seats with their own quit marks, unless one was ticked.
-      swap.push({ seat: other.index, discord_id: current, ...(other.player.quit !== seat.player.quit ? { quit: seat.player.quit } : {}) });
-      if (chosen.quit === seat.player.quit) quit = other.player.quit;
-    }
-  }
-  if (quit !== seat.player.quit) edit.quit = quit;
   const before = idOf(seat.leaver);
-  const replaced = Boolean(chosen.left && chosen.left !== before);
-  const cleared = !chosen.left && Boolean(before);
-  if (replaced) edit.sub_out = chosen.left;
-  else if (cleared) edit.sub_out = null;
-  // The quit box means whoever is in the subbed out box: a new leaver takes
-  // it as shown, the same leaver only when it changed.
-  const leftWas = replaced ? false : (seat.leaver?.quit ?? false);
-  if (chosen.leftQuit !== undefined && !cleared && chosen.leftQuit !== leftWas) {
-    const paired = seat.player.is_sub && seat.leaver;
-    if (chosen.leftQuit && !replaced && !paired) return 'Pick the player subbed out first, then mark that they quit.';
-    if (chosen.leftQuit && !replaced && !before) return 'The player subbed out is not registered. Pick them in the Player subbed out box first.';
-    edit.leaver_quit = chosen.leftQuit;
-  }
-  const units = unitsOf(match);
-  const places = placesOf(units);
-  const mine = unitIdOf(match, seat);
-  const holder = units.find((u) => u.id !== mine && places.get(u.id) === chosen.place);
-  if (holder && chosen.place !== chosen.shown) trade(places, mine, holder.id);
-  return merged([...(Object.keys(edit).length > 1 ? [edit] : []), ...swap, ...placeEdits(units, places)]);
+  if (left && left !== before) return [{ seat: seat.index, sub_out: left }];
+  if (!left && before) return [{ seat: seat.index, sub_out: null }];
+  return [];
 }
 
 // Staff put two or more seats (or teams) level at one place; a tie of two
@@ -533,7 +421,7 @@ const markableLeaver = (s: Seat): Seat['player'] | null =>
   s.player.is_sub && s.leaver && idOf(s.leaver) ? s.leaver : null;
 
 // Everyone the quits form offers, in seat order: each seat's player, then the
-// player its sub came in for. A menu holds 25; past that, Edit one seat.
+// player its sub came in for. A menu holds 25; past that, marks stay as they are.
 function quitChoices(match: Match, names: CivNames, members: Members): APISelectMenuOption[] {
   return numbered(match)
     .flatMap((s) => {
@@ -566,7 +454,7 @@ export function quitsForm(match: Match, names: CivNames, members: Members): Moda
         .setLabel('Players who quit')
         .setDescription(
           full
-            ? 'Pick everyone who quit. Anyone not listed is set from Edit one seat.'
+            ? 'Pick everyone who quit. Anyone not listed keeps their mark.'
             : 'Pick everyone who quit. Remove anyone who did not.',
         )
         .setStringSelectMenuComponent(

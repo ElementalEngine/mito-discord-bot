@@ -2,6 +2,7 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { ApiClient } from '../../api/index.js';
 import { refreshLeaderboards } from '../../jobs/update-leaderboard.js';
+import { showReverted } from '../../services/approval.service.js';
 import { syncRankRoles } from '../../services/rank-role.service.js';
 import { revertedPanel } from '../../ui/panels/report.js';
 import { defer, fail, refuse, respond } from '../../ui/reply.js';
@@ -26,6 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const match = await api.revert(matchId);
     refreshLeaderboards(interaction.client, match.game);
     await respond(interaction, revertedPanel(match), 'public');
+    await showReverted(interaction.client, match);
     if (interaction.guild) await syncRankRoles(interaction.guild, match.affected_players, matchId);
     await logAction(interaction, 'report-revert', { matchId });
   } catch (error) {
