@@ -418,8 +418,11 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.subForm) {
       const seat = Number(selected(interaction, FIELD.seat)[0]);
-      const left = picked(interaction, FIELD.left);
-      await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => subEdits(m, seat, left));
+      const came = picked(interaction, FIELD.came);
+      await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => {
+        const edits = subEdits(m, seat, came);
+        return typeof edits === 'string' ? refuse(edits) : edits;
+      });
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selected(interaction, FIELD.quits)));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {

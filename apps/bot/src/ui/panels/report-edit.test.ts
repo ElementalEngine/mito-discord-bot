@@ -140,9 +140,9 @@ const buttonsOf = (panel: Panel): string[] =>
     ?.map((l) => l.slice(9, -1)) ?? [];
 
 test('single edits sit above bulk ones; a tie and civs are offered to staff only', () => {
-  assert.deepEqual(buttonsOf(editorPanel(ffa, new Map(), new Map(), false)), ['Assign a sub', 'Set order', 'Assign players', 'Quits', 'Done']);
+  assert.deepEqual(buttonsOf(editorPanel(ffa, new Map(), new Map(), false)), ['Assign a sub', 'Set order', 'Assign players', 'Assign quits', 'Done']);
   const staff = editorPanel(ffa, new Map(), new Map(), true);
-  assert.deepEqual(buttonsOf(staff), ['Assign a sub', 'Set a tie', 'Set civs', 'Set order', 'Assign players', 'Quits', 'Done']);
+  assert.deepEqual(buttonsOf(staff), ['Assign a sub', 'Set a tie', 'Set civs', 'Set order', 'Assign players', 'Assign quits', 'Done']);
   const json = JSON.stringify(container(staff).toJSON());
   assert.match(json, /\*\*Single edits\*\*.*\*\*Bulk edits\*\*/);
   assert.doesNotMatch(json, /Staff actions|"custom_id":"report:sub:[^"]*","options"/);
@@ -152,16 +152,28 @@ test('single edits sit above bulk ones; a tie and civs are offered to staff only
   assert.ok(!buttonsOf(editorPanel(lone, new Map(), new Map(), true)).includes('Set a tie'));
 });
 
-test('a sub is set, replaced or cleared on its seat, and nothing else is sent', () => {
-  assert.deepEqual(subEdits(ffa, 1, C), [{ seat: 0, sub_out: C }]);
-  assert.deepEqual(subEdits(ffa, 1, null), [{ seat: 0, sub_out: null }]);
-  assert.deepEqual(subEdits(ffa, 1, D), []);
-  assert.deepEqual(subEdits(ffa, 2, null), []);
-  assert.deepEqual(subEdits(ffa, 3, A), [{ seat: 3, sub_out: A }]);
+test('a sub names the seat that was left and who came in; naming who left undoes it', () => {
+  // Seat 1: A came in for D. Seat 2: B, no sub. Seat 3: unassigned.
+  assert.deepEqual(subEdits(ffa, 2, C), [{ seat: 2, discord_id: C, sub_out: B }]);
+  assert.deepEqual(subEdits(ffa, 1, C), [{ seat: 0, discord_id: C }]);
+  assert.deepEqual(subEdits(ffa, 1, D), [{ seat: 0, discord_id: D, sub_out: null }]);
+  assert.deepEqual(subEdits(ffa, 1, A), []);
   assert.deepEqual(subEdits(ffa, 9, A), []);
-  const form = subForm(ffa, new Map(), new Map([[A, 'Calcifer']])).toJSON() as { components: { label: string; component: { options?: { value: string }[] } }[] };
-  assert.deepEqual(form.components.map((c) => c.label), ['Seat', 'Player subbed out (optional)']);
+  assert.equal(subEdits(ffa, 3, C), 'Seat 3 has no player yet. Assign its player first, then the sub.');
+  const form = subForm(ffa, new Map(), new Map([[A, 'Calcifer']])).toJSON() as { components: { label: string; component: { options?: { value: string }[]; required?: boolean } }[] };
+  assert.deepEqual(form.components.map((c) => c.label), ['Seat subbed out', 'Player who subbed in']);
   assert.deepEqual(form.components[0]!.component.options!.map((o) => o.value), ['1', '2', '3']);
+  assert.equal(form.components[1]!.component.required, true);
+});
+
+test('up to ten seats, each place and seat menu has its own heading', () => {
+  const order = JSON.stringify(container(panelOf('order', ffa)).toJSON());
+  assert.match(order, /\*\*1st place\*\*.*"custom_id":"report:orderpick:.*\*\*2nd place\*\*/);
+  const assign = JSON.stringify(container(panelOf('assign', ffa, new Map(), new Map([[B, 'Bo']]))).toJSON());
+  assert.match(assign, /\*\*Seat 3 \u00b7 Shaka\*\*.*"placeholder":"unassigned \(save: Gandhi fan\)"/);
+  assert.match(assign, /"placeholder":"now Bo"/);
+  // Twelve seats would pass Discord's 40 components with headings, so the menus carry them.
+  assert.doesNotMatch(JSON.stringify(container(panelOf('assign', cloud)).toJSON()), /\*\*Seat 1/);
 });
 
 // A cloud game: twelve seats, none of them known to the save.

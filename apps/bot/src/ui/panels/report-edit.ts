@@ -48,7 +48,7 @@ export const EDIT = {
 } as const;
 export const FIELD = {
   seat: 'seat',
-  left: 'left',
+  came: 'came',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
@@ -163,7 +163,7 @@ export function editorPanel(match: Match, names: CivNames, members: Members, asS
   const bulk = [
     button(id, EDIT.order, 'Set order', ButtonStyle.Primary),
     button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
-    button(id, EDIT.quits, 'Quits', ButtonStyle.Secondary),
+    button(id, EDIT.quits, 'Assign quits', ButtonStyle.Secondary),
   ];
   const body: Block[] = [
     text(seats.map((s) => seatLine(match, s, names)).join('\n')),
@@ -202,6 +202,8 @@ export type DraftKind = 'order' | 'assign' | 'civs';
 export type Draft = Readonly<{ kind: DraftKind; base: Match; now: Match; rev: number; focus: number }>;
 
 const MENUS_MAX = 15;
+// A heading per menu costs a component, so only up to ten seats keep within 40.
+const HEADED_MAX = 10;
 const pastMenus = (count: number): Block[] =>
   count > MENUS_MAX ? [text(`Only the first ${MENUS_MAX} seats can be set here.`)] : [];
 
@@ -264,7 +266,8 @@ export function draftPanel(draft: Draft, names: CivNames, members: Members): Pan
 function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
   const match = draft.now;
   const units = unitsOf(match);
-  const menus = units.slice(0, MENUS_MAX).map((holder) => {
+  const headed = units.length <= HEADED_MAX;
+  const menus = units.slice(0, MENUS_MAX).flatMap((holder) => {
     const at = holder.seats[0]?.player.placement ?? 0;
     const place = ordinal(at + 1);
     const menu = new StringSelectMenuBuilder()
@@ -275,7 +278,8 @@ function orderPanel(draft: Draft, names: CivNames, members: Members): Panel {
           return { ...option, label: fit(`${place} \u00b7 ${option.label}`, 100), default: u.id === holder.id };
         }),
       );
-    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    const menuRow = row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    return headed ? [text(`**${place} place**`), menuRow] : [menuRow];
   });
   const hint = 'Pick who finished in each place. The one you pick swaps places with whoever was there.';
   return draftFrame(draft, names, 'Set order', [text(hint), ...menus, ...pastMenus(units.length)]);
@@ -303,15 +307,18 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
   const match = draft.now;
   const seats = numbered(match);
   const shown = [...seats.filter((s) => !idOf(s.player)), ...seats.filter((s) => idOf(s.player))];
-  const menus = shown.slice(0, MENUS_MAX).map((s) => {
+  const headed = seats.length <= HEADED_MAX;
+  const menus = shown.slice(0, MENUS_MAX).flatMap((s) => {
     const id = idOf(s.player);
     const save = s.player.user_name ? ` (save: ${s.player.user_name})` : '';
     const name = id ? members.get(id) : undefined;
     const now = id ? (name ? `now ${name}` : 'assigned') : `unassigned${save}`;
+    const seat = `Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))}`;
     const menu = new UserSelectMenuBuilder()
       .setCustomId(customId('report', EDIT.assignPick, match.match_id, String(s.n), String(draft.rev)))
-      .setPlaceholder(fit(`Seat ${s.n} \u00b7 ${plainNameOf(names, leaderOf(s))} \u00b7 ${now}`, 150));
-    return row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+      .setPlaceholder(fit(headed ? now : `${seat} \u00b7 ${now}`, 150));
+    const menuRow = row(new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(menu));
+    return headed ? [text(`**${seat}**`), menuRow] : [menuRow];
   });
   const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
   return draftFrame(draft, names, 'Assign players', [text(hint), ...menus, ...pastMenus(seats.length)]);
@@ -336,16 +343,16 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
   return { ...match, players };
 }
 
-// A sub on one seat: the seat, and who left it. A form cannot redraw, so the
-// seat's current sub is not shown; an empty box clears it.
+// A sub: the seat whose player left, and who came in, found by searching the
+// server. Naming the player who left undoes the sub.
 export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.subForm, match.match_id))
     .setTitle('Assign a sub')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Seat')
-        .setDescription('The seat a sub came in to, with who finished in it.')
+        .setLabel('Seat subbed out')
+        .setDescription('The seat whose player left the game.')
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.seat)
@@ -353,20 +360,23 @@ export function subForm(match: Match, names: CivNames, members: Members): ModalB
             .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
         ),
       new LabelBuilder()
-        .setLabel('Player subbed out (optional)')
-        .setDescription('Who left that seat. Leave empty to clear its sub.')
-        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false)),
+        .setLabel('Player who subbed in')
+        .setDescription('Type a name to search the server. Pick the player who left to undo a sub.')
+        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.came).setMinValues(1).setMaxValues(1).setRequired(true)),
     );
 }
 
-// Only a changed sub is sent: a new player who left, or none to clear it.
-export function subEdits(match: Match, n: number, left: string | null): SeatEdit[] {
+// The sub as one seat edit: a new sub, the player who came in changed, or the
+// sub undone when the player who left is named.
+export function subEdits(match: Match, n: number, came: string | null): SeatEdit[] | string {
   const seat = numbered(match).find((s) => s.n === n);
-  if (!seat) return [];
-  const before = idOf(seat.leaver);
-  if (left && left !== before) return [{ seat: seat.index, sub_out: left }];
-  if (!left && before) return [{ seat: seat.index, sub_out: null }];
-  return [];
+  const player = seat ? idOf(seat.player) : null;
+  if (!seat || !came || came === player) return [];
+  if (seat.leaver) {
+    return came === idOf(seat.leaver) ? [{ seat: seat.index, discord_id: came, sub_out: null }] : [{ seat: seat.index, discord_id: came }];
+  }
+  if (!player) return `Seat ${seat.n} has no player yet. Assign its player first, then the sub.`;
+  return [{ seat: seat.index, discord_id: came, sub_out: player }];
 }
 
 // Staff put two or more seats (or teams) level at one place; a tie of two
@@ -448,7 +458,7 @@ export function quitsForm(match: Match, names: CivNames, members: Members): Moda
   const full = numbered(match).reduce((n, s) => n + (idOf(s.player) ? 1 : 0) + (markableLeaver(s) ? 1 : 0), 0) > QUITS_MAX;
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.quitsForm, match.match_id))
-    .setTitle('Who quit?')
+    .setTitle('Assign quits')
     .addLabelComponents(
       new LabelBuilder()
         .setLabel('Players who quit')
