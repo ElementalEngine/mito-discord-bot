@@ -27,6 +27,22 @@ async function commands(): Promise<Map<string, Command>> {
   return found;
 }
 
+type Option = { name: string; required?: boolean; options?: Option[] };
+
+// Discord refuses a deploy whose required options follow an optional one.
+function misplaced(options: readonly Option[] = [], path: string): string[] {
+  const late = options.findIndex((o, i) => o.required && options.slice(0, i).some((p) => !p.required && !p.options));
+  return [...(late >= 0 ? [`${path} ${options[late]!.name}`] : []), ...options.flatMap((o) => misplaced(o.options, `${path} ${o.name}`))];
+}
+
+test('every command lists its required options first', async () => {
+  const found = [...(await commands()).values()].flatMap((c) => {
+    const json = c.data.toJSON() as Option;
+    return misplaced(json.options, `/${json.name}`);
+  });
+  assert.deepEqual(found, []);
+});
+
 test('every command has one row in the table, and every row a command', async () => {
   assert.deepEqual([...(await commands()).keys()].sort(), Object.keys(COMMAND_ACCESS).sort());
 });

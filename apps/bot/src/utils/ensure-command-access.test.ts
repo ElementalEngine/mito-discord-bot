@@ -5,18 +5,22 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 
 const RANKED = '100000000000000001';
 const DEVELOPER = '100000000000000002';
+const CIV7 = '100000000000000003';
 const COMMANDS = '200000000000000001';
 const LOBBY_LINKS = '200000000000000002';
 process.env.ROLE_CIV6_RANKED = RANKED;
+process.env.ROLE_CIV7_RANKED = CIV7;
 process.env.ROLE_DEVELOPER = DEVELOPER;
 process.env.CHANNEL_BOT_COMMANDS_ID = COMMANDS;
 process.env.CHANNEL_CIV6_LOBBY_LINKS_ID = LOBBY_LINKS;
 const { ensureCommandAccess } = await import('./ensure-command-access.js');
 
-function asked(commandName: string, roles: string[], channelId: string, parentId: string | null = null) {
+function asked(command: string, roles: string[], channelId: string, parentId: string | null = null) {
+  const [commandName, subcommand = null] = command.split(' ');
   const replies: string[] = [];
   const interaction = {
     commandName,
+    options: { getSubcommand: () => subcommand },
     inGuild: () => true,
     inCachedGuild: () => true,
     channel: parentId ? { isThread: () => true, parentId } : { isThread: () => false },
@@ -54,9 +58,19 @@ test("outside the row's channels the reply points to them", async () => {
   assert.ok(replies[0].includes(`<#${COMMANDS}>`));
 });
 
-test("a command that picks its channels by edition checks those instead of the row's", async () => {
-  assert.equal(await ensureCommandAccess(asked('lobby', [RANKED], LOBBY_LINKS).interaction, [LOBBY_LINKS]), true);
-  assert.equal(await ensureCommandAccess(asked('lobby', [RANKED], COMMANDS).interaction, [LOBBY_LINKS]), false);
+test("a subcommand's channels replace the row's", async () => {
+  assert.equal(await ensureCommandAccess(asked('lobby host', [RANKED], LOBBY_LINKS).interaction), true);
+  assert.equal(await ensureCommandAccess(asked('lobby host', [RANKED], COMMANDS).interaction), false);
+});
+
+test("a game's subcommand takes that game's rank role, and holding both passes either", async () => {
+  assert.equal(await ensureCommandAccess(asked('vote civ7', [RANKED], COMMANDS).interaction), false);
+  assert.equal(await ensureCommandAccess(asked('vote civ6', [CIV7], COMMANDS).interaction), false);
+  assert.equal(await ensureCommandAccess(asked('draft civ7', [CIV7], COMMANDS).interaction), true);
+  assert.equal(await ensureCommandAccess(asked('draft civ6', [RANKED, CIV7], COMMANDS).interaction), true);
+  assert.equal(await ensureCommandAccess(asked('draft civ7', [RANKED, CIV7], COMMANDS).interaction), true);
+  assert.equal(await ensureCommandAccess(asked('lobby host', [CIV7], LOBBY_LINKS).interaction), false);
+  assert.equal(await ensureCommandAccess(asked('vote civ7', [DEVELOPER], COMMANDS).interaction), true);
 });
 
 test('a command with no row fails rather than opening', async () => {

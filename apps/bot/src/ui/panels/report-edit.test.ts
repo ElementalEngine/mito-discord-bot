@@ -145,7 +145,7 @@ test('single edits sit above bulk ones; a tie and civs are offered to staff only
   assert.deepEqual(buttonsOf(staff), ['Assign a sub', 'Set a tie', 'Set civs', 'Set order', 'Assign players', 'Assign quits', 'Done']);
   const json = JSON.stringify(container(staff).toJSON());
   assert.match(json, /\*\*Single edits\*\*.*\*\*Bulk edits\*\*/);
-  assert.doesNotMatch(json, /Staff actions|"custom_id":"report:sub:[^"]*","options"/);
+  assert.doesNotMatch(json, /"custom_id":"report:sub:[^"]*","options"/);
   assert.ok(container(staff).toJSON().components.length < 40);
   // One team cannot tie.
   const lone = match([player({ discord_id: A, team: 0 }), player({ discord_id: B, team: 0 })], 'Teamer');

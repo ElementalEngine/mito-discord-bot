@@ -2,7 +2,6 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { ApiClient } from '../../api/index.js';
 import type { CivVersion, VoteRequest } from '../../api/types.js';
-import { config } from '../../config.js';
 import type { Mode } from '../../config/constants.js';
 import { openBansForm, startVote } from '../../handlers/vote.handlers.js';
 import { inSetupTurn } from '../../services/turns.js';
@@ -54,11 +53,6 @@ export const data = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('code').setDescription("The vote's code").setRequired(true).setMaxLength(8)),
   );
 
-function channelsFor(edition: CivVersion): string[] {
-  const c = config.discord.channels;
-  return edition === 'civ6' ? [c.botTesting, c.civ6ffaVote, c.civ6teamerVote] : [c.botTesting, c.civ7ffaVote, c.civ7teamerVote];
-}
-
 function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: CivVersion): VoteRequest {
   const age = interaction.options.getString('age');
   return {
@@ -91,7 +85,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (!interaction.inCachedGuild()) refuse('Votes are run in a server.');
     if (sub === 'cancel') return await cancel(interaction);
     const edition = versionOf(sub);
-    if (!(await ensureCommandAccess(interaction, channelsFor(edition)))) return;
+    if (!(await ensureCommandAccess(interaction))) return;
     const request = requestOf(interaction, edition);
     if (interaction.options.getBoolean('bans')) return await openBansForm(interaction, request);
     await startVote(interaction, request);

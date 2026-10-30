@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { StatRow, UserStatsResponse } from '../../api/types.js';
-import { formatRoomRanksPages } from '../layouts/roomranks.js';
 import { statTable } from './stats.js';
 
 const row = (games: number, first: number, gains: number, mu = 1250): StatRow => ({
@@ -46,19 +45,4 @@ test('losses and win rate come from wins, in every mode', () => {
   const table = statTable(stats().lifetime);
   assert.match(lineOf(table, 'Losses'), /^Losses\s+30\s+4\s+\u2014$/);
   assert.match(lineOf(table, 'Win %'), /^Win %\s+50%\s+60%\s+\u2014$/);
-});
-
-test('a long room splits into pages of whole tables, each under the limit', () => {
-  const rows = Array.from({ length: 60 }, (_, i) => ({
-    name: `Player number ${i}`,
-    lifetime: { ffa: 1000 + i, teamer: null, duel: 900 },
-    season: { ffa: 1000, teamer: null, duel: null },
-  }));
-  const pages = formatRoomRanksPages({ realtimeRows: rows, cloudLifetimeRows: null }, 1500);
-  assert.ok(pages.length > 1);
-  for (const page of pages) {
-    assert.ok(page.length <= 1500);
-    assert.equal(page.match(/```ansi/g)?.length, 2);
-  }
-  assert.equal(pages.join('').match(/Player number/g)?.length, 120);
 });

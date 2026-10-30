@@ -7,15 +7,24 @@ import { config } from '../config.js';
 type Channel = keyof typeof config.discord.channels;
 type Role = keyof typeof config.discord.roles;
 
-export type Access = Readonly<{
+type Rule = Readonly<{
   // null: no restriction.
   roles: readonly Role[] | null;
   channels: readonly Channel[] | null;
-  // Hidden from everyone until a role is granted it.
-  staffOnly?: boolean;
 }>;
 
+export type Access = Rule &
+  Readonly<{
+    // Hidden from everyone until a role is granted it.
+    staffOnly?: boolean;
+    // Discord sets access per command, so a subcommand's narrower rule is the bot's to check.
+    subcommands?: Readonly<Record<string, Partial<Rule>>>;
+  }>;
+
 const RANKED: readonly Role[] = ['civ6Rank', 'civ7Rank', 'civCloud', 'moderator', 'developer'];
+// A command for one game takes that game's rank role, or staff.
+const CIV6: readonly Role[] = ['civ6Rank', 'moderator', 'developer'];
+const CIV7: readonly Role[] = ['civ7Rank', 'moderator', 'developer'];
 const COMMAND_CHANNELS: readonly Channel[] = ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'noviceCommands'];
 
 export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
@@ -40,12 +49,24 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   },
   'get-users': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   'season-new': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
-  // civ6 and civ7 check their own channels, so the command takes them all.
-  draft: { roles: RANKED, channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'noviceCommands', 'cloudCommands'] },
-  // Hosting checks its own channel by mode, so the command is open everywhere.
-  lobby: { roles: RANKED, channels: null },
-  // civ6 and civ7 check their own voting channels; cancel runs anywhere.
-  vote: { roles: RANKED, channels: null },
+  draft: {
+    roles: RANKED,
+    channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'noviceCommands', 'cloudCommands'],
+    subcommands: {
+      civ6: { roles: [...CIV6, 'civCloud'], channels: ['botTesting', 'civ6Commands', 'noviceCommands', 'cloudCommands'] },
+      civ7: { roles: CIV7, channels: ['botTesting', 'civ7Commands'] },
+    },
+  },
+  // Lobbies are Civ6 games; one is hosted in the lobby-links channel and run from anywhere.
+  lobby: { roles: CIV6, channels: null, subcommands: { host: { channels: ['civ6LobbyLinks'] } } },
+  vote: {
+    roles: RANKED,
+    channels: null,
+    subcommands: {
+      civ6: { roles: CIV6, channels: ['botTesting', 'civ6ffaVote', 'civ6teamerVote'] },
+      civ7: { roles: CIV7, channels: ['botTesting', 'civ7ffaVote', 'civ7teamerVote'] },
+    },
+  },
   secretvote: { roles: RANKED, channels: COMMAND_CHANNELS },
 };
 
@@ -55,10 +76,11 @@ export type Wanted = Readonly<{ roles: string[] | null; channels: string[] | nul
 const idsOf = <K extends string>(keys: readonly K[] | null, ids: Readonly<Record<K, string>>): string[] | null =>
   keys === null ? null : [...new Set(keys.map((k) => ids[k].trim()).filter(Boolean))].sort();
 
-export function wantedFor(access: Access): Wanted {
+export function wantedFor(access: Access, subcommand?: string | null): Wanted {
+  const rule = { ...access, ...(subcommand ? access.subcommands?.[subcommand] : undefined) };
   return {
-    roles: idsOf(access.roles, config.discord.roles),
-    channels: idsOf(access.channels, config.discord.channels),
+    roles: idsOf(rule.roles, config.discord.roles),
+    channels: idsOf(rule.channels, config.discord.channels),
     staffOnly: access.staffOnly === true,
   };
 }

@@ -7,7 +7,6 @@ import {
 
 import { ApiClient } from '../../api/index.js';
 import type { CivVersion } from '../../api/types.js';
-import { config } from '../../config.js';
 import type { Mode } from '../../config/constants.js';
 import { civNames, civRows } from '../../services/civ-names.js';
 import { postDraft } from '../../services/draft.service.js';
@@ -65,11 +64,6 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) => subcommand(sub, 'civ6'))
   .addSubcommand((sub) => subcommand(sub, 'civ7'));
 
-function channelsFor(edition: CivVersion): string[] {
-  const c = config.discord.channels;
-  return edition === 'civ6' ? [c.botTesting, c.civ6Commands, c.noviceCommands, c.cloudCommands] : [c.botTesting, c.civ7Commands];
-}
-
 function choiceOf(interaction: ChatInputCommandInteraction, edition: CivVersion): DraftChoice {
   const o = interaction.options;
   const age = edition === 'civ7' ? o.getString('age', true) : EVERY_AGE;
@@ -88,7 +82,7 @@ function choiceOf(interaction: ChatInputCommandInteraction, edition: CivVersion)
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     const edition = versionOf(interaction.options.getSubcommand(true));
-    if (!(await ensureCommandAccess(interaction, channelsFor(edition)))) return;
+    if (!(await ensureCommandAccess(interaction))) return;
     const choice = choiceOf(interaction, edition);
     if (choice.mode === 'duel' && choice.drafts !== 2) refuse('A duel is two drafts. Set drafts to 2.');
     const about = postAboutOf(interaction);

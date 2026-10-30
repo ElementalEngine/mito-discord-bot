@@ -44,7 +44,7 @@ export const data = new SlashCommandBuilder()
 
 // The lobby opens in setup, seen only by its host in their editor.
 async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
-  if (!(await ensureCommandAccess(interaction, [config.discord.channels.civ6LobbyLinks]))) return;
+  if (!(await ensureCommandAccess(interaction))) return;
   const steamLink = interaction.options.getString('steam-link')?.trim() || null;
   if (steamLink && !lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
     refuse('That is not a Civ6 lobby link. Paste the steam://joinlobby/289070/... link of your lobby, or leave it out.');
