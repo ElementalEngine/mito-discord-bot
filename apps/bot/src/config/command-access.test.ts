@@ -8,7 +8,7 @@ import { ApplicationCommandPermissionType as Type } from 'discord.js';
 
 import type { Command } from '../types/global.js';
 import { payloadOf } from '../deploy.js';
-import { COMMAND_ACCESS, driftOf, type Wanted } from './command-access.js';
+import { COMMAND_ACCESS, driftOf, inherited, type Wanted } from './command-access.js';
 
 const GUILD = '1000';
 const ALL_CHANNELS = '999';
@@ -98,5 +98,15 @@ test('a missing role, an extra channel, a single denial and a user override are 
   ]);
   assert.deepEqual(driftOf(want({}), [channel('4', false)], GUILD), [
     { kind: 'channels', want: null, have: ['!4'] },
+  ]);
+});
+
+test("a command's own overrides replace the app's only for the roles and channels they name", () => {
+  const app = [role(GUILD, false), role('7'), role('8'), channel('1')];
+  const own = [role('8', false), role('9'), channel('1', false)];
+  assert.deepEqual(inherited(own, app), [role('8', false), role('9'), channel('1', false), role(GUILD, false), role('7')]);
+  assert.deepEqual(inherited([], app), app);
+  assert.deepEqual(driftOf(want({ roles: ['7', '9'] }), inherited(own, app), GUILD), [
+    { kind: 'channels', want: null, have: ['!1'] },
   ]);
 });

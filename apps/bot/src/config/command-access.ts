@@ -57,8 +57,8 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
       civ7: { roles: CIV7, channels: ['botTesting', 'civ7Commands'] },
     },
   },
-  // Lobbies are Civ6 games; one is hosted in the lobby-links channel and run from anywhere.
-  lobby: { roles: CIV6, channels: null, subcommands: { host: { channels: ['civ6LobbyLinks'] } } },
+  // Lobbies are Civ6 games; one is hosted in lobby-links or bot-testing and run from anywhere.
+  lobby: { roles: CIV6, channels: null, subcommands: { host: { channels: ['botTesting', 'civ6LobbyLinks'] } } },
   vote: {
     roles: RANKED,
     channels: null,
@@ -99,6 +99,14 @@ function allowed(entries: readonly ApplicationCommandPermissions[], all: string,
 
 const same = (a: string[] | null, b: string[] | null): boolean =>
   a === null || b === null ? a === b : a.length === b.length && a.every((x, i) => x === b[i]);
+
+// Discord lays a command's own overrides over the app's, one role or channel at a time.
+export function inherited(
+  own: readonly ApplicationCommandPermissions[],
+  app: readonly ApplicationCommandPermissions[],
+): ApplicationCommandPermissions[] {
+  return [...own, ...app.filter((a) => !own.some((o) => o.id === a.id && o.type === a.type))];
+}
 
 export function driftOf(want: Wanted, have: readonly ApplicationCommandPermissions[], guildId: string): Drift[] {
   const allChannels = String(BigInt(guildId) - 1n);

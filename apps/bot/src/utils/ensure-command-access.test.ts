@@ -60,7 +60,7 @@ test("outside the row's channels the reply points to them", async () => {
 
 test("a subcommand's channels replace the row's", async () => {
   assert.equal(await ensureCommandAccess(asked('lobby host', [RANKED], LOBBY_LINKS).interaction), true);
-  assert.equal(await ensureCommandAccess(asked('lobby host', [RANKED], COMMANDS).interaction), false);
+  assert.equal(await ensureCommandAccess(asked('lobby host', [RANKED], '300000000000000001').interaction), false);
 });
 
 test("a game's subcommand takes that game's rank role, and holding both passes either", async () => {

@@ -1,6 +1,6 @@
 import type { ApplicationCommandPermissions, Client, Guild } from 'discord.js';
 
-import { COMMAND_ACCESS, driftOf, wantedFor, type Drift } from '../config/command-access.js';
+import { COMMAND_ACCESS, driftOf, inherited, wantedFor, type Drift } from '../config/command-access.js';
 import { config } from '../config.js';
 import { log } from '../utils/log.js';
 
@@ -31,7 +31,7 @@ export async function checkCommandAccess(client: Client): Promise<void> {
       lines.push(`/${command.name}: not in the access table`);
       continue;
     }
-    const drift = driftOf(wantedFor(access), overrides.get(command.id) ?? appWide, guild.id);
+    const drift = driftOf(wantedFor(access), inherited(overrides.get(command.id) ?? [], appWide), guild.id);
     for (const d of drift) {
       lines.push(`/${command.name} ${d.kind}: want ${listOf(guild, d.kind, d.want)}; Discord allows ${listOf(guild, d.kind, d.have)}`);
     }
