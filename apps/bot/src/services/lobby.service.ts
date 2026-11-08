@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { Actor, CivVersion, Lobby, SettingQuestion } from '../api/types.js';
+import type { Actor, CivVersion, Lobby, LobbyShape, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
 import { lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
@@ -22,9 +22,14 @@ export function lobbySettings(gameType: string, api: ApiClient, edition: CivVers
   return read;
 }
 
+// Teamers ping the teamer LFG role; FFAs and duels the FFA one. Empty when unset.
+export function lfgRoleFor(shape: LobbyShape, roles: Readonly<{ civ6LfgFfa: string; civ6LfgTeamer: string }> = config.discord.roles): string {
+  return shape.startsWith('teamer-') ? roles.civ6LfgTeamer : roles.civ6LfgFfa;
+}
+
 export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyView> {
   const [names, asked] = await Promise.all([civNames('civ6', api), lobbySettings(lobby.mode, api)]);
-  const lfgRole = lobby.lfg ? config.discord.roles.civ6Lfg || null : null;
+  const lfgRole = lobby.lfg ? lfgRoleFor(lobby.shape) || null : null;
   return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl), lfgRole };
 }
 

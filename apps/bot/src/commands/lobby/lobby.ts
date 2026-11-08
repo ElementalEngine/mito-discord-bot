@@ -5,7 +5,7 @@ import type { LobbyShape } from '../../api/types.js';
 import { config } from '../../config.js';
 import { openEditor } from '../../handlers/lobby.handlers.js';
 import { closeVote } from '../../services/lobby-vote.service.js';
-import { showLobby } from '../../services/lobby.service.js';
+import { lfgRoleFor, showLobby } from '../../services/lobby.service.js';
 import { inSetupTurn } from '../../services/turns.js';
 import { SHAPES, lobbyLinkOf, openLobbiesPanel } from '../../ui/panels/lobby.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
@@ -49,12 +49,16 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
   if (steamLink && !lobbyLinkOf(steamLink, config.lobbyLinkUrl)) {
     refuse('That is not a Civ6 lobby link. Paste the steam://joinlobby/289070/... link of your lobby, or leave it out.');
   }
+  const shape = interaction.options.getString('mode', true) as LobbyShape;
   const lfg = interaction.options.getBoolean('lfg') ?? false;
-  if (lfg && !config.discord.roles.civ6Lfg) refuse('This server has no LFG role set up, so leave lfg off.');
+  if (lfg && !lfgRoleFor(shape)) refuse('This server has no LFG role for that mode set up, so leave lfg off.');
   await defer(interaction, 'private');
+  // A host who dismissed their editor is pointed back to the lobby they hold.
+  const [held] = await api.openLobbies(interaction.guildId, interaction.user.id);
+  if (held) refuse(`You already host lobby ${held.code}. /lobby edit reopens it, or /lobby cancel ${held.code} cancels it.`);
   const lobby = await api.hostLobby(
     {
-      shape: interaction.options.getString('mode', true) as LobbyShape,
+      shape,
       guild_id: interaction.guildId,
       channel_id: interaction.channelId,
       steam_link: steamLink,
