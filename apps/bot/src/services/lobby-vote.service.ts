@@ -13,7 +13,7 @@ import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
 import { lobbySettings, lobbyViewOf, showLobby } from './lobby.service.js';
 import { BAN_HINT, backingOf, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
-import { closeMessages, recorded, sendableIn } from './setup.js';
+import { closeMessages, readBackLost, recorded, sendableIn } from './setup.js';
 
 // FFAs and duels draft in the FFA voting channel, teamers in the teamer one.
 async function votingChannel(client: Client, lobby: Lobby): Promise<SendableChannels> {
@@ -121,7 +121,8 @@ async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<
   const read = place ? await reactionsOn(place, live) : new Map<string, Reaction[]>();
   const { ballot, unmatched } = await lobbyBallot(lobby, (key) => read.get(messages[key] ?? '') ?? [], questions, api);
   if (unmatched.length) log.info('ban reactions naming no leader', lobby.id, unmatched.join(', '));
-  const dealt = await api.tallyVote(lobby.id, { id: lobby.host_id }, ballot);
+  const dealt = await readBackLost(api.tallyVote(lobby.id, { id: lobby.host_id }, ballot), () => api.lobby(lobby.id), 'voting');
+  if (dealt.status === 'cancelled') return closeVote(client, dealt);
   if (dealt.phase === 'picking' && place) return openPicks(client, dealt, place, api);
   if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
   await closeVote(client, dealt);
@@ -142,8 +143,9 @@ async function openPicks(client: Client, lobby: Lobby, place: SendableChannels, 
 
 // The blind picks revealed together, in the lobby's turn.
 async function revealPicks(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
-  const shown = await api.revealPicks(lobby.id, { id: lobby.host_id });
+  const shown = await readBackLost(api.revealPicks(lobby.id, { id: lobby.host_id }), () => api.lobby(lobby.id), 'picking');
   await closeVote(client, shown);
+  if (shown.status === 'cancelled') return;
   await postLobbyDraft(client, shown, await placeOf(client, shown), api);
 }
 

@@ -420,11 +420,13 @@ export class ApiClient {
   }
 
   async recordHistoryPost(matchId: string, messageId: string): Promise<void> {
-    await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/history-post`, {
+    const res = await this.fetchWithRetry(`${this.base}/api/v2/matches/${encodeURIComponent(matchId)}/history-post`, {
       method: "PUT",
       headers: json,
       body: JSON.stringify({ message_id: messageId }),
     });
+    // An answer not read holds its connection until it is collected.
+    await res.body?.cancel();
   }
 
   async revert(matchId: string, actor: Actor): Promise<Match> {

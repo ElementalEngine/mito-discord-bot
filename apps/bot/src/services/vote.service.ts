@@ -11,7 +11,7 @@ import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
 import { lobbySettings } from './lobby.service.js';
 import { BAN_HINT, backingOf, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
-import { closeMessages, recorded, sendableIn } from './setup.js';
+import { closeMessages, readBackLost, recorded, sendableIn } from './setup.js';
 
 type BanKind = 'leader' | 'civ';
 
@@ -124,12 +124,7 @@ async function postVoteDraft(vote: Vote, place: SendableChannels | null, api: Ap
 async function countVote(client: Client, vote: Vote, api: ApiClient): Promise<void> {
   const [place, questions] = await Promise.all([placeOf(client, vote), questionsOf(vote, api)]);
   const ballot = place ? await ballotFrom(vote, place, questions, api) : { settings: {}, bans: {} };
-  // A tally that landed but whose answer was lost is read back, so the draft still posts.
-  const dealt = await api.tallyVoteBallot(vote.id, starterOf(vote), ballot).catch(async (error: unknown) => {
-    const now = await api.vote(vote.id);
-    if (now.status === 'open' && now.phase === 'voting') throw error;
-    return now;
-  });
+  const dealt = await readBackLost(api.tallyVoteBallot(vote.id, starterOf(vote), ballot), () => api.vote(vote.id), 'voting');
   await closeVoteMessages(client, vote);
   if (dealt.status === 'cancelled') return;
   if (dealt.phase === 'picking' && place) {
@@ -143,8 +138,9 @@ async function countVote(client: Client, vote: Vote, api: ApiClient): Promise<vo
 
 // The blind picks revealed together, in the vote's turn.
 async function revealVotePicks(client: Client, vote: Vote, api: ApiClient): Promise<void> {
-  const shown = await api.revealVotePicks(vote.id, starterOf(vote));
+  const shown = await readBackLost(api.revealVotePicks(vote.id, starterOf(vote)), () => api.vote(vote.id), 'picking');
   await closeVoteMessages(client, vote);
+  if (shown.status === 'cancelled') return;
   await postVoteDraft(shown, await placeOf(client, shown), api);
 }
 

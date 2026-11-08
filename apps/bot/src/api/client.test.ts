@@ -62,3 +62,10 @@ test("the leaderboard is read from v2 as a GET with its options in the query", a
     },
   ]);
 });
+
+test("a write with no answer to read still releases its connection", async () => {
+  let res: Response | undefined;
+  const answered = new ApiClient("http://localhost", async () => (res = new Response('{"ok":true}', { status: 200 })), "token");
+  await answered.recordHistoryPost("m1", "123");
+  assert.equal(res?.bodyUsed, true);
+});

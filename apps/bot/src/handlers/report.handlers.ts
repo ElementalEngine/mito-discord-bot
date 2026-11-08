@@ -49,7 +49,8 @@ import {
   type Members,
 } from '../ui/panels/report-edit.js';
 import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
-import { Refusal, defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
+import { beforeForm } from '../ui/before-form.js';
+import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
 import { versionOf } from '../utils/edition.js';
 import type { Closer } from '../utils/idle.js';
@@ -92,21 +93,6 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 const DRAFT_ACTION: Readonly<Record<DraftKind, string>> = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' };
-
-// A read before a form opens must beat Discord's 3 second window, counted from
-// the press itself, so a slow league server is said plainly, not left to time out.
-async function beforeForm<T>(interaction: Interaction, read: Promise<T>): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const left = Math.max(0, interaction.createdTimestamp + 2_500 - Date.now());
-  const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Refusal('The league server is slow right now. Try again in a moment.')), left);
-  });
-  try {
-    return await Promise.race([read, late]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // The member picked in a form's user field, if any.
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>

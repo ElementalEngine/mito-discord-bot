@@ -7,6 +7,7 @@ import { lobbySettings } from '../services/lobby.service.js';
 import { inSetupTurn } from '../services/turns.js';
 import { allFinished, allPicked, pickingBy } from '../services/setup.js';
 import { advanceVote, postVote, showBlindVoteStatus } from '../services/vote.service.js';
+import { beforeForm } from '../ui/before-form.js';
 import { customId, parseId } from '../ui/kit/index.js';
 import { BAN_FORM, banFieldIds, banFields } from '../ui/panels/draft.js';
 import { VOTE_VERB, voteBlindPickPanel, voteStatusPanel } from '../ui/panels/vote.js';
@@ -44,7 +45,7 @@ export async function startVote(interaction: ChatInputCommandInteraction | Modal
 // The starter's bans first, in a form that must be the command's first answer.
 export async function openBansForm(interaction: ChatInputCommandInteraction, request: VoteRequest): Promise<void> {
   const scope = { edition: request.edition, age: request.age ?? null };
-  const [rows, names] = await Promise.all([civRows(request.edition, api), civNames(request.edition, api)]);
+  const [rows, names] = await beforeForm(interaction, Promise.all([civRows(request.edition, api), civNames(request.edition, api)]));
   for (const [key, held] of waiting) if (held.until < Date.now()) waiting.delete(key);
   waiting.set(interaction.id, { request, until: Date.now() + FORM_MS });
   const form = new ModalBuilder()

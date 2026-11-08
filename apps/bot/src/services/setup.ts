@@ -23,6 +23,18 @@ export async function recorded<T>(posted: Message, record: () => Promise<T>): Pr
   }
 }
 
+// A step that landed but whose answer was lost is read back; the error stands
+// only while the setup still waits in that phase.
+export async function readBackLost<T extends Setup>(step: Promise<T>, readBack: () => Promise<T>, waiting: T['phase']): Promise<T> {
+  try {
+    return await step;
+  } catch (error) {
+    const now = await readBack();
+    if (now.status === 'open' && now.phase === waiting) throw error;
+    return now;
+  }
+}
+
 // A setup's vote or blind-pick messages deleted, no longer watched or timed.
 export async function closeMessages(client: Client, setupId: string, channelId: string | null | undefined, ids: readonly string[]): Promise<void> {
   dropDeadline(setupId);

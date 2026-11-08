@@ -55,7 +55,10 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
   await defer(interaction, 'private');
   // A host who dismissed their editor is pointed back to the lobby they hold.
   const [held] = await api.openLobbies(interaction.guildId, interaction.user.id);
-  if (held) refuse(`You already host lobby ${held.code}. /lobby edit reopens it, or /lobby cancel ${held.code} cancels it.`);
+  if (held) {
+    const edit = held.phase === 'setup' || held.phase === 'live' ? '/lobby edit reopens it, or ' : '';
+    refuse(`You already host lobby ${held.code}. ${edit}/lobby cancel ${held.code} cancels it.`);
+  }
   const lobby = await api.hostLobby(
     {
       shape,

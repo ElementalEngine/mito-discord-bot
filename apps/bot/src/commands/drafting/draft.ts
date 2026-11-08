@@ -10,6 +10,7 @@ import type { CivVersion } from '../../api/types.js';
 import type { Mode } from '../../config/constants.js';
 import { civNames, civRows } from '../../services/civ-names.js';
 import { postDraft } from '../../services/draft.service.js';
+import { beforeForm } from '../../ui/before-form.js';
 import { AGE_CHOICES, EVERY_AGE, MODE_CHOICES, banForm, type Age, type DraftChoice } from '../../ui/panels/draft.js';
 import { defer, fail, refuse } from '../../ui/reply.js';
 import { versionOf } from '../../utils/edition.js';
@@ -85,7 +86,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (choice.mode === 'duel' && choice.drafts !== 2) refuse('A duel is two drafts. Set drafts to 2.');
     const about = postAboutOf(interaction);
     if (interaction.options.getBoolean('bans', true)) {
-      const [rows, names] = await Promise.all([civRows(edition, api), civNames(edition, api)]);
+      const [rows, names] = await beforeForm(interaction, Promise.all([civRows(edition, api), civNames(edition, api)]));
       await interaction.showModal(banForm(choice, about, rows, names));
       return;
     }
