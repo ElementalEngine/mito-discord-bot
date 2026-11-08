@@ -8,6 +8,7 @@ import {
   editOf,
   editorPanel,
   lobbyBanForm,
+  lobbyDraftPanels,
   lobbyLinkOf,
   lobbyPanel,
   withBans,
@@ -61,8 +62,8 @@ const teamer = (players: [string, number][], fields: Partial<Lobby> = {}): Lobby
   lobby({ shape: 'teamer-2v2', mode: 'teamer', seats: 4, teams: 2, players: players.map(([discord_id, team]) => ({ discord_id, team })), ...fields });
 
 const QUESTIONS: SettingQuestion[] = [
-  { id: 'huts', title: 'Huts', default_option_id: 'x1', host_only: false, options: [{ id: 'x1', label: '1x', emoji: '1️⃣' }, { id: 'x1_5', label: '1.5x', emoji: '2️⃣' }] },
-  { id: 'map', title: 'Map', default_option_id: 'pangea', host_only: false, options: [{ id: 'pangea', label: 'Pangaea', emoji: '🌐' }] },
+  { id: 'huts', title: 'Huts', default_option_id: 'x1', host_only: false, standard_draft_only: false, options: [{ id: 'x1', label: '1x', emoji: '1️⃣' }, { id: 'x1_5', label: '1.5x', emoji: '2️⃣' }] },
+  { id: 'map', title: 'Map', default_option_id: 'pangea', host_only: false, standard_draft_only: false, options: [{ id: 'pangea', label: 'Pangaea', emoji: '🌐' }] },
 ];
 const NAMES = new Map([['LEADER_A', 'Abe'], ['LEADER_B', 'Bea']]);
 const CTX = { questions: QUESTIONS, names: NAMES, playerNames: new Map([['100', 'Host'], ['200', 'Ann'], ['300', 'Bo']]) };
@@ -138,6 +139,29 @@ test('every setting can be put to the vote, and the lobby says which are', () =>
   const post = lobbyPanel(view(voting));
   assert.match(textOf(post), /Map: put to the vote/);
   assert.match(post.subtitle ?? '', /Draft mode put to the vote/);
+});
+
+const TRADE: SettingQuestion = { id: 'trade_forbidden', title: 'Trade Forbidden', default_option_id: 'no', host_only: false, standard_draft_only: true, options: [{ id: 'yes', label: 'Yes', emoji: '✅' }, { id: 'no', label: 'No', emoji: '⛔' }] };
+const DRAFT: SettingQuestion = {
+  id: 'draft_mode',
+  title: 'Draft Mode',
+  default_option_id: 'standard',
+  host_only: false,
+  standard_draft_only: false,
+  options: ['standard', 'random', 'blind'].map((id) => ({ id, label: id, emoji: id[0] ?? '' })),
+};
+
+test('a Standard-only setting says it is not applied once the draft is Random or Blind', () => {
+  const asked = [...QUESTIONS, TRADE, DRAFT];
+  const at = (draft: string) => lobby({ draft_mode: draft, settings: [{ id: 'huts', value: 'x1', by: 'host' }, { id: 'trade_forbidden', value: 'yes', by: 'host' }, { id: 'draft_mode', value: draft, by: 'host' }] });
+  const posted = (draft: string) => textOf(lobbyPanel({ ...view(at(draft)), questions: asked }));
+  assert.match(posted('random'), /Trade Forbidden: Yes \(not applied: Random draft\)/);
+  assert.match(posted('blind'), /Trade Forbidden: Yes \(not applied: Blind draft\)/);
+  assert.match(posted('random'), /Huts: 1x\n/);
+  assert.doesNotMatch(posted('standard'), /not applied/);
+  assert.doesNotMatch(posted('vote'), /not applied/);
+  const drafted = lobbyDraftPanels({ ...view(at('blind')), questions: asked }).map(textOf).join('\n');
+  assert.match(drafted, /Trade Forbidden: Yes \(not applied: Blind draft\)/);
 });
 
 test('the vote names the settings put to it and shows each one won', () => {

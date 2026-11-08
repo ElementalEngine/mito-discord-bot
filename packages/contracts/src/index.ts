@@ -24,15 +24,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/admin/accounts/discord/{discord_id}": {
+    "/api/v2/auth/2k-registrations": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lookup Account By Discord */
-        get: operations["lookup_account_by_discord_api_v1_auth_admin_accounts_discord__discord_id__get"];
+        get?: never;
+        put?: never;
+        /** Register Two K */
+        post: operations["register_two_k_api_v2_auth_2k_registrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/auth/accounts/discord/{discord_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lookup Discord */
+        get: operations["lookup_discord_api_v2_auth_accounts_discord__discord_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -41,15 +58,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/admin/accounts/linked-account/{linked_account_id}": {
+    "/api/v2/auth/accounts/linked/{linked_account_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lookup Account By Linked Account */
-        get: operations["lookup_account_by_linked_account_api_v1_auth_admin_accounts_linked_account__linked_account_id__get"];
+        /** Lookup Linked */
+        get: operations["lookup_linked_api_v2_auth_accounts_linked__linked_account_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -58,15 +75,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/admin/accounts/steam/{steam_id}": {
+    "/api/v2/auth/manual-registrations": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lookup Account By Steam */
-        get: operations["lookup_account_by_steam_api_v1_auth_admin_accounts_steam__steam_id__get"];
+        get?: never;
+        put?: never;
+        /** Register Manually */
+        post: operations["register_manually_api_v2_auth_manual_registrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/auth/rank-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Rank Role */
+        post: operations["add_rank_role_api_v2_auth_rank_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Session */
+        post: operations["start_session_api_v2_auth_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/auth/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session */
+        get: operations["get_session_api_v2_auth_sessions__session_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -75,7 +143,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/admin/manual-registrations": {
+    "/api/v2/auth/sessions/{session_id}/complete": {
         parameters: {
             query?: never;
             header?: never;
@@ -84,282 +152,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Manual Registration */
-        post: operations["create_manual_registration_api_v1_auth_admin_manual_registrations_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/manual-registration-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Self Service Registration */
-        post: operations["create_self_service_registration_api_v1_auth_manual_registration_requests_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/rank-role-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Rank Role Request */
-        post: operations["create_rank_role_request_api_v1_auth_rank_role_requests_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/registration-operations/{operation_id}/finalize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finalize Registration Operation */
-        post: operations["finalize_registration_operation_api_v1_auth_registration_operations__operation_id__finalize_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/registration-sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Registration Session */
-        post: operations["create_registration_session_api_v1_auth_registration_sessions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/registration-sessions/{session_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Registration Session */
-        get: operations["get_registration_session_api_v1_auth_registration_sessions__session_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/registration-sessions/{session_id}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Complete Registration Session */
-        post: operations["complete_registration_session_api_v1_auth_registration_sessions__session_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/active": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Active Suspensions */
-        get: operations["get_active_suspensions_api_v1_infractions_active_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/overdue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Overdue Suspensions */
-        get: operations["get_overdue_suspensions_api_v1_infractions_overdue_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Record */
-        get: operations["get_record_api_v1_infractions__discord_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/add-days": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Add Days */
-        post: operations["add_days_api_v1_infractions__discord_id__add_days_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/flat/{flat_type}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Record Flat Suspension */
-        post: operations["record_flat_suspension_api_v1_infractions__discord_id__flat__flat_type__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Pending Suspension */
-        get: operations["get_pending_suspension_api_v1_infractions__discord_id__pending_get"];
-        put?: never;
-        /** Create Pending Suspension */
-        post: operations["create_pending_suspension_api_v1_infractions__discord_id__pending_post"];
-        /** Delete Pending Suspension */
-        delete: operations["delete_pending_suspension_api_v1_infractions__discord_id__pending_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/remove-days": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Remove Days */
-        post: operations["remove_days_api_v1_infractions__discord_id__remove_days_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/remove-tier": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Remove Tier */
-        post: operations["remove_tier_api_v1_infractions__discord_id__remove_tier_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/tier/{category}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Record Tier Infraction */
-        post: operations["record_tier_infraction_api_v1_infractions__discord_id__tier__category__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/infractions/{discord_id}/unsuspend": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Unsuspend */
-        post: operations["unsuspend_api_v1_infractions__discord_id__unsuspend_post"];
+        /** Complete Session */
+        post: operations["complete_session_api_v2_auth_sessions__session_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -377,6 +171,193 @@ export interface paths {
         get: operations["get_civ_data_api_v2_civ_data__edition__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Due */
+        get: operations["due_api_v2_infractions_due_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/laggers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Laggers */
+        get: operations["laggers_api_v2_infractions_laggers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Record */
+        get: operations["record_api_v2_infractions__discord_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Days */
+        post: operations["change_days_api_v2_infractions__discord_id__days_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/expire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Expire */
+        post: operations["expire_api_v2_infractions__discord_id__expire_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/flat/{flat_type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Flat */
+        post: operations["record_flat_api_v2_infractions__discord_id__flat__flat_type__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Pending */
+        put: operations["set_pending_api_v2_infractions__discord_id__pending_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/pending/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Pending */
+        post: operations["apply_pending_api_v2_infractions__discord_id__pending_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/remove-tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Tier */
+        post: operations["remove_tier_api_v2_infractions__discord_id__remove_tier_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/tier/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Tier */
+        post: operations["record_tier_api_v2_infractions__discord_id__tier__category__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/{discord_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unsuspend */
+        post: operations["unsuspend_api_v2_infractions__discord_id__unsuspend_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1316,15 +1297,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** ActiveSuspension */
-        ActiveSuspension: {
+        /**
+         * AccountLookup
+         * @description Every record that matches; more than one is worth a look.
+         */
+        AccountLookup: {
+            /** Records */
+            records: components["schemas"]["AccountRecord"][];
+        };
+        /** AccountRecord */
+        AccountRecord: {
+            /** Discord Display Name */
+            discord_display_name?: string | null;
             /** Discord Id */
             discord_id: string;
-            /**
-             * Ends
-             * Format: date-time
-             */
-            ends: string;
+            /** Discord Username */
+            discord_username?: string | null;
+            /** Linked Account Id */
+            linked_account_id?: string | null;
+            /** Linked Account Name */
+            linked_account_name?: string | null;
+            linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
+            /** Registrations */
+            registrations: components["schemas"]["RegistrationEntry"][];
+            standing?: components["schemas"]["Standing"] | null;
         };
         /** AffectedPlayerRating */
         AffectedPlayerRating: {
@@ -1422,11 +1418,6 @@ export interface components {
             /** Token */
             token: string;
         };
-        /** CompleteRegistrationSessionRequest */
-        CompleteRegistrationSessionRequest: {
-            /** Discord User Id */
-            discord_user_id: string;
-        };
         /** ContestBody */
         ContestBody: {
             /** Reason */
@@ -1439,20 +1430,24 @@ export interface components {
             /** Reason */
             reason: string;
         };
-        /** CreatePendingSuspensionRequest */
-        CreatePendingSuspensionRequest: {
-            /** Punishment Type */
-            punishment_type: string;
-            /** Reason */
-            reason?: string | null;
+        /** DaysBody */
+        DaysBody: {
+            /** Days */
+            days: number;
         };
-        /** CreateRegistrationSessionRequest */
-        CreateRegistrationSessionRequest: {
-            /** Discord User Id */
-            discord_user_id: string;
-            game: components["schemas"]["SupportedGame"];
-            /** @default steam */
-            platform: components["schemas"]["RegistrationPlatform"];
+        /** DaysResult */
+        DaysResult: {
+            /** Days */
+            days: number;
+            /** Discord Id */
+            discord_id: string;
+            /**
+             * Ends
+             * Format: date-time
+             */
+            ends: string;
+            /** Suspended */
+            suspended: boolean;
         };
         /** DealtBans */
         DealtBans: {
@@ -1467,47 +1462,6 @@ export interface components {
             civs: string[];
             /** Leaders */
             leaders: string[];
-        };
-        /** DiscordAccountLookupHit */
-        DiscordAccountLookupHit: {
-            /** Discord Display Name */
-            discord_display_name?: string | null;
-            /** Discord Id */
-            discord_id: string;
-            /** Discord Username */
-            discord_username?: string | null;
-            /** Registrations */
-            registrations?: components["schemas"]["RegistrationSummary"][];
-        };
-        /** DiscordLookupResponse */
-        DiscordLookupResponse: {
-            /** Discord Display Name */
-            discord_display_name?: string | null;
-            /** Discord Id */
-            discord_id: string;
-            /** Discord Username */
-            discord_username?: string | null;
-            /** Linked Accounts */
-            linked_accounts?: components["schemas"]["LinkedAccountLookupHit"][];
-        };
-        /** DiscordOAuthCallbackResult */
-        DiscordOAuthCallbackResult: {
-            /** Details */
-            details?: {
-                [key: string]: unknown;
-            };
-            /** Failure Code */
-            failure_code?: string | null;
-            /** Failure Message */
-            failure_message?: string | null;
-            /** Linked Account Id */
-            linked_account_id?: string | null;
-            /** Linked Account Name */
-            linked_account_name?: string | null;
-            platform: components["schemas"]["RegistrationPlatform"];
-            /** Session Id */
-            session_id: string;
-            status: components["schemas"]["RegistrationSessionStatus"];
         };
         /** DraftDeal */
         DraftDeal: {
@@ -1545,22 +1499,28 @@ export interface components {
             /** Starting Age */
             starting_age?: ("AGE_ANTIQUITY" | "AGE_EXPLORATION" | "AGE_MODERN") | null;
         };
-        /** FinalizeRegistrationOperationRequest */
-        FinalizeRegistrationOperationRequest: {
-            /** Applied Role Intents */
-            applied_role_intents?: components["schemas"]["RoleIntent"][];
-            /** Failure Code */
-            failure_code?: string | null;
-            /** Failure Message */
-            failure_message?: string | null;
-            /**
-             * Result
-             * @enum {string}
-             */
-            result: "succeeded" | "failed";
+        /** DueSuspensions */
+        DueSuspensions: {
+            /** Discord Ids */
+            discord_ids: string[];
+            /** Next Ends */
+            next_ends: string | null;
         };
-        /** FlatSuspensionResponse */
-        FlatSuspensionResponse: {
+        /** ErrorDetail */
+        ErrorDetail: {
+            /** Code */
+            code: string;
+            /** Correlation Id */
+            correlation_id?: string | null;
+            /** Details */
+            details?: unknown | null;
+            /** Message */
+            message: string;
+            /** Retryable */
+            retryable?: boolean | null;
+        };
+        /** FlatResult */
+        FlatResult: {
             /** Days Added */
             days_added: number;
             /** Discord Id */
@@ -1570,8 +1530,6 @@ export interface components {
              * Format: date-time
              */
             ends: string;
-            /** Suspended */
-            suspended: boolean;
             type: components["schemas"]["FlatType"];
         };
         /**
@@ -1646,6 +1604,27 @@ export interface components {
             /** Message Id */
             message_id: string;
         };
+        /** InfractionBody */
+        InfractionBody: {
+            /** Reason */
+            reason?: string | null;
+            /** Suspended Roles */
+            suspended_roles?: string[];
+        };
+        /** Lagger */
+        Lagger: {
+            /** Discord Id */
+            discord_id: string;
+            /** Strikes */
+            strikes: number;
+            /** Tagged */
+            tagged: boolean;
+        };
+        /** Laggers */
+        Laggers: {
+            /** Members */
+            members: components["schemas"]["Lagger"][];
+        };
         /**
          * LeaderPick
          * @description A blind pick: a leader, and a civ where the pool has civs.
@@ -1675,26 +1654,6 @@ export interface components {
             last_updated: number;
             /** Rankings */
             rankings: components["schemas"]["PlayerLeaderboard"][];
-        };
-        /** LinkedAccountLookupHit */
-        LinkedAccountLookupHit: {
-            /** Linked Account Id */
-            linked_account_id: string;
-            /** Linked Account Name */
-            linked_account_name?: string | null;
-            linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
-            /** Registrations */
-            registrations?: components["schemas"]["RegistrationSummary"][];
-        };
-        /** LinkedAccountLookupResponse */
-        LinkedAccountLookupResponse: {
-            /** Discord Accounts */
-            discord_accounts?: components["schemas"]["DiscordAccountLookupHit"][];
-            /** Linked Account Id */
-            linked_account_id: string;
-            /** Linked Account Name */
-            linked_account_name?: string | null;
-            linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
         };
         /**
          * LobbyBallot
@@ -1881,16 +1840,8 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /**
-         * ManualRegistrationChoice
-         * @description Staff-facing platform choice for `/manual-register`.
-         * @enum {string}
-         */
-        ManualRegistrationChoice: "steam" | "steam_family_share" | "2k";
-        /** ManualRegistrationRequest */
-        ManualRegistrationRequest: {
-            /** Actor Discord Id */
-            actor_discord_id: string;
+        /** ManualRegistrationBody */
+        ManualRegistrationBody: {
             /** Discord Display Name */
             discord_display_name?: string | null;
             /** Discord Username */
@@ -1906,6 +1857,12 @@ export interface components {
             /** Subject Discord Id */
             subject_discord_id: string;
         };
+        /**
+         * ManualRegistrationChoice
+         * @description Staff-facing platform choice for `/manual-register`.
+         * @enum {string}
+         */
+        ManualRegistrationChoice: "steam" | "steam_family_share" | "2k";
         /**
          * MapRecord
          * @description Games on a map, those whose rating went up, and first places.
@@ -1968,31 +1925,29 @@ export interface components {
             /** Turn */
             turn: number;
         };
-        /** ModifyDaysRequest */
-        ModifyDaysRequest: {
-            /** Days */
-            days: number;
-        };
-        /** ModifyDaysResponse */
-        ModifyDaysResponse: {
-            /** Days Delta */
-            days_delta: number;
+        /** PendingApplied */
+        PendingApplied: {
+            /** Applied */
+            applied: boolean;
             /** Discord Id */
             discord_id: string;
-            /**
-             * New Ends
-             * Format: date-time
-             */
-            new_ends: string;
-        };
-        /** PendingSuspensionResponse */
-        PendingSuspensionResponse: {
-            /** Discord Id */
-            discord_id: string;
+            /** Ends */
+            ends: string | null;
+            /** Held */
+            held: boolean;
+            /** Lagger Tagged */
+            lagger_tagged: boolean;
             /** Punishment Type */
-            punishment_type: string;
+            punishment_type: string | null;
             /** Reason */
             reason: string | null;
+        };
+        /** PendingBody */
+        PendingBody: {
+            /** Punishment Type */
+            punishment_type: components["schemas"]["TierCategory"] | components["schemas"]["FlatType"];
+            /** Reason */
+            reason?: string | null;
         };
         /** PlayerLeaderboard */
         PlayerLeaderboard: {
@@ -2054,25 +2009,52 @@ export interface components {
             /** Players */
             players?: components["schemas"]["SeatPatchIn"][];
         };
-        /** RankRoleRequest */
-        RankRoleRequest: {
+        /** RankRoleBody */
+        RankRoleBody: {
             /** Discord User Id */
             discord_user_id: string;
             game: components["schemas"]["SupportedGame"];
         };
-        /** RecordFlatSuspensionRequest */
-        RecordFlatSuspensionRequest: {
+        /** ReasonBody */
+        ReasonBody: {
             /** Reason */
             reason?: string | null;
-            /** Suspended Roles */
-            suspended_roles?: string[];
         };
-        /** RecordTierInfractionRequest */
-        RecordTierInfractionRequest: {
+        /** Registration */
+        Registration: {
+            /** Discord User Id */
+            discord_user_id: string;
+            /**
+             * Flags
+             * @default []
+             */
+            flags: ("young_discord" | "young_steam" | "unknown_steam_age")[];
+            game: components["schemas"]["SupportedGame"];
+            /** Linked Account Id */
+            linked_account_id: string;
+            /** Linked Account Name */
+            linked_account_name?: string | null;
+            linked_platform: components["schemas"]["RegistrationPlatform"];
+            registration_method: components["schemas"]["RegistrationMethod"];
+            /** Role Intents */
+            role_intents: components["schemas"]["RoleIntent"][];
+        };
+        /** RegistrationEntry */
+        RegistrationEntry: {
+            /** Actor Discord Id */
+            actor_discord_id?: string | null;
+            /**
+             * Flags
+             * @default []
+             */
+            flags: ("young_discord" | "young_steam" | "unknown_steam_age")[];
+            game: components["schemas"]["SupportedGame"];
+            /** Method */
+            method?: string | null;
             /** Reason */
             reason?: string | null;
-            /** Suspended Roles */
-            suspended_roles?: string[];
+            /** Registered At */
+            registered_at?: string | null;
         };
         /**
          * RegistrationMethod
@@ -2080,105 +2062,14 @@ export interface components {
          * @enum {string}
          */
         RegistrationMethod: "oauth_steam_api" | "admin_steam_family_share" | "admin_staff_attested" | "self_service_2k";
-        /** RegistrationOperationResponse */
-        RegistrationOperationResponse: {
-            /** Discord User Id */
-            discord_user_id: string;
-            game: components["schemas"]["SupportedGame"];
-            /** Linked Account Id */
-            linked_account_id?: string | null;
-            /** Linked Account Name */
-            linked_account_name?: string | null;
-            linked_platform?: components["schemas"]["RegistrationPlatform"] | null;
-            /** Operation Id */
-            operation_id: string;
-            registration_method?: components["schemas"]["RegistrationMethod"] | null;
-            /** Role Intents */
-            role_intents: components["schemas"]["RoleIntent"][];
-            status?: components["schemas"]["RegistrationOperationStatus"] | null;
-            /** Steam Id */
-            steam_id: string;
-            /** Steam Name */
-            steam_name?: string | null;
-        };
-        /**
-         * RegistrationOperationStatus
-         * @enum {string}
-         */
-        RegistrationOperationStatus: "pending" | "succeeded" | "failed";
         /**
          * RegistrationPlatform
          * @enum {string}
          */
         RegistrationPlatform: "steam" | "epic" | "2k" | "xbox";
-        /** RegistrationSessionResponse */
-        RegistrationSessionResponse: {
-            /** Authorize Url */
-            authorize_url: string;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Session Id */
-            session_id: string;
-        };
-        /**
-         * RegistrationSessionStatus
-         * @enum {string}
-         */
-        RegistrationSessionStatus: "pending_auth" | "validating" | "validated" | "failed" | "expired" | "completed";
-        /** RegistrationSessionStatusResponse */
-        RegistrationSessionStatusResponse: {
-            /** Discord Display Name */
-            discord_display_name?: string | null;
-            /** Discord Locale */
-            discord_locale?: string | null;
-            /** Discord Mfa Enabled */
-            discord_mfa_enabled?: boolean | null;
-            /** Discord Username */
-            discord_username?: string | null;
-            /** Discord Verified */
-            discord_verified?: boolean | null;
-            /** Expires At */
-            expires_at?: string | null;
-            /** Failure Code */
-            failure_code?: string | null;
-            /** Failure Message */
-            failure_message?: string | null;
-            game?: components["schemas"]["SupportedGame"] | null;
-            /** Linked Account Id */
-            linked_account_id?: string | null;
-            /** Linked Account Name */
-            linked_account_name?: string | null;
-            platform?: components["schemas"]["RegistrationPlatform"] | null;
-            /** Session Id */
-            session_id: string;
-            status: components["schemas"]["RegistrationSessionStatus"];
-        };
-        /** RegistrationSummary */
-        RegistrationSummary: {
-            game: components["schemas"]["SupportedGame"];
-            /** Method */
-            method?: string | null;
-            /** Registered At */
-            registered_at?: string | null;
-        };
-        /** RemoveTierRequest */
-        RemoveTierRequest: {
+        /** RemoveTierBody */
+        RemoveTierBody: {
             category: components["schemas"]["TierCategory"];
-        };
-        /** RemoveTierResponse */
-        RemoveTierResponse: {
-            category: components["schemas"]["TierCategory"];
-            /** Discord Id */
-            discord_id: string;
-            /** New Decays */
-            new_decays: string | null;
-            /** New Tier */
-            new_tier: number;
-            /** Was Changed */
-            was_changed: boolean;
         };
         /**
          * ResetStatsResponseV2
@@ -2206,6 +2097,11 @@ export interface components {
          * @enum {string}
          */
         RoleIntent: "grant_civ6_rank" | "grant_civ7_rank" | "grant_novice" | "grant_server_news" | "grant_civ6_news" | "grant_civ7_news" | "grant_pc_steam" | "grant_2k_crossplatform" | "remove_non_verified";
+        /** RolesBody */
+        RolesBody: {
+            /** Suspended Roles */
+            suspended_roles?: string[];
+        };
         /**
          * SeasonPreview
          * @description The open season, what comes next, and the season records per collection
@@ -2273,23 +2169,59 @@ export interface components {
             /** Sub Out */
             sub_out?: string | null;
         };
-        /**
-         * SelfServiceRegistrationRequest
-         * @description Civ7 non-Steam self-service registration (currently 2K only).
-         */
-        SelfServiceRegistrationRequest: {
-            /** Discord Display Name */
-            discord_display_name?: string | null;
+        /** SessionComplete */
+        SessionComplete: {
             /** Discord User Id */
             discord_user_id: string;
+        };
+        /** SessionStart */
+        SessionStart: {
+            /** Discord User Id */
+            discord_user_id: string;
+            game: components["schemas"]["SupportedGame"];
+        };
+        /** SessionStarted */
+        SessionStarted: {
+            /** Authorize Url */
+            authorize_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Session Id */
+            session_id: string;
+        };
+        /** SessionState */
+        SessionState: {
+            /** Discord Display Name */
+            discord_display_name?: string | null;
+            /** Discord Locale */
+            discord_locale?: string | null;
+            /** Discord Mfa Enabled */
+            discord_mfa_enabled?: boolean | null;
             /** Discord Username */
             discord_username?: string | null;
+            /** Discord Verified */
+            discord_verified?: boolean | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            failure?: components["schemas"]["ErrorDetail"] | null;
             game: components["schemas"]["SupportedGame"];
-            platform: components["schemas"]["RegistrationPlatform"];
-            /** Platform Account Id */
-            platform_account_id: string;
-            /** Platform Account Name */
-            platform_account_name?: string | null;
+            /** Linked Account Id */
+            linked_account_id?: string | null;
+            /** Linked Account Name */
+            linked_account_name?: string | null;
+            /** Session Id */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_auth" | "validating" | "validated" | "completing" | "completed" | "failed" | "expired";
         };
         /** SettingOption */
         SettingOption: {
@@ -2313,6 +2245,11 @@ export interface components {
             id: string;
             /** Options */
             options: components["schemas"]["SettingOption"][];
+            /**
+             * Standard Draft Only
+             * @default false
+             */
+            standard_draft_only: boolean;
             /** Title */
             title: string;
         };
@@ -2324,6 +2261,24 @@ export interface components {
             kind: string;
             /** Token */
             token: string;
+        };
+        /**
+         * Standing
+         * @description An account's record with Lady Justice.
+         */
+        Standing: {
+            /** Active Category */
+            active_category?: string | null;
+            /** At Ban Threshold */
+            at_ban_threshold: boolean;
+            /** Ends */
+            ends?: string | null;
+            /** Suspended */
+            suspended: boolean;
+            /** Tiers */
+            tiers: {
+                [key: string]: number;
+            };
         };
         /**
          * StartNextSeason
@@ -2399,18 +2354,43 @@ export interface components {
          * @enum {string}
          */
         SupportedGame: "civ6" | "civ7";
-        /** SuspensionRecordResponse */
-        SuspensionRecordResponse: {
-            /** Active Category */
-            active_category: components["schemas"]["TierCategory"] | "flat" | null;
+        /**
+         * SuspensionCleared
+         * @description A suspension ended, with the roles the bot should give back; `suspended`
+         *     is the record after the call, so a repeat can tell it ended or never did.
+         */
+        SuspensionCleared: {
+            /** Cleared */
+            cleared: boolean;
             /** Discord Id */
             discord_id: string;
-            /** Ends */
-            ends: string | null;
             /** Suspended */
             suspended: boolean;
             /** Suspended Roles */
             suspended_roles: string[];
+        };
+        /**
+         * SuspensionRecord
+         * @description A member's record read as the next write would see it, nothing written;
+         *     a member without one reads as a zero record.
+         */
+        SuspensionRecord: {
+            /** Active Category */
+            active_category: string | null;
+            /** Discord Id */
+            discord_id: string;
+            /** Ends */
+            ends: string | null;
+            /** Held */
+            held: boolean;
+            /** Lagger Tagged */
+            lagger_tagged: boolean;
+            /** Suspended */
+            suspended: boolean;
+            /** Tiers */
+            tiers: {
+                [key: string]: number;
+            };
         };
         /** TeamGenResponse */
         TeamGenResponse: {
@@ -2427,10 +2407,19 @@ export interface components {
          * TierCategory
          * @enum {string}
          */
-        TierCategory: "quit" | "minor" | "moderate" | "major" | "extreme";
-        /** TierInfractionResponse */
-        TierInfractionResponse: {
-            active_category: components["schemas"]["TierCategory"] | null;
+        TierCategory: "quit" | "minor" | "moderate" | "major" | "extreme" | "lagger";
+        /** TierRemoved */
+        TierRemoved: {
+            category: components["schemas"]["TierCategory"];
+            /** Discord Id */
+            discord_id: string;
+            /** Tier */
+            tier: number;
+            /** Was Changed */
+            was_changed: boolean;
+        };
+        /** TierResult */
+        TierResult: {
             category: components["schemas"]["TierCategory"];
             /** Days Added */
             days_added: number;
@@ -2438,6 +2427,8 @@ export interface components {
             discord_id: string;
             /** Ends */
             ends: string | null;
+            /** Held */
+            held: boolean;
             /** Is Ban Threshold */
             is_ban_threshold: boolean;
             /** Is Warning Only */
@@ -2446,6 +2437,22 @@ export interface components {
             suspended: boolean;
             /** Tier */
             tier: number;
+        };
+        /**
+         * TwoKRegistrationBody
+         * @description Civ7 on 2K, registered by the player without staff.
+         */
+        TwoKRegistrationBody: {
+            /** Discord Display Name */
+            discord_display_name?: string | null;
+            /** Discord User Id */
+            discord_user_id: string;
+            /** Discord Username */
+            discord_username?: string | null;
+            /** Platform Account Id */
+            platform_account_id: string;
+            /** Platform Account Name */
+            platform_account_name?: string | null;
         };
         /**
          * UploadResponse
@@ -2687,7 +2694,42 @@ export interface operations {
             };
         };
     };
-    lookup_account_by_discord_api_v1_auth_admin_accounts_discord__discord_id__get: {
+    register_two_k_api_v2_auth_2k_registrations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoKRegistrationBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Registration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_discord_api_v2_auth_accounts_discord__discord_id__get: {
         parameters: {
             query?: never;
             header?: {
@@ -2706,7 +2748,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DiscordLookupResponse"];
+                    "application/json": components["schemas"]["AccountLookup"];
                 };
             };
             /** @description Validation Error */
@@ -2720,7 +2762,7 @@ export interface operations {
             };
         };
     };
-    lookup_account_by_linked_account_api_v1_auth_admin_accounts_linked_account__linked_account_id__get: {
+    lookup_linked_api_v2_auth_accounts_linked__linked_account_id__get: {
         parameters: {
             query?: never;
             header?: {
@@ -2739,7 +2781,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LinkedAccountLookupResponse"];
+                    "application/json": components["schemas"]["AccountLookup"];
                 };
             };
             /** @description Validation Error */
@@ -2753,18 +2795,22 @@ export interface operations {
             };
         };
     };
-    lookup_account_by_steam_api_v1_auth_admin_accounts_steam__steam_id__get: {
+    register_manually_api_v2_auth_manual_registrations_post: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
                 authorization?: string | null;
+                "x-actor-is-staff"?: boolean;
+                "x-actor-discord-id": string;
             };
-            path: {
-                steam_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualRegistrationBody"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2772,7 +2818,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LinkedAccountLookupResponse"];
+                    "application/json": components["schemas"]["Registration"];
                 };
             };
             /** @description Validation Error */
@@ -2786,7 +2832,7 @@ export interface operations {
             };
         };
     };
-    create_manual_registration_api_v1_auth_admin_manual_registrations_post: {
+    add_rank_role_api_v2_auth_rank_roles_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2797,7 +2843,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ManualRegistrationRequest"];
+                "application/json": components["schemas"]["RankRoleBody"];
             };
         };
         responses: {
@@ -2807,7 +2853,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegistrationOperationResponse"];
+                    "application/json": components["schemas"]["Registration"];
                 };
             };
             /** @description Validation Error */
@@ -2821,7 +2867,7 @@ export interface operations {
             };
         };
     };
-    create_self_service_registration_api_v1_auth_manual_registration_requests_post: {
+    start_session_api_v2_auth_sessions_post: {
         parameters: {
             query?: never;
             header?: {
@@ -2832,7 +2878,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SelfServiceRegistrationRequest"];
+                "application/json": components["schemas"]["SessionStart"];
             };
         };
         responses: {
@@ -2842,7 +2888,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegistrationOperationResponse"];
+                    "application/json": components["schemas"]["SessionStarted"];
                 };
             };
             /** @description Validation Error */
@@ -2856,114 +2902,7 @@ export interface operations {
             };
         };
     };
-    create_rank_role_request_api_v1_auth_rank_role_requests_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RankRoleRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegistrationOperationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    finalize_registration_operation_api_v1_auth_registration_operations__operation_id__finalize_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FinalizeRegistrationOperationRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_registration_session_api_v1_auth_registration_sessions_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateRegistrationSessionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RegistrationSessionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_registration_session_api_v1_auth_registration_sessions__session_id__get: {
+    get_session_api_v2_auth_sessions__session_id__get: {
         parameters: {
             query?: never;
             header?: {
@@ -2982,7 +2921,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegistrationSessionStatusResponse"];
+                    "application/json": components["schemas"]["SessionState"];
                 };
             };
             /** @description Validation Error */
@@ -2996,7 +2935,7 @@ export interface operations {
             };
         };
     };
-    complete_registration_session_api_v1_auth_registration_sessions__session_id__complete_post: {
+    complete_session_api_v2_auth_sessions__session_id__complete_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3009,7 +2948,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CompleteRegistrationSessionRequest"];
+                "application/json": components["schemas"]["SessionComplete"];
             };
         };
         responses: {
@@ -3019,422 +2958,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegistrationOperationResponse"];
+                    "application/json": components["schemas"]["Registration"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_active_suspensions_api_v1_infractions_active_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActiveSuspension"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_overdue_suspensions_api_v1_infractions_overdue_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActiveSuspension"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_record_api_v1_infractions__discord_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuspensionRecordResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_days_api_v1_infractions__discord_id__add_days_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModifyDaysRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModifyDaysResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_flat_suspension_api_v1_infractions__discord_id__flat__flat_type__post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-                flat_type: components["schemas"]["FlatType"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecordFlatSuspensionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FlatSuspensionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_pending_suspension_api_v1_infractions__discord_id__pending_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PendingSuspensionResponse"] | null;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_pending_suspension_api_v1_infractions__discord_id__pending_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreatePendingSuspensionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_pending_suspension_api_v1_infractions__discord_id__pending_delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_days_api_v1_infractions__discord_id__remove_days_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ModifyDaysRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModifyDaysResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_tier_api_v1_infractions__discord_id__remove_tier_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RemoveTierRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RemoveTierResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    record_tier_infraction_api_v1_infractions__discord_id__tier__category__post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-                category: components["schemas"]["TierCategory"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecordTierInfractionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TierInfractionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unsuspend_api_v1_infractions__discord_id__unsuspend_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                discord_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3467,6 +2992,399 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CivDataResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    due_api_v2_infractions_due_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DueSuspensions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    laggers_api_v2_infractions_laggers_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Laggers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_api_v2_infractions__discord_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_days_api_v2_infractions__discord_id__days_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DaysBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaysResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    expire_api_v2_infractions__discord_id__expire_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionCleared"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_flat_api_v2_infractions__discord_id__flat__flat_type__post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+                flat_type: components["schemas"]["FlatType"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InfractionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlatResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_pending_api_v2_infractions__discord_id__pending_put: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PendingBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_pending_api_v2_infractions__discord_id__pending_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RolesBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingApplied"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_tier_api_v2_infractions__discord_id__remove_tier_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveTierBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierRemoved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_tier_api_v2_infractions__discord_id__tier__category__post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+                category: components["schemas"]["TierCategory"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InfractionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsuspend_api_v2_infractions__discord_id__unsuspend_post: {
+        parameters: {
+            query?: never;
+            header: {
+                authorization?: string | null;
+                "x-actor-discord-id": string;
+            };
+            path: {
+                discord_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionCleared"];
                 };
             };
             /** @description Validation Error */
@@ -5247,7 +5165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DiscordOAuthCallbackResult"];
+                    "text/html": string;
                 };
             };
             /** @description Validation Error */

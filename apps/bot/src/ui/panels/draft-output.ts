@@ -13,13 +13,17 @@ export function draftModeName(mode: string | null): string {
   return mode ? `${DRAFT_MODES[mode] ?? mode} draft` : 'Draft not set';
 }
 
-// Each setting with its option's emoji, as chosen; one not chosen yet says so.
+// Each setting with its option's emoji, as chosen; one not chosen yet says so, and
+// one in force only on a Standard draft says it is not applied under another.
 export function settingLines(chosen: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): string {
+  const draft = chosen.draft_mode;
+  const unapplied = draft && draft !== 'standard' && draft !== PUT_TO_VOTE ? ` (not applied: ${draftModeName(draft)})` : '';
   return questions
     .map((q) => {
       if (chosen[q.id] === PUT_TO_VOTE) return `${VOTE_EMOJI} ${q.title}: put to the vote`;
       const option = q.options.find((o) => o.id === chosen[q.id]);
-      return option ? `${option.emoji} ${q.title}: ${option.label}` : `⬜ ${q.title}: not set`;
+      if (!option) return `⬜ ${q.title}: not set`;
+      return `${option.emoji} ${q.title}: ${option.label}${q.standard_draft_only ? unapplied : ''}`;
     })
     .join('\n');
 }

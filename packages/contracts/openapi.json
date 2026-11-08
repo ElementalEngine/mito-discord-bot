@@ -1,23 +1,106 @@
 {
   "components": {
     "schemas": {
-      "ActiveSuspension": {
+      "AccountLookup": {
+        "description": "Every record that matches; more than one is worth a look.",
         "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/AccountRecord"
+            },
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "records"
+        ],
+        "title": "AccountLookup",
+        "type": "object"
+      },
+      "AccountRecord": {
+        "properties": {
+          "discord_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Display Name"
+          },
           "discord_id": {
             "title": "Discord Id",
             "type": "string"
           },
-          "ends": {
-            "format": "date-time",
-            "title": "Ends",
-            "type": "string"
+          "discord_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Username"
+          },
+          "linked_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Account Id"
+          },
+          "linked_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Account Name"
+          },
+          "linked_platform": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistrationPlatform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registrations": {
+            "items": {
+              "$ref": "#/components/schemas/RegistrationEntry"
+            },
+            "title": "Registrations",
+            "type": "array"
+          },
+          "standing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Standing"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "discord_id",
-          "ends"
+          "registrations"
         ],
-        "title": "ActiveSuspension",
+        "title": "AccountRecord",
         "type": "object"
       },
       "AffectedPlayerRating": {
@@ -272,21 +355,6 @@
         "title": "CivRow",
         "type": "object"
       },
-      "CompleteRegistrationSessionRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "discord_user_id": {
-            "minLength": 1,
-            "title": "Discord User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "discord_user_id"
-        ],
-        "title": "CompleteRegistrationSessionRequest",
-        "type": "object"
-      },
       "ContestBody": {
         "properties": {
           "reason": {
@@ -320,51 +388,48 @@
         "title": "ContestReport",
         "type": "object"
       },
-      "CreatePendingSuspensionRequest": {
+      "DaysBody": {
         "properties": {
-          "punishment_type": {
-            "title": "Punishment Type",
-            "type": "string"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
+          "days": {
+            "maximum": 365.0,
+            "minimum": -365.0,
+            "title": "Days",
+            "type": "integer"
           }
         },
         "required": [
-          "punishment_type"
+          "days"
         ],
-        "title": "CreatePendingSuspensionRequest",
+        "title": "DaysBody",
         "type": "object"
       },
-      "CreateRegistrationSessionRequest": {
-        "additionalProperties": false,
+      "DaysResult": {
         "properties": {
-          "discord_user_id": {
-            "minLength": 1,
-            "title": "Discord User Id",
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "discord_id": {
+            "title": "Discord Id",
             "type": "string"
           },
-          "game": {
-            "$ref": "#/components/schemas/SupportedGame"
+          "ends": {
+            "format": "date-time",
+            "title": "Ends",
+            "type": "string"
           },
-          "platform": {
-            "$ref": "#/components/schemas/RegistrationPlatform",
-            "default": "steam"
+          "suspended": {
+            "title": "Suspended",
+            "type": "boolean"
           }
         },
         "required": [
-          "discord_user_id",
-          "game"
+          "discord_id",
+          "days",
+          "ends",
+          "suspended"
         ],
-        "title": "CreateRegistrationSessionRequest",
+        "title": "DaysResult",
         "type": "object"
       },
       "DealtBans": {
@@ -413,160 +478,6 @@
           "civs"
         ],
         "title": "DealtPool",
-        "type": "object"
-      },
-      "DiscordAccountLookupHit": {
-        "properties": {
-          "discord_display_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Display Name"
-          },
-          "discord_id": {
-            "title": "Discord Id",
-            "type": "string"
-          },
-          "discord_username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Username"
-          },
-          "registrations": {
-            "items": {
-              "$ref": "#/components/schemas/RegistrationSummary"
-            },
-            "title": "Registrations",
-            "type": "array"
-          }
-        },
-        "required": [
-          "discord_id"
-        ],
-        "title": "DiscordAccountLookupHit",
-        "type": "object"
-      },
-      "DiscordLookupResponse": {
-        "properties": {
-          "discord_display_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Display Name"
-          },
-          "discord_id": {
-            "title": "Discord Id",
-            "type": "string"
-          },
-          "discord_username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Username"
-          },
-          "linked_accounts": {
-            "items": {
-              "$ref": "#/components/schemas/LinkedAccountLookupHit"
-            },
-            "title": "Linked Accounts",
-            "type": "array"
-          }
-        },
-        "required": [
-          "discord_id"
-        ],
-        "title": "DiscordLookupResponse",
-        "type": "object"
-      },
-      "DiscordOAuthCallbackResult": {
-        "properties": {
-          "details": {
-            "additionalProperties": true,
-            "title": "Details",
-            "type": "object"
-          },
-          "failure_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Code"
-          },
-          "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
-          },
-          "linked_account_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Id"
-          },
-          "linked_account_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Name"
-          },
-          "platform": {
-            "$ref": "#/components/schemas/RegistrationPlatform"
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/RegistrationSessionStatus"
-          }
-        },
-        "required": [
-          "session_id",
-          "status",
-          "platform"
-        ],
-        "title": "DiscordOAuthCallbackResult",
         "type": "object"
       },
       "DraftDeal": {
@@ -682,54 +593,85 @@
         "title": "DraftRequest",
         "type": "object"
       },
-      "FinalizeRegistrationOperationRequest": {
-        "additionalProperties": false,
+      "DueSuspensions": {
         "properties": {
-          "applied_role_intents": {
+          "discord_ids": {
             "items": {
-              "$ref": "#/components/schemas/RoleIntent"
+              "type": "string"
             },
-            "title": "Applied Role Intents",
+            "title": "Discord Ids",
             "type": "array"
           },
-          "failure_code": {
+          "next_ends": {
             "anyOf": [
               {
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Failure Code"
-          },
-          "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
-          },
-          "result": {
-            "enum": [
-              "succeeded",
-              "failed"
-            ],
-            "title": "Result",
-            "type": "string"
+            "title": "Next Ends"
           }
         },
         "required": [
-          "result"
+          "discord_ids",
+          "next_ends"
         ],
-        "title": "FinalizeRegistrationOperationRequest",
+        "title": "DueSuspensions",
         "type": "object"
       },
-      "FlatSuspensionResponse": {
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "details": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "retryable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retryable"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "FlatResult": {
         "properties": {
           "days_added": {
             "title": "Days Added",
@@ -744,10 +686,6 @@
             "title": "Ends",
             "type": "string"
           },
-          "suspended": {
-            "title": "Suspended",
-            "type": "boolean"
-          },
           "type": {
             "$ref": "#/components/schemas/FlatType"
           }
@@ -756,10 +694,9 @@
           "discord_id",
           "type",
           "days_added",
-          "ends",
-          "suspended"
+          "ends"
         ],
-        "title": "FlatSuspensionResponse",
+        "title": "FlatResult",
         "type": "object"
       },
       "FlatType": {
@@ -939,6 +876,72 @@
         "title": "HistoryPost",
         "type": "object"
       },
+      "InfractionBody": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "suspended_roles": {
+            "items": {
+              "pattern": "^[0-9]{17,20}$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Suspended Roles",
+            "type": "array"
+          }
+        },
+        "title": "InfractionBody",
+        "type": "object"
+      },
+      "Lagger": {
+        "properties": {
+          "discord_id": {
+            "title": "Discord Id",
+            "type": "string"
+          },
+          "strikes": {
+            "title": "Strikes",
+            "type": "integer"
+          },
+          "tagged": {
+            "title": "Tagged",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "discord_id",
+          "strikes",
+          "tagged"
+        ],
+        "title": "Lagger",
+        "type": "object"
+      },
+      "Laggers": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/Lagger"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "title": "Laggers",
+        "type": "object"
+      },
       "LeaderPick": {
         "additionalProperties": false,
         "description": "A blind pick: a leader, and a civ where the pool has civs.",
@@ -1039,88 +1042,6 @@
           "last_updated"
         ],
         "title": "LeaderboardRankingResponse",
-        "type": "object"
-      },
-      "LinkedAccountLookupHit": {
-        "properties": {
-          "linked_account_id": {
-            "title": "Linked Account Id",
-            "type": "string"
-          },
-          "linked_account_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Name"
-          },
-          "linked_platform": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationPlatform"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "registrations": {
-            "items": {
-              "$ref": "#/components/schemas/RegistrationSummary"
-            },
-            "title": "Registrations",
-            "type": "array"
-          }
-        },
-        "required": [
-          "linked_account_id"
-        ],
-        "title": "LinkedAccountLookupHit",
-        "type": "object"
-      },
-      "LinkedAccountLookupResponse": {
-        "properties": {
-          "discord_accounts": {
-            "items": {
-              "$ref": "#/components/schemas/DiscordAccountLookupHit"
-            },
-            "title": "Discord Accounts",
-            "type": "array"
-          },
-          "linked_account_id": {
-            "title": "Linked Account Id",
-            "type": "string"
-          },
-          "linked_account_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Name"
-          },
-          "linked_platform": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationPlatform"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "linked_account_id"
-        ],
-        "title": "LinkedAccountLookupResponse",
         "type": "object"
       },
       "LobbyBallot": {
@@ -1663,27 +1584,13 @@
         "title": "LobbyVote",
         "type": "object"
       },
-      "ManualRegistrationChoice": {
-        "description": "Staff-facing platform choice for `/manual-register`.",
-        "enum": [
-          "steam",
-          "steam_family_share",
-          "2k"
-        ],
-        "title": "ManualRegistrationChoice",
-        "type": "string"
-      },
-      "ManualRegistrationRequest": {
+      "ManualRegistrationBody": {
         "additionalProperties": false,
         "properties": {
-          "actor_discord_id": {
-            "minLength": 1,
-            "title": "Actor Discord Id",
-            "type": "string"
-          },
           "discord_display_name": {
             "anyOf": [
               {
+                "maxLength": 128,
                 "type": "string"
               },
               {
@@ -1695,6 +1602,7 @@
           "discord_username": {
             "anyOf": [
               {
+                "maxLength": 128,
                 "type": "string"
               },
               {
@@ -1710,6 +1618,7 @@
             "$ref": "#/components/schemas/ManualRegistrationChoice"
           },
           "platform_account_id": {
+            "maxLength": 128,
             "minLength": 1,
             "title": "Platform Account Id",
             "type": "string"
@@ -1717,6 +1626,7 @@
           "platform_account_name": {
             "anyOf": [
               {
+                "maxLength": 128,
                 "type": "string"
               },
               {
@@ -1738,20 +1648,29 @@
             "title": "Reason"
           },
           "subject_discord_id": {
-            "minLength": 1,
+            "pattern": "^[0-9]{17,20}$",
             "title": "Subject Discord Id",
             "type": "string"
           }
         },
         "required": [
-          "actor_discord_id",
           "subject_discord_id",
+          "game",
           "platform",
-          "platform_account_id",
-          "game"
+          "platform_account_id"
         ],
-        "title": "ManualRegistrationRequest",
+        "title": "ManualRegistrationBody",
         "type": "object"
+      },
+      "ManualRegistrationChoice": {
+        "description": "Staff-facing platform choice for `/manual-register`.",
+        "enum": [
+          "steam",
+          "steam_family_share",
+          "2k"
+        ],
+        "title": "ManualRegistrationChoice",
+        "type": "string"
       },
       "MapRecord": {
         "description": "Games on a map, those whose rating went up, and first places.",
@@ -1951,54 +1870,46 @@
         "title": "MatchResponse",
         "type": "object"
       },
-      "ModifyDaysRequest": {
+      "PendingApplied": {
         "properties": {
-          "days": {
-            "maximum": 365.0,
-            "minimum": -365.0,
-            "title": "Days",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "days"
-        ],
-        "title": "ModifyDaysRequest",
-        "type": "object"
-      },
-      "ModifyDaysResponse": {
-        "properties": {
-          "days_delta": {
-            "title": "Days Delta",
-            "type": "integer"
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
           },
           "discord_id": {
             "title": "Discord Id",
             "type": "string"
           },
-          "new_ends": {
-            "format": "date-time",
-            "title": "New Ends",
-            "type": "string"
-          }
-        },
-        "required": [
-          "discord_id",
-          "days_delta",
-          "new_ends"
-        ],
-        "title": "ModifyDaysResponse",
-        "type": "object"
-      },
-      "PendingSuspensionResponse": {
-        "properties": {
-          "discord_id": {
-            "title": "Discord Id",
-            "type": "string"
+          "ends": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends"
+          },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
+          },
+          "lagger_tagged": {
+            "title": "Lagger Tagged",
+            "type": "boolean"
           },
           "punishment_type": {
-            "title": "Punishment Type",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Punishment Type"
           },
           "reason": {
             "anyOf": [
@@ -2014,10 +1925,46 @@
         },
         "required": [
           "discord_id",
+          "applied",
           "punishment_type",
-          "reason"
+          "reason",
+          "ends",
+          "held",
+          "lagger_tagged"
         ],
-        "title": "PendingSuspensionResponse",
+        "title": "PendingApplied",
+        "type": "object"
+      },
+      "PendingBody": {
+        "properties": {
+          "punishment_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierCategory"
+              },
+              {
+                "$ref": "#/components/schemas/FlatType"
+              }
+            ],
+            "title": "Punishment Type"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "punishment_type"
+        ],
+        "title": "PendingBody",
         "type": "object"
       },
       "PlayerLeaderboard": {
@@ -2203,11 +2150,11 @@
         "title": "PlayersPatch",
         "type": "object"
       },
-      "RankRoleRequest": {
+      "RankRoleBody": {
         "additionalProperties": false,
         "properties": {
           "discord_user_id": {
-            "minLength": 1,
+            "pattern": "^[0-9]{17,20}$",
             "title": "Discord User Id",
             "type": "string"
           },
@@ -2219,14 +2166,15 @@
           "discord_user_id",
           "game"
         ],
-        "title": "RankRoleRequest",
+        "title": "RankRoleBody",
         "type": "object"
       },
-      "RecordFlatSuspensionRequest": {
+      "ReasonBody": {
         "properties": {
           "reason": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -2234,72 +2182,36 @@
               }
             ],
             "title": "Reason"
-          },
-          "suspended_roles": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Suspended Roles",
-            "type": "array"
           }
         },
-        "title": "RecordFlatSuspensionRequest",
+        "title": "ReasonBody",
         "type": "object"
       },
-      "RecordTierInfractionRequest": {
-        "properties": {
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "suspended_roles": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Suspended Roles",
-            "type": "array"
-          }
-        },
-        "title": "RecordTierInfractionRequest",
-        "type": "object"
-      },
-      "RegistrationMethod": {
-        "description": "How a registration's account ownership was established.",
-        "enum": [
-          "oauth_steam_api",
-          "admin_steam_family_share",
-          "admin_staff_attested",
-          "self_service_2k"
-        ],
-        "title": "RegistrationMethod",
-        "type": "string"
-      },
-      "RegistrationOperationResponse": {
+      "Registration": {
         "properties": {
           "discord_user_id": {
             "title": "Discord User Id",
             "type": "string"
           },
+          "flags": {
+            "default": [],
+            "items": {
+              "enum": [
+                "young_discord",
+                "young_steam",
+                "unknown_steam_age"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
           "game": {
             "$ref": "#/components/schemas/SupportedGame"
           },
           "linked_account_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Id"
+            "title": "Linked Account Id",
+            "type": "string"
           },
           "linked_account_name": {
             "anyOf": [
@@ -2313,28 +2225,10 @@
             "title": "Linked Account Name"
           },
           "linked_platform": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationPlatform"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "operation_id": {
-            "title": "Operation Id",
-            "type": "string"
+            "$ref": "#/components/schemas/RegistrationPlatform"
           },
           "registration_method": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationMethod"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/RegistrationMethod"
           },
           "role_intents": {
             "items": {
@@ -2342,101 +2236,22 @@
             },
             "title": "Role Intents",
             "type": "array"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationOperationStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "steam_id": {
-            "title": "Steam Id",
-            "type": "string"
-          },
-          "steam_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Steam Name"
           }
         },
         "required": [
-          "operation_id",
           "discord_user_id",
-          "steam_id",
           "game",
+          "linked_platform",
+          "linked_account_id",
+          "registration_method",
           "role_intents"
         ],
-        "title": "RegistrationOperationResponse",
+        "title": "Registration",
         "type": "object"
       },
-      "RegistrationOperationStatus": {
-        "enum": [
-          "pending",
-          "succeeded",
-          "failed"
-        ],
-        "title": "RegistrationOperationStatus",
-        "type": "string"
-      },
-      "RegistrationPlatform": {
-        "enum": [
-          "steam",
-          "epic",
-          "2k",
-          "xbox"
-        ],
-        "title": "RegistrationPlatform",
-        "type": "string"
-      },
-      "RegistrationSessionResponse": {
+      "RegistrationEntry": {
         "properties": {
-          "authorize_url": {
-            "title": "Authorize Url",
-            "type": "string"
-          },
-          "expires_at": {
-            "format": "date-time",
-            "title": "Expires At",
-            "type": "string"
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "session_id",
-          "authorize_url",
-          "expires_at"
-        ],
-        "title": "RegistrationSessionResponse",
-        "type": "object"
-      },
-      "RegistrationSessionStatus": {
-        "enum": [
-          "pending_auth",
-          "validating",
-          "validated",
-          "failed",
-          "expired",
-          "completed"
-        ],
-        "title": "RegistrationSessionStatus",
-        "type": "string"
-      },
-      "RegistrationSessionStatusResponse": {
-        "properties": {
-          "discord_display_name": {
+          "actor_discord_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -2445,145 +2260,21 @@
                 "type": "null"
               }
             ],
-            "title": "Discord Display Name"
+            "title": "Actor Discord Id"
           },
-          "discord_locale": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Locale"
+          "flags": {
+            "default": [],
+            "items": {
+              "enum": [
+                "young_discord",
+                "young_steam",
+                "unknown_steam_age"
+              ],
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
           },
-          "discord_mfa_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Mfa Enabled"
-          },
-          "discord_username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Username"
-          },
-          "discord_verified": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discord Verified"
-          },
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
-          },
-          "failure_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Code"
-          },
-          "failure_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Failure Message"
-          },
-          "game": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SupportedGame"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "linked_account_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Id"
-          },
-          "linked_account_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Linked Account Name"
-          },
-          "platform": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RegistrationPlatform"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/RegistrationSessionStatus"
-          }
-        },
-        "required": [
-          "session_id",
-          "status"
-        ],
-        "title": "RegistrationSessionStatusResponse",
-        "type": "object"
-      },
-      "RegistrationSummary": {
-        "properties": {
           "game": {
             "$ref": "#/components/schemas/SupportedGame"
           },
@@ -2597,6 +2288,17 @@
               }
             ],
             "title": "Method"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "registered_at": {
             "anyOf": [
@@ -2614,10 +2316,31 @@
         "required": [
           "game"
         ],
-        "title": "RegistrationSummary",
+        "title": "RegistrationEntry",
         "type": "object"
       },
-      "RemoveTierRequest": {
+      "RegistrationMethod": {
+        "description": "How a registration's account ownership was established.",
+        "enum": [
+          "oauth_steam_api",
+          "admin_steam_family_share",
+          "admin_staff_attested",
+          "self_service_2k"
+        ],
+        "title": "RegistrationMethod",
+        "type": "string"
+      },
+      "RegistrationPlatform": {
+        "enum": [
+          "steam",
+          "epic",
+          "2k",
+          "xbox"
+        ],
+        "title": "RegistrationPlatform",
+        "type": "string"
+      },
+      "RemoveTierBody": {
         "properties": {
           "category": {
             "$ref": "#/components/schemas/TierCategory"
@@ -2626,47 +2349,7 @@
         "required": [
           "category"
         ],
-        "title": "RemoveTierRequest",
-        "type": "object"
-      },
-      "RemoveTierResponse": {
-        "properties": {
-          "category": {
-            "$ref": "#/components/schemas/TierCategory"
-          },
-          "discord_id": {
-            "title": "Discord Id",
-            "type": "string"
-          },
-          "new_decays": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "New Decays"
-          },
-          "new_tier": {
-            "title": "New Tier",
-            "type": "integer"
-          },
-          "was_changed": {
-            "title": "Was Changed",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "discord_id",
-          "category",
-          "new_tier",
-          "new_decays",
-          "was_changed"
-        ],
-        "title": "RemoveTierResponse",
+        "title": "RemoveTierBody",
         "type": "object"
       },
       "ResetStatsResponseV2": {
@@ -2748,6 +2431,21 @@
         ],
         "title": "RoleIntent",
         "type": "string"
+      },
+      "RolesBody": {
+        "properties": {
+          "suspended_roles": {
+            "items": {
+              "pattern": "^[0-9]{17,20}$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Suspended Roles",
+            "type": "array"
+          }
+        },
+        "title": "RolesBody",
+        "type": "object"
       },
       "SeasonPreview": {
         "description": "The open season, what comes next, and the season records per collection\nthat a change would save and clear.",
@@ -2921,9 +2619,65 @@
         "title": "SeatPatchIn",
         "type": "object"
       },
-      "SelfServiceRegistrationRequest": {
+      "SessionComplete": {
         "additionalProperties": false,
-        "description": "Civ7 non-Steam self-service registration (currently 2K only).",
+        "properties": {
+          "discord_user_id": {
+            "pattern": "^[0-9]{17,20}$",
+            "title": "Discord User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "discord_user_id"
+        ],
+        "title": "SessionComplete",
+        "type": "object"
+      },
+      "SessionStart": {
+        "additionalProperties": false,
+        "properties": {
+          "discord_user_id": {
+            "pattern": "^[0-9]{17,20}$",
+            "title": "Discord User Id",
+            "type": "string"
+          },
+          "game": {
+            "$ref": "#/components/schemas/SupportedGame"
+          }
+        },
+        "required": [
+          "discord_user_id",
+          "game"
+        ],
+        "title": "SessionStart",
+        "type": "object"
+      },
+      "SessionStarted": {
+        "properties": {
+          "authorize_url": {
+            "title": "Authorize Url",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "authorize_url",
+          "expires_at"
+        ],
+        "title": "SessionStarted",
+        "type": "object"
+      },
+      "SessionState": {
         "properties": {
           "discord_display_name": {
             "anyOf": [
@@ -2936,10 +2690,27 @@
             ],
             "title": "Discord Display Name"
           },
-          "discord_user_id": {
-            "minLength": 1,
-            "title": "Discord User Id",
-            "type": "string"
+          "discord_locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Locale"
+          },
+          "discord_mfa_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Mfa Enabled"
           },
           "discord_username": {
             "anyOf": [
@@ -2952,18 +2723,36 @@
             ],
             "title": "Discord Username"
           },
+          "discord_verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Verified"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "game": {
             "$ref": "#/components/schemas/SupportedGame"
           },
-          "platform": {
-            "$ref": "#/components/schemas/RegistrationPlatform"
-          },
-          "platform_account_id": {
-            "minLength": 1,
-            "title": "Platform Account Id",
-            "type": "string"
-          },
-          "platform_account_name": {
+          "linked_account_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -2972,16 +2761,44 @@
                 "type": "null"
               }
             ],
-            "title": "Platform Account Name"
+            "title": "Linked Account Id"
+          },
+          "linked_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Account Name"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_auth",
+              "validating",
+              "validated",
+              "completing",
+              "completed",
+              "failed",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
-          "discord_user_id",
-          "game",
-          "platform",
-          "platform_account_id"
+          "session_id",
+          "status",
+          "expires_at",
+          "game"
         ],
-        "title": "SelfServiceRegistrationRequest",
+        "title": "SessionState",
         "type": "object"
       },
       "SettingOption": {
@@ -3036,6 +2853,11 @@
             "title": "Options",
             "type": "array"
           },
+          "standard_draft_only": {
+            "default": false,
+            "title": "Standard Draft Only",
+            "type": "boolean"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -3071,6 +2893,56 @@
           "by"
         ],
         "title": "SetupBan",
+        "type": "object"
+      },
+      "Standing": {
+        "description": "An account's record with Lady Justice.",
+        "properties": {
+          "active_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Category"
+          },
+          "at_ban_threshold": {
+            "title": "At Ban Threshold",
+            "type": "boolean"
+          },
+          "ends": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends"
+          },
+          "suspended": {
+            "title": "Suspended",
+            "type": "boolean"
+          },
+          "tiers": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Tiers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "suspended",
+          "tiers",
+          "at_ban_threshold"
+        ],
+        "title": "Standing",
         "type": "object"
       },
       "StartNextSeason": {
@@ -3266,15 +3138,44 @@
         "title": "SupportedGame",
         "type": "string"
       },
-      "SuspensionRecordResponse": {
+      "SuspensionCleared": {
+        "description": "A suspension ended, with the roles the bot should give back; `suspended`\nis the record after the call, so a repeat can tell it ended or never did.",
+        "properties": {
+          "cleared": {
+            "title": "Cleared",
+            "type": "boolean"
+          },
+          "discord_id": {
+            "title": "Discord Id",
+            "type": "string"
+          },
+          "suspended": {
+            "title": "Suspended",
+            "type": "boolean"
+          },
+          "suspended_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Suspended Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "discord_id",
+          "cleared",
+          "suspended",
+          "suspended_roles"
+        ],
+        "title": "SuspensionCleared",
+        "type": "object"
+      },
+      "SuspensionRecord": {
+        "description": "A member's record read as the next write would see it, nothing written;\na member without one reads as a zero record.",
         "properties": {
           "active_category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TierCategory"
-              },
-              {
-                "const": "flat",
                 "type": "string"
               },
               {
@@ -3299,26 +3200,39 @@
             ],
             "title": "Ends"
           },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
+          },
+          "lagger_tagged": {
+            "title": "Lagger Tagged",
+            "type": "boolean"
+          },
           "suspended": {
             "title": "Suspended",
             "type": "boolean"
           },
-          "suspended_roles": {
-            "items": {
-              "type": "string"
+          "tiers": {
+            "additionalProperties": {
+              "type": "integer"
             },
-            "title": "Suspended Roles",
-            "type": "array"
+            "propertyNames": {
+              "$ref": "#/components/schemas/TierCategory"
+            },
+            "title": "Tiers",
+            "type": "object"
           }
         },
         "required": [
           "discord_id",
           "suspended",
           "ends",
-          "suspended_roles",
-          "active_category"
+          "held",
+          "active_category",
+          "tiers",
+          "lagger_tagged"
         ],
-        "title": "SuspensionRecordResponse",
+        "title": "SuspensionRecord",
         "type": "object"
       },
       "TeamGenResponse": {
@@ -3361,23 +3275,41 @@
           "minor",
           "moderate",
           "major",
-          "extreme"
+          "extreme",
+          "lagger"
         ],
         "title": "TierCategory",
         "type": "string"
       },
-      "TierInfractionResponse": {
+      "TierRemoved": {
         "properties": {
-          "active_category": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TierCategory"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "category": {
+            "$ref": "#/components/schemas/TierCategory"
           },
+          "discord_id": {
+            "title": "Discord Id",
+            "type": "string"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "integer"
+          },
+          "was_changed": {
+            "title": "Was Changed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "discord_id",
+          "category",
+          "tier",
+          "was_changed"
+        ],
+        "title": "TierRemoved",
+        "type": "object"
+      },
+      "TierResult": {
+        "properties": {
           "category": {
             "$ref": "#/components/schemas/TierCategory"
           },
@@ -3400,6 +3332,10 @@
               }
             ],
             "title": "Ends"
+          },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
           },
           "is_ban_threshold": {
             "title": "Is Ban Threshold",
@@ -3425,11 +3361,70 @@
           "days_added",
           "ends",
           "suspended",
+          "held",
           "is_ban_threshold",
-          "is_warning_only",
-          "active_category"
+          "is_warning_only"
         ],
-        "title": "TierInfractionResponse",
+        "title": "TierResult",
+        "type": "object"
+      },
+      "TwoKRegistrationBody": {
+        "additionalProperties": false,
+        "description": "Civ7 on 2K, registered by the player without staff.",
+        "properties": {
+          "discord_display_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Display Name"
+          },
+          "discord_user_id": {
+            "pattern": "^[0-9]{17,20}$",
+            "title": "Discord User Id",
+            "type": "string"
+          },
+          "discord_username": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discord Username"
+          },
+          "platform_account_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Platform Account Id",
+            "type": "string"
+          },
+          "platform_account_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Account Name"
+          }
+        },
+        "required": [
+          "discord_user_id",
+          "platform_account_id"
+        ],
+        "title": "TwoKRegistrationBody",
         "type": "object"
       },
       "UploadResponse": {
@@ -4056,7 +4051,7 @@
   },
   "info": {
     "title": "core-api",
-    "version": "0.1.0"
+    "version": "2.0.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4079,17 +4074,75 @@
         ]
       }
     },
-    "/api/v1/auth/admin/accounts/discord/{discord_id}": {
+    "/api/v2/auth/2k-registrations": {
+      "post": {
+        "operationId": "register_two_k_api_v2_auth_2k_registrations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoKRegistrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Two K",
+        "tags": [
+          "auth-v2"
+        ]
+      }
+    },
+    "/api/v2/auth/accounts/discord/{discord_id}": {
       "get": {
-        "operationId": "lookup_account_by_discord_api_v1_auth_admin_accounts_discord__discord_id__get",
+        "operationId": "lookup_discord_api_v2_auth_accounts_discord__discord_id__get",
         "parameters": [
           {
             "in": "path",
             "name": "discord_id",
             "required": true,
             "schema": {
-              "maxLength": 64,
-              "minLength": 1,
+              "pattern": "^[0-9]{17,20}$",
               "title": "Discord Id",
               "type": "string"
             }
@@ -4116,7 +4169,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DiscordLookupResponse"
+                  "$ref": "#/components/schemas/AccountLookup"
                 }
               }
             },
@@ -4133,15 +4186,15 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Lookup Account By Discord",
+        "summary": "Lookup Discord",
         "tags": [
-          "auth"
+          "auth-v2"
         ]
       }
     },
-    "/api/v1/auth/admin/accounts/linked-account/{linked_account_id}": {
+    "/api/v2/auth/accounts/linked/{linked_account_id}": {
       "get": {
-        "operationId": "lookup_account_by_linked_account_api_v1_auth_admin_accounts_linked_account__linked_account_id__get",
+        "operationId": "lookup_linked_api_v2_auth_accounts_linked__linked_account_id__get",
         "parameters": [
           {
             "in": "path",
@@ -4176,7 +4229,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LinkedAccountLookupResponse"
+                  "$ref": "#/components/schemas/AccountLookup"
                 }
               }
             },
@@ -4193,387 +4246,220 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Lookup Account By Linked Account",
+        "summary": "Lookup Linked",
         "tags": [
-          "auth"
+          "auth-v2"
         ]
       }
     },
-    "/api/v1/auth/admin/accounts/steam/{steam_id}": {
+    "/api/v2/auth/manual-registrations": {
+      "post": {
+        "operationId": "register_manually_api_v2_auth_manual_registrations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-is-staff",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "X-Actor-Is-Staff",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualRegistrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Manually",
+        "tags": [
+          "auth-v2"
+        ]
+      }
+    },
+    "/api/v2/auth/rank-roles": {
+      "post": {
+        "operationId": "add_rank_role_api_v2_auth_rank_roles_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RankRoleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Rank Role",
+        "tags": [
+          "auth-v2"
+        ]
+      }
+    },
+    "/api/v2/auth/sessions": {
+      "post": {
+        "operationId": "start_session_api_v2_auth_sessions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Session",
+        "tags": [
+          "auth-v2"
+        ]
+      }
+    },
+    "/api/v2/auth/sessions/{session_id}": {
       "get": {
-        "operationId": "lookup_account_by_steam_api_v1_auth_admin_accounts_steam__steam_id__get",
+        "operationId": "get_session_api_v2_auth_sessions__session_id__get",
         "parameters": [
           {
             "in": "path",
-            "name": "steam_id",
+            "name": "session_id",
             "required": true,
             "schema": {
               "maxLength": 64,
               "minLength": 1,
-              "title": "Steam Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LinkedAccountLookupResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Lookup Account By Steam",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/admin/manual-registrations": {
-      "post": {
-        "operationId": "create_manual_registration_api_v1_auth_admin_manual_registrations_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ManualRegistrationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistrationOperationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Manual Registration",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/manual-registration-requests": {
-      "post": {
-        "operationId": "create_self_service_registration_api_v1_auth_manual_registration_requests_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SelfServiceRegistrationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistrationOperationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Self Service Registration",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/rank-role-requests": {
-      "post": {
-        "operationId": "create_rank_role_request_api_v1_auth_rank_role_requests_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RankRoleRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistrationOperationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Rank Role Request",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/registration-operations/{operation_id}/finalize": {
-      "post": {
-        "operationId": "finalize_registration_operation_api_v1_auth_registration_operations__operation_id__finalize_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "operation_id",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 1,
-              "title": "Operation Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FinalizeRegistrationOperationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Finalize Registration Operation",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/registration-sessions": {
-      "post": {
-        "operationId": "create_registration_session_api_v1_auth_registration_sessions_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRegistrationSessionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegistrationSessionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Registration Session",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/auth/registration-sessions/{session_id}": {
-      "get": {
-        "operationId": "get_registration_session_api_v1_auth_registration_sessions__session_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "maxLength": 128,
-              "minLength": 1,
               "title": "Session Id",
               "type": "string"
             }
@@ -4600,7 +4486,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegistrationSessionStatusResponse"
+                  "$ref": "#/components/schemas/SessionState"
                 }
               }
             },
@@ -4617,22 +4503,22 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Registration Session",
+        "summary": "Get Session",
         "tags": [
-          "auth"
+          "auth-v2"
         ]
       }
     },
-    "/api/v1/auth/registration-sessions/{session_id}/complete": {
+    "/api/v2/auth/sessions/{session_id}/complete": {
       "post": {
-        "operationId": "complete_registration_session_api_v1_auth_registration_sessions__session_id__complete_post",
+        "operationId": "complete_session_api_v2_auth_sessions__session_id__complete_post",
         "parameters": [
           {
             "in": "path",
             "name": "session_id",
             "required": true,
             "schema": {
-              "maxLength": 128,
+              "maxLength": 64,
               "minLength": 1,
               "title": "Session Id",
               "type": "string"
@@ -4659,7 +4545,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CompleteRegistrationSessionRequest"
+                "$ref": "#/components/schemas/SessionComplete"
               }
             }
           },
@@ -4670,7 +4556,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegistrationOperationResponse"
+                  "$ref": "#/components/schemas/Registration"
                 }
               }
             },
@@ -4687,789 +4573,9 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Complete Registration Session",
+        "summary": "Complete Session",
         "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/v1/infractions/active": {
-      "get": {
-        "operationId": "get_active_suspensions_api_v1_infractions_active_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ActiveSuspension"
-                  },
-                  "title": "Response Get Active Suspensions Api V1 Infractions Active Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Active Suspensions",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/overdue": {
-      "get": {
-        "operationId": "get_overdue_suspensions_api_v1_infractions_overdue_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ActiveSuspension"
-                  },
-                  "title": "Response Get Overdue Suspensions Api V1 Infractions Overdue Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Overdue Suspensions",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}": {
-      "get": {
-        "operationId": "get_record_api_v1_infractions__discord_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuspensionRecordResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Record",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/add-days": {
-      "post": {
-        "operationId": "add_days_api_v1_infractions__discord_id__add_days_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ModifyDaysRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModifyDaysResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Add Days",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/flat/{flat_type}": {
-      "post": {
-        "operationId": "record_flat_suspension_api_v1_infractions__discord_id__flat__flat_type__post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "flat_type",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/FlatType"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordFlatSuspensionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FlatSuspensionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Record Flat Suspension",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/pending": {
-      "delete": {
-        "operationId": "delete_pending_suspension_api_v1_infractions__discord_id__pending_delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Pending Suspension",
-        "tags": [
-          "infractions"
-        ]
-      },
-      "get": {
-        "operationId": "get_pending_suspension_api_v1_infractions__discord_id__pending_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/PendingSuspensionResponse"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Response Get Pending Suspension Api V1 Infractions  Discord Id  Pending Get"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Pending Suspension",
-        "tags": [
-          "infractions"
-        ]
-      },
-      "post": {
-        "operationId": "create_pending_suspension_api_v1_infractions__discord_id__pending_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePendingSuspensionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Pending Suspension",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/remove-days": {
-      "post": {
-        "operationId": "remove_days_api_v1_infractions__discord_id__remove_days_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ModifyDaysRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModifyDaysResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Remove Days",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/remove-tier": {
-      "post": {
-        "operationId": "remove_tier_api_v1_infractions__discord_id__remove_tier_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RemoveTierRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RemoveTierResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Remove Tier",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/tier/{category}": {
-      "post": {
-        "operationId": "record_tier_infraction_api_v1_infractions__discord_id__tier__category__post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "category",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/TierCategory"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordTierInfractionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TierInfractionResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Record Tier Infraction",
-        "tags": [
-          "infractions"
-        ]
-      }
-    },
-    "/api/v1/infractions/{discord_id}/unsuspend": {
-      "post": {
-        "operationId": "unsuspend_api_v1_infractions__discord_id__unsuspend_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "discord_id",
-            "required": true,
-            "schema": {
-              "maxLength": 20,
-              "minLength": 17,
-              "pattern": "^\\d+$",
-              "title": "Discord Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Unsuspend",
-        "tags": [
-          "infractions"
+          "auth-v2"
         ]
       }
     },
@@ -5532,6 +4638,776 @@
         "summary": "Get Civ Data",
         "tags": [
           "civ-data"
+        ]
+      }
+    },
+    "/api/v2/infractions/due": {
+      "get": {
+        "operationId": "due_api_v2_infractions_due_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DueSuspensions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Due",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/laggers": {
+      "get": {
+        "operationId": "laggers_api_v2_infractions_laggers_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Laggers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Laggers",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}": {
+      "get": {
+        "operationId": "record_api_v2_infractions__discord_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspensionRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/days": {
+      "post": {
+        "operationId": "change_days_api_v2_infractions__discord_id__days_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DaysBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DaysResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Days",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/expire": {
+      "post": {
+        "operationId": "expire_api_v2_infractions__discord_id__expire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspensionCleared"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Expire",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/flat/{flat_type}": {
+      "post": {
+        "operationId": "record_flat_api_v2_infractions__discord_id__flat__flat_type__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "flat_type",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/FlatType"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InfractionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlatResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Flat",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/pending": {
+      "put": {
+        "operationId": "set_pending_api_v2_infractions__discord_id__pending_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PendingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Pending",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/pending/apply": {
+      "post": {
+        "operationId": "apply_pending_api_v2_infractions__discord_id__pending_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesBody",
+                "default": {
+                  "suspended_roles": []
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingApplied"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Pending",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/remove-tier": {
+      "post": {
+        "operationId": "remove_tier_api_v2_infractions__discord_id__remove_tier_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveTierBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRemoved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Tier",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/tier/{category}": {
+      "post": {
+        "operationId": "record_tier_api_v2_infractions__discord_id__tier__category__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TierCategory"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InfractionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Tier",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/{discord_id}/unsuspend": {
+      "post": {
+        "operationId": "unsuspend_api_v2_infractions__discord_id__unsuspend_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "discord_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "Discord Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-actor-discord-id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]{17,20}$",
+              "title": "X-Actor-Discord-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody",
+                "default": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspensionCleared"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unsuspend",
+        "tags": [
+          "infractions-v2"
         ]
       }
     },
@@ -9064,6 +8940,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 512,
                   "type": "string"
                 },
                 {
@@ -9080,6 +8957,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 512,
                   "type": "string"
                 },
                 {
@@ -9096,6 +8974,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "maxLength": 512,
                   "type": "string"
                 },
                 {
@@ -9109,9 +8988,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
+              "text/html": {
                 "schema": {
-                  "$ref": "#/components/schemas/DiscordOAuthCallbackResult"
+                  "type": "string"
                 }
               }
             },
