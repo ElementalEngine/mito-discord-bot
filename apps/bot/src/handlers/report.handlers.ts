@@ -22,7 +22,9 @@ import {
   editors,
   historyChannelId,
   inTurn,
+  quittersOf,
   refreshReport,
+  tellStaffOfQuits,
   viewOf,
 } from '../services/report.service.js';
 import { memberNames } from '../services/members.js';
@@ -270,6 +272,10 @@ async function saveSeats(
     replacePanel(interaction, panel),
   ]);
   if (!published) await say(interaction, 'failed', 'Saved, but the public report could not be updated.');
+  const quitters = quittersOf(match, seats);
+  if (quitters.length && !(await tellStaffOfQuits(interaction.client, match, quitters, interaction.user.id))) {
+    await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
+  }
   await logAction(interaction, action, { matchId, seats });
 }
 

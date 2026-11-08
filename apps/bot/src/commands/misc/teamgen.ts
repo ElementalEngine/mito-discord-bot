@@ -11,7 +11,6 @@ import { idsIn } from '../../utils/voters.js';
 
 const api = new ApiClient();
 
-
 export const data = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .setName('teamgen')
@@ -20,26 +19,26 @@ export const data = new SlashCommandBuilder()
   .addStringOption((opt) =>
     opt
       .setName('discord-ids')
-      .setDescription('Cloud channel only: the players, as mentions or ids')
+      .setDescription('Players as mentions or ids: all of a cloud game, or more beside your voice channel')
       .setRequired(false),
   );
 
 export const visibility = 'public';
 
-// Realtime players are whoever is in the caller's voice channel; a cloud game
-// has no voice channel, so its players are listed.
+// A cloud game has no voice channel, so its players are listed; a realtime one
+// is the caller's voice channel and anyone listed beside it.
 function playersOf(interaction: ChatInputCommandInteraction, cloud: boolean): string[] {
-  if (cloud) {
-    const players = idsIn(interaction.options.getString('discord-ids') ?? '');
-    if (players.length < 2) refuse('List at least two players in discord-ids, as mentions or ids.');
-    if (players.length > MAX_PLAYERS) refuse(`List at most ${MAX_PLAYERS} players.`);
-    return players;
+  const listed = idsIn(interaction.options.getString('discord-ids') ?? '');
+  let ids = listed;
+  if (!cloud) {
+    if (!(interaction.member instanceof GuildMember)) refuse('Run /teamgen in the server, not in a DM.');
+    const voice = interaction.member.voice.channel;
+    if (!voice) refuse('Join a voice channel first, then run /teamgen.');
+    ids = [...new Set([...[...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.user.id), ...listed])];
   }
-  if (!(interaction.member instanceof GuildMember)) refuse('Run /teamgen in the server, not in a DM.');
-  const voice = interaction.member.voice.channel;
-  if (!voice) refuse('Join a voice channel first, then run /teamgen.');
-  const ids = [...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.user.id);
-  if (ids.length < 2) refuse('At least two players need to be in your voice channel.');
+  if (ids.length < 2) {
+    refuse(cloud ? 'List at least two players in discord-ids, as mentions or ids.' : 'Teams need two players: add others in discord-ids, as mentions or ids.');
+  }
   if (ids.length > MAX_PLAYERS) refuse(`Teams can be made for at most ${MAX_PLAYERS} players.`);
   return ids;
 }

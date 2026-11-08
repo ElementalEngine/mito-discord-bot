@@ -62,7 +62,7 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
     roles: RANKED,
     channels: null,
     subcommands: {
-      civ6: { roles: CIV6, channels: ['botTesting', 'civ6ffaVote', 'civ6teamerVote'] },
+      civ6: { roles: CIV6, channels: ['botTesting', 'civ6ffaVote', 'civ6teamerVote', 'noviceCommands'] },
       civ7: { roles: CIV7, channels: ['botTesting', 'civ7ffaVote', 'civ7teamerVote'] },
     },
   },

@@ -4,7 +4,6 @@ import { refuse } from '../ui/reply.js';
 
 const MENTION = /<@!?(\d{17,20})>/g;
 const ID = /<@!?(\d{17,20})>|<(?:@&|#)\d{17,20}>|\b(\d{17,20})\b/g;
-const MAX_VOTERS = 14;
 
 // Players written as mentions or bare ids, in order, each once; a role or
 // channel mention is no player.
@@ -17,7 +16,7 @@ export const playersOption = (o: SlashCommandStringOption): SlashCommandStringOp
 
 // The voters: the starter's voice channel, bots aside, with each player
 // mentioned added or taken out. A name typed without its mention is refused.
-export function votersOf(interaction: ChatInputCommandInteraction<'cached'>): { voiceId: string; voters: string[] } {
+export function votersOf(interaction: ChatInputCommandInteraction<'cached'>, most = 14): { voiceId: string; voters: string[] } {
   const voice = interaction.member.voice.channel;
   if (!voice) refuse('Join a voice channel first: its players are the voters.');
   const voters = new Set([...voice.members.values()].filter((m) => !m.user.bot).map((m) => m.id));
@@ -28,6 +27,6 @@ export function votersOf(interaction: ChatInputCommandInteraction<'cached'>): { 
     if (!id || interaction.client.users.cache.get(id)?.bot) continue;
     if (!voters.delete(id)) voters.add(id);
   }
-  if (voters.size < 2 || voters.size > MAX_VOTERS) refuse(`A vote takes 2 to ${MAX_VOTERS} players; this one has ${voters.size}.`);
+  if (voters.size < 2 || voters.size > most) refuse(`A vote takes 2 to ${most} players; this one has ${voters.size}.`);
   return { voiceId: voice.id, voters: [...voters] };
 }

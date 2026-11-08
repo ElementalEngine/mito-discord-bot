@@ -1,12 +1,12 @@
 import type { Client, Guild } from 'discord.js';
 
 import { ApiClient } from '../api/index.js';
-import type { Match, SubQuota } from '../api/types.js';
+import type { Match, SeatEdit, SubQuota } from '../api/types.js';
 import { config } from '../config.js';
-import type { Panel } from '../ui/kit/index.js';
+import { mention, notice, type Panel } from '../ui/kit/index.js';
 import { editorPanel } from '../ui/panels/report-edit.js';
 import { isAssigned, playerIds, seatsOf, type ReportView } from '../ui/panels/report.js';
-import { editPanelById } from '../ui/reply.js';
+import { editPanelById, postPanel } from '../ui/reply.js';
 import { versionOf } from '../utils/edition.js';
 import { idleCloser } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -63,6 +63,30 @@ export async function deleteReportMessages(client: Client, match: Match): Promis
   for (const id of match.discord_messages_id_list) {
     await channel.messages.delete(id).catch(() => undefined);
   }
+}
+
+// The players an edit marks as quit, a leaver by the seat it follows.
+export function quittersOf(match: Match, edits: readonly SeatEdit[]): string[] {
+  const quit = edits.flatMap((e) => [...(e.quit === true ? [match.players[e.seat]] : []), ...(e.leaver_quit === true ? [match.players[e.seat + 1]] : [])]);
+  return [...new Set(quit.filter((p) => p !== undefined && isAssigned(p)).map((p) => p.discord_id ?? ''))];
+}
+
+// A quit is posted beside its report with a ping for the moderators, who
+// decide its suspension; false when the post could not be made.
+export async function tellStaffOfQuits(client: Client, match: Match, quitters: readonly string[], by: string): Promise<boolean> {
+  const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
+  const id = match.discord_messages_id_list[0];
+  if (!channel?.isSendable() || channel.isDMBased()) return false;
+  const role = config.discord.roles.moderator;
+  const report = id ? `[this report](https://discord.com/channels/${channel.guildId}/${channel.id}/${id})` : 'a report';
+  const text = `<@&${role}> ${quitters.map(mention).join(', ')} marked as quit on ${report} by ${mention(by)}.`;
+  return postPanel(channel, notice('info', text), { roles: [role] }).then(
+    () => true,
+    (error: unknown) => {
+      log.warn('quit not posted', match.match_id, error instanceof Error ? error.message : error);
+      return false;
+    },
+  );
 }
 
 // Rewrite the public report after an edit. The edit has already landed, so

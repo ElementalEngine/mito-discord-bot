@@ -14,6 +14,8 @@ import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { playersOption, votersOf } from '../../utils/voters.js';
 
 const api = new ApiClient();
+// A vote deals one draft a player at most, and civ7's leaders cover fewer.
+const MOST_PLAYERS: Readonly<Record<CivVersion, number>> = { civ6: 14, civ7: 10 };
 
 function subcommand(sub: SlashCommandSubcommandBuilder, edition: CivVersion): SlashCommandSubcommandBuilder {
   sub
@@ -61,7 +63,7 @@ function requestOf(interaction: ChatInputCommandInteraction<'cached'>, edition: 
     age: edition === 'civ7' && age && age !== EVERY_AGE ? (age as Age) : null,
     guild_id: interaction.guildId,
     channel_id: interaction.channelId,
-    players: votersOf(interaction).voters,
+    players: votersOf(interaction, MOST_PLAYERS[edition]).voters,
     leader_bans: [],
     civ_bans: [],
   };
