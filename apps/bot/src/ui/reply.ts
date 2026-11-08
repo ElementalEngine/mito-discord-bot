@@ -3,7 +3,6 @@ import { randomBytes } from 'node:crypto';
 import {
   MessageFlags,
   type AnySelectMenuInteraction,
-  type AttachmentBuilder,
   type ButtonInteraction,
   type Message,
   type MessageEditOptions,
@@ -47,8 +46,7 @@ export async function defer(interaction: RepliableInteraction, visibility: Visib
   else await interaction.deferReply();
 }
 
-// Files are shown where the panel's file blocks name them.
-export type Extras = Readonly<{ allowedMentions?: MessageMentionOptions; files?: readonly AttachmentBuilder[] }>;
+export type Extras = Readonly<{ allowedMentions?: MessageMentionOptions }>;
 
 // The message written, where Discord gives one back.
 export async function respond(
@@ -59,14 +57,13 @@ export async function respond(
 ): Promise<Message | undefined> {
   const components = [container(panel)];
   const allowedMentions = extras.allowedMentions ?? NO_PINGS;
-  const files = [...(extras.files ?? [])];
   const flags =
     visibility === 'private'
       ? ([MessageFlags.IsComponentsV2, MessageFlags.Ephemeral] as const)
       : ([MessageFlags.IsComponentsV2] as const);
 
   // A held panel stays as it is; anything said arrives beside it.
-  if (holding.has(interaction)) return interaction.followUp({ flags, components, allowedMentions, files });
+  if (holding.has(interaction)) return interaction.followUp({ flags, components, allowedMentions });
   if (interaction.deferred && !interaction.replied) {
     const deferredAs = visibilityOf.get(interaction) ?? (interaction.ephemeral ? 'private' : 'public');
     if (deferredAs === visibility) {
@@ -76,15 +73,14 @@ export async function respond(
         flags: MessageFlags.IsComponentsV2,
         components,
         allowedMentions,
-        files,
       });
     }
     // A private answer to a public deferral must not land in the channel.
     if (visibility === 'private') await interaction.deleteReply().catch(() => undefined);
   }
-  if (interaction.deferred || interaction.replied) return interaction.followUp({ flags, components, allowedMentions, files });
+  if (interaction.deferred || interaction.replied) return interaction.followUp({ flags, components, allowedMentions });
   visibilityOf.set(interaction, visibility);
-  await interaction.reply({ flags, components, allowedMentions, files });
+  await interaction.reply({ flags, components, allowedMentions });
   return undefined;
 }
 

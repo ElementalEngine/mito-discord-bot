@@ -54,7 +54,7 @@ Mite runs the game side of the CPL Discord server for Civilization VI and VII. P
 | `/report-edit` · `/report-remove` | Fix or remove a report still waiting | its reporter, or staff |
 | `/report-revert` | Undo an approved result | admins and developers |
 | `/stats` · `/stats-history` · `/roomranks` | Ratings, records and recent games | any rank role |
-| `/ping` · `/resetstats` · `/season-new` · `/get-users` | Staff tools | staff only, hidden from everyone else |
+| `/ping` · `/resetstats` · `/season-new` | Staff tools | staff only, hidden from everyone else |
 
 Moderators and developers pass every rank-role check. The table above lives in [`config/command-access.ts`](apps/bot/src/config/command-access.ts): the bot enforces it, and at startup logs any place where Discord's Integrations settings differ from it.
 

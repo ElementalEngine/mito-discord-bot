@@ -1,5 +1,5 @@
 import type { PostAbout } from '../../utils/post-options.js';
-import { channel, file, fit, mention, text, when, type Panel } from '../kit/index.js';
+import { channel, fit, mention, text, type Panel } from '../kit/index.js';
 
 export type CoinSide = 'heads' | 'tails';
 
@@ -54,21 +54,6 @@ export function pingPanel(gatewayMs: number, league: Reach): Panel {
       text(`**Discord** ${gateway}`),
       text(league.ok ? `**League server** ${league.ms} ms` : `**League server** not answering after ${league.ms} ms`),
       text(league.ok ? `**Database** ${league.dbMs === null ? 'ready' : `${Math.round(league.dbMs)} ms`}` : '**Database** unknown'),
-    ],
-  };
-}
-
-export type MemberCounts = Readonly<{ total: number; bots: number }>;
-
-export function membersPanel(counts: MemberCounts, fileName: string, at: Date): Panel {
-  return {
-    tone: 'info',
-    surface: 'users',
-    title: 'Server members',
-    subtitle: `Exported ${when(at)}`,
-    body: [
-      text(`**${counts.total}** members \u00b7 **${counts.total - counts.bots}** people \u00b7 **${counts.bots}** bots`),
-      file(fileName),
     ],
   };
 }

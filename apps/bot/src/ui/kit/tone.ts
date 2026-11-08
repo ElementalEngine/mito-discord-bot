@@ -24,7 +24,6 @@ export const SURFACES = {
   seed: '\ud83d\uddfa\ufe0f',
   roll: '\ud83c\udfb2',
   ping: '\ud83c\udfd3',
-  users: '\ud83d\udc65',
   season: '\ud83d\udcc5',
 } as const;
 

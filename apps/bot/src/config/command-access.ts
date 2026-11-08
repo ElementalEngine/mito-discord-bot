@@ -47,7 +47,6 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
     roles: RANKED,
     channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'civ6ffaVote', 'civ6teamerVote'],
   },
-  'get-users': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   'season-new': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   draft: {
     roles: RANKED,

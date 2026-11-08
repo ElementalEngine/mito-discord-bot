@@ -46,7 +46,7 @@ async function setRankRoles(guild: Guild, affected: readonly AffectedPlayerRatin
   if (!roles.size) return;
   const managed = new Set([...roles.values()].map((r) => r.id));
   for (const [discordId, mu] of bestRatings(affected)) {
-    const member = await guild.members.fetch(discordId).catch(() => null);
+    const member = await guild.members.fetch({ user: discordId, force: true }).catch(() => null);
     const wanted = roles.get((rankOf(mu) ?? RANK_DEFS_CIV6.at(-1)!).name);
     if (!member || !wanted) {
       log.warn(`rank role not applied: member ${discordId} ${member ? 'has no role for their rank' : 'not in the guild'}`);

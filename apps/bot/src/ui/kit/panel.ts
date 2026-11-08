@@ -1,6 +1,5 @@
 import {
   ContainerBuilder,
-  FileBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
   ActionRowBuilder,
@@ -16,14 +15,11 @@ import { SURFACES, TONES, type Surface, type Tone } from './tone.js';
 export type Block =
   | Readonly<{ kind: 'text'; text: string }>
   | Readonly<{ kind: 'divider'; large: boolean }>
-  | Readonly<{ kind: 'file'; name: string }>
   | Readonly<{ kind: 'row'; row: ButtonRow }>;
 
 export const text = (body: string): Block => ({ kind: 'text', text: body });
 export const divider = (large = false): Block => ({ kind: 'divider', large });
 export const field = (name: string, value: string): Block => text(`**${name}**\n${value || '\u2014'}`);
-// An attachment sent with the message, shown where the block sits.
-export const file = (name: string): Block => ({ kind: 'file', name });
 export type ButtonRow = ActionRowBuilder<MessageActionRowComponentBuilder>;
 // Buttons or a menu in one row: a panel's actions, or a block among the body's.
 export const row = (...items: MessageActionRowComponentBuilder[]): ButtonRow => new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(...items);
@@ -114,9 +110,6 @@ export function container(panel: Panel): ContainerBuilder {
             .setDivider(true)
             .setSpacing(block.large ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small),
         );
-        break;
-      case 'file':
-        box.addFileComponents(new FileBuilder().setURL(`attachment://${block.name}`));
         break;
       case 'row':
         box.addActionRowComponents(block.row);
