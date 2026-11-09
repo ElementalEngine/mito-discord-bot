@@ -43,10 +43,7 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
     roles: RANKED,
     channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'civ6ffaVote', 'civ6teamerVote'],
   },
-  mapseed: {
-    roles: RANKED,
-    channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'civ6ffaVote', 'civ6teamerVote'],
-  },
+  mapseed: { roles: RANKED, channels: COMMAND_CHANNELS },
   'season-new': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   draft: {
     roles: RANKED,
