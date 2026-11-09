@@ -69,6 +69,8 @@ async function titleOf(binding: Leaderboard): Promise<string> {
 // A board redrawn from core-api's ranking: only changed panels are edited,
 // with the last re-stamped, and nothing is sent when nothing changed.
 async function redraw(client: Client, binding: Leaderboard): Promise<void> {
+  // An empty channel id turns its board off.
+  if (!binding.thread_id) return;
   const board = await boardOf(client, binding);
   if (!board) return;
   const ranking = await api.getLeaderboardRanking(binding.game, binding.game_type, binding.game_mode, binding.is_seasonal, binding.is_combined);
