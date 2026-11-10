@@ -39,10 +39,7 @@ export const COMMAND_ACCESS: Readonly<Record<string, Access>> = {
   teamgen: { roles: RANKED, channels: COMMAND_CHANNELS },
   coinflip: { roles: RANKED, channels: COMMAND_CHANNELS },
   ping: { roles: ['admin', 'moderator', 'developer'], channels: ['botTesting'], staffOnly: true },
-  roll: {
-    roles: RANKED,
-    channels: ['botTesting', 'civ6Commands', 'civ7Commands', 'cloudCommands', 'civ6ffaVote', 'civ6teamerVote'],
-  },
+  roll: { roles: RANKED, channels: COMMAND_CHANNELS },
   mapseed: { roles: RANKED, channels: COMMAND_CHANNELS },
   'season-new': { roles: ['developer'], channels: ['botTesting'], staffOnly: true },
   draft: {
