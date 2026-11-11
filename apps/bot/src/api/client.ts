@@ -41,6 +41,8 @@ const RETRY_BASE_MS = 250;
 const TIMEOUT_MS = 10_000;
 // Multipart carries a save file. Everything else is JSON or a query.
 const UPLOAD_TIMEOUT_MS = 30_000;
+// A season change saves and clears every season record in one transaction.
+const SEASON_TIMEOUT_MS = 30_000;
 
 const actorHeaders = (actor: Actor): Record<string, string> => ({
   "x-actor-discord-id": actor.id,
@@ -131,7 +133,7 @@ export class ApiClient {
       method: "POST",
       headers: { ...json, "x-actor-discord-id": actorId },
       body: JSON.stringify({ expected }),
-    });
+    }, SEASON_TIMEOUT_MS);
     return (await this.parseJson(res)) as SeasonRolled;
   }
 
@@ -463,9 +465,10 @@ export class ApiClient {
     return method === "GET";
   }
 
-  private async fetchWithRetry(input: string | URL, init?: RequestInit): Promise<Response> {
+  // `wait` replaces the usual time limit, for a call known to take longer.
+  private async fetchWithRetry(input: string | URL, init?: RequestInit, wait?: number): Promise<Response> {
     const method = (init?.method ?? "GET").toUpperCase();
-    const timeoutMs = init?.body instanceof FormData ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS;
+    const timeoutMs = wait ?? (init?.body instanceof FormData ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS);
 
     let lastErr: unknown;
     for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {

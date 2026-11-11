@@ -27,7 +27,7 @@ export async function handleSeasonInteraction(interaction: Interaction): Promise
       return true;
     }
     // The buttons go at once, so a second press has nothing to press.
-    await replacePanel(interaction, notice('muted', 'Starting the new season. This takes a few seconds.'));
+    await replacePanel(interaction, notice('muted', 'Starting the new season. This can take up to 30 seconds.'));
     started = true;
     const rolled = await api.startNextSeason(edition === 'civ7' ? 'civ7' : 'civ6', labelFromId(label), interaction.user.id);
     refreshLeaderboards(interaction.client, rolled.edition);
