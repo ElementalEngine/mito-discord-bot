@@ -22,8 +22,9 @@ export function lobbySettings(gameType: string, api: ApiClient, edition: CivVers
   return read;
 }
 
-// Teamers ping the teamer LFG role; FFAs and duels the FFA one. Empty when unset.
-export function lfgRoleFor(shape: LobbyShape, roles: Readonly<{ civ6LfgFfa: string; civ6LfgTeamer: string }> = config.discord.roles): string {
+// Each mode pings its own LFG role: duels the duel one, teamers the teamer one, FFAs the FFA one. Empty when unset.
+export function lfgRoleFor(shape: LobbyShape, roles: Readonly<{ civ6LfgFfa: string; civ6LfgDuel: string; civ6LfgTeamer: string }> = config.discord.roles): string {
+  if (shape === 'duel') return roles.civ6LfgDuel;
   return shape.startsWith('teamer-') ? roles.civ6LfgTeamer : roles.civ6LfgFfa;
 }
 

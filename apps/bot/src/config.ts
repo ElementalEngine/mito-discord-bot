@@ -97,6 +97,7 @@ const discord = {
     civCloud: env('ROLE_CLOUD'),
     // Pinged when a lobby asks for players: teamers by their own role.
     civ6LfgFfa: env('ROLE_CIV6_LFG_FFA'),
+    civ6LfgDuel: env('ROLE_CIV6_LFG_DUEL'),
     civ6LfgTeamer: env('ROLE_CIV6_LFG_TEAMER'),
   },
 
