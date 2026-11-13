@@ -6,7 +6,7 @@ import { editionName } from '../../utils/edition.js';
 import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, row, text, type CivNames, type Panel } from '../kit/index.js';
 import { AGES } from './draft.js';
 import { draftOutputPanels, settingLines } from './draft-output.js';
-import { bannedBy, blindStatus, closes, majority, ticks } from './lobby-vote.js';
+import { bannedBy, blindStatus, closes, majority, ticks, voteClosed } from './lobby-vote.js';
 
 export const VOTE_VERB = { finished: 'finished', pick: 'pick', leader: 'leader', civ: 'civ', lockIn: 'lockin' } as const;
 
@@ -40,7 +40,7 @@ export function voteStatusPanel(vote: Vote, questions: readonly SettingQuestion[
     subtitle: closes(vote, 'finished'),
     body: [
       text(
-        `### React on each setting below\nBack as many options as you like. An option backed by ${majority(vote)} of the ${vote.players.length} players wins at once and its message is cleared; the rest go to the most reactions once all finish, and the bot settles a tie. ${bans}. Then press **Finished**.`,
+        `### React on each setting below\nBack as many options as you like. An option backed by ${majority(vote)} of the ${vote.players.length} players wins at once and its message is cleared; the rest go to the most reactions once all finish, and the bot settles a tie. ${bans}. Then press **Finished**: if anyone has not when the vote closes, it is cancelled.`,
       ),
       ...(won.length ? [field('Won', won.join('\n'))] : []),
       field('Players', ticks(vote, new Set(vote.vote.finished))),
@@ -49,6 +49,8 @@ export function voteStatusPanel(vote: Vote, questions: readonly SettingQuestion[
     footer: voteFooter(vote),
   };
 }
+
+export const voteClosedPanel = (vote: Vote): Panel => voteClosed(vote, vote.vote.finished, `Vote closed: ${voteTitle(vote)}`, 'no draft was dealt', voteFooter(vote));
 
 // One setting's message: its options, each by the emoji to react with.
 export function questionPanel(question: SettingQuestion): Panel {

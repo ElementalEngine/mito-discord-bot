@@ -40,6 +40,19 @@ export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, 
   };
 }
 
+// A vote closed with a player yet to finish: who, and what that cost.
+export function voteClosed(setup: Timed, finished: readonly string[], title: string, outcome: string, footer: string): Panel {
+  const waiting = setup.players.filter((p) => !finished.includes(p.discord_id)).map((p) => mention(p.discord_id));
+  return {
+    tone: 'muted',
+    surface: 'vote',
+    title,
+    subtitle: `Not every player pressed Finished in time, so ${outcome}.`,
+    body: [field('Not finished', waiting.join(' '))],
+    footer,
+  };
+}
+
 // The settings the host put to the vote that the players have yet to settle.
 export const votedOn = (lobby: Lobby, questions: readonly SettingQuestion[]): SettingQuestion[] =>
   questions.filter((q) => lobby.settings.some((s) => s.id === q.id && s.value === PUT_TO_VOTE));
@@ -53,7 +66,7 @@ export function bansVotePanel(lobby: Lobby, names: CivNames, questions: readonly
   const settings = asked.length
     ? [
         text(
-          `### Settings put to the vote\nReact on each setting below. An option backed by ${majority(lobby)} of the ${lobby.players.length} players wins at once; the rest go to the most reactions when the vote closes, and the bot settles a tie.`,
+          `### Settings put to the vote\nReact on each setting below. An option backed by ${majority(lobby)} of the ${lobby.players.length} players wins at once; the rest go to the most reactions once every player finishes, and the bot settles a tie.`,
         ),
         ...(won.length ? [field('Won', settingLines(Object.fromEntries(lobby.settings.map((s) => [s.id, s.value])), won))] : []),
       ]
@@ -66,7 +79,7 @@ export function bansVotePanel(lobby: Lobby, names: CivNames, questions: readonly
     body: [
       ...settings,
       text(
-        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${majority(lobby)} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**.`,
+        `### Optional: extra leader bans\n⬇️ React to this message with the server's leader emojis to ban those leaders. A leader is banned once ${majority(lobby)} of the ${lobby.players.length} players react, and stays banned. Then press **Finished**: if anyone has not when the vote closes, the lobby is cancelled.`,
       ),
       ...(voted ? [field('Banned by the vote', voted)] : []),
       ...(hosts ? [field('Banned by the host', hosts)] : []),
@@ -76,6 +89,9 @@ export function bansVotePanel(lobby: Lobby, names: CivNames, questions: readonly
     footer: lobbyFooter(lobby),
   };
 }
+
+export const lobbyVoteClosedPanel = (lobby: Lobby): Panel =>
+  voteClosed(lobby, lobby.vote?.finished ?? [], `Vote closed: Civ6 ${SHAPES[lobby.shape]} lobby`, 'the lobby was cancelled', lobbyFooter(lobby));
 
 export const blindStatusPanel = (lobby: Lobby): Panel =>
   blindStatus(lobby, `Blind draft: Civ6 ${SHAPES[lobby.shape]} lobby`, lobbyFooter(lobby), button(lobby, VERB.pick, 'Pick your leader', ButtonStyle.Primary), 'a pick');

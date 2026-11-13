@@ -4,7 +4,7 @@ import type { ApiClient } from '../api/index.js';
 import type { CivDataResponse, SettingQuestion, Vote, VoteBallot } from '../api/types.js';
 import type { Panel } from '../ui/kit/index.js';
 import { VOTE_STATUS } from '../ui/panels/lobby.js';
-import { CIV_BANS, LEADER_BANS, questionPanel, voteBansPanel, voteBlindStatusPanel, voteDraftPanels, voteStatusPanel } from '../ui/panels/vote.js';
+import { CIV_BANS, LEADER_BANS, questionPanel, voteBansPanel, voteBlindStatusPanel, voteClosedPanel, voteDraftPanels, voteStatusPanel } from '../ui/panels/vote.js';
 import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
@@ -120,13 +120,17 @@ async function postVoteDraft(vote: Vote, place: SendableChannels | null, api: Ap
 }
 
 // In the vote's turn, once all finish or time is up: everything counted and
-// the draft dealt. A blind draft's message then replaces the vote's messages.
+// the draft dealt. A blind draft's message then replaces the vote's messages;
+// a vote a player left unfinished is cancelled, and says so.
 async function countVote(client: Client, vote: Vote, api: ApiClient): Promise<void> {
   const [place, questions] = await Promise.all([placeOf(client, vote), questionsOf(vote, api)]);
   const ballot = place ? await ballotFrom(vote, place, questions, api) : { settings: {}, bans: {} };
   const dealt = await readBackLost(api.tallyVoteBallot(vote.id, starterOf(vote), ballot), () => api.vote(vote.id), 'voting');
   await closeVoteMessages(client, vote);
-  if (dealt.status === 'cancelled') return;
+  if (dealt.status === 'cancelled') {
+    if (dealt.cancel_reason === 'inactive' && place) await postPanel(place, voteClosedPanel(dealt));
+    return;
+  }
   if (dealt.phase === 'picking' && place) {
     const status = await postPanel(place, voteBlindStatusPanel(dealt, questions), { users: playersOf(dealt) });
     const placed = await recorded(status, () => api.placeVoteMessages(dealt.id, starterOf(dealt), { channel_id: place.id, messages: { [VOTE_STATUS]: status.id } }));

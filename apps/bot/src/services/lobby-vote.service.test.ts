@@ -10,12 +10,12 @@ const pools = players.map((p) => ({ player_id: p.discord_id, team: null, leaders
 const civData = { edition: 'civ6', leader_data_version: 1, leaders: [{ token: 'LEADER_A', name: 'A', display: 'Abe' }], civs: [] };
 const lost = () => Promise.reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'));
 
-// A channel that records what is posted and deleted.
-function client(posted: string[], deleted: string[]) {
+// A channel that records where it posts, what, and what it deletes.
+function client(posted: string[], deleted: string[], sent: string[] = []) {
   const channel = (id: string) => ({
     id,
     isSendable: () => true,
-    send: async () => (posted.push(id), { id: `${id}-m`, delete: async () => undefined }),
+    send: async (message: unknown) => (posted.push(id), sent.push(JSON.stringify(message)), { id: `${id}-m`, delete: async () => undefined }),
     bulkDelete: async (ids: string[]) => void deleted.push(...ids),
     messages: { cache: new Map(), fetch: async () => ({ reactions: { cache: new Map() } }), delete: async (m: string) => void deleted.push(m), edit: async () => ({}) },
   });
@@ -29,9 +29,9 @@ const lobbyAt = (status: string, phase: string) => ({
   pools, picks: [], cancel_reason: null, updated_at: past(), vote: { channel_id: 'VC', messages: { status: '11' }, finished: [] },
 });
 
-const voteAt = (status: string) => ({
+const voteAt = (status: string, phase = 'picking') => ({
   id: 'V1', code: 'XYZ', guild_id: '1', channel_id: 'VC', host_id: '100', edition: 'civ6', mode: 'ffa', age: null, status,
-  phase: 'picking', deadline: status === 'open' ? past() : null, draft_mode: 'blind', teams: 0, players, pools, picks: [],
+  phase, deadline: status === 'open' ? past() : null, draft_mode: 'blind', teams: 0, players, pools, picks: [],
   settings: [], bans: [], cancel_reason: null, updated_at: past(), vote: { channel_id: 'VC', messages: { status: '11' }, finished: [] },
 });
 
@@ -60,6 +60,20 @@ test("a vote's blind picks revealed with the answer lost still post the draft", 
   const api = { vote: reads(voteAt('open'), voteAt('done')), lobbySettings: async () => [], getCivData: async () => civData, revealVotePicks: lost };
   await advanceVote(client(posted, deleted), 'V1', api as never);
   assert.ok(posted.includes('VC') && deleted.includes('11'));
+});
+
+test('a vote a player left unfinished closes, cancelling a lobby, and says so where it ran', async () => {
+  const [posted, deleted, sent]: string[][] = [[], [], []];
+  const inactive = { status: 'cancelled', cancel_reason: 'inactive', deadline: null };
+  const lobbyApi = { lobby: async () => lobbyAt('open', 'voting'), lobbySettings: async () => [], getCivData: async () => civData, tallyVote: async () => ({ ...lobbyAt('open', 'voting'), ...inactive }) };
+  await advanceLobby(client(posted, deleted, sent), 'L1', lobbyApi as never);
+  assert.deepEqual(posted, ['VC']);
+  assert.ok(deleted.includes('11') && deleted.includes('POST'));
+  const voteApi = { vote: async () => voteAt('open', 'voting'), lobbySettings: async () => [], getCivData: async () => civData, tallyVoteBallot: async () => ({ ...voteAt('open', 'voting'), ...inactive }) };
+  await advanceVote(client(posted, deleted, sent), 'V1', voteApi as never);
+  assert.deepEqual(posted, ['VC', 'VC']);
+  assert.ok(sent[0]?.includes('the lobby was cancelled') && sent[1]?.includes('no draft was dealt'));
+  assert.ok(sent.every((s) => s.includes('Not finished') && s.includes('<@100>') && s.includes('<@200>')));
 });
 
 test('a step whose answer is lost and that did not land is still an error', async () => {

@@ -5,7 +5,7 @@ import type { Lobby, LobbyBallot, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
 import type { Panel } from '../ui/kit/index.js';
 import { VOTE_STATUS, lobbyDraftPanels } from '../ui/panels/lobby.js';
-import { blindStatusPanel, bansVotePanel, votedOn } from '../ui/panels/lobby-vote.js';
+import { blindStatusPanel, bansVotePanel, lobbyVoteClosedPanel, votedOn } from '../ui/panels/lobby-vote.js';
 import { questionPanel } from '../ui/panels/vote.js';
 import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
@@ -46,7 +46,7 @@ async function lobbyBallot(lobby: Lobby, reactionsOf: (key: string) => readonly 
 }
 
 // Once the lobby starts: its status, then a message per setting put to the vote,
-// each watched as it posts. A vote that cannot open is counted at once.
+// each watched as it posts. A vote that cannot open cancels the lobby.
 export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   let placed: Lobby;
   const messages: Record<string, string> = {};
@@ -76,11 +76,12 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
     }
     placed = await api.placeVote(lobby.id, { id: lobby.host_id }, { channel_id: where.id, messages });
   } catch (error) {
-    log.warn('lobby vote not opened, so it is counted now', lobby.id, error);
     const posted = Object.values(messages);
     unwatchReactions(posted);
     if (place) await deleteMessages(place, posted);
-    return countVote(client, lobby, api);
+    const cancelled = await api.cancelLobby(lobby.guild_id, lobby.code, { id: lobby.host_id }).catch(() => null);
+    if (cancelled) await showLobby(client, cancelled, api);
+    throw error;
   }
   keepTime(client, placed, api);
   await showLobby(client, placed, api);
@@ -111,10 +112,9 @@ async function postLobbyDraft(client: Client, lobby: Lobby, place: SendableChann
 }
 
 // In the lobby's turn, once all finish or time is up: the bans counted and the
-// draft dealt.
+// draft dealt. A vote a player left unfinished cancels the lobby, and says so.
 async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
-  // A vote that never opened drafts in the lobby's own channel.
-  const place = (await placeOf(client, lobby)) ?? (await sendableIn(client, lobby.channel_id));
+  const place = await placeOf(client, lobby);
   const questions = await questionsOf(lobby, api);
   const messages = lobby.vote?.messages ?? {};
   const live = [VOTE_STATUS, ...votedOn(lobby, questions).map((q) => q.id)].map((key) => messages[key]);
@@ -122,11 +122,18 @@ async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<
   const { ballot, unmatched } = await lobbyBallot(lobby, (key) => read.get(messages[key] ?? '') ?? [], questions, api);
   if (unmatched.length) log.info('ban reactions naming no leader', lobby.id, unmatched.join(', '));
   const dealt = await readBackLost(api.tallyVote(lobby.id, { id: lobby.host_id }, ballot), () => api.lobby(lobby.id), 'voting');
-  if (dealt.status === 'cancelled') return closeVote(client, dealt);
+  if (dealt.status === 'cancelled') return closeLobbyVote(client, dealt, place, api);
   if (dealt.phase === 'picking' && place) return openPicks(client, dealt, place, api);
   if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
   await closeVote(client, dealt);
   await postLobbyDraft(client, dealt, place, api);
+}
+
+// A cancelled lobby's vote taken down with its post; why, where it ran.
+async function closeLobbyVote(client: Client, lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
+  await closeVote(client, lobby);
+  await showLobby(client, lobby, api);
+  if (lobby.cancel_reason === 'inactive' && place) await postPanel(place, lobbyVoteClosedPanel(lobby));
 }
 
 // A blind draft's message replaces the vote's, so its reactions go with it,
