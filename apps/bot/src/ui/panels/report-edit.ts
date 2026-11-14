@@ -47,7 +47,7 @@ export const EDIT = {
 } as const;
 export const FIELD = {
   seat: 'seat',
-  came: 'came',
+  left: 'left',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
@@ -347,16 +347,16 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
   return { ...match, players };
 }
 
-// A sub: the seat whose player left, and who came in, found by searching the
-// server. Naming the player who left undoes the sub.
+// A sub: the seat of the player who finished the game, and the player who left
+// it, found by searching the server. Naming that player again undoes the sub.
 export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.subForm, match.match_id))
     .setTitle('Assign a sub')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Seat subbed out')
-        .setDescription('The seat whose player left the game.')
+        .setLabel('Seat')
+        .setDescription('The seat of the player who finished the game.')
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.seat)
@@ -364,23 +364,22 @@ export function subForm(match: Match, names: CivNames, members: Members): ModalB
             .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
         ),
       new LabelBuilder()
-        .setLabel('Player who subbed in')
-        .setDescription('Type a name to search the server. Pick the player who left to undo a sub.')
-        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.came).setMinValues(1).setMaxValues(1).setRequired(true)),
+        .setLabel('Player who subbed out')
+        .setDescription('Type a name to search the server. Pick the same player again to undo the sub.')
+        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(1).setMaxValues(1).setRequired(true)),
     );
 }
 
-// The sub as one seat edit: a new sub, the player who came in changed, or the
-// sub undone when the player who left is named.
-export function subEdits(match: Match, n: number, came: string | null): SeatEdit[] | string {
+// The sub as one seat edit. The seat keeps the player who finished, who came in
+// as the sub; naming the player already marked as left undoes the sub.
+export function subEdits(match: Match, n: number, left: string | null): SeatEdit[] | string {
   const seat = numbered(match).find((s) => s.n === n);
-  const player = seat ? idOf(seat.player) : null;
-  if (!seat || !came || came === player) return [];
-  if (seat.leaver) {
-    return came === idOf(seat.leaver) ? [{ seat: seat.index, discord_id: came, sub_out: null }] : [{ seat: seat.index, discord_id: came }];
-  }
-  if (!player) return `Seat ${seat.n} has no player yet. Assign its player first, then the sub.`;
-  return [{ seat: seat.index, discord_id: came, sub_out: player }];
+  if (!seat || !left) return [];
+  const player = idOf(seat.player);
+  if (!player) return `Seat ${seat.n} has no player yet. Assign the player who finished first, then the sub.`;
+  if (left === player) return `That is seat ${seat.n}'s own player. Pick the player who left the game.`;
+  if (seat.leaver && left === idOf(seat.leaver)) return [{ seat: seat.index, sub_out: null }];
+  return [{ seat: seat.index, sub_out: left }];
 }
 
 // Staff put two or more seats (or teams) level at one place; a tie of two
