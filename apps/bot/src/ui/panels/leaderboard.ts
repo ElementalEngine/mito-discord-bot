@@ -22,7 +22,8 @@ export type BoardView = Readonly<{
   updated: Date;
 }>;
 
-// Duel and teamer count a win against a loss; FFA and combined count 1st places.
+// Duel and teamer show wins against losses; FFA and combined show games and 1st
+// places. Every board's Win% is wins over games, as /stats counts it.
 const headToHead = (mode: string): boolean => mode === 'duel' || mode === 'teamer';
 
 const chips = (cells: readonly string[]): string => cells.map((c) => `\`${c}\``).join(' ');
@@ -31,12 +32,12 @@ function headingLine(h2h: boolean): string {
   return `${chips(h2h ? ['Rank', 'Skill', ' Won', 'Lost', '  Win%'] : ['Rank', 'Skill', 'Games', ' 1st', '  Win%'])} \u2014 **Player**`;
 }
 
-// Win% is 1st places over games; the rating-gain counter is not a win.
+// A win is a game that raised the player's rating.
 function rowLine(at: number, entry: Entry, h2h: boolean): string {
   const games = entry.games_played;
-  const first = entry.first;
-  const pct = `${games > 0 ? ((first / games) * 100).toFixed(1) : '0.0'}%`;
-  const counts = h2h ? [String(first).padStart(4), String(Math.max(0, games - first)).padStart(4)] : [String(games).padStart(5), String(first).padStart(4)];
+  const wins = entry.wins;
+  const pct = `${games > 0 ? ((wins / games) * 100).toFixed(1) : '0.0'}%`;
+  const counts = h2h ? [String(wins).padStart(4), String(Math.max(0, games - wins)).padStart(4)] : [String(games).padStart(5), String(entry.first).padStart(4)];
   const cells = [`#${at + 1}`.padEnd(4), String(Math.round(entry.rating)).padStart(5), ...counts, pct.padStart(6)];
   const medal = MEDALS[at] ? `${MEDALS[at]} ` : '';
   const rank = rankName(entry.rating);
@@ -65,7 +66,7 @@ export function boardPanels(view: BoardView): Panel[] {
       tone: 'info',
       surface: 'leaderboard',
       ...(accent === undefined ? {} : { accent }),
-      ...(page === 0 ? { title: view.title, subtitle: 'Best first \u00b7 Win% is 1st places over games played' } : {}),
+      ...(page === 0 ? { title: view.title, subtitle: 'Best first \u00b7 Win% is games that raised the rating, over games played' } : {}),
       body,
       ...(last ? { footer: `Last updated ${when(view.updated, 'f')}` } : {}),
     };
