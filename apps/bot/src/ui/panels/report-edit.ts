@@ -14,7 +14,7 @@ import {
   divider,
   fit,
   inBody,
-  mention,
+  mentionWithId,
   notice,
   plainNameOf,
   portraitOf,
@@ -131,8 +131,9 @@ function unitOption(match: Match, u: Unit, names: CivNames, members: Members): A
 function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const p = s.player;
   const id = idOf(p);
-  const who = id ? mention(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
-  const left = s.leaver ? (idOf(s.leaver) ? mention(idOf(s.leaver) ?? '') : `\`${saveName(s.leaver)}\``) : null;
+  const who = id ? mentionWithId(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
+  const leaver = s.leaver ? idOf(s.leaver) : null;
+  const left = s.leaver ? (leaver ? mentionWithId(leaver) : `\`${saveName(s.leaver)}\``) : null;
   const facts = [
     ordinal((p.placement ?? 0) + 1),
     isTeamer(match) ? `team ${p.team + 1}` : null,
@@ -235,7 +236,7 @@ function pendingLine(draft: Draft, names: CivNames): string | null {
     const now = draft.now.players[s.index];
     if (!now) return [];
     const what = [
-      now.discord_id !== was.discord_id ? (idOf(now) ? mention(idOf(now) ?? '') : 'unassigned') : null,
+      now.discord_id !== was.discord_id ? (idOf(now) ? mentionWithId(idOf(now) ?? '') : 'unassigned') : null,
       now.placement !== was.placement ? ordinal((now.placement ?? 0) + 1) : null,
       now.leader !== was.leader && now.leader ? plainNameOf(names, now.leader) : null,
       now.civ !== was.civ && isCiv7(draft.now) ? plainNameOf(names, now.civ) : null,
@@ -342,7 +343,7 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
     const before = base.players[other.index];
     if (current) players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
     else if (before && !idOf(before)) players[other.index] = { ...other.player, discord_id: before.discord_id, quit: before.quit };
-    else return `${mention(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
+    else return `${mentionWithId(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
   }
   players[seat.index] = { ...seat.player, discord_id: id, quit: other ? other.player.quit : seat.player.quit };
   return { ...match, players };

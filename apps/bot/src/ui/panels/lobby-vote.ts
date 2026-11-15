@@ -1,7 +1,7 @@
 import { ButtonStyle, StringSelectMenuBuilder, type ButtonBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, SettingQuestion } from '../../api/types.js';
-import { customId, field, fit, mention, nameOf, plainNameOf, portraitOf, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
+import { customId, field, fit, idLine, mention, nameOf, plainNameOf, portraitOf, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { PUT_TO_VOTE, settingLines } from './draft-output.js';
 import { SHAPES, VERB, button, lobbyFooter } from './lobby.js';
 
@@ -11,7 +11,7 @@ export const closes = (setup: Timed, done: string): string =>
   `Closes ${setup.deadline ? when(Date.parse(setup.deadline), 'R') : 'soon'}, or once every player has ${done}`;
 
 export const ticks = (setup: Timed, done: ReadonlySet<string>): string =>
-  setup.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}`).join('\n');
+  setup.players.map((p) => `${done.has(p.discord_id) ? '✅' : '⬜'} ${mention(p.discord_id)}\n${idLine(p.discord_id)}`).join('\n');
 
 // A majority of the players: what lands a ban, or wins a setting, at once.
 export const majority = (setup: Timed): number => Math.floor(setup.players.length / 2) + 1;
@@ -42,13 +42,13 @@ export function blindStatus(setup: Timed & Pick<Lobby, 'picks'>, title: string, 
 
 // A vote closed with a player yet to finish: who, and what that cost.
 export function voteClosed(setup: Timed, finished: readonly string[], title: string, outcome: string, footer: string): Panel {
-  const waiting = setup.players.filter((p) => !finished.includes(p.discord_id)).map((p) => mention(p.discord_id));
+  const waiting = setup.players.filter((p) => !finished.includes(p.discord_id)).map((p) => `${mention(p.discord_id)}\n${idLine(p.discord_id)}`);
   return {
     tone: 'muted',
     surface: 'vote',
     title,
     subtitle: `Not every player pressed Finished in time, so ${outcome}.`,
-    body: [field('Not finished', waiting.join(' '))],
+    body: [field('Not finished', waiting.join('\n'))],
     footer,
   };
 }

@@ -1,7 +1,7 @@
 import { ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 import type { CivDataResponse, Lobby, LobbyEdit, LobbyShape, SettingQuestion } from '../../api/types.js';
-import { channel, customId, field, fit, inBody, mention, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
+import { channel, customId, field, fit, idLine, inBody, mention, row, text, when, type Block, type CivNames, type Panel } from '../kit/index.js';
 import { banFields } from './draft.js';
 import { PUT_TO_VOTE, VOTE_EMOJI, banLine, draftModeName, draftOutputPanels, settingLines } from './draft-output.js';
 
@@ -85,11 +85,11 @@ type Seat = Readonly<{ discord_id: string; team: number | null }>;
 const teamOf = (players: readonly Seat[], team: number): string[] => players.filter((p) => p.team === team).map((p) => p.discord_id);
 
 function seatLines(lobby: Lobby, players: readonly Seat[] = lobby.players): string {
-  const name = (id: string): string => (id === lobby.host_id ? `${mention(id)} (host)` : mention(id));
+  const name = (id: string): string => `${mention(id)}${id === lobby.host_id ? ' (host)' : ''}\n${idLine(id)}`;
   if (!lobby.teams) return players.map((p, i) => `${i + 1}. ${name(p.discord_id)}`).join('\n');
   return Array.from({ length: lobby.teams }, (_, i) => {
     const team = teamOf(players, i + 1);
-    return `**Team ${i + 1}** · ${team.length ? team.map(name).join(', ') : 'empty'}`;
+    return `**Team ${i + 1}**\n${team.length ? team.map(name).join('\n') : 'empty'}`;
   }).join('\n');
 }
 

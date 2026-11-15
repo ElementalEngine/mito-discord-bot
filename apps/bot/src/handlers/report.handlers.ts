@@ -29,7 +29,7 @@ import {
   viewOf,
 } from '../services/report.service.js';
 import { memberNames } from '../services/members.js';
-import { channel as channelMention, customId, mention, notice, parseId, when, type CivNames, type Panel } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mentionWithId, notice, parseId, when, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
@@ -233,7 +233,7 @@ export async function openEditor(interaction: ChatInputCommandInteraction, match
   const busy = (): string | null => {
     const holder = editors.holder(matchId);
     return holder && holder !== interaction.user.id
-      ? `${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`
+      ? `${mentionWithId(holder)} is editing this report. It frees up when they finish, or when it goes idle.`
       : null;
   };
   const before = busy();

@@ -2,6 +2,7 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { ApiClient } from '../../api/index.js';
 import { civNames } from '../../services/civ-names.js';
+import { mentionWithId } from '../../ui/kit/index.js';
 import { historyPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -23,6 +24,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!(await ensureCommandAccess(interaction))) return;
   const { civVersion, mode, target } = statsAskOf(interaction);
   const [history, names] = await Promise.all([api.getStatsHistory(civVersion, mode, target, 0), civNames(civVersion, api)]);
-  if (history.games.length === 0) refuse(`<@${target}> has no approved ${civVersion} ${mode} games yet.`);
+  if (history.games.length === 0) refuse(`${mentionWithId(target)} has no approved ${civVersion} ${mode} games yet.`);
   await respond(interaction, historyPanel(history, { civVersion, mode, target, asker: interaction.user.id }, names), 'public');
 }
