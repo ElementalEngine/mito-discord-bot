@@ -5,6 +5,7 @@ import {
   customId,
   divider,
   iconOf,
+  idLine,
   mention,
   pretty,
   row,
@@ -105,6 +106,9 @@ const MEDALS = ['\u{1f947}', '\u{1f948}', '\u{1f949}'];
 const rankOf = (place: number): string => MEDALS[place - 1] ?? `**${place}.**`;
 const ranked = (match: Match): Seat[] => seatsOf(match).sort((a, b) => placeOf(a) - placeOf(b) || a.index - b.index);
 
+// A seat's id line, for a player Discord shows as unknown-user; none unassigned.
+const idLinesOf = (p: Player): string[] => (isAssigned(p) && p.discord_id ? [idLine(p.discord_id)] : []);
+
 // A player's rating moves, with the delta sign players know from the Elo
 // tables, then the in-game score where the save recorded one. A cloud game
 // has no seasons: its ratings are its mode's board and Overall.
@@ -121,10 +125,10 @@ function deltasOf(match: Match, p: Player): string {
 function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string {
   const p = s.player;
   const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
-  const lines = [`${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}`, `-# ${deltasOf(match, p)}`];
+  const lines = [`${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}`, `-# ${deltasOf(match, p)}`, ...idLinesOf(p)];
   if (s.leaver) {
     const quit = s.leaver.quit ? ` ${MARK.quit}` : '';
-    lines.push(`-# ${MARK.sub} ${who(s.leaver)}${quit} subbed out \u00b7 ${deltasOf(match, s.leaver)}`);
+    lines.push(`-# ${MARK.sub} ${who(s.leaver)}${quit} subbed out \u00b7 ${deltasOf(match, s.leaver)}`, ...idLinesOf(s.leaver));
   }
   return lines.join('\n');
 }

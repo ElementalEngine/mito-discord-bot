@@ -3,7 +3,7 @@ import type { Client, Guild } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import type { Match, SeatEdit, SubQuota } from '../api/types.js';
 import { config } from '../config.js';
-import { mention, notice, type Panel } from '../ui/kit/index.js';
+import { mention, mentionWithId, notice, type Panel } from '../ui/kit/index.js';
 import { editorPanel } from '../ui/panels/report-edit.js';
 import { isAssigned, playerIds, seatsOf, type ReportView } from '../ui/panels/report.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
@@ -84,7 +84,7 @@ export async function tellStaffOfQuits(client: Client, match: Match, quitters: r
   if (!channel?.isSendable() || channel.isDMBased()) return false;
   const role = config.discord.roles.moderator;
   const report = reportLink(channel.guildId, channel.id, match);
-  const text = `<@&${role}> ${quitters.map(mention).join(', ')} marked as quit on ${report} by ${mention(by)}.`;
+  const text = `<@&${role}> ${quitters.map(mentionWithId).join(', ')} marked as quit on ${report} by ${mention(by)}.`;
   return postPanel(channel, notice('info', text), { roles: [role] }).then(
     () => true,
     (error: unknown) => {

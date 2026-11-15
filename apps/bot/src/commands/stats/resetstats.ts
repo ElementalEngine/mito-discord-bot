@@ -4,6 +4,7 @@ import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
 import { refreshLeaderboards } from '../../jobs/update-leaderboard.js';
 import { syncRankRoles } from '../../services/rank-role.service.js';
+import { mentionWithId } from '../../ui/kit/index.js';
 import { resetPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { editionOf, editionOption } from '../../utils/edition.js';
@@ -28,7 +29,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const mode = modeOf(interaction);
   const target = interaction.options.getUser('user', true);
   const before = await api.resetUserStats(civVersion, mode, target.id).catch((error: unknown) => {
-    if (error instanceof ApiError && error.status === 404) refuse(`<@${target.id}> has no ${civVersion} ${mode} stats to reset.`);
+    if (error instanceof ApiError && error.status === 404) refuse(`${mentionWithId(target.id)} has no ${civVersion} ${mode} stats to reset.`);
     throw error;
   });
   refreshLeaderboards(interaction.client, civVersion);

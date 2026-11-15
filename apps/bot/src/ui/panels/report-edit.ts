@@ -4,6 +4,8 @@ import {
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   UserSelectMenuBuilder,
   type APISelectMenuOption,
 } from 'discord.js';
@@ -14,7 +16,7 @@ import {
   divider,
   fit,
   inBody,
-  mention,
+  mentionWithId,
   notice,
   plainNameOf,
   portraitOf,
@@ -31,6 +33,8 @@ export const EDIT = {
   subForm: 'subform',
   assign: 'assign',
   assignPick: 'assignpick',
+  assignId: 'assignid',
+  assignIdForm: 'assignidform',
   order: 'order',
   orderPick: 'orderpick',
   save: 'save',
@@ -48,6 +52,8 @@ export const EDIT = {
 export const FIELD = {
   seat: 'seat',
   left: 'left',
+  leftId: 'leftid',
+  playerId: 'playerid',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
@@ -131,8 +137,9 @@ function unitOption(match: Match, u: Unit, names: CivNames, members: Members): A
 function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const p = s.player;
   const id = idOf(p);
-  const who = id ? mention(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
-  const left = s.leaver ? (idOf(s.leaver) ? mention(idOf(s.leaver) ?? '') : `\`${saveName(s.leaver)}\``) : null;
+  const who = id ? mentionWithId(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
+  const leaver = s.leaver ? idOf(s.leaver) : null;
+  const left = s.leaver ? (leaver ? mentionWithId(leaver) : `\`${saveName(s.leaver)}\``) : null;
   const facts = [
     ordinal((p.placement ?? 0) + 1),
     isTeamer(match) ? `team ${p.team + 1}` : null,
@@ -235,7 +242,7 @@ function pendingLine(draft: Draft, names: CivNames): string | null {
     const now = draft.now.players[s.index];
     if (!now) return [];
     const what = [
-      now.discord_id !== was.discord_id ? (idOf(now) ? mention(idOf(now) ?? '') : 'unassigned') : null,
+      now.discord_id !== was.discord_id ? (idOf(now) ? mentionWithId(idOf(now) ?? '') : 'unassigned') : null,
       now.placement !== was.placement ? ordinal((now.placement ?? 0) + 1) : null,
       now.leader !== was.leader && now.leader ? plainNameOf(names, now.leader) : null,
       now.civ !== was.civ && isCiv7(draft.now) ? plainNameOf(names, now.civ) : null,
@@ -325,8 +332,11 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
       .setPlaceholder(fit(now, 150));
     return [text(`**${seat}**`), inBody(menu)];
   });
-  const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
-  return draftFrame(draft, names, 'Assign players', [text(hint), ...menus], pagesFor(seats.length));
+  const hint =
+    'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two. ' +
+    'For a player the search cannot find, such as one who left the server, press **Paste a Discord id**.';
+  const paste = button(match.match_id, EDIT.assignId, 'Paste a Discord id', ButtonStyle.Secondary);
+  return draftFrame(draft, names, 'Assign players', [text(hint), inBody(paste), ...menus], pagesFor(seats.length));
 }
 
 // The draft with `id` in seat n: someone with another seat swaps with this
@@ -342,14 +352,52 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
     const before = base.players[other.index];
     if (current) players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
     else if (before && !idOf(before)) players[other.index] = { ...other.player, discord_id: before.discord_id, quit: before.quit };
-    else return `${mention(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
+    else return `${mentionWithId(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
   }
   players[seat.index] = { ...seat.player, discord_id: id, quit: other ? other.player.quit : seat.player.quit };
   return { ...match, players };
 }
 
+// A Discord id typed into a form, for a player the member search cannot find.
+// A Discord id as typed or pasted, a pasted mention included: null when the
+// field is blank, undefined when it is not an id.
+export function typedId(typed: string): string | null | undefined {
+  const text = typed.trim();
+  if (!text) return null;
+  const id = /^<@!?(\d+)>$/.exec(text)?.[1] ?? text;
+  return /^\d{17,20}$/.test(id) ? id : undefined;
+}
+
+// The bot checks the id; Discord's own length check applies only when it is required.
+function idInput(field: string, required: boolean): TextInputBuilder {
+  const input = new TextInputBuilder().setCustomId(field).setStyle(TextInputStyle.Short).setMaxLength(25).setRequired(required);
+  return required ? input.setMinLength(17) : input;
+}
+
+// One seat given to a player by their Discord id, joining the Assign players draft.
+export function assignIdForm(match: Match, names: CivNames, members: Members): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(customId('report', EDIT.assignIdForm, match.match_id))
+    .setTitle('Assign by Discord id')
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel('Seat')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.seat)
+            .setRequired(true)
+            .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
+        ),
+      new LabelBuilder()
+        .setLabel('Discord id')
+        .setDescription("The long number from the player's profile: Copy User ID.")
+        .setTextInputComponent(idInput(FIELD.playerId, true)),
+    );
+}
+
 // A sub: the seat of the player who finished the game, and the player who left
-// it, found by searching the server. Naming that player again undoes the sub.
+// it, found by searching the server or by their id. Naming that player again
+// undoes the sub.
 export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.subForm, match.match_id))
@@ -367,7 +415,11 @@ export function subForm(match: Match, names: CivNames, members: Members): ModalB
       new LabelBuilder()
         .setLabel('Player who subbed out')
         .setDescription('Type a name to search the server. Pick the same player again to undo the sub.')
-        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(1).setMaxValues(1).setRequired(true)),
+        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false)),
+      new LabelBuilder()
+        .setLabel('Or their Discord id')
+        .setDescription('For a player the search cannot find, such as one who left the server.')
+        .setTextInputComponent(idInput(FIELD.leftId, false)),
     );
 }
 
