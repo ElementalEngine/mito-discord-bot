@@ -24,6 +24,7 @@ import {
   inTurn,
   quittersOf,
   refreshReport,
+  tellPlayersOfEdit,
   tellStaffOfQuits,
   viewOf,
 } from '../services/report.service.js';
@@ -95,6 +96,9 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 const DRAFT_ACTION: Readonly<Record<DraftKind, string>> = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' };
+// The edits that change who played or the order, and what their ping says;
+// civs, quits and ties do not ping.
+const PING: Readonly<Record<string, string>> = { 'set-order': 'the order', 'assign-players': 'who played', 'assign-sub': 'a sub' };
 
 // The member picked in a form's user field, if any.
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
@@ -286,6 +290,10 @@ async function saveSeats(
   const quitters = quittersOf(match, seats);
   if (quitters.length && !(await tellStaffOfQuits(interaction.client, match, quitters, interaction.user.id))) {
     await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
+  }
+  const ping = PING[action];
+  if (ping && !(await tellPlayersOfEdit(interaction.client, match, ping))) {
+    await say(interaction, 'failed', 'Saved, but the players could not be told. Tell them yourself.');
   }
   await logAction(interaction, action, editDetails(interaction, match, seats));
 }

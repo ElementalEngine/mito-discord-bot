@@ -71,19 +71,43 @@ export function quittersOf(match: Match, edits: readonly SeatEdit[]): string[] {
   return [...new Set(quit.filter((p) => p !== undefined && isAssigned(p)).map((p) => p.discord_id ?? ''))];
 }
 
+// A link to the report's message in its uploads channel.
+function reportLink(guildId: string, channelId: string, match: Match): string {
+  const id = match.discord_messages_id_list[0];
+  return id ? `[this report](https://discord.com/channels/${guildId}/${channelId}/${id})` : 'a report';
+}
+
 // A quit is posted beside its report with a ping for the moderators, who
 // decide its suspension; false when the post could not be made.
 export async function tellStaffOfQuits(client: Client, match: Match, quitters: readonly string[], by: string): Promise<boolean> {
   const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
-  const id = match.discord_messages_id_list[0];
   if (!channel?.isSendable() || channel.isDMBased()) return false;
   const role = config.discord.roles.moderator;
-  const report = id ? `[this report](https://discord.com/channels/${channel.guildId}/${channel.id}/${id})` : 'a report';
+  const report = reportLink(channel.guildId, channel.id, match);
   const text = `<@&${role}> ${quitters.map(mention).join(', ')} marked as quit on ${report} by ${mention(by)}.`;
   return postPanel(channel, notice('info', text), { roles: [role] }).then(
     () => true,
     (error: unknown) => {
       log.warn('quit not posted', match.match_id, error instanceof Error ? error.message : error);
+      return false;
+    },
+  );
+}
+
+// An edit that changes who played or the order pings the report's players
+// once, beside the report, without naming who edited; false when the post
+// could not be made.
+export async function tellPlayersOfEdit(client: Client, match: Match, what: string): Promise<boolean> {
+  const ids = playerIds(match);
+  if (!ids.length) return true;
+  const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
+  if (!channel?.isSendable() || channel.isDMBased()) return false;
+  const report = reportLink(channel.guildId, channel.id, match);
+  const text = `${ids.map(mention).join(' ')} Changed on ${report}: ${what}. Check it before it is approved.`;
+  return postPanel(channel, notice('info', text), { users: ids }).then(
+    () => true,
+    (error: unknown) => {
+      log.warn('edit ping not posted', match.match_id, error instanceof Error ? error.message : error);
       return false;
     },
   );
