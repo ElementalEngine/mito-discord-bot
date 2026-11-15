@@ -210,9 +210,10 @@ export class ApiClient {
     return (await this.parseJson(res)) as Lobby;
   }
 
-  // The live lobbies players can join; with a host, that host's own, live or in setup.
-  async openLobbies(guildId: string, hostId?: string): Promise<Lobby[]> {
-    const query = new URLSearchParams({ guild_id: guildId, ...(hostId ? { host_id: hostId } : {}) });
+  // The live lobbies players can join; with a host, that host's own, live or in
+  // setup; with recent, also those closed in the last day.
+  async openLobbies(guildId: string, hostId?: string, recent = false): Promise<Lobby[]> {
+    const query = new URLSearchParams({ guild_id: guildId, ...(hostId ? { host_id: hostId } : {}), ...(recent ? { recent: "true" } : {}) });
     const res = await this.fetchWithRetry(`${this.lobbyUrl("")}?${query}`, { method: "GET" });
     return (await this.parseJson(res)) as Lobby[];
   }

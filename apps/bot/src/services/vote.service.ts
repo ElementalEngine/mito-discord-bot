@@ -5,7 +5,7 @@ import type { CivDataResponse, SettingQuestion, Vote, VoteBallot } from '../api/
 import type { Panel } from '../ui/kit/index.js';
 import { VOTE_STATUS } from '../ui/panels/lobby.js';
 import { CIV_BANS, LEADER_BANS, questionPanel, voteBansPanel, voteBlindStatusPanel, voteClosedPanel, voteDraftPanels, voteStatusPanel } from '../ui/panels/vote.js';
-import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
+import { deleteMessages, editPanelById, isUnknownMessage, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
@@ -80,7 +80,9 @@ export async function postVote(client: Client, vote: Vote, place: SendableChanne
       .then(async () => {
         for (const option of question.options) if (wanted()) await message.react(option.emoji);
       })
-      .catch((error: unknown) => log.warn('setting reactions not all added', vote.id, error instanceof Error ? error.message : error));
+      .catch((error: unknown) => {
+        if (!isUnknownMessage(error)) log.warn('setting reactions not all added', vote.id, error instanceof Error ? error.message : error);
+      });
   };
   try {
     await post(VOTE_STATUS, voteStatusPanel(vote, questions), { users: playersOf(vote) });

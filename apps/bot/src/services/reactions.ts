@@ -88,7 +88,7 @@ export async function reactionsOn(place: SendableChannels, messageIds: readonly 
     messages.map(async (message) =>
       Promise.all(
         [...(message?.reactions.cache.values() ?? [])].map(async (reaction): Promise<Reaction> => {
-          const users = reaction.count <= (reaction.me ? 1 : 0) ? [] : [...(await reaction.users.fetch()).keys()];
+          const users = reaction.count <= (reaction.me ? 1 : 0) ? [] : [...((await reaction.users.fetch().catch(() => null))?.keys() ?? [])];
           return { id: reaction.emoji.id, name: reaction.emoji.name, users };
         }),
       ),

@@ -3,7 +3,7 @@ import type { Client } from 'discord.js';
 import { ApiClient } from '../api/index.js';
 import type { Actor, CivVersion, Lobby, LobbyShape, SettingQuestion } from '../api/types.js';
 import { config } from '../config.js';
-import { lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
+import { isStarted, lobbyLinkOf, lobbyPanel, type LobbyView } from '../ui/panels/lobby.js';
 import { editPanelById, postPanel } from '../ui/reply.js';
 import { civNames } from './civ-names.js';
 import { recorded, sendableIn } from './setup.js';
@@ -28,17 +28,25 @@ export function lfgRoleFor(shape: LobbyShape, roles: Readonly<{ civ6LfgFfa: stri
   return shape.startsWith('teamer-') ? roles.civ6LfgTeamer : roles.civ6LfgFfa;
 }
 
+// FFAs and duels draft in the FFA voting channel, teamers in the teamer one.
+export function voteChannelOf(lobby: Lobby): string {
+  const c = config.discord.channels;
+  return lobby.mode === 'teamer' ? c.civ6teamerVote : c.civ6ffaVote;
+}
+
 export async function lobbyViewOf(lobby: Lobby, api: ApiClient): Promise<LobbyView> {
   const [names, asked] = await Promise.all([civNames('civ6', api), lobbySettings(lobby.mode, api)]);
   const lfgRole = lobby.lfg ? lfgRoleFor(lobby.shape) || null : null;
-  return { lobby, names, questions: asked, link: lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl), lfgRole };
+  const link = lobbyLinkOf(lobby.steam_link, config.lobbyLinkUrl);
+  return { lobby, names, questions: asked, link, lfgRole, voteChannel: voteChannelOf(lobby) };
 }
 
-// Redraw the lobby's post; a cancelled lobby's post is removed.
+// Redraw the lobby's post. One closed before it started is removed; one that
+// started stays as the record of who played.
 export async function showLobby(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   const channel = await sendableIn(client, lobby.channel_id);
   if (!channel || !lobby.message_id) return;
-  if (lobby.status === 'cancelled') await channel.messages.delete(lobby.message_id).catch(() => undefined);
+  if (lobby.status === 'cancelled' && !isStarted(lobby)) await channel.messages.delete(lobby.message_id).catch(() => undefined);
   else await editPanelById(channel, lobby.message_id, lobbyPanel(await lobbyViewOf(lobby, api)));
 }
 

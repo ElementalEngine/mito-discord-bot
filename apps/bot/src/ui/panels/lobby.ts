@@ -102,31 +102,46 @@ const settingsOf = (lobby: Lobby): Record<string, string> => Object.fromEntries(
 const unsetOf = (settings: Readonly<Record<string, string>>, questions: readonly SettingQuestion[]): SettingQuestion[] =>
   questions.filter((q) => settings[q.id] === undefined);
 
-// A lobby as drawn: its names, settings, Steam link, and the LFG role it pings
-// when asked; null for none.
-export type LobbyView = Readonly<{ lobby: Lobby; names: CivNames; questions: readonly SettingQuestion[]; link: string | null; lfgRole: string | null }>;
+// A lobby as drawn: its names, settings, Steam link, the LFG role it pings
+// when asked (null for none), and the channel its vote runs in.
+export type LobbyView = Readonly<{
+  lobby: Lobby;
+  names: CivNames;
+  questions: readonly SettingQuestion[];
+  link: string | null;
+  lfgRole: string | null;
+  voteChannel: string;
+}>;
 
-// The vote's status message, in the voting channel.
-const voteLinkOf = (lobby: Lobby): string | null => {
-  const status = lobby.vote?.messages[VOTE_STATUS];
-  return lobby.vote?.channel_id && status ? `https://discord.com/channels/${lobby.guild_id}/${lobby.vote.channel_id}/${status}` : null;
-};
+// A lobby has started once its host pressed Start, whatever its vote did since.
+export const isStarted = (lobby: Lobby): boolean =>
+  Boolean(lobby.started_at) || lobby.phase === 'voting' || lobby.phase === 'picking' || lobby.status === 'done';
 
-function whereItDrafts(lobby: Lobby): Block[] {
-  const voteLink = voteLinkOf(lobby);
-  if (lobby.status === 'done') return [text(`### Drafted in ${channel(lobby.vote?.channel_id ?? lobby.channel_id)}`)];
-  if (lobby.phase === 'voting' && voteLink) return [text(`### [Voting](${voteLink})`)];
-  if (lobby.phase === 'picking' && voteLink) return [text(`### [Picking blind](${voteLink})`)];
-  return [];
-}
-
-// The lobby's post, edited in place as it fills and drafts; a closed one is
-// deleted. Seats lock once its host starts it or its countdown ends.
-export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView): Panel {
+// The lobby's post. While players join it is live, with the Steam link and the
+// buttons; once its host starts it, it becomes the lobby's record of who
+// played, never redrawn after. Only the host starts a lobby, full or not.
+export function lobbyPanel({ lobby, names, questions, link, lfgRole, voteChannel }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
   const footer = lobbyFooter(lobby);
-  const open = lobby.status === 'open';
-  const live = open && lobby.phase === 'live';
+  const started = isStarted(lobby);
+  const facts = [
+    ...(lobby.message ? [field('From the host', lobby.message)] : []),
+    field(started ? 'Players' : 'Seats', seatLines(lobby)),
+    field('Settings', settingLines(settingsOf(lobby), questions)),
+    field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
+  ];
+  if (started) {
+    const at = lobby.started_at ? ` ${when(Date.parse(lobby.started_at), 'f')}` : '';
+    return {
+      tone: 'success',
+      surface: 'lobby',
+      title: `${title}: started`,
+      subtitle: `${lobby.players.length} players · ${draftModeName(lobby.draft_mode)}`,
+      body: [text(`### Started${at}\n-# The vote and the draft are in ${channel(voteChannel)}.`), ...facts],
+      footer,
+    };
+  }
+  const full = lobby.players.length >= lobby.seats;
   const actions = [
     row(
       button(lobby, VERB.join, 'Join', ButtonStyle.Success),
@@ -134,24 +149,19 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole }: LobbyView
       button(lobby, VERB.start, 'Start', ButtonStyle.Primary),
     ),
   ];
-  const countdown = live && lobby.deadline ? [text(`### Full: the vote starts ${when(Date.parse(lobby.deadline), 'R')}\n-# Or sooner, when the host presses Start.`)] : [];
   return {
-    tone: open ? 'info' : 'success',
+    tone: 'info',
     surface: 'lobby',
-    title: open ? title : `${title}: drafted`,
+    title,
     subtitle: `${lobby.players.length}/${lobby.seats} seats · ${draftModeName(lobby.draft_mode)}`,
     body: [
-      ...(live && lfgRole && !lobby.deadline ? [text(`<@&${lfgRole}> looking for players`)] : []),
+      ...(lfgRole && !full ? [text(`<@&${lfgRole}> looking for players`)] : []),
       ...(link ? [text(`### [Join the Steam lobby](${link})`)] : []),
-      ...countdown,
-      ...whereItDrafts(lobby),
-      ...(lobby.message ? [field('From the host', lobby.message)] : []),
-      field(live ? 'Seats' : 'Players', seatLines(lobby)),
-      field('Settings', settingLines(settingsOf(lobby), questions)),
-      field('Leader bans', banLine(names, lobby.bans.map((b) => b.token))),
+      ...(full ? [text('### Full: waiting for the host to press Start')] : []),
+      ...facts,
     ],
-    ...(live ? { actions } : {}),
-    footer: live ? `${footer} · closes after 2.5 hours with no activity` : footer,
+    actions,
+    footer: `${footer} · closes after 2.5 hours with no activity`,
   };
 }
 
@@ -173,19 +183,32 @@ export function lobbyDraftPanels({ lobby, names, questions }: LobbyView): Panel[
   return draftOutputPanels(out, names);
 }
 
-const BROWSE: Readonly<Record<string, string>> = { live: '', voting: ' · voting', picking: ' · picking blind' };
+// How many started or closed lobbies browse lists, newest first.
+const RECENT_SHOWN = 20;
 
-// /lobby browse: every open lobby here, linked to its post.
-export function openLobbiesPanel(lobbies: readonly Lobby[]): Panel {
+// /lobby browse: the lobbies open to join, then those started or closed in
+// the last day. A started one links to its post, the record of who played; a
+// lobby closed before it started has none.
+export function lobbiesPanel(lobbies: readonly Lobby[]): Panel {
+  const post = (l: Lobby, label: string): string =>
+    l.message_id ? ` · [${label}](https://discord.com/channels/${l.guild_id}/${l.channel_id}/${l.message_id})` : '';
+  const ago = (at: string | null | undefined, l: Lobby): string => when(Date.parse(at ?? l.updated_at), 'R');
   const line = (l: Lobby): string => {
-    const post = l.message_id ? ` · [open](https://discord.com/channels/${l.guild_id}/${l.channel_id}/${l.message_id})` : '';
-    return `**${SHAPES[l.shape]}** · ${l.players.length}/${l.seats}${BROWSE[l.phase] ?? ''} · hosted by ${mention(l.host_id)}${post}`;
+    const shape = `**${SHAPES[l.shape]}**`;
+    if (isStarted(l)) return `${shape} · started ${ago(l.started_at, l)} · ${l.players.length} players${post(l, 'post')}`;
+    if (l.status !== 'open') return `${shape} · closed ${ago(l.closed_at, l)}`;
+    return `${shape} · ${l.players.length}/${l.seats} · hosted by ${mention(l.host_id)}${post(l, 'open')}`;
   };
+  const open = lobbies.filter((l) => l.status === 'open' && !isStarted(l));
+  const recent = lobbies.filter((l) => !open.includes(l)).slice(0, RECENT_SHOWN);
   return {
     tone: 'info',
     surface: 'lobby',
-    title: 'Open lobbies',
-    body: [text(lobbies.length ? lobbies.map(line).join('\n') : 'No lobby is open here. Host one with /lobby host.')],
+    title: 'Lobbies',
+    body: [
+      field('Open', open.length ? open.map(line).join('\n') : 'No lobby is open here. Host one with /lobby host.'),
+      ...(recent.length ? [field('Started or closed in the last day', recent.map(line).join('\n'))] : []),
+    ],
   };
 }
 
