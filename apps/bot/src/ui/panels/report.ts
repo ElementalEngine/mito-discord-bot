@@ -105,18 +105,28 @@ const MEDALS = ['\u{1f947}', '\u{1f948}', '\u{1f949}'];
 const rankOf = (place: number): string => MEDALS[place - 1] ?? `**${place}.**`;
 const ranked = (match: Match): Seat[] => seatsOf(match).sort((a, b) => placeOf(a) - placeOf(b) || a.index - b.index);
 
-// The player and civ, marked for a quit or a sub-in; then the rating moves.
-function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string {
-  const p = s.player;
+// A player's rating moves, with the delta sign players know from the Elo
+// tables, then the in-game score where the save recorded one. A cloud game
+// has no seasons: its ratings are its mode's board and Overall.
+function deltasOf(match: Match, p: Player): string {
   const second = match.is_cloud ? p.combined_delta : p.season_delta;
-  const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
-  // Each rating change carries the delta sign players know from the Elo tables;
-  // the in-game score follows where the save recorded one.
-  // A cloud game has no seasons: its ratings are its mode's board and Overall.
   const deltas = [`\u0394 ${signed(p.delta)} ${match.is_cloud ? modeLabel(match) : 'lifetime'}`];
   if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'Overall' : (match.season_label ?? 'season')}`);
   if (typeof p.score === 'number') deltas.push(`score ${p.score}`);
-  return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
+  return deltas.join(' \u00b7 ');
+}
+
+// The player and civ, marked for a quit or a sub-in; then the rating moves,
+// and for a sub-in the moves of the player who left.
+function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string {
+  const p = s.player;
+  const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
+  const lines = [`${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}`, `-# ${deltasOf(match, p)}`];
+  if (s.leaver) {
+    const quit = s.leaver.quit ? ` ${MARK.quit}` : '';
+    lines.push(`-# ${MARK.sub} ${who(s.leaver)}${quit} subbed out \u00b7 ${deltasOf(match, s.leaver)}`);
+  }
+  return lines.join('\n');
 }
 
 function standings(match: Match, names: CivNames): string {
@@ -180,7 +190,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
 
 function reportButtons(matchId: string): ButtonRow {
   return row(
-    new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest / withdraw').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(reportId('approve', matchId)).setLabel('Approve').setStyle(ButtonStyle.Success),
   );
 }
@@ -251,6 +261,17 @@ export function revertedPanel(match: Match, by: string): Panel {
     subtitle: `Match \`${match.match_id}\``,
     body: [text(`Reverted by ${mention(by)}. Ratings are restored for ${players}.`)],
   };
+}
+
+// Every seat in standing order, its place counted from 1st, named for the
+// report log: the server name where known, else the save's.
+export function standingOf(match: Match, members: ReadonlyMap<string, string>): string[] {
+  return ranked(match).map((s) => {
+    const p = s.player;
+    const id = isAssigned(p) ? (p.discord_id ?? '') : null;
+    const name = id ? `${members.get(id) ?? p.user_name ?? 'unknown'} (${id})` : `${p.user_name ?? 'unknown'} (unassigned)`;
+    return `${ordinal(placeOf(s))} ${name}`;
+  });
 }
 
 // The match's players: who a report and its result ping, and who may contest.

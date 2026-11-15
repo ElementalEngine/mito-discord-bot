@@ -383,47 +383,82 @@ export function subEdits(match: Match, n: number, left: string | null): SeatEdit
   return [{ seat: seat.index, sub_out: left }];
 }
 
-// Staff put two or more seats (or teams) level at one place; a tie of two
-// leaves one place fewer, so the last place is not offered.
+// The units in standing order, those level at one place grouped together.
+function groupsOf(units: readonly Unit[]): Unit[][] {
+  const groups: Unit[][] = [];
+  for (const u of units) {
+    const last = groups.at(-1);
+    if (last && last[0]!.seats[0]!.player.placement === u.seats[0]!.player.placement) last.push(u);
+    else groups.push([u]);
+  }
+  return groups;
+}
+
+// Two or more seats (or teams) put level at one place, or a tie undone. The
+// form opens with everyone already tied ticked, as Assign quits does; a tie
+// of two leaves one place fewer, so the last place is not offered.
 export function tieForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   const units = unitsOf(match);
+  const ties = groupsOf(units).map((group, at) => ({ group, place: at + 1 })).filter((t) => t.group.length > 1);
+  const tied = new Set(ties.flatMap((t) => t.group.map((u) => u.id)));
+  const only = ties.length === 1 ? ties[0]!.place : null;
   const word = isTeamer(match) ? 'teams' : 'players';
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.tieForm, match.match_id))
     .setTitle('Set a tie')
     .addLabelComponents(
-      new LabelBuilder().setLabel('Place').setStringSelectMenuComponent(
-        new StringSelectMenuBuilder()
-          .setCustomId(FIELD.place)
-          .setRequired(true)
-          .addOptions(units.slice(1).map((_, i) => ({ label: ordinal(i + 1), value: String(i + 1) }))),
-      ),
+      new LabelBuilder()
+        .setLabel('Place')
+        .setDescription('Where the tie stands. Not needed to untie.')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.place)
+            .setMinValues(0)
+            .setMaxValues(1)
+            .setRequired(false)
+            .addOptions(units.slice(1).map((_, i) => ({ label: ordinal(i + 1), value: String(i + 1), default: i + 1 === only }))),
+        ),
       new LabelBuilder()
         .setLabel(`Tied ${word}`)
-        .setDescription('Everyone else keeps their order around them.')
+        .setDescription(`Tick the ${word} tied at that place. Untick to untie.`)
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.tied)
-            .setMinValues(2)
+            .setMinValues(0)
             .setMaxValues(units.length)
-            .setRequired(true)
-            .addOptions(units.map((u) => unitOption(match, u, names, members))),
+            .setRequired(false)
+            .addOptions(units.map((u) => ({ ...unitOption(match, u, names, members), default: tied.has(u.id) }))),
         ),
     );
 }
 
-// The tied units become one group at the place; the rest keep their groups.
-export function tieEdits(match: Match, place: number, tied: readonly number[]): SeatEdit[] {
+// Unticked units leave their tie and take the places just below it, in their
+// order. Ticked units not yet tied join the tie at the place, with whoever of
+// the tie already there stays ticked; a tie elsewhere left ticked stands.
+export function tieEdits(match: Match, place: number | null, ticked: readonly number[]): SeatEdit[] | string {
   const units = unitsOf(match);
-  const level = units.filter((u) => tied.includes(u.id));
-  const groups: Unit[][] = [];
-  for (const u of units.filter((x) => !tied.includes(x.id))) {
-    const last = groups.at(-1);
-    if (last && last[0]!.seats[0]!.player.placement === u.seats[0]!.player.placement) last.push(u);
-    else groups.push([u]);
+  const groups = groupsOf(units);
+  const isTicked = (u: Unit): boolean => ticked.includes(u.id);
+  const joining = groups.filter((g) => g.length === 1 && isTicked(g[0]!)).flat();
+  let tie: Unit[] = [];
+  let at = 0;
+  if (joining.length) {
+    if (place === null) return 'Pick the place for the tie.';
+    at = place - 1;
+    const there = groups[at];
+    tie = [...(there && there.length > 1 ? there.filter(isTicked) : []), ...joining];
+    if (tie.length < 2) return `A tie needs two or more ${isTeamer(match) ? 'teams' : 'players'}.`;
   }
-  groups.splice(Math.min(place - 1, groups.length), 0, level);
-  return placeEdits(units, new Map(groups.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
+  const inTie = new Set(tie.map((u) => u.id));
+  const rest: Unit[][] = [];
+  for (const group of groups) {
+    const left = group.filter((u) => !inTie.has(u.id));
+    const kept = group.length > 1 ? left.filter(isTicked) : left;
+    if (kept.length) rest.push(kept);
+    for (const u of left.filter((x) => !kept.includes(x))) rest.push([u]);
+  }
+  if (tie.length) rest.splice(Math.min(at, rest.length), 0, tie.sort((a, b) => units.indexOf(a) - units.indexOf(b)));
+  return placeEdits(units, new Map(rest.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
 }
 
 const leftValue = (s: Numbered): string => `${s.n}-left`;

@@ -24,6 +24,7 @@ import {
   inTurn,
   quittersOf,
   refreshReport,
+  tellPlayersOfEdit,
   tellStaffOfQuits,
   viewOf,
 } from '../services/report.service.js';
@@ -50,7 +51,7 @@ import {
   type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
-import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
+import { contestedPanel, playerIds, reportPanel, standingOf, WITHDRAW } from '../ui/panels/report.js';
 import { beforeForm } from '../ui/before-form.js';
 import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isDeveloper, isStaff } from '../utils/access.js';
@@ -95,6 +96,9 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 const DRAFT_ACTION: Readonly<Record<DraftKind, string>> = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' };
+// The edits that change who played or the order, and what their ping says;
+// civs, quits and ties do not ping.
+const PING: Readonly<Record<string, string>> = { 'set-order': 'the order', 'assign-players': 'who played', 'assign-sub': 'a sub' };
 
 // The member picked in a form's user field, if any.
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
@@ -224,7 +228,7 @@ async function done(interaction: ButtonInteraction, matchId: string): Promise<vo
 }
 
 // /report-edit: the editor is the reporter's or staff's; core-api checks the
-// reporter again on every save, and only staff may set a tie.
+// reporter again on every save.
 export async function openEditor(interaction: ChatInputCommandInteraction, matchId: string): Promise<void> {
   const busy = (): string | null => {
     const holder = editors.holder(matchId);
@@ -287,7 +291,21 @@ async function saveSeats(
   if (quitters.length && !(await tellStaffOfQuits(interaction.client, match, quitters, interaction.user.id))) {
     await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
   }
-  await logAction(interaction, action, { matchId, seats });
+  const ping = PING[action];
+  if (ping && !(await tellPlayersOfEdit(interaction.client, match, ping))) {
+    await say(interaction, 'failed', 'Saved, but the players could not be told. Tell them yourself.');
+  }
+  await logAction(interaction, action, editDetails(interaction, match, seats));
+}
+
+// What the report log keeps of an edit. One that moved places gives the
+// standing from 1st with names, and its other seat changes without the
+// stored places, which count from 0.
+function editDetails(interaction: EditorMessage, match: Match, seats: readonly SeatEdit[]): Record<string, unknown> {
+  if (!seats.some((s) => typeof s.placement === 'number')) return { matchId: match.match_id, seats };
+  const others = seats.map(({ placement, ...edit }) => edit).filter((edit) => Object.keys(edit).length > 1);
+  const standing = standingOf(match, memberNames(interaction.guild, playerIds(match)));
+  return { matchId: match.match_id, standing, ...(others.length ? { seats: others } : {}) };
 }
 
 // Hold the editor, work out the edits from the report as it is now, and save
@@ -427,10 +445,12 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selectedIn(interaction, [FIELD.quits])));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
-      const place = Number(selectedIn(interaction, [FIELD.place])[0]);
+      const [place] = selectedIn(interaction, [FIELD.place]);
       const tied = selectedIn(interaction, [FIELD.tied]).map(Number);
-      if (!Number.isInteger(place) || !tied.length) refuse('Pick a place and the seats tied there.');
-      await submit(interaction, matchId, 'set-tie', 'Those are already tied there.', (m) => tieEdits(m, place, tied));
+      await submit(interaction, matchId, 'set-tie', 'Nothing changed.', (m) => {
+        const edits = tieEdits(m, place === undefined ? null : Number(place), tied);
+        return typeof edits === 'string' ? refuse(edits) : edits;
+      });
     } else {
       await say(interaction, 'refused', 'That control is out of date. Open the report again.');
     }
