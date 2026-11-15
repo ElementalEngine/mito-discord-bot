@@ -2,7 +2,7 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 
 import { rollPanel } from '../../ui/panels/misc.js';
 import { refuse, respond } from '../../ui/reply.js';
-import { drawDistinct } from '../../utils/draw.js';
+import { drawDistinct, rollDice } from '../../utils/draw.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
 import { postAboutOf, tagPing, withPostOptions } from '../../utils/post-options.js';
 
@@ -12,16 +12,19 @@ export const data = withPostOptions(
   new SlashCommandBuilder()
     .setContexts(InteractionContextType.Guild)
     .setName('roll')
-    .setDescription('Draw distinct numbers: a turn order, or picks from a range.')
-    .addIntegerOption((o) => o.setName('count').setDescription('How many numbers').setRequired(true).setMinValue(1).setMaxValue(MAX))
-    .addIntegerOption((o) => o.setName('max').setDescription('Highest number; leave empty for a turn order of count').setMinValue(1).setMaxValue(MAX)),
+    .setDescription('Roll dice, or draw a turn order with unique.')
+    .addIntegerOption((o) => o.setName('count').setDescription('How many dice').setRequired(true).setMinValue(1).setMaxValue(MAX))
+    .addIntegerOption((o) => o.setName('sides').setDescription('Sides on each die').setRequired(true).setMinValue(2).setMaxValue(MAX))
+    .addBooleanOption((o) => o.setName('unique').setDescription('No repeats: each number once, as for a turn order')),
 );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!(await ensureCommandAccess(interaction))) return;
   const count = interaction.options.getInteger('count', true);
-  const max = interaction.options.getInteger('max') ?? count;
-  if (count > max) refuse(`Cannot draw ${count} different numbers from 1 to ${max}. Raise max or lower count.`);
+  const sides = interaction.options.getInteger('sides', true);
+  const unique = interaction.options.getBoolean('unique') ?? false;
+  if (unique && count > sides) refuse(`Cannot draw ${count} different numbers from 1 to ${sides}. Raise sides or lower count.`);
+  const drawn = unique ? drawDistinct(count, sides) : rollDice(count, sides);
   const about = postAboutOf(interaction);
-  await respond(interaction, rollPanel(drawDistinct(count, max), max, about), 'public', { allowedMentions: tagPing(about) });
+  await respond(interaction, rollPanel(drawn, sides, unique, about), 'public', { allowedMentions: tagPing(about) });
 }
