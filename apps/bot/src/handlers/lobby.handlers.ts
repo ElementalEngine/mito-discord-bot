@@ -218,13 +218,13 @@ async function setBans(interaction: ModalSubmitInteraction, lobbyId: string): Pr
 }
 
 // A press on the lobby's post: the change, then the post redrawn. The host's
-// Start opens the bans vote; a full lobby's countdown opens it at its end.
+// Start turns the post into the lobby's record, then opens the bans vote.
 async function onPost(interaction: ButtonInteraction, lobbyId: string, change: () => Promise<Lobby>): Promise<void> {
   await holdPanel(interaction);
   await inSetupTurn(lobbyId, async () => {
     const changed = await change();
-    if (changed.phase === 'voting') return openVote(interaction.client, changed, api);
     await showLobby(interaction.client, changed, api);
+    if (changed.phase === 'voting') return openVote(interaction.client, changed, api);
     keepTime(interaction.client, changed, api);
   });
 }
