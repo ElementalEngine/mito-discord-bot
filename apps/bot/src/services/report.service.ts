@@ -120,7 +120,7 @@ export async function refreshReport(client: Client, match: Match, panel: Panel):
   const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
   if (!id || !channel?.isTextBased()) return false;
   return editPanelById(channel, id, panel).then(
-    () => true,
+    (edited) => edited !== null,
     (error: unknown) => {
       log.warn('report not refreshed', match.match_id, error instanceof Error ? error.message : error);
       return false;

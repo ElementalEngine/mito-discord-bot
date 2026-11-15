@@ -7,7 +7,7 @@ import type { Panel } from '../ui/kit/index.js';
 import { VOTE_STATUS, lobbyDraftPanels } from '../ui/panels/lobby.js';
 import { blindStatusPanel, bansVotePanel, lobbyVoteClosedPanel, votedOn } from '../ui/panels/lobby-vote.js';
 import { questionPanel } from '../ui/panels/vote.js';
-import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
+import { deleteMessages, editPanelById, isUnknownMessage, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
@@ -72,7 +72,9 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
         .then(async () => {
           for (const option of question.options) if (votes.open(question)) await posted.react(option.emoji);
         })
-        .catch((error: unknown) => log.warn('setting reactions not all added', lobby.id, error instanceof Error ? error.message : error));
+        .catch((error: unknown) => {
+          if (!isUnknownMessage(error)) log.warn('setting reactions not all added', lobby.id, error instanceof Error ? error.message : error);
+        });
     }
     placed = await api.placeVote(lobby.id, { id: lobby.host_id }, { channel_id: where.id, messages });
   } catch (error) {
