@@ -333,7 +333,6 @@ async function draft(
   kind: DraftKind,
   step?: Step,
 ): Promise<void> {
-  if (kind === 'civs' && !isStaff(interaction)) refuse('Only staff can set civs.');
   await hold(interaction, matchId);
   await inTurn(matchId, async () => {
     let held = drafts.get(matchId);
@@ -341,6 +340,7 @@ async function draft(
       const match = await api.match(matchId);
       held = { kind, base: match, now: match, rev: held?.rev ?? 0, focus: 0 };
     }
+    if (kind === 'assign' && !held.now.is_cloud && !isStaff(interaction)) refuse('Only staff can assign players in a real-time game.');
     const names = await civNames(versionOf(held.now.game), api);
     if (!step && kind === 'civs') held = { ...held, focus: civFocus(held.now, names) };
     const next = step ? step(held, names) : held;
@@ -405,7 +405,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
       await openForm(interaction, matchId, quitsForm, 'Assign players before marking who quit.');
     } else if (interaction.isButton() && id.verb === EDIT.tie) {
-      if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
       await draft(interaction, matchId, 'civs');
