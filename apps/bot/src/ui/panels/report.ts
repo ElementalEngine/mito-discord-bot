@@ -190,7 +190,7 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
 
 function reportButtons(matchId: string): ButtonRow {
   return row(
-    new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(reportId('contest', matchId)).setLabel('Contest / withdraw').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(reportId('approve', matchId)).setLabel('Approve').setStyle(ButtonStyle.Success),
   );
 }

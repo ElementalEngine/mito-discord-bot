@@ -224,7 +224,7 @@ async function done(interaction: ButtonInteraction, matchId: string): Promise<vo
 }
 
 // /report-edit: the editor is the reporter's or staff's; core-api checks the
-// reporter again on every save, and only staff may set a tie.
+// reporter again on every save.
 export async function openEditor(interaction: ChatInputCommandInteraction, matchId: string): Promise<void> {
   const busy = (): string | null => {
     const holder = editors.holder(matchId);
@@ -427,10 +427,12 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selectedIn(interaction, [FIELD.quits])));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
-      const place = Number(selectedIn(interaction, [FIELD.place])[0]);
+      const [place] = selectedIn(interaction, [FIELD.place]);
       const tied = selectedIn(interaction, [FIELD.tied]).map(Number);
-      if (!Number.isInteger(place) || !tied.length) refuse('Pick a place and the seats tied there.');
-      await submit(interaction, matchId, 'set-tie', 'Those are already tied there.', (m) => tieEdits(m, place, tied));
+      await submit(interaction, matchId, 'set-tie', 'Nothing changed.', (m) => {
+        const edits = tieEdits(m, place === undefined ? null : Number(place), tied);
+        return typeof edits === 'string' ? refuse(edits) : edits;
+      });
     } else {
       await say(interaction, 'refused', 'That control is out of date. Open the report again.');
     }
