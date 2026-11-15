@@ -193,7 +193,9 @@ export function reportPanel({ match, names, quotas }: ReportView): Panel {
     const heading = approved ? [] : ['**For staff**'];
     body.push(divider(), text([...heading, ...notes.map((n) => n.line)].join('\n')));
   }
-  const reported = `Reported by ${mention(match.reporter_discord_id)} \u00b7 ${when(new Date(match.created_at), 'f')}`;
+  // A pending report also says when it was last changed, so staff see it before approving.
+  const updated = !approved && match.updated_at ? ` \u00b7 last updated ${when(new Date(match.updated_at), 'f')}` : '';
+  const reported = `Reported by ${mention(match.reporter_discord_id)} \u00b7 ${when(new Date(match.created_at), 'f')}${updated}`;
   return {
     tone: approved ? 'success' : notes.some((n) => n.holds) ? 'refused' : 'info',
     surface: 'report',
