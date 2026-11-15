@@ -211,6 +211,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/infractions/suspended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suspended */
+        get: operations["suspended_api_v2_infractions_suspended_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/tiers/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tier Members */
+        get: operations["tier_members_api_v2_infractions_tiers__category__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/infractions/{discord_id}": {
         parameters: {
             query?: never;
@@ -677,7 +711,8 @@ export interface paths {
         /**
          * Tally Vote
          * @description Settle the settings put to the vote, count the bans and deal the draft.
-         *     The bot counts, acting as the host, once all finish or the time is up.
+         *     The bot counts, acting as the host, once all finish or the time is up; a
+         *     vote not every player finished is cancelled.
          */
         post: operations["tally_vote_api_v2_match_setups_lobbies__lobby_id__tally_post"];
         delete?: never;
@@ -915,7 +950,8 @@ export interface paths {
         /**
          * Tally Vote
          * @description Count the settings, the draft mode and the bans, and deal the draft. The
-         *     bot counts, acting as the host, once all finish or the time is up.
+         *     bot counts, acting as the host, once all finish or the time is up; a vote
+         *     not every player finished is cancelled.
          */
         post: operations["tally_vote_api_v2_match_setups_votes__vote_id__tally_post"];
         delete?: never;
@@ -1365,10 +1401,7 @@ export interface components {
         Body_upload_match_api_v2_matches_post: {
             /** Discord Message Id */
             discord_message_id: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Is Cloud */
             is_cloud: string;
@@ -1924,6 +1957,8 @@ export interface components {
             season_label?: string | null;
             /** Turn */
             turn: number;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** PendingApplied */
         PendingApplied: {
@@ -2354,6 +2389,11 @@ export interface components {
          * @enum {string}
          */
         SupportedGame: "civ6" | "civ7";
+        /** Suspended */
+        Suspended: {
+            /** Discord Ids */
+            discord_ids: string[];
+        };
         /**
          * SuspensionCleared
          * @description A suspension ended, with the roles the bot should give back; `suspended`
@@ -2408,6 +2448,20 @@ export interface components {
          * @enum {string}
          */
         TierCategory: "quit" | "minor" | "moderate" | "major" | "extreme" | "lagger";
+        /** TierMember */
+        TierMember: {
+            /** Discord Id */
+            discord_id: string;
+            /** Held */
+            held: boolean;
+            /** Tier */
+            tier: number;
+        };
+        /** TierMembers */
+        TierMembers: {
+            /** Members */
+            members: components["schemas"]["TierMember"][];
+        };
         /** TierRemoved */
         TierRemoved: {
             category: components["schemas"]["TierCategory"];
@@ -2511,6 +2565,8 @@ export interface components {
             season_label?: string | null;
             /** Turn */
             turn: number;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** UserStatsResponseV2 */
         UserStatsResponseV2: {
@@ -2527,6 +2583,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -3054,6 +3114,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Laggers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspended_api_v2_infractions_suspended_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suspended"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tier_members_api_v2_infractions_tiers__category__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                category: "quit" | "minor" | "moderate" | "major" | "extreme";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierMembers"];
                 };
             };
             /** @description Validation Error */

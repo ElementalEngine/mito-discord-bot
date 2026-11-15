@@ -49,11 +49,15 @@ export function isTeamer(match: Match): boolean {
   return match.game_mode.toLowerCase().includes('team');
 }
 
-// "Civ6 FFA", "Civ7 PBC Teamer"; the stored mode may carry a pbc- prefix.
-export function reportLabel(match: Match): string {
+// The match's mode as players name it; the stored mode may carry a pbc- prefix.
+function modeLabel(match: Match): string {
   const mode = match.game_mode.toLowerCase().replace(/^pbc-/, '');
-  const shown = isTeamer(match) ? 'Teamer' : mode === 'duel' ? 'Duel' : 'FFA';
-  return `${match.game.toLowerCase() === 'civ7' ? 'Civ7' : 'Civ6'} ${match.is_cloud ? 'PBC ' : ''}${shown}`;
+  return isTeamer(match) ? 'Teamer' : mode === 'duel' ? 'Duel' : 'FFA';
+}
+
+// "Civ6 FFA", "Civ7 PBC Teamer".
+export function reportLabel(match: Match): string {
+  return `${match.game.toLowerCase() === 'civ7' ? 'Civ7' : 'Civ6'} ${match.is_cloud ? 'PBC ' : ''}${modeLabel(match)}`;
 }
 
 // Saves store a map file name such as Seven_Seas, a name already, or a map
@@ -108,8 +112,9 @@ function seatLines(match: Match, s: Seat, names: CivNames, rank: string): string
   const marks = `${p.quit ? ` ${MARK.quit}` : ''}${s.leaver ? ` ${MARK.sub}` : ''}`;
   // Each rating change carries the delta sign players know from the Elo tables;
   // the in-game score follows where the save recorded one.
-  const deltas = [`\u0394 ${signed(p.delta)} lifetime`];
-  if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'combined' : (match.season_label ?? 'season')}`);
+  // A cloud game has no seasons: its ratings are its mode's board and Overall.
+  const deltas = [`\u0394 ${signed(p.delta)} ${match.is_cloud ? modeLabel(match) : 'lifetime'}`];
+  if (typeof second === 'number') deltas.push(`\u0394 ${signed(second)} ${match.is_cloud ? 'Overall' : (match.season_label ?? 'season')}`);
   if (typeof p.score === 'number') deltas.push(`score ${p.score}`);
   return `${rank} ${who(p)}${marks} \u2014 ${civOf(match, p, names)}\n-# ${deltas.join(' \u00b7 ')}`;
 }
@@ -193,7 +198,9 @@ export function reportPanel({ match, names, quotas }: ReportView): Panel {
     const heading = approved ? [] : ['**For staff**'];
     body.push(divider(), text([...heading, ...notes.map((n) => n.line)].join('\n')));
   }
-  const reported = `Reported by ${mention(match.reporter_discord_id)} \u00b7 ${when(new Date(match.created_at), 'f')}`;
+  // A pending report also says when it was last changed, so staff see it before approving.
+  const updated = !approved && match.updated_at ? ` \u00b7 last updated ${when(new Date(match.updated_at), 'f')}` : '';
+  const reported = `Reported by ${mention(match.reporter_discord_id)} \u00b7 ${when(new Date(match.created_at), 'f')}${updated}`;
   return {
     tone: approved ? 'success' : notes.some((n) => n.holds) ? 'refused' : 'info',
     surface: 'report',

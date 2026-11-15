@@ -150,18 +150,19 @@ const rowsOf = (buttons: readonly ButtonBuilder[]): Block[] =>
   pagesOf(buttons).map((five) => inBody(...five));
 
 // The private panel a report is fixed from: one seat at a time, then in
-// bulk; a tie and civs are staff's, as core-api requires.
+// bulk. On a real-time report only staff assign players, as core-api requires:
+// the save names them, so a different player is for staff to check.
 export function editorPanel(match: Match, names: CivNames, members: Members, asStaff: boolean): Panel {
   const seats = numbered(match);
   const id = match.match_id;
   const single = [
     button(id, EDIT.sub, 'Assign a sub', ButtonStyle.Secondary),
-    ...(asStaff && unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
-    ...(asStaff ? [button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary)] : []),
+    ...(unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
+    button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary),
   ];
   const bulk = [
     button(id, EDIT.order, 'Set order', ButtonStyle.Primary),
-    button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
+    ...(asStaff || match.is_cloud ? [button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary)] : []),
     button(id, EDIT.quits, 'Assign quits', ButtonStyle.Secondary),
   ];
   const body: Block[] = [

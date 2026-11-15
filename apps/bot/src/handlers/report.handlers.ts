@@ -28,7 +28,7 @@ import {
   viewOf,
 } from '../services/report.service.js';
 import { memberNames } from '../services/members.js';
-import { channel as channelMention, customId, mention, notice, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mention, notice, parseId, when, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
@@ -53,7 +53,7 @@ import {
 import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
 import { beforeForm } from '../ui/before-form.js';
 import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
-import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
+import { isAdminOrDeveloper, isDeveloper, isStaff } from '../utils/access.js';
 import { versionOf } from '../utils/edition.js';
 import type { Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -132,7 +132,18 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
   await inTurn(matchId, () => approveInTurn(interaction, matchId));
 }
 
+// A report is approved by hand only once a day has passed since it was
+// reported, so its players have had time to check it; developers may approve sooner.
+const APPROVE_WAIT_MS = 24 * 60 * 60 * 1000;
+
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  if (!isDeveloper(interaction)) {
+    const reported = await api.match(matchId);
+    const opens = new Date(reported.created_at).getTime() + APPROVE_WAIT_MS;
+    if (!reported.approved_at && Date.now() < opens) {
+      refuse(`A report can be approved 24 hours after it was reported: ${when(opens, 'R')}.`);
+    }
+  }
   const match = await api.approve(matchId, { id: interaction.user.id });
   closeEditor(matchId);
   const published = await publishApproved(interaction.client, match, api);
@@ -322,7 +333,6 @@ async function draft(
   kind: DraftKind,
   step?: Step,
 ): Promise<void> {
-  if (kind === 'civs' && !isStaff(interaction)) refuse('Only staff can set civs.');
   await hold(interaction, matchId);
   await inTurn(matchId, async () => {
     let held = drafts.get(matchId);
@@ -330,6 +340,7 @@ async function draft(
       const match = await api.match(matchId);
       held = { kind, base: match, now: match, rev: held?.rev ?? 0, focus: 0 };
     }
+    if (kind === 'assign' && !held.now.is_cloud && !isStaff(interaction)) refuse('Only staff can assign players in a real-time game.');
     const names = await civNames(versionOf(held.now.game), api);
     if (!step && kind === 'civs') held = { ...held, focus: civFocus(held.now, names) };
     const next = step ? step(held, names) : held;
@@ -394,7 +405,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
       await openForm(interaction, matchId, quitsForm, 'Assign players before marking who quit.');
     } else if (interaction.isButton() && id.verb === EDIT.tie) {
-      if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
       await draft(interaction, matchId, 'civs');
