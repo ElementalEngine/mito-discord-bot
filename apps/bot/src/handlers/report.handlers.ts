@@ -33,6 +33,7 @@ import { channel as channelMention, customId, mentionWithId, notice, parseId, wh
 import {
   EDIT,
   FIELD,
+  assignIdForm,
   civFocus,
   closedEditor,
   draftEdits,
@@ -44,6 +45,7 @@ import {
   subForm,
   tieEdits,
   tieForm,
+  typedId,
   withAssignPick,
   withCivPick,
   withOrderPick,
@@ -104,6 +106,13 @@ const PING: Readonly<Record<string, string>> = { 'set-order': 'the order', 'assi
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
   interaction.fields.getSelectedUsers(field)?.first()?.id ?? null;
 
+// The Discord id typed into a form's field, if any; refused when it is not one.
+function pastedIn(interaction: ModalSubmitInteraction, field: string): string | null {
+  const id = typedId(interaction.fields.getTextInputValue(field));
+  if (id === undefined) refuse("That is not a Discord id. It is the long number from the player's profile: Copy User ID.");
+  return id;
+}
+
 const ACTION: Readonly<Record<string, string>> = {
   approve: 'approve the report',
   contest: 'open the contest form',
@@ -115,6 +124,8 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.orderPick]: 'move that place',
   [EDIT.assign]: 'open the assign panel',
   [EDIT.assignPick]: 'set that seat',
+  [EDIT.assignId]: 'open the id form',
+  [EDIT.assignIdForm]: 'set that seat',
   [EDIT.save]: 'save the changes',
   [EDIT.tie]: 'open the tie form',
   [EDIT.tieForm]: 'save the tie',
@@ -328,9 +339,9 @@ async function submit(
 }
 
 // A press on the editor's own message holds it and keeps it open.
-async function hold(interaction: ButtonInteraction | AnySelectMenuInteraction, matchId: string): Promise<void> {
+async function hold(interaction: EditorPress, matchId: string): Promise<void> {
   await holdPanel(interaction);
-  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
+  if (!editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
 }
 
 async function back(interaction: ButtonInteraction, matchId: string): Promise<void> {
@@ -346,7 +357,7 @@ async function back(interaction: ButtonInteraction, matchId: string): Promise<vo
 // step the bot holds no draft for starts again from the report as it is.
 type Step = (draft: Draft, names: CivNames) => Draft | string;
 async function draft(
-  interaction: ButtonInteraction | AnySelectMenuInteraction,
+  interaction: EditorPress,
   matchId: string,
   kind: DraftKind,
   step?: Step,
@@ -411,6 +422,15 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         const now = withAssignPick(d.base, d.now, at, interaction.values[0] ?? '');
         return typeof now === 'string' ? now : { ...d, now };
       });
+    } else if (interaction.isButton() && id.verb === EDIT.assignId) {
+      await openForm(interaction, matchId, assignIdForm);
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.assignIdForm) {
+      const seat = Number(selectedIn(interaction, [FIELD.seat])[0]);
+      const player = pastedIn(interaction, FIELD.playerId) ?? '';
+      await draft(interaction, matchId, 'assign', (d) => {
+        const now = withAssignPick(d.base, d.now, seat, player);
+        return typeof now === 'string' ? now : { ...d, now };
+      });
     } else if (interaction.isButton() && id.verb === EDIT.order) {
       await draft(interaction, matchId, 'order');
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.orderPick) {
@@ -437,7 +457,11 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.subForm) {
       const seat = Number(selectedIn(interaction, [FIELD.seat])[0]);
-      const left = picked(interaction, FIELD.left);
+      const member = picked(interaction, FIELD.left);
+      const pasted = pastedIn(interaction, FIELD.leftId);
+      if (member && pasted && member !== pasted) refuse('Pick the player or paste their id, not both.');
+      const left = member ?? pasted;
+      if (!left) refuse('Pick the player who left, or paste their Discord id.');
       await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => {
         const edits = subEdits(m, seat, left);
         return typeof edits === 'string' ? refuse(edits) : edits;
