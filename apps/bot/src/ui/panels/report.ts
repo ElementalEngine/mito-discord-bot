@@ -263,6 +263,17 @@ export function revertedPanel(match: Match, by: string): Panel {
   };
 }
 
+// Every seat in standing order, its place counted from 1st, named for the
+// report log: the server name where known, else the save's.
+export function standingOf(match: Match, members: ReadonlyMap<string, string>): string[] {
+  return ranked(match).map((s) => {
+    const p = s.player;
+    const id = isAssigned(p) ? (p.discord_id ?? '') : null;
+    const name = id ? `${members.get(id) ?? p.user_name ?? 'unknown'} (${id})` : `${p.user_name ?? 'unknown'} (unassigned)`;
+    return `${ordinal(placeOf(s))} ${name}`;
+  });
+}
+
 // The match's players: who a report and its result ping, and who may contest.
 export function playerIds(match: Match): string[] {
   return [...new Set(match.players.filter(isAssigned).map((p) => p.discord_id ?? ''))];

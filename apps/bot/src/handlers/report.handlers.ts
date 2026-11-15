@@ -50,7 +50,7 @@ import {
   type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
-import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
+import { contestedPanel, playerIds, reportPanel, standingOf, WITHDRAW } from '../ui/panels/report.js';
 import { beforeForm } from '../ui/before-form.js';
 import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isDeveloper, isStaff } from '../utils/access.js';
@@ -287,7 +287,17 @@ async function saveSeats(
   if (quitters.length && !(await tellStaffOfQuits(interaction.client, match, quitters, interaction.user.id))) {
     await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
   }
-  await logAction(interaction, action, { matchId, seats });
+  await logAction(interaction, action, editDetails(interaction, match, seats));
+}
+
+// What the report log keeps of an edit. One that moved places gives the
+// standing from 1st with names, and its other seat changes without the
+// stored places, which count from 0.
+function editDetails(interaction: EditorMessage, match: Match, seats: readonly SeatEdit[]): Record<string, unknown> {
+  if (!seats.some((s) => typeof s.placement === 'number')) return { matchId: match.match_id, seats };
+  const others = seats.map(({ placement, ...edit }) => edit).filter((edit) => Object.keys(edit).length > 1);
+  const standing = standingOf(match, memberNames(interaction.guild, playerIds(match)));
+  return { matchId: match.match_id, standing, ...(others.length ? { seats: others } : {}) };
 }
 
 // Hold the editor, work out the edits from the report as it is now, and save
