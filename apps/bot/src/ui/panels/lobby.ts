@@ -117,9 +117,18 @@ export type LobbyView = Readonly<{
 export const isStarted = (lobby: Lobby): boolean =>
   Boolean(lobby.started_at) || lobby.phase === 'voting' || lobby.phase === 'picking' || lobby.status === 'done';
 
+// Why a lobby was cancelled after its start, for its record.
+const CANCELLED: Readonly<Record<string, string>> = {
+  host: 'by the host',
+  staff: 'by staff',
+  inactive: 'when a player did not finish the vote',
+  idle: 'for inactivity',
+};
+
 // The lobby's post. While players join it is live, with the Steam link and the
 // buttons; once its host starts it, it becomes the lobby's record of who
-// played, never redrawn after. Only the host starts a lobby, full or not.
+// played, redrawn only to say it was cancelled. Only the host starts a lobby,
+// full or not.
 export function lobbyPanel({ lobby, names, questions, link, lfgRole, voteChannel }: LobbyView): Panel {
   const title = `Civ6 ${SHAPES[lobby.shape]} lobby`;
   const footer = lobbyFooter(lobby);
@@ -132,12 +141,14 @@ export function lobbyPanel({ lobby, names, questions, link, lfgRole, voteChannel
   ];
   if (started) {
     const at = lobby.started_at ? ` ${when(Date.parse(lobby.started_at), 'f')}` : '';
+    const cancelled = lobby.status === 'cancelled';
+    const then = cancelled ? `Cancelled ${CANCELLED[lobby.cancel_reason ?? ''] ?? 'before the draft'}.` : `The vote and the draft are in ${channel(voteChannel)}.`;
     return {
-      tone: 'success',
+      tone: cancelled ? 'muted' : 'success',
       surface: 'lobby',
-      title: `${title}: started`,
+      title: `${title}: ${cancelled ? 'cancelled' : 'started'}`,
       subtitle: `${lobby.players.length} players · ${draftModeName(lobby.draft_mode)}`,
-      body: [text(`### Started${at}\n-# The vote and the draft are in ${channel(voteChannel)}.`), ...facts],
+      body: [text(`### Started${at}\n-# ${then}`), ...facts],
       footer,
     };
   }
@@ -188,7 +199,8 @@ const RECENT_SHOWN = 20;
 
 // /lobby browse: the lobbies open to join, then those started or closed in
 // the last day. A started one links to its post, the record of who played; a
-// lobby closed before it started has none.
+// lobby closed before it started has none, and one that never left its
+// host's editor is not listed.
 export function lobbiesPanel(lobbies: readonly Lobby[]): Panel {
   const post = (l: Lobby, label: string): string =>
     l.message_id ? ` · [${label}](https://discord.com/channels/${l.guild_id}/${l.channel_id}/${l.message_id})` : '';
@@ -200,7 +212,7 @@ export function lobbiesPanel(lobbies: readonly Lobby[]): Panel {
     return `${shape} · ${l.players.length}/${l.seats} · hosted by ${mention(l.host_id)}${post(l, 'open')}`;
   };
   const open = lobbies.filter((l) => l.status === 'open' && !isStarted(l));
-  const recent = lobbies.filter((l) => !open.includes(l)).slice(0, RECENT_SHOWN);
+  const recent = lobbies.filter((l) => !open.includes(l) && l.phase !== 'setup').slice(0, RECENT_SHOWN);
   return {
     tone: 'info',
     surface: 'lobby',

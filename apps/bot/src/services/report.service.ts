@@ -95,10 +95,11 @@ export async function tellStaffOfQuits(client: Client, match: Match, quitters: r
 }
 
 // An edit that changes who played or the order pings the report's players
-// once, beside the report, without naming who edited; false when the post
-// could not be made.
-export async function tellPlayersOfEdit(client: Client, match: Match, what: string): Promise<boolean> {
-  const ids = playerIds(match);
+// once, beside the report, without naming who edited: those on it before the
+// edit and those on it after, so a player taken off hears too. False when the
+// post could not be made.
+export async function tellPlayersOfEdit(client: Client, before: Match, match: Match, what: string): Promise<boolean> {
+  const ids = [...new Set([...playerIds(before), ...playerIds(match)])];
   if (!ids.length) return true;
   const channel = await client.channels.fetch(uploadChannelId(match)).catch(() => null);
   if (!channel?.isSendable() || channel.isDMBased()) return false;
