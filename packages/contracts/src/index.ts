@@ -428,7 +428,7 @@ export interface paths {
         /**
          * Open Lobbies
          * @description The lobbies players can see; with a host, that host's own, in setup or
-         *     not.
+         *     not; with recent, also those closed in the last day.
          */
         get: operations["open_lobbies_api_v2_match_setups_lobbies_get"];
         put?: never;
@@ -493,8 +493,7 @@ export interface paths {
         };
         /**
          * Lobbies Due
-         * @description Countdowns, votes and blind picks past their time, for the bot to move
-         *     on.
+         * @description Votes and blind picks past their time, for the bot to move on.
          */
         get: operations["lobbies_due_api_v2_match_setups_lobbies_due_get"];
         put?: never;
@@ -591,7 +590,7 @@ export interface paths {
         put?: never;
         /**
          * Join Lobby
-         * @description A player sits down; the last seat starts the countdown to the vote.
+         * @description A player sits down; a full lobby waits for its host to start it.
          */
         post: operations["join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post"];
         delete?: never;
@@ -689,8 +688,7 @@ export interface paths {
         put?: never;
         /**
          * Start Lobby
-         * @description The host starts, or the bot once a full lobby's countdown ends: the
-         *     seats lock and the bans vote opens.
+         * @description The host starts: the seats lock and the bans vote opens.
          */
         post: operations["start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post"];
         delete?: never;
@@ -1803,6 +1801,8 @@ export interface components {
             cancel_reason: string | null;
             /** Channel Id */
             channel_id: string;
+            /** Closed At */
+            closed_at?: string | null;
             /** Code */
             code: string;
             /** Deadline */
@@ -1846,6 +1846,8 @@ export interface components {
              * @enum {string}
              */
             shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2" | "teamer-2v2v2v2";
+            /** Started At */
+            started_at?: string | null;
             /**
              * Status
              * @enum {string}
@@ -3562,6 +3564,7 @@ export interface operations {
             query: {
                 guild_id: string;
                 host_id?: string | null;
+                recent?: boolean;
             };
             header?: {
                 authorization?: string | null;
