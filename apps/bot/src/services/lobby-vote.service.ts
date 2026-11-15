@@ -10,7 +10,7 @@ import { deleteMessages, editPanelById, isUnknownMessage, postPanel } from '../u
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
-import { lobbySettings, lobbyViewOf, voteChannelOf } from './lobby.service.js';
+import { lobbySettings, lobbyViewOf, showLobby, voteChannelOf } from './lobby.service.js';
 import { BAN_HINT, backingOf, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
 import { closeMessages, readBackLost, recorded, sendableIn } from './setup.js';
 
@@ -43,8 +43,8 @@ async function lobbyBallot(lobby: Lobby, reactionsOf: (key: string) => readonly 
 }
 
 // Once the lobby starts: its status, then a message per setting put to the vote,
-// each watched as it posts. A vote that cannot open cancels the lobby; its
-// post keeps the record of the start.
+// each watched as it posts. A vote that cannot open cancels the lobby, and its
+// post says so.
 export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   let placed: Lobby;
   const messages: Record<string, string> = {};
@@ -79,7 +79,8 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
     const posted = Object.values(messages);
     unwatchReactions(posted);
     if (place) await deleteMessages(place, posted);
-    await api.cancelLobby(lobby.guild_id, lobby.code, { id: lobby.host_id }).catch(() => null);
+    const cancelled = await api.cancelLobby(lobby.guild_id, lobby.code, { id: lobby.host_id }).catch(() => null);
+    if (cancelled) await showLobby(client, cancelled, api);
     throw error;
   }
   keepTime(client, placed, api);
@@ -119,16 +120,17 @@ async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<
   const { ballot, unmatched } = await lobbyBallot(lobby, (key) => read.get(messages[key] ?? '') ?? [], questions, api);
   if (unmatched.length) log.info('ban reactions naming no leader', lobby.id, unmatched.join(', '));
   const dealt = await readBackLost(api.tallyVote(lobby.id, { id: lobby.host_id }, ballot), () => api.lobby(lobby.id), 'voting');
-  if (dealt.status === 'cancelled') return closeLobbyVote(client, dealt, place);
+  if (dealt.status === 'cancelled') return closeLobbyVote(client, dealt, place, api);
   if (dealt.phase === 'picking' && place) return openPicks(client, dealt, place, api);
   if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
   await closeVote(client, dealt);
   await postLobbyDraft(dealt, place, api);
 }
 
-// A cancelled lobby's vote taken down; why, where it ran.
-async function closeLobbyVote(client: Client, lobby: Lobby, place: SendableChannels | null): Promise<void> {
+// A cancelled lobby's vote taken down and its post told; why, where it ran.
+async function closeLobbyVote(client: Client, lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
   await closeVote(client, lobby);
+  await showLobby(client, lobby, api);
   if (lobby.cancel_reason === 'inactive' && place) await postPanel(place, lobbyVoteClosedPanel(lobby));
 }
 

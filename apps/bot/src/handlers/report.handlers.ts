@@ -84,7 +84,7 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
       drafts.delete(matchId);
       const edits = held ? draftEdits(held.base, held.now) : [];
       if (!held || !edits.length) return replacePanel(interaction, closedEditor());
-      await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, async () => closedEditor('saved')).catch(
+      await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, held.base, async () => closedEditor('saved')).catch(
         async (error: unknown) => {
           log.warn('draft not saved on close', matchId, error instanceof Error ? error.message : error);
           await replacePanel(interaction, closedEditor({ notSaved: failureOf(error, 'save your unsaved changes').text }));
@@ -283,12 +283,14 @@ async function openForm(
 }
 
 // Save, then rewrite the public report and the private panel together, from
-// the one saved match, so neither shows anything the other does not.
+// the one saved match, so neither shows anything the other does not. The
+// match as it was before the edit says who else to tell.
 async function saveSeats(
   interaction: EditorMessage,
   matchId: string,
   action: string,
   seats: readonly SeatEdit[],
+  before: Match,
   next: (match: Match) => Promise<Panel> = (m) => editorOf(interaction.guild, m, isStaff(interaction), api),
 ): Promise<void> {
   const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: isStaff(interaction) });
@@ -303,7 +305,7 @@ async function saveSeats(
     await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
   }
   const ping = PING[action];
-  if (ping && !(await tellPlayersOfEdit(interaction.client, match, ping))) {
+  if (ping && !(await tellPlayersOfEdit(interaction.client, before, match, ping))) {
     await say(interaction, 'failed', 'Saved, but the players could not be told. Tell them yourself.');
   }
   await logAction(interaction, action, editDetails(interaction, match, seats));
@@ -332,9 +334,10 @@ async function submit(
   const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction, matchId));
   if (!open) refuse(EDITOR_CLOSED);
   await inTurn(matchId, async () => {
-    const edits = editsOf(await api.match(matchId));
+    const before = await api.match(matchId);
+    const edits = editsOf(before);
     if (!edits.length) await say(interaction, 'muted', unchanged);
-    else await saveSeats(interaction, matchId, action, edits);
+    else await saveSeats(interaction, matchId, action, edits, before);
   });
 }
 
@@ -393,7 +396,7 @@ async function saveDraft(interaction: ButtonInteraction, matchId: string): Promi
       await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
       return;
     }
-    await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits);
+    await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, held.base);
     drafts.delete(matchId);
   });
 }
