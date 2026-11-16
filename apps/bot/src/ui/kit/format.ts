@@ -1,6 +1,10 @@
 import type { CivDataResponse } from '../../api/types.js';
 
 export const mention = (id: string): string => `<@${id}>`;
+// Discord shows a member it has not loaded as unknown-user, so a player is
+// shown with their id too: something to search by, or paste into a command.
+export const mentionWithId = (id: string): string => `${mention(id)} \`${id}\``;
+export const idLine = (id: string): string => `-# ${id}`;
 export const channel = (id: string): string => `<#${id}>`;
 
 export type TimeStyle = 't' | 'T' | 'd' | 'D' | 'f' | 'F' | 'R';

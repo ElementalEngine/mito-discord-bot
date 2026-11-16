@@ -2,23 +2,20 @@ import type { Client, Message, MessageMentionOptions, SendableChannels } from 'd
 
 import type { ApiClient } from '../api/index.js';
 import type { Lobby, LobbyBallot, SettingQuestion } from '../api/types.js';
-import { config } from '../config.js';
 import type { Panel } from '../ui/kit/index.js';
 import { VOTE_STATUS, lobbyDraftPanels } from '../ui/panels/lobby.js';
 import { blindStatusPanel, bansVotePanel, lobbyVoteClosedPanel, votedOn } from '../ui/panels/lobby-vote.js';
 import { questionPanel } from '../ui/panels/vote.js';
-import { deleteMessages, editPanelById, postPanel } from '../ui/reply.js';
+import { deleteMessages, editPanelById, isUnknownMessage, postPanel } from '../ui/reply.js';
 import { log } from '../utils/log.js';
 import { civNames, civRows } from './civ-names.js';
 import { dropDeadline, isDue, keepDeadline } from './deadlines.js';
-import { lobbySettings, lobbyViewOf, showLobby } from './lobby.service.js';
+import { lobbySettings, lobbyViewOf, showLobby, voteChannelOf } from './lobby.service.js';
 import { BAN_HINT, backingOf, ballotOf, reactionsOn, unwatchReactions, watchReactions, type Reaction } from './reactions.js';
 import { closeMessages, readBackLost, recorded, sendableIn } from './setup.js';
 
-// FFAs and duels draft in the FFA voting channel, teamers in the teamer one.
 async function votingChannel(client: Client, lobby: Lobby): Promise<SendableChannels> {
-  const c = config.discord.channels;
-  const id = lobby.mode === 'teamer' ? c.civ6teamerVote : c.civ6ffaVote;
+  const id = voteChannelOf(lobby);
   const channel = await sendableIn(client, id);
   if (!channel) throw new Error(`voting channel ${id} is not one the bot can post in`);
   return channel;
@@ -46,7 +43,8 @@ async function lobbyBallot(lobby: Lobby, reactionsOf: (key: string) => readonly 
 }
 
 // Once the lobby starts: its status, then a message per setting put to the vote,
-// each watched as it posts. A vote that cannot open cancels the lobby.
+// each watched as it posts. A vote that cannot open cancels the lobby, and its
+// post says so.
 export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Promise<void> {
   let placed: Lobby;
   const messages: Record<string, string> = {};
@@ -72,7 +70,9 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
         .then(async () => {
           for (const option of question.options) if (votes.open(question)) await posted.react(option.emoji);
         })
-        .catch((error: unknown) => log.warn('setting reactions not all added', lobby.id, error instanceof Error ? error.message : error));
+        .catch((error: unknown) => {
+          if (!isUnknownMessage(error)) log.warn('setting reactions not all added', lobby.id, error instanceof Error ? error.message : error);
+        });
     }
     placed = await api.placeVote(lobby.id, { id: lobby.host_id }, { channel_id: where.id, messages });
   } catch (error) {
@@ -84,7 +84,6 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
     throw error;
   }
   keepTime(client, placed, api);
-  await showLobby(client, placed, api);
 }
 
 // The votes so far, sent in the lobby's turn as reactions change. A setting a
@@ -105,10 +104,9 @@ function voteCounter(lobby: Lobby, place: SendableChannels, messages: Readonly<R
   return { count, open: (question: SettingQuestion): boolean => votedOn(last, questions).includes(question) };
 }
 
-// The draft posted in the voting channel and on the lobby's post.
-async function postLobbyDraft(client: Client, lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
+// The draft posted in the voting channel, where the vote ran.
+async function postLobbyDraft(lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
   if (place) for (const panel of lobbyDraftPanels(await lobbyViewOf(lobby, api))) await postPanel(place, panel);
-  await showLobby(client, lobby, api);
 }
 
 // In the lobby's turn, once all finish or time is up: the bans counted and the
@@ -126,10 +124,10 @@ async function countVote(client: Client, lobby: Lobby, api: ApiClient): Promise<
   if (dealt.phase === 'picking' && place) return openPicks(client, dealt, place, api);
   if (dealt.phase === 'picking') return revealPicks(client, dealt, api);
   await closeVote(client, dealt);
-  await postLobbyDraft(client, dealt, place, api);
+  await postLobbyDraft(dealt, place, api);
 }
 
-// A cancelled lobby's vote taken down with its post; why, where it ran.
+// A cancelled lobby's vote taken down and its post told; why, where it ran.
 async function closeLobbyVote(client: Client, lobby: Lobby, place: SendableChannels | null, api: ApiClient): Promise<void> {
   await closeVote(client, lobby);
   await showLobby(client, lobby, api);
@@ -145,7 +143,6 @@ async function openPicks(client: Client, lobby: Lobby, place: SendableChannels, 
   const votes = Object.values(lobby.vote?.messages ?? {});
   unwatchReactions(votes);
   await deleteMessages(place, votes);
-  await showLobby(client, placed, api);
 }
 
 // The blind picks revealed together, in the lobby's turn.
@@ -153,16 +150,15 @@ async function revealPicks(client: Client, lobby: Lobby, api: ApiClient): Promis
   const shown = await readBackLost(api.revealPicks(lobby.id, { id: lobby.host_id }), () => api.lobby(lobby.id), 'picking');
   await closeVote(client, shown);
   if (shown.status === 'cancelled') return;
-  await postLobbyDraft(client, shown, await placeOf(client, shown), api);
+  await postLobbyDraft(shown, await placeOf(client, shown), api);
 }
 
-// In the lobby's turn, the step that is due: a countdown's vote opened, a vote
-// counted, or blind picks revealed; a vote or the picks end early once all are done.
+// In the lobby's turn, the step that is due: a vote counted, or blind picks
+// revealed; either ends early once all are done. Only the host starts a lobby.
 export async function advanceLobby(client: Client, lobbyId: string, api: ApiClient, allDone = false): Promise<void> {
   const lobby = await api.lobby(lobbyId);
   if (lobby.status !== 'open' || !(isDue(lobby.deadline) || (allDone && lobby.phase !== 'live'))) return;
   dropDeadline(lobbyId);
-  if (lobby.phase === 'live') return openVote(client, await api.startLobby(lobby.id, { id: lobby.host_id }), api);
   if (lobby.phase === 'voting') return countVote(client, lobby, api);
   if (lobby.phase === 'picking') return revealPicks(client, lobby, api);
 }

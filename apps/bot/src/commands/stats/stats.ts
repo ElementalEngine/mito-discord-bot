@@ -3,6 +3,7 @@ import { InteractionContextType, SlashCommandBuilder, type ChatInputCommandInter
 import { ApiError } from '../../api/errors.js';
 import { ApiClient } from '../../api/index.js';
 import { civNames } from '../../services/civ-names.js';
+import { mentionWithId } from '../../ui/kit/index.js';
 import { statsPanel } from '../../ui/panels/stats.js';
 import { refuse, respond } from '../../ui/reply.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -25,7 +26,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const { civVersion, mode, target } = statsAskOf(interaction);
   const [stats, summary, names] = await Promise.all([
     api.getUserStats(civVersion, mode, target).catch((error: unknown) => {
-      if (error instanceof ApiError && error.status === 404) refuse(`<@${target}> has no ${civVersion} ${mode} stats yet.`);
+      if (error instanceof ApiError && error.status === 404) refuse(`${mentionWithId(target)} has no ${civVersion} ${mode} stats yet.`);
       throw error;
     }),
     // The tables stand alone: a summary that cannot be read is left off.

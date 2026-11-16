@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
 
 import {
+  DiscordAPIError,
   MessageFlags,
+  RESTJSONErrorCodes,
   type AnySelectMenuInteraction,
   type ButtonInteraction,
   type Message,
@@ -129,9 +131,21 @@ export async function editPanel(message: Message, panel: Panel): Promise<Message
   return message.edit(asPanel(panel));
 }
 
+// Discord's answer for a message that no longer exists, deleted by hand or
+// by the bot as a vote moved on: something to skip, not an error.
+export const isUnknownMessage = (error: unknown): boolean =>
+  error instanceof DiscordAPIError && error.code === RESTJSONErrorCodes.UnknownMessage;
+
 // The same for a message known only by its id: one call, with no fetch first.
-export async function editPanelById(channel: TextBasedChannel, id: string, panel: Panel): Promise<Message> {
-  return channel.messages.edit(id, asPanel(panel));
+// A message deleted meanwhile is skipped, with a warning: null.
+export async function editPanelById(channel: TextBasedChannel, id: string, panel: Panel): Promise<Message | null> {
+  try {
+    return await channel.messages.edit(id, asPanel(panel));
+  } catch (error) {
+    if (!isUnknownMessage(error)) throw error;
+    log.warn('message gone, not edited', id);
+    return null;
+  }
 }
 
 // Messages deleted in one call where the bot may manage messages, else each

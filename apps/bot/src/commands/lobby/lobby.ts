@@ -7,7 +7,7 @@ import { openEditor } from '../../handlers/lobby.handlers.js';
 import { closeVote } from '../../services/lobby-vote.service.js';
 import { lfgRoleFor, showLobby } from '../../services/lobby.service.js';
 import { inSetupTurn } from '../../services/turns.js';
-import { SHAPES, lobbyLinkOf, openLobbiesPanel } from '../../ui/panels/lobby.js';
+import { SHAPES, lobbiesPanel, lobbyLinkOf } from '../../ui/panels/lobby.js';
 import { defer, fail, refuse, respond, say } from '../../ui/reply.js';
 import { isStaff } from '../../utils/access.js';
 import { ensureCommandAccess } from '../../utils/ensure-command-access.js';
@@ -79,7 +79,7 @@ async function host(interaction: ChatInputCommandInteraction<'cached' | 'raw'>):
 
 async function browse(interaction: ChatInputCommandInteraction<'cached' | 'raw'>): Promise<void> {
   await defer(interaction, 'private');
-  await respond(interaction, openLobbiesPanel(await api.openLobbies(interaction.guildId)), 'private');
+  await respond(interaction, lobbiesPanel(await api.openLobbies(interaction.guildId, undefined, true)), 'private');
 }
 
 // The host's editor for the lobby they host, until it starts.

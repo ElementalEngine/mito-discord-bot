@@ -18,6 +18,7 @@ import {
   divider,
   fit,
   iconOf,
+  idLine,
   mention,
   plainNameOf,
   row,
@@ -133,7 +134,7 @@ export function statsPanel(stats: UserStatsResponse, summary?: StatsSummary, nam
     title: 'Stats',
     subtitle: `${editionName(stats.civ_version)} \u00b7 ${stats.game_type}`,
     body: [
-      text(rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)),
+      text(`${rank ? `${mention(stats.discord_id)} \u00b7 **${rank}**` : mention(stats.discord_id)}\n${idLine(stats.discord_id)}`),
       ...sections(stats, stats.lifetime, stats.season),
       ...(summary ? summaryBlocks(summary, names) : []),
     ],
@@ -150,7 +151,7 @@ export function resetPanel(reset: ResetStatsResponse): Panel {
     title: 'Stats reset',
     subtitle: `${editionName(reset.civ_version)} \u00b7 ${reset.game_type}`,
     body: [
-      text(`${mention(reset.discord_id)}'s stats are reset.`),
+      text(`${mention(reset.discord_id)}'s stats are reset.\n${idLine(reset.discord_id)}`),
       ...sections(reset, reset.lifetime, reset.season, 'Before \u00b7 '),
       divider(),
       ...sections(reset, reset.after_lifetime, reset.after_season, 'After \u00b7 '),
@@ -250,7 +251,7 @@ export function historyPanel(history: HistoryPage, of: HistoryOf, names: CivName
     surface: 'stats',
     title: 'Game history',
     subtitle: `${editionName(history.civ_version)} \u00b7 ${history.game_type}${last >= first ? ` \u00b7 games ${first}\u2013${last}, newest first` : ''}`,
-    body: [text(mention(history.discord_id)), text(lines.join('\n') || 'No games on this page.')],
+    body: [text(`${mention(history.discord_id)}\n${idLine(history.discord_id)}`), text(lines.join('\n') || 'No games on this page.')],
     ...(paged
       ? {
           actions: [

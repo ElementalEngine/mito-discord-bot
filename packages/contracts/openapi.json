@@ -218,7 +218,7 @@
             "type": "string"
           },
           "file": {
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
           },
@@ -1351,6 +1351,18 @@
             "title": "Channel Id",
             "type": "string"
           },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -1479,6 +1491,18 @@
             ],
             "title": "Shape",
             "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
           },
           "status": {
             "enum": [
@@ -1849,6 +1873,18 @@
           "turn": {
             "title": "Turn",
             "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           }
         },
         "required": [
@@ -3138,6 +3174,22 @@
         "title": "SupportedGame",
         "type": "string"
       },
+      "Suspended": {
+        "properties": {
+          "discord_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Discord Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "discord_ids"
+        ],
+        "title": "Suspended",
+        "type": "object"
+      },
       "SuspensionCleared": {
         "description": "A suspension ended, with the roles the bot should give back; `suspended`\nis the record after the call, so a repeat can tell it ended or never did.",
         "properties": {
@@ -3280,6 +3332,45 @@
         ],
         "title": "TierCategory",
         "type": "string"
+      },
+      "TierMember": {
+        "properties": {
+          "discord_id": {
+            "title": "Discord Id",
+            "type": "string"
+          },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "discord_id",
+          "tier",
+          "held"
+        ],
+        "title": "TierMember",
+        "type": "object"
+      },
+      "TierMembers": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TierMember"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "title": "TierMembers",
+        "type": "object"
       },
       "TierRemoved": {
         "properties": {
@@ -3597,6 +3688,18 @@
           "turn": {
             "title": "Turn",
             "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           }
         },
         "required": [
@@ -3662,6 +3765,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -4739,6 +4849,120 @@
         ]
       }
     },
+    "/api/v2/infractions/suspended": {
+      "get": {
+        "operationId": "suspended_api_v2_infractions_suspended_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suspended"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suspended",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
+    "/api/v2/infractions/tiers/{category}": {
+      "get": {
+        "operationId": "tier_members_api_v2_infractions_tiers__category__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category",
+            "required": true,
+            "schema": {
+              "enum": [
+                "quit",
+                "minor",
+                "moderate",
+                "major",
+                "extreme"
+              ],
+              "title": "Category",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierMembers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tier Members",
+        "tags": [
+          "infractions-v2"
+        ]
+      }
+    },
     "/api/v2/infractions/{discord_id}": {
       "get": {
         "operationId": "record_api_v2_infractions__discord_id__get",
@@ -5473,7 +5697,7 @@
     },
     "/api/v2/match-setups/lobbies": {
       "get": {
-        "description": "The lobbies players can see; with a host, that host's own, in setup or\nnot.",
+        "description": "The lobbies players can see; with a host, that host's own, in setup or\nnot; with recent, also those closed in the last day.",
         "operationId": "open_lobbies_api_v2_match_setups_lobbies_get",
         "parameters": [
           {
@@ -5503,6 +5727,16 @@
                 }
               ],
               "title": "Host Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recent",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Recent",
+              "type": "boolean"
             }
           },
           {
@@ -5758,7 +5992,7 @@
     },
     "/api/v2/match-setups/lobbies/due": {
       "get": {
-        "description": "Countdowns, votes and blind picks past their time, for the bot to move\non.",
+        "description": "Votes and blind picks past their time, for the bot to move on.",
         "operationId": "lobbies_due_api_v2_match_setups_lobbies_due_get",
         "parameters": [
           {
@@ -6096,7 +6330,7 @@
     },
     "/api/v2/match-setups/lobbies/{lobby_id}/join": {
       "post": {
-        "description": "A player sits down; the last seat starts the countdown to the vote.",
+        "description": "A player sits down; a full lobby waits for its host to start it.",
         "operationId": "join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post",
         "parameters": [
           {
@@ -6460,7 +6694,7 @@
     },
     "/api/v2/match-setups/lobbies/{lobby_id}/start": {
       "post": {
-        "description": "The host starts, or the bot once a full lobby's countdown ends: the\nseats lock and the bans vote opens.",
+        "description": "The host starts: the seats lock and the bans vote opens.",
         "operationId": "start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post",
         "parameters": [
           {
@@ -6529,7 +6763,7 @@
     },
     "/api/v2/match-setups/lobbies/{lobby_id}/tally": {
       "post": {
-        "description": "Settle the settings put to the vote, count the bans and deal the draft.\nThe bot counts, acting as the host, once all finish or the time is up.",
+        "description": "Settle the settings put to the vote, count the bans and deal the draft.\nThe bot counts, acting as the host, once all finish or the time is up; a\nvote not every player finished is cancelled.",
         "operationId": "tally_vote_api_v2_match_setups_lobbies__lobby_id__tally_post",
         "parameters": [
           {
@@ -7404,7 +7638,7 @@
     },
     "/api/v2/match-setups/votes/{vote_id}/tally": {
       "post": {
-        "description": "Count the settings, the draft mode and the bans, and deal the draft. The\nbot counts, acting as the host, once all finish or the time is up.",
+        "description": "Count the settings, the draft mode and the bans, and deal the draft. The\nbot counts, acting as the host, once all finish or the time is up; a vote\nnot every player finished is cancelled.",
         "operationId": "tally_vote_api_v2_match_setups_votes__vote_id__tally_post",
         "parameters": [
           {

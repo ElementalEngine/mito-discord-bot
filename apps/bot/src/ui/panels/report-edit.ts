@@ -4,6 +4,8 @@ import {
   LabelBuilder,
   ModalBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   UserSelectMenuBuilder,
   type APISelectMenuOption,
 } from 'discord.js';
@@ -14,7 +16,7 @@ import {
   divider,
   fit,
   inBody,
-  mention,
+  mentionWithId,
   notice,
   plainNameOf,
   portraitOf,
@@ -31,6 +33,8 @@ export const EDIT = {
   subForm: 'subform',
   assign: 'assign',
   assignPick: 'assignpick',
+  assignId: 'assignid',
+  assignIdForm: 'assignidform',
   order: 'order',
   orderPick: 'orderpick',
   save: 'save',
@@ -47,7 +51,9 @@ export const EDIT = {
 } as const;
 export const FIELD = {
   seat: 'seat',
-  came: 'came',
+  left: 'left',
+  leftId: 'leftid',
+  playerId: 'playerid',
   place: 'place',
   tied: 'tied',
   quits: 'quits',
@@ -131,8 +137,9 @@ function unitOption(match: Match, u: Unit, names: CivNames, members: Members): A
 function seatLine(match: Match, s: Numbered, names: CivNames): string {
   const p = s.player;
   const id = idOf(p);
-  const who = id ? mention(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
-  const left = s.leaver ? (idOf(s.leaver) ? mention(idOf(s.leaver) ?? '') : `\`${saveName(s.leaver)}\``) : null;
+  const who = id ? mentionWithId(id) : `\`${saveName(p)}\` ${MARK.unassigned}`;
+  const leaver = s.leaver ? idOf(s.leaver) : null;
+  const left = s.leaver ? (leaver ? mentionWithId(leaver) : `\`${saveName(s.leaver)}\``) : null;
   const facts = [
     ordinal((p.placement ?? 0) + 1),
     isTeamer(match) ? `team ${p.team + 1}` : null,
@@ -150,18 +157,19 @@ const rowsOf = (buttons: readonly ButtonBuilder[]): Block[] =>
   pagesOf(buttons).map((five) => inBody(...five));
 
 // The private panel a report is fixed from: one seat at a time, then in
-// bulk; a tie and civs are staff's, as core-api requires.
+// bulk. On a real-time report only staff assign players, as core-api requires:
+// the save names them, so a different player is for staff to check.
 export function editorPanel(match: Match, names: CivNames, members: Members, asStaff: boolean): Panel {
   const seats = numbered(match);
   const id = match.match_id;
   const single = [
     button(id, EDIT.sub, 'Assign a sub', ButtonStyle.Secondary),
-    ...(asStaff && unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
-    ...(asStaff ? [button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary)] : []),
+    ...(unitsOf(match).length > 1 ? [button(id, EDIT.tie, 'Set a tie', ButtonStyle.Secondary)] : []),
+    button(id, EDIT.civs, 'Set civs', ButtonStyle.Secondary),
   ];
   const bulk = [
     button(id, EDIT.order, 'Set order', ButtonStyle.Primary),
-    button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary),
+    ...(asStaff || match.is_cloud ? [button(id, EDIT.assign, 'Assign players', ButtonStyle.Secondary)] : []),
     button(id, EDIT.quits, 'Assign quits', ButtonStyle.Secondary),
   ];
   const body: Block[] = [
@@ -234,7 +242,7 @@ function pendingLine(draft: Draft, names: CivNames): string | null {
     const now = draft.now.players[s.index];
     if (!now) return [];
     const what = [
-      now.discord_id !== was.discord_id ? (idOf(now) ? mention(idOf(now) ?? '') : 'unassigned') : null,
+      now.discord_id !== was.discord_id ? (idOf(now) ? mentionWithId(idOf(now) ?? '') : 'unassigned') : null,
       now.placement !== was.placement ? ordinal((now.placement ?? 0) + 1) : null,
       now.leader !== was.leader && now.leader ? plainNameOf(names, now.leader) : null,
       now.civ !== was.civ && isCiv7(draft.now) ? plainNameOf(names, now.civ) : null,
@@ -324,8 +332,11 @@ function assignPanel(draft: Draft, names: CivNames, members: Members): Panel {
       .setPlaceholder(fit(now, 150));
     return [text(`**${seat}**`), inBody(menu)];
   });
-  const hint = 'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two.';
-  return draftFrame(draft, names, 'Assign players', [text(hint), ...menus], pagesFor(seats.length));
+  const hint =
+    'Pick the player for each seat; type a name to search the server. Picking someone who has another seat swaps the two. ' +
+    'For a player the search cannot find, such as one who left the server, press **Paste a Discord id**.';
+  const paste = button(match.match_id, EDIT.assignId, 'Paste a Discord id', ButtonStyle.Secondary);
+  return draftFrame(draft, names, 'Assign players', [text(hint), inBody(paste), ...menus], pagesFor(seats.length));
 }
 
 // The draft with `id` in seat n: someone with another seat swaps with this
@@ -341,22 +352,36 @@ export function withAssignPick(base: Match, match: Match, n: number, id: string)
     const before = base.players[other.index];
     if (current) players[other.index] = { ...other.player, discord_id: current, quit: seat.player.quit };
     else if (before && !idOf(before)) players[other.index] = { ...other.player, discord_id: before.discord_id, quit: before.quit };
-    else return `${mention(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
+    else return `${mentionWithId(id)} has seat ${other.n}. Give seat ${other.n} another player first.`;
   }
   players[seat.index] = { ...seat.player, discord_id: id, quit: other ? other.player.quit : seat.player.quit };
   return { ...match, players };
 }
 
-// A sub: the seat whose player left, and who came in, found by searching the
-// server. Naming the player who left undoes the sub.
-export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
+// A Discord id typed into a form, for a player the member search cannot find.
+// A Discord id as typed or pasted, a pasted mention included: null when the
+// field is blank, undefined when it is not an id.
+export function typedId(typed: string): string | null | undefined {
+  const text = typed.trim();
+  if (!text) return null;
+  const id = /^<@!?(\d+)>$/.exec(text)?.[1] ?? text;
+  return /^\d{17,20}$/.test(id) ? id : undefined;
+}
+
+// The bot checks the id; Discord's own length check applies only when it is required.
+function idInput(field: string, required: boolean): TextInputBuilder {
+  const input = new TextInputBuilder().setCustomId(field).setStyle(TextInputStyle.Short).setMaxLength(25).setRequired(required);
+  return required ? input.setMinLength(17) : input;
+}
+
+// One seat given to a player by their Discord id, joining the Assign players draft.
+export function assignIdForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   return new ModalBuilder()
-    .setCustomId(customId('report', EDIT.subForm, match.match_id))
-    .setTitle('Assign a sub')
+    .setCustomId(customId('report', EDIT.assignIdForm, match.match_id))
+    .setTitle('Assign by Discord id')
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel('Seat subbed out')
-        .setDescription('The seat whose player left the game.')
+        .setLabel('Seat')
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.seat)
@@ -364,66 +389,128 @@ export function subForm(match: Match, names: CivNames, members: Members): ModalB
             .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
         ),
       new LabelBuilder()
-        .setLabel('Player who subbed in')
-        .setDescription('Type a name to search the server. Pick the player who left to undo a sub.')
-        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.came).setMinValues(1).setMaxValues(1).setRequired(true)),
+        .setLabel('Discord id')
+        .setDescription("The long number from the player's profile: Copy User ID.")
+        .setTextInputComponent(idInput(FIELD.playerId, true)),
     );
 }
 
-// The sub as one seat edit: a new sub, the player who came in changed, or the
-// sub undone when the player who left is named.
-export function subEdits(match: Match, n: number, came: string | null): SeatEdit[] | string {
-  const seat = numbered(match).find((s) => s.n === n);
-  const player = seat ? idOf(seat.player) : null;
-  if (!seat || !came || came === player) return [];
-  if (seat.leaver) {
-    return came === idOf(seat.leaver) ? [{ seat: seat.index, discord_id: came, sub_out: null }] : [{ seat: seat.index, discord_id: came }];
-  }
-  if (!player) return `Seat ${seat.n} has no player yet. Assign its player first, then the sub.`;
-  return [{ seat: seat.index, discord_id: came, sub_out: player }];
+// A sub: the seat of the player who finished the game, and the player who left
+// it, found by searching the server or by their id. Naming that player again
+// undoes the sub.
+export function subForm(match: Match, names: CivNames, members: Members): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(customId('report', EDIT.subForm, match.match_id))
+    .setTitle('Assign a sub')
+    .addLabelComponents(
+      new LabelBuilder()
+        .setLabel('Seat')
+        .setDescription('The seat of the player who finished the game.')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.seat)
+            .setRequired(true)
+            .addOptions(numbered(match).slice(0, 25).map((s) => seatOption(s, names, members))),
+        ),
+      new LabelBuilder()
+        .setLabel('Player who subbed out')
+        .setDescription('Type a name to search the server. Pick the same player again to undo the sub.')
+        .setUserSelectMenuComponent(new UserSelectMenuBuilder().setCustomId(FIELD.left).setMinValues(0).setMaxValues(1).setRequired(false)),
+      new LabelBuilder()
+        .setLabel('Or their Discord id')
+        .setDescription('For a player the search cannot find, such as one who left the server.')
+        .setTextInputComponent(idInput(FIELD.leftId, false)),
+    );
 }
 
-// Staff put two or more seats (or teams) level at one place; a tie of two
-// leaves one place fewer, so the last place is not offered.
+// The sub as one seat edit. The seat keeps the player who finished, who came in
+// as the sub; naming the player already marked as left undoes the sub.
+export function subEdits(match: Match, n: number, left: string | null): SeatEdit[] | string {
+  const seat = numbered(match).find((s) => s.n === n);
+  if (!seat || !left) return [];
+  const player = idOf(seat.player);
+  if (!player) return `Seat ${seat.n} has no player yet. Assign the player who finished first, then the sub.`;
+  if (left === player) return `That is seat ${seat.n}'s own player. Pick the player who left the game.`;
+  if (seat.leaver && left === idOf(seat.leaver)) return [{ seat: seat.index, sub_out: null }];
+  return [{ seat: seat.index, sub_out: left }];
+}
+
+// The units in standing order, those level at one place grouped together.
+function groupsOf(units: readonly Unit[]): Unit[][] {
+  const groups: Unit[][] = [];
+  for (const u of units) {
+    const last = groups.at(-1);
+    if (last && last[0]!.seats[0]!.player.placement === u.seats[0]!.player.placement) last.push(u);
+    else groups.push([u]);
+  }
+  return groups;
+}
+
+// Two or more seats (or teams) put level at one place, or a tie undone. The
+// form opens with everyone already tied ticked, as Assign quits does; a tie
+// of two leaves one place fewer, so the last place is not offered.
 export function tieForm(match: Match, names: CivNames, members: Members): ModalBuilder {
   const units = unitsOf(match);
+  const ties = groupsOf(units).map((group, at) => ({ group, place: at + 1 })).filter((t) => t.group.length > 1);
+  const tied = new Set(ties.flatMap((t) => t.group.map((u) => u.id)));
+  const only = ties.length === 1 ? ties[0]!.place : null;
   const word = isTeamer(match) ? 'teams' : 'players';
   return new ModalBuilder()
     .setCustomId(customId('report', EDIT.tieForm, match.match_id))
     .setTitle('Set a tie')
     .addLabelComponents(
-      new LabelBuilder().setLabel('Place').setStringSelectMenuComponent(
-        new StringSelectMenuBuilder()
-          .setCustomId(FIELD.place)
-          .setRequired(true)
-          .addOptions(units.slice(1).map((_, i) => ({ label: ordinal(i + 1), value: String(i + 1) }))),
-      ),
+      new LabelBuilder()
+        .setLabel('Place')
+        .setDescription('Where the tie stands. Not needed to untie.')
+        .setStringSelectMenuComponent(
+          new StringSelectMenuBuilder()
+            .setCustomId(FIELD.place)
+            .setMinValues(0)
+            .setMaxValues(1)
+            .setRequired(false)
+            .addOptions(units.slice(1).map((_, i) => ({ label: ordinal(i + 1), value: String(i + 1), default: i + 1 === only }))),
+        ),
       new LabelBuilder()
         .setLabel(`Tied ${word}`)
-        .setDescription('Everyone else keeps their order around them.')
+        .setDescription(`Tick the ${word} tied at that place. Untick to untie.`)
         .setStringSelectMenuComponent(
           new StringSelectMenuBuilder()
             .setCustomId(FIELD.tied)
-            .setMinValues(2)
+            .setMinValues(0)
             .setMaxValues(units.length)
-            .setRequired(true)
-            .addOptions(units.map((u) => unitOption(match, u, names, members))),
+            .setRequired(false)
+            .addOptions(units.map((u) => ({ ...unitOption(match, u, names, members), default: tied.has(u.id) }))),
         ),
     );
 }
 
-// The tied units become one group at the place; the rest keep their groups.
-export function tieEdits(match: Match, place: number, tied: readonly number[]): SeatEdit[] {
+// Unticked units leave their tie and take the places just below it, in their
+// order. Ticked units not yet tied join the tie at the place, with whoever of
+// the tie already there stays ticked; a tie elsewhere left ticked stands.
+export function tieEdits(match: Match, place: number | null, ticked: readonly number[]): SeatEdit[] | string {
   const units = unitsOf(match);
-  const level = units.filter((u) => tied.includes(u.id));
-  const groups: Unit[][] = [];
-  for (const u of units.filter((x) => !tied.includes(x.id))) {
-    const last = groups.at(-1);
-    if (last && last[0]!.seats[0]!.player.placement === u.seats[0]!.player.placement) last.push(u);
-    else groups.push([u]);
+  const groups = groupsOf(units);
+  const isTicked = (u: Unit): boolean => ticked.includes(u.id);
+  const joining = groups.filter((g) => g.length === 1 && isTicked(g[0]!)).flat();
+  let tie: Unit[] = [];
+  let at = 0;
+  if (joining.length) {
+    if (place === null) return 'Pick the place for the tie.';
+    at = place - 1;
+    const there = groups[at];
+    tie = [...(there && there.length > 1 ? there.filter(isTicked) : []), ...joining];
+    if (tie.length < 2) return `A tie needs two or more ${isTeamer(match) ? 'teams' : 'players'}.`;
   }
-  groups.splice(Math.min(place - 1, groups.length), 0, level);
-  return placeEdits(units, new Map(groups.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
+  const inTie = new Set(tie.map((u) => u.id));
+  const rest: Unit[][] = [];
+  for (const group of groups) {
+    const left = group.filter((u) => !inTie.has(u.id));
+    const kept = group.length > 1 ? left.filter(isTicked) : left;
+    if (kept.length) rest.push(kept);
+    for (const u of left.filter((x) => !kept.includes(x))) rest.push([u]);
+  }
+  if (tie.length) rest.splice(Math.min(at, rest.length), 0, tie.sort((a, b) => units.indexOf(a) - units.indexOf(b)));
+  return placeEdits(units, new Map(rest.flatMap((group, at) => group.map((u): [number, number] => [u.id, at]))));
 }
 
 const leftValue = (s: Numbered): string => `${s.n}-left`;

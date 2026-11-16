@@ -211,6 +211,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/infractions/suspended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suspended */
+        get: operations["suspended_api_v2_infractions_suspended_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/infractions/tiers/{category}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tier Members */
+        get: operations["tier_members_api_v2_infractions_tiers__category__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/infractions/{discord_id}": {
         parameters: {
             query?: never;
@@ -394,7 +428,7 @@ export interface paths {
         /**
          * Open Lobbies
          * @description The lobbies players can see; with a host, that host's own, in setup or
-         *     not.
+         *     not; with recent, also those closed in the last day.
          */
         get: operations["open_lobbies_api_v2_match_setups_lobbies_get"];
         put?: never;
@@ -459,8 +493,7 @@ export interface paths {
         };
         /**
          * Lobbies Due
-         * @description Countdowns, votes and blind picks past their time, for the bot to move
-         *     on.
+         * @description Votes and blind picks past their time, for the bot to move on.
          */
         get: operations["lobbies_due_api_v2_match_setups_lobbies_due_get"];
         put?: never;
@@ -557,7 +590,7 @@ export interface paths {
         put?: never;
         /**
          * Join Lobby
-         * @description A player sits down; the last seat starts the countdown to the vote.
+         * @description A player sits down; a full lobby waits for its host to start it.
          */
         post: operations["join_lobby_api_v2_match_setups_lobbies__lobby_id__join_post"];
         delete?: never;
@@ -655,8 +688,7 @@ export interface paths {
         put?: never;
         /**
          * Start Lobby
-         * @description The host starts, or the bot once a full lobby's countdown ends: the
-         *     seats lock and the bans vote opens.
+         * @description The host starts: the seats lock and the bans vote opens.
          */
         post: operations["start_lobby_api_v2_match_setups_lobbies__lobby_id__start_post"];
         delete?: never;
@@ -677,7 +709,8 @@ export interface paths {
         /**
          * Tally Vote
          * @description Settle the settings put to the vote, count the bans and deal the draft.
-         *     The bot counts, acting as the host, once all finish or the time is up.
+         *     The bot counts, acting as the host, once all finish or the time is up; a
+         *     vote not every player finished is cancelled.
          */
         post: operations["tally_vote_api_v2_match_setups_lobbies__lobby_id__tally_post"];
         delete?: never;
@@ -915,7 +948,8 @@ export interface paths {
         /**
          * Tally Vote
          * @description Count the settings, the draft mode and the bans, and deal the draft. The
-         *     bot counts, acting as the host, once all finish or the time is up.
+         *     bot counts, acting as the host, once all finish or the time is up; a vote
+         *     not every player finished is cancelled.
          */
         post: operations["tally_vote_api_v2_match_setups_votes__vote_id__tally_post"];
         delete?: never;
@@ -1365,10 +1399,7 @@ export interface components {
         Body_upload_match_api_v2_matches_post: {
             /** Discord Message Id */
             discord_message_id: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Is Cloud */
             is_cloud: string;
@@ -1770,6 +1801,8 @@ export interface components {
             cancel_reason: string | null;
             /** Channel Id */
             channel_id: string;
+            /** Closed At */
+            closed_at?: string | null;
             /** Code */
             code: string;
             /** Deadline */
@@ -1813,6 +1846,8 @@ export interface components {
              * @enum {string}
              */
             shape: "ffa-8" | "ffa-10" | "ffa-12" | "ffa-14" | "duel" | "teamer-2v2" | "teamer-3v3" | "teamer-4v4" | "teamer-5v5" | "teamer-2v2v2" | "teamer-2v2v2v2";
+            /** Started At */
+            started_at?: string | null;
             /**
              * Status
              * @enum {string}
@@ -1924,6 +1959,8 @@ export interface components {
             season_label?: string | null;
             /** Turn */
             turn: number;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** PendingApplied */
         PendingApplied: {
@@ -2354,6 +2391,11 @@ export interface components {
          * @enum {string}
          */
         SupportedGame: "civ6" | "civ7";
+        /** Suspended */
+        Suspended: {
+            /** Discord Ids */
+            discord_ids: string[];
+        };
         /**
          * SuspensionCleared
          * @description A suspension ended, with the roles the bot should give back; `suspended`
@@ -2408,6 +2450,20 @@ export interface components {
          * @enum {string}
          */
         TierCategory: "quit" | "minor" | "moderate" | "major" | "extreme" | "lagger";
+        /** TierMember */
+        TierMember: {
+            /** Discord Id */
+            discord_id: string;
+            /** Held */
+            held: boolean;
+            /** Tier */
+            tier: number;
+        };
+        /** TierMembers */
+        TierMembers: {
+            /** Members */
+            members: components["schemas"]["TierMember"][];
+        };
         /** TierRemoved */
         TierRemoved: {
             category: components["schemas"]["TierCategory"];
@@ -2511,6 +2567,8 @@ export interface components {
             season_label?: string | null;
             /** Turn */
             turn: number;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** UserStatsResponseV2 */
         UserStatsResponseV2: {
@@ -2527,6 +2585,10 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
@@ -3067,6 +3129,70 @@ export interface operations {
             };
         };
     };
+    suspended_api_v2_infractions_suspended_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suspended"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tier_members_api_v2_infractions_tiers__category__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                category: "quit" | "minor" | "moderate" | "major" | "extreme";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierMembers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     record_api_v2_infractions__discord_id__get: {
         parameters: {
             query?: never;
@@ -3438,6 +3564,7 @@ export interface operations {
             query: {
                 guild_id: string;
                 host_id?: string | null;
+                recent?: boolean;
             };
             header?: {
                 authorization?: string | null;

@@ -9,8 +9,8 @@ import { log } from '../utils/log.js';
 
 const INTERVAL_MS = 30_000;
 
-// Every 30 seconds: idle lobbies close, freeing their seats, and a countdown,
-// vote or blind picks a restart left past its time moves on.
+// Every 30 seconds: idle lobbies close, freeing their seats, and a vote or
+// blind picks a restart left past its time moves on.
 export function startLobbyUpkeepJob(client: Client): () => void {
   const api = new ApiClient();
   let running = false;

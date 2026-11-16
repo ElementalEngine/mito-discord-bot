@@ -27,16 +27,28 @@ export function seedPanel(seed: string, about: PostAbout = NOBODY): Panel {
   };
 }
 
-// A full draw reads as places, a turn order; a partial one as the numbers drawn.
-export function rollPanel(drawn: readonly number[], max: number, about: PostAbout = NOBODY): Panel {
-  const order = drawn.length === max;
+// Dice read as the numbers rolled, with their total; a unique draw of every
+// number reads as places, a turn order; a partial one as the numbers drawn.
+export function rollPanel(drawn: readonly number[], sides: number, unique: boolean, about: PostAbout = NOBODY): Panel {
+  const order = unique && drawn.length === sides;
+  const numbers = `### ${drawn.map((n) => `\`${n}\``).join(' ')}`;
+  const total = drawn.reduce((sum, n) => sum + n, 0);
+  const dice = drawn.length === 1 ? `1 die with ${sides} sides` : `${drawn.length} dice with ${sides} sides`;
   const footer = taggedFooter(about);
   return {
     tone: 'info',
     surface: 'roll',
     title: fit(about.label ? `Dice roll for ${about.label}` : 'Dice roll', 200),
-    subtitle: order ? `${max} places, each drawn once` : `${drawn.length} of 1\u2013${max}, no repeats`,
-    body: [text(order ? drawn.map((n, i) => `${i + 1}. **${n}**`).join('\n') : `### ${drawn.map((n) => `\`${n}\``).join(' ')}`)],
+    subtitle: order ? `${sides} places, each drawn once` : unique ? `${drawn.length} of 1\u2013${sides}, no repeats` : dice,
+    body: [
+      text(
+        order
+          ? drawn.map((n, i) => `${i + 1}. **${n}**`).join('\n')
+          : unique || drawn.length === 1
+            ? numbers
+            : `${numbers}\n-# Total ${total}`,
+      ),
+    ],
     ...(footer ? { footer } : {}),
   };
 }

@@ -10,7 +10,7 @@ const spec = join(root, 'packages/contracts/openapi.json');
 const out = join(root, 'packages/contracts/src/index.ts');
 const check = process.argv.includes('--check');
 const vendor = process.argv.includes('--vendor');
-const CORE = '/opt/development/apps/core-api-backend';
+const CORE = '/opt/development/cpl/apps/core-api-backend';
 
 // --vendor copies the spec and stamps PROVENANCE in one step, so the record
 // can never name a SHA whose spec was not the one copied.

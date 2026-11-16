@@ -24,14 +24,16 @@ import {
   inTurn,
   quittersOf,
   refreshReport,
+  tellPlayersOfEdit,
   tellStaffOfQuits,
   viewOf,
 } from '../services/report.service.js';
 import { memberNames } from '../services/members.js';
-import { channel as channelMention, customId, mention, notice, parseId, type CivNames, type Panel } from '../ui/kit/index.js';
+import { channel as channelMention, customId, mentionWithId, notice, parseId, when, type CivNames, type Panel } from '../ui/kit/index.js';
 import {
   EDIT,
   FIELD,
+  assignIdForm,
   civFocus,
   closedEditor,
   draftEdits,
@@ -43,6 +45,7 @@ import {
   subForm,
   tieEdits,
   tieForm,
+  typedId,
   withAssignPick,
   withCivPick,
   withOrderPick,
@@ -50,10 +53,10 @@ import {
   type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
-import { contestedPanel, playerIds, reportPanel, WITHDRAW } from '../ui/panels/report.js';
+import { contestedPanel, playerIds, reportPanel, standingOf, WITHDRAW } from '../ui/panels/report.js';
 import { beforeForm } from '../ui/before-form.js';
 import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
-import { isAdminOrDeveloper, isStaff } from '../utils/access.js';
+import { isAdminOrDeveloper, isDeveloper, isStaff } from '../utils/access.js';
 import { versionOf } from '../utils/edition.js';
 import type { Closer } from '../utils/idle.js';
 import { log } from '../utils/log.js';
@@ -81,7 +84,7 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
       drafts.delete(matchId);
       const edits = held ? draftEdits(held.base, held.now) : [];
       if (!held || !edits.length) return replacePanel(interaction, closedEditor());
-      await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, async () => closedEditor('saved')).catch(
+      await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, held.base, async () => closedEditor('saved')).catch(
         async (error: unknown) => {
           log.warn('draft not saved on close', matchId, error instanceof Error ? error.message : error);
           await replacePanel(interaction, closedEditor({ notSaved: failureOf(error, 'save your unsaved changes').text }));
@@ -95,10 +98,20 @@ const closerFor = (interaction: EditorMessage, matchId: string): Closer => ({
 // picks since have changed it. Save sends the difference.
 const drafts = new Map<string, Draft>();
 const DRAFT_ACTION: Readonly<Record<DraftKind, string>> = { order: 'set-order', assign: 'assign-players', civs: 'set-civs' };
+// The edits that change who played or the order, and what their ping says;
+// civs, quits and ties do not ping.
+const PING: Readonly<Record<string, string>> = { 'set-order': 'the order', 'assign-players': 'who played', 'assign-sub': 'a sub' };
 
 // The member picked in a form's user field, if any.
 const picked = (interaction: ModalSubmitInteraction, field: string): string | null =>
   interaction.fields.getSelectedUsers(field)?.first()?.id ?? null;
+
+// The Discord id typed into a form's field, if any; refused when it is not one.
+function pastedIn(interaction: ModalSubmitInteraction, field: string): string | null {
+  const id = typedId(interaction.fields.getTextInputValue(field));
+  if (id === undefined) refuse("That is not a Discord id. It is the long number from the player's profile: Copy User ID.");
+  return id;
+}
 
 const ACTION: Readonly<Record<string, string>> = {
   approve: 'approve the report',
@@ -111,6 +124,8 @@ const ACTION: Readonly<Record<string, string>> = {
   [EDIT.orderPick]: 'move that place',
   [EDIT.assign]: 'open the assign panel',
   [EDIT.assignPick]: 'set that seat',
+  [EDIT.assignId]: 'open the id form',
+  [EDIT.assignIdForm]: 'set that seat',
   [EDIT.save]: 'save the changes',
   [EDIT.tie]: 'open the tie form',
   [EDIT.tieForm]: 'save the tie',
@@ -132,7 +147,18 @@ async function approve(interaction: ButtonInteraction, matchId: string): Promise
   await inTurn(matchId, () => approveInTurn(interaction, matchId));
 }
 
+// A report is approved by hand only once a day has passed since it was
+// reported, so its players have had time to check it; developers may approve sooner.
+const APPROVE_WAIT_MS = 24 * 60 * 60 * 1000;
+
 async function approveInTurn(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  if (!isDeveloper(interaction)) {
+    const reported = await api.match(matchId);
+    const opens = new Date(reported.created_at).getTime() + APPROVE_WAIT_MS;
+    if (!reported.approved_at && Date.now() < opens) {
+      refuse(`A report can be approved 24 hours after it was reported: ${when(opens, 'R')}.`);
+    }
+  }
   const match = await api.approve(matchId, { id: interaction.user.id });
   closeEditor(matchId);
   const published = await publishApproved(interaction.client, match, api);
@@ -213,12 +239,12 @@ async function done(interaction: ButtonInteraction, matchId: string): Promise<vo
 }
 
 // /report-edit: the editor is the reporter's or staff's; core-api checks the
-// reporter again on every save, and only staff may set a tie.
+// reporter again on every save.
 export async function openEditor(interaction: ChatInputCommandInteraction, matchId: string): Promise<void> {
   const busy = (): string | null => {
     const holder = editors.holder(matchId);
     return holder && holder !== interaction.user.id
-      ? `${mention(holder)} is editing this report. It frees up when they finish, or when it goes idle.`
+      ? `${mentionWithId(holder)} is editing this report. It frees up when they finish, or when it goes idle.`
       : null;
   };
   const before = busy();
@@ -257,12 +283,14 @@ async function openForm(
 }
 
 // Save, then rewrite the public report and the private panel together, from
-// the one saved match, so neither shows anything the other does not.
+// the one saved match, so neither shows anything the other does not. The
+// match as it was before the edit says who else to tell.
 async function saveSeats(
   interaction: EditorMessage,
   matchId: string,
   action: string,
   seats: readonly SeatEdit[],
+  before: Match,
   next: (match: Match) => Promise<Panel> = (m) => editorOf(interaction.guild, m, isStaff(interaction), api),
 ): Promise<void> {
   const match = await api.editSeats(matchId, seats, { id: interaction.user.id, isStaff: isStaff(interaction) });
@@ -276,7 +304,21 @@ async function saveSeats(
   if (quitters.length && !(await tellStaffOfQuits(interaction.client, match, quitters, interaction.user.id))) {
     await say(interaction, 'failed', 'Saved, but the quit could not be posted for the moderators. Tell them yourself.');
   }
-  await logAction(interaction, action, { matchId, seats });
+  const ping = PING[action];
+  if (ping && !(await tellPlayersOfEdit(interaction.client, before, match, ping))) {
+    await say(interaction, 'failed', 'Saved, but the players could not be told. Tell them yourself.');
+  }
+  await logAction(interaction, action, editDetails(interaction, match, seats));
+}
+
+// What the report log keeps of an edit. One that moved places gives the
+// standing from 1st with names, and its other seat changes without the
+// stored places, which count from 0.
+function editDetails(interaction: EditorMessage, match: Match, seats: readonly SeatEdit[]): Record<string, unknown> {
+  if (!seats.some((s) => typeof s.placement === 'number')) return { matchId: match.match_id, seats };
+  const others = seats.map(({ placement, ...edit }) => edit).filter((edit) => Object.keys(edit).length > 1);
+  const standing = standingOf(match, memberNames(interaction.guild, playerIds(match)));
+  return { matchId: match.match_id, standing, ...(others.length ? { seats: others } : {}) };
 }
 
 // Hold the editor, work out the edits from the report as it is now, and save
@@ -292,16 +334,17 @@ async function submit(
   const open = editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction, matchId));
   if (!open) refuse(EDITOR_CLOSED);
   await inTurn(matchId, async () => {
-    const edits = editsOf(await api.match(matchId));
+    const before = await api.match(matchId);
+    const edits = editsOf(before);
     if (!edits.length) await say(interaction, 'muted', unchanged);
-    else await saveSeats(interaction, matchId, action, edits);
+    else await saveSeats(interaction, matchId, action, edits, before);
   });
 }
 
 // A press on the editor's own message holds it and keeps it open.
-async function hold(interaction: ButtonInteraction | AnySelectMenuInteraction, matchId: string): Promise<void> {
+async function hold(interaction: EditorPress, matchId: string): Promise<void> {
   await holdPanel(interaction);
-  if (!editors.touch(matchId, interaction.message.id, IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
+  if (!editors.touch(matchId, interaction.message?.id ?? '', IDLE_MS, closerFor(interaction, matchId))) refuse(EDITOR_CLOSED);
 }
 
 async function back(interaction: ButtonInteraction, matchId: string): Promise<void> {
@@ -317,12 +360,11 @@ async function back(interaction: ButtonInteraction, matchId: string): Promise<vo
 // step the bot holds no draft for starts again from the report as it is.
 type Step = (draft: Draft, names: CivNames) => Draft | string;
 async function draft(
-  interaction: ButtonInteraction | AnySelectMenuInteraction,
+  interaction: EditorPress,
   matchId: string,
   kind: DraftKind,
   step?: Step,
 ): Promise<void> {
-  if (kind === 'civs' && !isStaff(interaction)) refuse('Only staff can set civs.');
   await hold(interaction, matchId);
   await inTurn(matchId, async () => {
     let held = drafts.get(matchId);
@@ -330,6 +372,7 @@ async function draft(
       const match = await api.match(matchId);
       held = { kind, base: match, now: match, rev: held?.rev ?? 0, focus: 0 };
     }
+    if (kind === 'assign' && !held.now.is_cloud && !isStaff(interaction)) refuse('Only staff can assign players in a real-time game.');
     const names = await civNames(versionOf(held.now.game), api);
     if (!step && kind === 'civs') held = { ...held, focus: civFocus(held.now, names) };
     const next = step ? step(held, names) : held;
@@ -353,7 +396,7 @@ async function saveDraft(interaction: ButtonInteraction, matchId: string): Promi
       await replacePanel(interaction, await editorOf(interaction.guild, match, isStaff(interaction), api));
       return;
     }
-    await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits);
+    await saveSeats(interaction, matchId, DRAFT_ACTION[held.kind], edits, held.base);
     drafts.delete(matchId);
   });
 }
@@ -382,6 +425,15 @@ export async function handleReportInteraction(interaction: Interaction): Promise
         const now = withAssignPick(d.base, d.now, at, interaction.values[0] ?? '');
         return typeof now === 'string' ? now : { ...d, now };
       });
+    } else if (interaction.isButton() && id.verb === EDIT.assignId) {
+      await openForm(interaction, matchId, assignIdForm);
+    } else if (interaction.isModalSubmit() && id.verb === EDIT.assignIdForm) {
+      const seat = Number(selectedIn(interaction, [FIELD.seat])[0]);
+      const player = pastedIn(interaction, FIELD.playerId) ?? '';
+      await draft(interaction, matchId, 'assign', (d) => {
+        const now = withAssignPick(d.base, d.now, seat, player);
+        return typeof now === 'string' ? now : { ...d, now };
+      });
     } else if (interaction.isButton() && id.verb === EDIT.order) {
       await draft(interaction, matchId, 'order');
     } else if (interaction.isStringSelectMenu() && id.verb === EDIT.orderPick) {
@@ -394,7 +446,6 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     } else if (interaction.isButton() && id.verb === EDIT.quits) {
       await openForm(interaction, matchId, quitsForm, 'Assign players before marking who quit.');
     } else if (interaction.isButton() && id.verb === EDIT.tie) {
-      if (!isStaff(interaction)) refuse('Only staff can set a tie.');
       await openForm(interaction, matchId, tieForm);
     } else if (interaction.isButton() && id.verb === EDIT.civs) {
       await draft(interaction, matchId, 'civs');
@@ -409,18 +460,24 @@ export async function handleReportInteraction(interaction: Interaction): Promise
       await back(interaction, matchId);
     } else if (interaction.isModalSubmit() && id.verb === EDIT.subForm) {
       const seat = Number(selectedIn(interaction, [FIELD.seat])[0]);
-      const came = picked(interaction, FIELD.came);
+      const member = picked(interaction, FIELD.left);
+      const pasted = pastedIn(interaction, FIELD.leftId);
+      if (member && pasted && member !== pasted) refuse('Pick the player or paste their id, not both.');
+      const left = member ?? pasted;
+      if (!left) refuse('Pick the player who left, or paste their Discord id.');
       await submit(interaction, matchId, 'assign-sub', 'Nothing changed on that seat.', (m) => {
-        const edits = subEdits(m, seat, came);
+        const edits = subEdits(m, seat, left);
         return typeof edits === 'string' ? refuse(edits) : edits;
       });
     } else if (interaction.isModalSubmit() && id.verb === EDIT.quitsForm) {
       await submit(interaction, matchId, 'set-quits', 'Nobody changed.', (m) => quitEdits(m, selectedIn(interaction, [FIELD.quits])));
     } else if (interaction.isModalSubmit() && id.verb === EDIT.tieForm) {
-      const place = Number(selectedIn(interaction, [FIELD.place])[0]);
+      const [place] = selectedIn(interaction, [FIELD.place]);
       const tied = selectedIn(interaction, [FIELD.tied]).map(Number);
-      if (!Number.isInteger(place) || !tied.length) refuse('Pick a place and the seats tied there.');
-      await submit(interaction, matchId, 'set-tie', 'Those are already tied there.', (m) => tieEdits(m, place, tied));
+      await submit(interaction, matchId, 'set-tie', 'Nothing changed.', (m) => {
+        const edits = tieEdits(m, place === undefined ? null : Number(place), tied);
+        return typeof edits === 'string' ? refuse(edits) : edits;
+      });
     } else {
       await say(interaction, 'refused', 'That control is out of date. Open the report again.');
     }
