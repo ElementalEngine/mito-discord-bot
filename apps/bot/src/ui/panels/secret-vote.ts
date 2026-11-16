@@ -1,7 +1,7 @@
 import { ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import { resultOf, ruleOf, type Choice, type SecretVote } from '../../services/secret-vote.js';
-import { customId, field, mention, row, type Block, type Panel } from '../kit/index.js';
+import { customId, field, mention, row, text, type Block, type Panel } from '../kit/index.js';
 import { closes, ticks } from './lobby-vote.js';
 
 const CC_VETO = 'Anyone using a veto DMs the host in game chat within 2 minutes; with no veto, the CC passes.';
@@ -28,6 +28,7 @@ export function secretVotePanel(vote: SecretVote): Panel {
 }
 
 // The closed vote: its counts, who did not vote, and what the host does next.
+// The counts lead the body in large text, since players read them first.
 export function secretResultPanel(vote: SecretVote): Panel {
   const { yes, no, passed, silent } = resultOf(vote);
   const notes =
@@ -36,8 +37,12 @@ export function secretResultPanel(vote: SecretVote): Panel {
     tone: passed ? 'success' : 'failed',
     surface: 'secretvote',
     title: titleOf(vote),
-    subtitle: `${passed ? 'Passed' : 'Failed'}: ${yes} YES · ${no} NO`,
-    body: [...about(vote), ...(silent.length ? [field('No vote, counted as YES', silent.map(mention).join(' '))] : []), ...notes],
+    body: [
+      text(`### ${passed ? 'Passed' : 'Failed'}: ${yes} YES · ${no} NO`),
+      ...about(vote),
+      ...(silent.length ? [field('No vote, counted as YES', silent.map(mention).join(' '))] : []),
+      ...notes,
+    ],
     footer: `Started by ${mention(vote.hostId)}`,
   };
 }
