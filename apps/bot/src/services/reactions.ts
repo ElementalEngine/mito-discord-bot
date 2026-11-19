@@ -62,7 +62,12 @@ export function backingOf(question: SettingQuestion, reactions: readonly Reactio
 // What came in on each watched message, by its setup, so a count needs no
 // read. A restart, or a new session that may have missed some, reads Discord.
 type Tracked = Map<string, { id: string | null; name: string | null; users: Set<string> }>;
-type Watch = { count: (reactions: ReadonlyMap<string, Reaction[]>) => Promise<void>; messages: Map<string, Tracked>; timer?: NodeJS.Timeout };
+type Watch = {
+  count: (reactions: ReadonlyMap<string, Reaction[]>) => Promise<void>;
+  messages: Map<string, Tracked>;
+  voters: ReadonlySet<string>;
+  timer?: NodeJS.Timeout;
+};
 const watches = new Map<string, Watch>();
 const setupOf = new Map<string, string>();
 const missed = new Set<string>();
@@ -100,9 +105,10 @@ export async function reactionsOn(place: SendableChannels, messageIds: readonly 
 
 // A setup's messages are watched as each is posted; a burst of reactions on
 // any of them is counted once, a second after the last, in the setup's turn.
-export function watchReactions(setupId: string, messageId: string, count: Watch['count']): void {
-  const watch = watches.get(setupId) ?? { count, messages: new Map() };
+export function watchReactions(setupId: string, messageId: string, count: Watch['count'], voters: ReadonlySet<string>): void {
+  const watch = watches.get(setupId) ?? { count, messages: new Map(), voters };
   watch.count = count;
+  watch.voters = voters;
   watch.messages.set(messageId, new Map());
   watches.set(setupId, watch);
   setupOf.set(messageId, setupId);
@@ -120,6 +126,13 @@ export function unwatchReactions(messageIds: readonly (string | undefined)[]): v
     setupOf.delete(id);
     missed.delete(id);
   }
+}
+
+// A member reacting on a watched vote they are not voting in. Their reaction
+// would count for nothing, so it is not tracked and is taken off.
+export function isOutsider(messageId: string, userId: string): boolean {
+  const watch = watches.get(setupOf.get(messageId) ?? '');
+  return Boolean(watch && !watch.voters.has(userId));
 }
 
 // A new gateway session may have missed reactions, so final counts read Discord.

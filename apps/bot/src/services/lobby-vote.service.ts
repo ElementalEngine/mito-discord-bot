@@ -54,10 +54,11 @@ export async function openVote(client: Client, lobby: Lobby, api: ApiClient): Pr
     place = where;
     const [questions, names] = await Promise.all([questionsOf(lobby, api), civNames('civ6', api)]);
     const votes = voteCounter(lobby, where, messages, questions, api);
+    const voters = new Set(lobby.players.map((p) => p.discord_id));
     const post = async (key: string, panel: Panel, pings?: MessageMentionOptions): Promise<Message> => {
       const posted = await postPanel(where, panel, pings);
       messages[key] = posted.id;
-      watchReactions(lobby.id, posted.id, votes.count);
+      watchReactions(lobby.id, posted.id, votes.count, voters);
       return posted;
     };
     const status = await post(VOTE_STATUS, bansVotePanel(lobby, names, questions), { users: lobby.players.map((p) => p.discord_id) });
