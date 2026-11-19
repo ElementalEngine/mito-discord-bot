@@ -34,7 +34,7 @@ Mite runs the game side of the CPL Discord server for Civilization VI and VII. P
 **After the game**
 - **Reporting from the save.** `/report-game` takes a `.Civ6Save` or `.Civ7Save`. The placements, leaders and civs come from the file.
 - **Fixing a report.** The reporter or staff can set the order, assign players, subs and quits, mark ties and fix civs before anything is rated.
-- **Contest and approve.** Any player in the game can contest. Staff approve, and a report needing no staff is approved on its own 48 hours after upload.
+- **Contest and approve.** Any player in the game can contest. Staff can contest any report, which holds it for review: no approve goes through until staff lift the hold. Staff approve, and a report needing no staff is approved on its own 48 hours after upload.
 - **Ratings that follow.** An approved result updates TrueSkill ratings, lifetime and seasonal stats, rank roles and the 20 leaderboard threads. A revert undoes all of it and names who reverted.
 
 **Stats**

@@ -53,7 +53,7 @@ import {
   type DraftKind,
   type Members,
 } from '../ui/panels/report-edit.js';
-import { contestedPanel, playerIds, reportPanel, standingOf, WITHDRAW } from '../ui/panels/report.js';
+import { contestedPanel, heldPanel, LIFT, playerIds, reportPanel, standingOf, WITHDRAW } from '../ui/panels/report.js';
 import { beforeForm } from '../ui/before-form.js';
 import { defer, fail, failureOf, holdPanel, refuse, replacePanel, respond, say } from '../ui/reply.js';
 import { isAdminOrDeveloper, isDeveloper, isStaff } from '../utils/access.js';
@@ -118,6 +118,7 @@ const ACTION: Readonly<Record<string, string>> = {
   contest: 'open the contest form',
   [CONTEST_FORM]: 'record your contest',
   [WITHDRAW]: 'withdraw your contest',
+  [LIFT]: 'lift the staff hold',
   [EDIT.sub]: 'open the sub form',
   [EDIT.subForm]: 'save the sub',
   [EDIT.order]: 'open the order panel',
@@ -173,12 +174,19 @@ async function approveInTurn(interaction: ButtonInteraction, matchId: string): P
   await logAction(interaction, 'approve', { matchId });
 }
 
-// Contest is for the match's own players. The form opens only for them, so
-// nobody writes a reason that is then refused.
+// Contest is for the match's own players and for staff, whose contest holds
+// the report until staff lift it. The form opens only for them, so nobody
+// writes a reason that is then refused.
 async function openContest(interaction: ButtonInteraction, matchId: string): Promise<void> {
   const match = await beforeForm(interaction, api.match(matchId));
-  if (!playerIds(match).includes(interaction.user.id)) refuse('Only players in this match can contest it.');
-  const mine = match.contest_report_list.find((c) => c.contestor_discord_id === interaction.user.id);
+  const staff = isStaff(interaction);
+  if (!staff && !playerIds(match).includes(interaction.user.id)) refuse('Only players in this match or staff can contest it.');
+  const holds = match.contest_report_list.filter((c) => c.by_staff).map((c) => c.reason);
+  if (staff && holds.length) {
+    await respond(interaction, heldPanel(matchId, holds), 'private');
+    return;
+  }
+  const mine = match.contest_report_list.find((c) => c.contestor_discord_id === interaction.user.id && !c.by_staff);
   if (mine) {
     await respond(interaction, contestedPanel(matchId, mine.reason), 'private');
     return;
@@ -192,11 +200,11 @@ async function openContest(interaction: ButtonInteraction, matchId: string): Pro
   await interaction.showModal(
     new ModalBuilder()
       .setCustomId(customId('report', CONTEST_FORM, matchId))
-      .setTitle('Contest this report')
+      .setTitle(staff ? 'Hold this report for review' : 'Contest this report')
       .addLabelComponents(
         new LabelBuilder()
           .setLabel('What is wrong with it?')
-          .setDescription('Staff read this before they approve.')
+          .setDescription(staff ? 'No approve goes through until staff lift the hold.' : 'Staff read this before they approve.')
           .setTextInputComponent(reason),
       ),
   );
@@ -207,16 +215,28 @@ async function openContest(interaction: ButtonInteraction, matchId: string): Pro
 async function submitContest(interaction: ModalSubmitInteraction, matchId: string): Promise<void> {
   await defer(interaction, 'private');
   const reason = interaction.fields.getTextInputValue(REASON).trim();
+  const staff = isStaff(interaction);
   const shown = await inTurn(matchId, async () => {
-    const match = await api.contest(matchId, reason, { id: interaction.user.id });
+    const match = await api.contest(matchId, reason, { id: interaction.user.id, isStaff: staff });
     return refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)));
   });
-  if (shown) {
-    await say(interaction, 'success', 'Your contest is on the report. Staff see it before they approve.');
-  } else {
-    await say(interaction, 'failed', 'Your contest is recorded, but the report could not be updated.');
-  }
-  await logAction(interaction, 'contest', { matchId, reason });
+  const said = staff ? 'The report is held for review. No approve goes through until staff lift the hold.' : 'Your contest is on the report. Staff see it before they approve.';
+  if (shown) await say(interaction, 'success', said);
+  else await say(interaction, 'failed', `${staff ? 'The hold' : 'Your contest'} is recorded, but the report could not be updated.`);
+  await logAction(interaction, staff ? 'staff-hold' : 'contest', { matchId, reason });
+}
+
+// Any staff member lifts every staff hold on a report once it is reviewed.
+async function liftHold(interaction: ButtonInteraction, matchId: string): Promise<void> {
+  if (!isStaff(interaction)) refuse('Only staff can lift a staff hold.');
+  await holdPanel(interaction);
+  const shown = await inTurn(matchId, async () => {
+    const match = await api.withdrawContest(matchId, { id: interaction.user.id, isStaff: true });
+    return refreshReport(interaction.client, match, reportPanel(await viewOf(match, api)));
+  });
+  const said = shown ? 'The staff hold is lifted.' : 'The staff hold is lifted, but the report could not be updated.';
+  await replacePanel(interaction, notice(shown ? 'success' : 'failed', said));
+  await logAction(interaction, 'lift-hold', { matchId });
 }
 
 // A contest is taken back by its own player, once the report is fixed.
@@ -416,6 +436,7 @@ export async function handleReportInteraction(interaction: Interaction): Promise
     else if (interaction.isButton() && id.verb === 'contest') await openContest(interaction, matchId);
     else if (interaction.isModalSubmit() && id.verb === CONTEST_FORM) await submitContest(interaction, matchId);
     else if (interaction.isButton() && id.verb === WITHDRAW) await withdrawContest(interaction, matchId);
+    else if (interaction.isButton() && id.verb === LIFT) await liftHold(interaction, matchId);
     else if (interaction.isButton() && id.verb === EDIT.done) await done(interaction, matchId);
     else if (interaction.isButton() && id.verb === EDIT.sub) await openForm(interaction, matchId, subForm);
     else if (interaction.isButton() && id.verb === EDIT.assign) {

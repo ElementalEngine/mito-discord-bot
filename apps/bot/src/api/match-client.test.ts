@@ -93,3 +93,16 @@ test('a contest is withdrawn by its player, the bot auto-approves, and a history
   );
   assert.deepEqual(JSON.parse(String(calls[2]?.body)), { message_id: '555' });
 });
+
+test('a staff hold and its lift assert staff', async () => {
+  const { client, calls } = recorder();
+  await client.contest(ID, 'Wrong civs', { id: '7', isStaff: true });
+  await client.withdrawContest(ID, { id: '8', isStaff: true });
+  assert.deepEqual(
+    calls.map((c) => [c.method, c.url, c.headers.get('x-actor-is-staff')]),
+    [
+      ['POST', `http://core/api/v2/matches/${ID}/contest`, 'true'],
+      ['DELETE', `http://core/api/v2/matches/${ID}/contest`, 'true'],
+    ],
+  );
+});
