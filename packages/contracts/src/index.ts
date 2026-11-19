@@ -1078,7 +1078,7 @@ export interface paths {
         post: operations["contest_match_api_v2_matches__match_id__contest_post"];
         /**
          * Withdraw Contest
-         * @description A player takes back their own contest.
+         * @description A player takes back their own contest; staff lift every staff hold.
          */
         delete: operations["withdraw_contest_api_v2_matches__match_id__contest_delete"];
         options?: never;
@@ -1134,6 +1134,57 @@ export interface paths {
         put?: never;
         /** Revert Match */
         post: operations["revert_match_api_v2_matches__match_id__revert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/public/ladders/{edition}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ladders */
+        get: operations["get_ladders_api_v2_public_ladders__edition__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/public/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Overview */
+        get: operations["get_overview_api_v2_public_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/public/seasons/{edition}/current/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Season Stats */
+        get: operations["get_season_stats_api_v2_public_seasons__edition__current_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1456,6 +1507,11 @@ export interface components {
         };
         /** ContestReport */
         ContestReport: {
+            /**
+             * By Staff
+             * @default false
+             */
+            by_staff: boolean;
             /** Contestor Discord Id */
             contestor_discord_id: string;
             /** Reason */
@@ -1493,6 +1549,20 @@ export interface components {
             civs: string[];
             /** Leaders */
             leaders: string[];
+        };
+        /** DraftBan */
+        DraftBan: {
+            /** Bans */
+            bans: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "leader" | "civ";
+            /** Name */
+            name: string;
+            /** Token */
+            token: string;
         };
         /** DraftDeal */
         DraftDeal: {
@@ -1641,6 +1711,60 @@ export interface components {
             reason?: string | null;
             /** Suspended Roles */
             suspended_roles?: string[];
+        };
+        /** Ladder */
+        Ladder: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "season-ffa" | "season-teamer" | "season-duel" | "cloud";
+            /** Rows */
+            rows: components["schemas"]["LadderRow"][];
+            /** Total */
+            total: number;
+        };
+        /** LadderRow */
+        LadderRow: {
+            /** Display Name */
+            display_name: string;
+            /** First */
+            first: number;
+            /** Games */
+            games: number;
+            /** Last Active At */
+            last_active_at: string | null;
+            /** Mu */
+            mu: number;
+            /** Rank */
+            rank: number;
+            /** Rating */
+            rating: number;
+            /** Sigma */
+            sigma: number;
+            /** Wins */
+            wins: number;
+        };
+        /**
+         * Ladders
+         * @description An edition's ladders: this season's per mode, and cloud over all time.
+         */
+        Ladders: {
+            /** Edition */
+            edition: string;
+            /** Ladders */
+            ladders: components["schemas"]["Ladder"][];
+            /** Min Games */
+            min_games: number;
+            /** Season Label */
+            season_label: string | null;
+            /** Season Started At */
+            season_started_at: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** Lagger */
         Lagger: {
@@ -1898,6 +2022,41 @@ export interface components {
          * @enum {string}
          */
         ManualRegistrationChoice: "steam" | "steam_family_share" | "2k";
+        /** MapGames */
+        MapGames: {
+            /** Games */
+            games: number;
+            /** Map */
+            map: string;
+        };
+        /**
+         * MapPick
+         * @description avg_placement counts first place as 1.
+         */
+        MapPick: {
+            /** Avg Placement */
+            avg_placement: number;
+            /** Firsts */
+            firsts: number;
+            /** Games */
+            games: number;
+            /** Name */
+            name: string;
+            /** Token */
+            token: string;
+        };
+        /** MapPicks */
+        MapPicks: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "leader" | "civ";
+            /** Map */
+            map: string;
+            /** Rows */
+            rows: components["schemas"]["MapPick"][];
+        };
         /**
          * MapRecord
          * @description Games on a map, those whose rating went up, and first places.
@@ -1962,6 +2121,45 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
+        /**
+         * ModeStats
+         * @description One mode's season: civs are listed on Civ 7 only, and map_picks on
+         *     FFA only.
+         */
+        ModeStats: {
+            /** Civs */
+            civs: components["schemas"]["PickRecord"][];
+            /** Draft Bans */
+            draft_bans: components["schemas"]["DraftBan"][];
+            /** Games */
+            games: number;
+            /** Leaders */
+            leaders: components["schemas"]["PickRecord"][];
+            /** Map Picks */
+            map_picks: components["schemas"]["MapPicks"][];
+            /** Maps */
+            maps: components["schemas"]["MapGames"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "ffa" | "teamer" | "duel";
+        };
+        /**
+         * Overview
+         * @description League totals: everyone who has registered, and every approved match.
+         */
+        Overview: {
+            /** Matches Played */
+            matches_played: number;
+            /** Registered Players */
+            registered_players: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** PendingApplied */
         PendingApplied: {
             /** Applied */
@@ -1985,6 +2183,25 @@ export interface components {
             punishment_type: components["schemas"]["TierCategory"] | components["schemas"]["FlatType"];
             /** Reason */
             reason?: string | null;
+        };
+        /**
+         * PickRecord
+         * @description A leader or civ this season. A win is a game whose rating went up;
+         *     win_rate is null below the season stats' minimum games.
+         */
+        PickRecord: {
+            /** Firsts */
+            firsts: number;
+            /** Name */
+            name: string;
+            /** Picks */
+            picks: number;
+            /** Token */
+            token: string;
+            /** Win Rate */
+            win_rate: number | null;
+            /** Wins */
+            wins: number;
         };
         /** PlayerLeaderboard */
         PlayerLeaderboard: {
@@ -2183,6 +2400,33 @@ export interface components {
              * Format: date-time
              */
             started_at: string;
+        };
+        /**
+         * SeasonStats
+         * @description An edition's open season, counted from its approved real-time games
+         *     and the bans of its drafts.
+         */
+        SeasonStats: {
+            /** Edition */
+            edition: string;
+            /** Map Top N */
+            map_top_n: number;
+            /** Min Games */
+            min_games: number;
+            /** Modes */
+            modes: components["schemas"]["ModeStats"][];
+            /** Season Label */
+            season_label: string;
+            /**
+             * Season Started At
+             * Format: date-time
+             */
+            season_started_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * SeatPatchIn
@@ -4797,6 +5041,7 @@ export interface operations {
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
             };
             path: {
                 match_id: string;
@@ -4835,6 +5080,7 @@ export interface operations {
             header: {
                 authorization?: string | null;
                 "x-actor-discord-id": string;
+                "x-actor-is-staff"?: boolean;
             };
             path: {
                 match_id: string;
@@ -4958,6 +5204,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ladders_api_v2_public_ladders__edition__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ladders"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_v2_public_overview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_season_stats_api_v2_public_seasons__edition__current_stats_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                edition: "civ6" | "civ7";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonStats"];
                 };
             };
             /** @description Validation Error */
