@@ -41,7 +41,7 @@ export async function viewOf(match: Match, api = new ApiClient()): Promise<Repor
 }
 
 // Reports are uploaded, and their history kept, per edition and per mode.
-export function uploadChannelId(match: Match): string {
+function uploadChannelId(match: Match): string {
   const c = config.discord.channels;
   const civ7 = versionOf(match.game) === 'civ7';
   if (match.is_cloud) return civ7 ? c.civ7cloudUploads : c.civ6cloudUploads;

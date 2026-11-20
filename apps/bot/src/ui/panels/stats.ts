@@ -58,7 +58,7 @@ const LINES: readonly Line[] = [
 
 // One table per stat set: modes across, counters down. A mode with no games
 // is a column of dashes.
-export function statTable(set: StatSet): string {
+function statTable(set: StatSet): string {
   const head = ''.padEnd(LABEL_W) + MODES.map((m) => MODE_NAMES[m].padStart(COL_W)).join('');
   const body = LINES.map(
     (line) =>
@@ -85,7 +85,7 @@ const MAP_W = 16;
 const MAX_MAPS = 10;
 
 // Games by map, in the stat tables' order: games, wins, win rate, 1st place.
-export function mapTable(summary: StatsSummary): string {
+function mapTable(summary: StatsSummary): string {
   const rows = summary.maps.slice(0, MAX_MAPS);
   const head = 'Map'.padEnd(MAP_W) + ['Games', 'Wins', 'Win %', '1st'].map((h) => h.padStart(COL_W)).join('');
   const body = rows.map(
@@ -97,7 +97,7 @@ export function mapTable(summary: StatsSummary): string {
 }
 
 // The most played civs (leaders in Civ6), counted like the maps.
-export function civLines(summary: StatsSummary, names: CivNames): string {
+function civLines(summary: StatsSummary, names: CivNames): string {
   return summary.civs
     .map((c, i) => {
       const games = `${c.games} ${c.games === 1 ? 'game' : 'games'}`;
@@ -222,7 +222,7 @@ function pickOf(g: HistoryGame, civVersion: string, names: CivNames): string {
   return token ? `${iconOf(names, token)} ${plainNameOf(names, token)}` : 'Unknown civ';
 }
 
-export function historyLine(g: HistoryGame, civVersion: string, names: CivNames): string {
+function historyLine(g: HistoryGame, civVersion: string, names: CivNames): string {
   const mode = g.game_mode ? modeName(g.game_mode.toLowerCase()) : DASH;
   const parts = [when(new Date(g.reported_at), 'd'), resultOf(g), mode, pickOf(g, civVersion, names), mapLabel(g.map_type), signed(g.delta)];
   if (g.subbed_in) parts.push('subbed in');

@@ -1,5 +1,4 @@
-import { REST } from "@discordjs/rest";
-import { Routes, type RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
+import { REST, Routes, type RESTPostAPIChatInputApplicationCommandsJSONBody } from "discord.js";
 import type { Command } from "./types/global.js";
 import { config } from "./config.js";
 import { COMMAND_ACCESS } from "./config/command-access.js";

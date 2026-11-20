@@ -70,7 +70,3 @@ export async function checkPortraits(api = new ApiClient()): Promise<string[]> {
   else log.info(`Portraits found for all ${rows.length} leaders and civs`);
   return missing;
 }
-
-export function forgetCivNames(): void {
-  cache.clear();
-}
