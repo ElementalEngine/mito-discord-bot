@@ -23,7 +23,7 @@ type Player = Match['players'][number];
 export type ReportVerb = 'contest' | 'approve' | 'withdraw' | 'lift';
 export const WITHDRAW = 'withdraw';
 export const LIFT = 'lift';
-export const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
+const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
 
 // The marks a seat carries beside its player, and that the staff notes use.
 export const MARK = {
@@ -71,7 +71,7 @@ export function mapLabel(map: string): string {
 }
 
 // Saves store an age token; older documents hold a display name.
-export function ageLabel(age: string): string {
+function ageLabel(age: string): string {
   return /^AGE_/.test(age) ? pretty(age.replace(/^AGE_/, '')) : age;
 }
 

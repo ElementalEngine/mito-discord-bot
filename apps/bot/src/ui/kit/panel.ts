@@ -47,7 +47,7 @@ function heading(panel: Panel): string | null {
 }
 
 // The blocks a panel renders, in order, with its heading and footer as text.
-export function blocksOf(panel: Panel): Block[] {
+function blocksOf(panel: Panel): Block[] {
   const blocks: Block[] = [];
   const head = heading(panel);
   if (head) blocks.push(text(head));
@@ -57,7 +57,7 @@ export function blocksOf(panel: Panel): Block[] {
   return blocks;
 }
 
-export function componentCount(blocks: readonly Block[], actions: readonly ButtonRow[] = []): number {
+function componentCount(blocks: readonly Block[], actions: readonly ButtonRow[] = []): number {
   let n = 1;
   for (const block of blocks) {
     n += block.kind === 'row' ? 1 + block.row.components.length : 1;
@@ -69,7 +69,7 @@ export function componentCount(blocks: readonly Block[], actions: readonly Butto
 const textOf = (block: Block): string | null => ('text' in block ? block.text : null);
 
 // Trim the longest text until the message fits Discord's total.
-export function withinTextLimit(blocks: readonly Block[], limit: number = LIMITS.text): Block[] {
+function withinTextLimit(blocks: readonly Block[], limit: number = LIMITS.text): Block[] {
   const out = [...blocks];
   let total = out.reduce((sum, b) => sum + (textOf(b)?.length ?? 0), 0);
   while (total > limit) {

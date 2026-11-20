@@ -37,13 +37,13 @@ const NONE = '-';
 const MENUS_PER_FORM = 4;
 
 // The choice as one id part, so a form still knows it after a restart.
-export function packChoice(choice: DraftChoice): string {
+function packChoice(choice: DraftChoice): string {
   const age = choice.age ? AGE_CODES[choice.age] : 'x';
   const edition = choice.edition === 'civ6' ? '6' : '7';
   return `${edition}${MODE_CODES[choice.mode]}${choice.drafts.toString(36)}${two(choice.leaders)}${two(choice.civs ?? 0)}${age}`;
 }
 
-export function unpackChoice(packed: string): DraftChoice | null {
+function unpackChoice(packed: string): DraftChoice | null {
   const m = PACKED.exec(packed);
   if (!m) return null;
   const edition: CivVersion = m[1] === '6' ? 'civ6' : 'civ7';
@@ -95,7 +95,7 @@ const bannableCivs = (scope: BanScope, data: CivDataResponse): string[] =>
   scope.edition === 'civ7' ? data.civs.filter((c) => !scope.age || c.age_pool === scope.age).map((c) => c.token) : [];
 
 // The form's menus: leaders, then civs, 25 to a menu.
-export function banMenus(scope: BanScope, data: CivDataResponse, names: CivNames): Readonly<{ leaders: Option[][]; civs: Option[][] }> {
+function banMenus(scope: BanScope, data: CivDataResponse, names: CivNames): Readonly<{ leaders: Option[][]; civs: Option[][] }> {
   return {
     leaders: inMenus(sortedOptions(data.leaders.map((l) => l.token), names)),
     civs: inMenus(sortedOptions(bannableCivs(scope, data), names)),

@@ -8,7 +8,7 @@ import { customId, notice, row, text, when, type Panel } from '../kit/index.js';
 export const SEASON = { surface: 'season', start: 'start', cancel: 'cancel' } as const;
 
 // rt_ffa reads as Realtime FFA, pbc_teamer as Cloud Teamer.
-export function collectionName(name: string): string {
+function collectionName(name: string): string {
   const [kind = '', mode = ''] = name.split('_');
   const where = kind === 'pbc' ? 'Cloud' : kind === 'rt' ? 'Realtime' : kind;
   return `${where} ${modeName(mode)}`.trim();
@@ -23,7 +23,7 @@ const recordLines = (records: Readonly<Record<string, number>>): string =>
     .join('\n') || 'No season records.';
 
 // A label goes into a button id, where spaces are not allowed.
-export const labelToId = (label: string): string => label.replace(/ /g, '_');
+const labelToId = (label: string): string => label.replace(/ /g, '_');
 export const labelFromId = (part: string): string => part.replace(/_/g, ' ');
 
 const button = (verb: string, edition: CivVersion, label: string, title: string, style: ButtonStyle) =>
