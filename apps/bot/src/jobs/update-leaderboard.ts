@@ -59,7 +59,7 @@ async function boardOf(client: Client, binding: Leaderboard): Promise<Board | nu
 // The board's name: edition, type and mode, then Lifetime or its season.
 // Cloud games have no seasons, so a cloud board is named by its mode alone,
 // and the board of every cloud mode together is Overall.
-export const boardName = (binding: Leaderboard): string =>
+const boardName = (binding: Leaderboard): string =>
   `${editionName(binding.game)} ${TYPES[binding.game_type]} ${binding.is_combined ? 'Overall' : modeName(binding.game_mode)}`;
 
 async function titleOf(binding: Leaderboard): Promise<string> {

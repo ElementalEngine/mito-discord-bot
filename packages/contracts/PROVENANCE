@@ -1,6 +1,6 @@
 source-repo: ElementalEngine/core-api-backend
-source-sha: b09a6d8
-source-date: 2026-11-15
+source-sha: fd73570
+source-date: 2026-11-19
 
 generated-by: npm run gen:contracts
 
@@ -43,3 +43,7 @@ Bumped at S14 (D288): the Activity's lobby routes are gone; of the lobby routes 
 Bumped at S14 (D288): /draft's deal moves to POST /api/v2/match-setups/draft and takes host_id; DraftRequest and DraftDeal replace DealRequest and DealResponse.
 
 Bumped at S14 (D288): /lobby's routes under /api/v2/match-setups/lobbies, and GET /api/v2/match-setups/settings/{edition}/{game_type}.
+
+Bumped at v2.2: by_staff on contests, and contest and withdraw read
+x-actor-is-staff (the staff hold, D352). The website's /api/v2/public routes
+come with it; Mite does not call them.

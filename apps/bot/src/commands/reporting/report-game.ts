@@ -84,7 +84,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await respond(interaction, notice('failed', lost), 'public').catch(() => undefined);
       return;
     }
-    const unassigned = seatsOf(upload).filter((s) => !isAssigned(s.player)).map((s) => s.player.user_name ?? 'unknown');
+    // A seat no member was matched to, with its Steam id for staff to check.
+    const unassigned = seatsOf(upload)
+      .filter((s) => !isAssigned(s.player))
+      .map((s) => ({ name: s.player.user_name ?? 'unknown', steam_id: s.player.steam_id ?? null }));
     await logAction(interaction, 'report-game', { matchId: upload.match_id, edition, unassigned });
   } catch (error) {
     await fail(interaction, error, 'report the game');

@@ -11,6 +11,7 @@ const nodeEnv = (process.env.NODE_ENV ?? 'development') as
 
 dotenvConfig({
   path: path.resolve(`.env.${nodeEnv}`),
+  quiet: true,
 });
 
 const env = (key: string, fallback = ''): string => process.env[key] ?? fallback;
@@ -105,7 +106,7 @@ const discord = {
 };
 
 const backendDefault =
-  nodeEnv === 'production' ? 'http://localhost:8000' : 'http://localhost:8001';
+  nodeEnv === 'production' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:8001';
 
 // Discord links only http(s), so a Steam lobby link goes out through this
 // redirect, which accepts nothing but a lobby.

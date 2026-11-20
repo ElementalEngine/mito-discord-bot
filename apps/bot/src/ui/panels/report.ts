@@ -20,9 +20,10 @@ import {
 
 type Player = Match['players'][number];
 
-export type ReportVerb = 'contest' | 'approve' | 'withdraw';
+export type ReportVerb = 'contest' | 'approve' | 'withdraw' | 'lift';
 export const WITHDRAW = 'withdraw';
-export const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
+export const LIFT = 'lift';
+const reportId = (verb: ReportVerb, matchId: string): string => customId('report', verb, matchId);
 
 // The marks a seat carries beside its player, and that the staff notes use.
 export const MARK = {
@@ -30,6 +31,7 @@ export const MARK = {
   sub: '\u{1f501}',
   unassigned: '\u{1f464}',
   contest: '\u26a0\ufe0f',
+  hold: '\u{1f6d1}',
   oversub: '\u203c\ufe0f',
   civ: '\u{1f3db}\ufe0f',
 } as const;
@@ -69,7 +71,7 @@ export function mapLabel(map: string): string {
 }
 
 // Saves store an age token; older documents hold a display name.
-export function ageLabel(age: string): string {
+function ageLabel(age: string): string {
   return /^AGE_/.test(age) ? pretty(age.replace(/^AGE_/, '')) : age;
 }
 
@@ -186,7 +188,10 @@ function notesOf(match: Match, names: CivNames, quotas: Quotas = new Map()): Not
   }
   if (pending) {
     for (const c of match.contest_report_list) {
-      notes.push({ line: `${MARK.contest} Contested by ${mention(c.contestor_discord_id)}: ${c.reason}`, holds: true });
+      const line = c.by_staff
+        ? `${MARK.hold} Held by staff for review (${mention(c.contestor_discord_id)}): ${c.reason}`
+        : `${MARK.contest} Contested by ${mention(c.contestor_discord_id)}: ${c.reason}`;
+      notes.push({ line, holds: true });
     }
   }
   return notes;
@@ -252,6 +257,19 @@ export function contestedPanel(matchId: string, reason: string): Panel {
     title: 'You contested this report',
     body: [text(`${MARK.contest} ${reason}`), text('If the report is fixed now, withdraw your contest so it can be approved.')],
     actions: [row(withdraw)],
+  };
+}
+
+// Staff who press Contest on a held report are offered to lift the hold,
+// which lifts every staff hold on it, so a hold never waits on who placed it.
+export function heldPanel(matchId: string, reasons: readonly string[]): Panel {
+  const lift = new ButtonBuilder().setCustomId(reportId('lift', matchId)).setLabel('Lift the staff hold').setStyle(ButtonStyle.Success);
+  return {
+    tone: 'info',
+    surface: 'report',
+    title: 'This report is held by staff',
+    body: [text(reasons.map((r) => `${MARK.hold} ${r}`).join('\n')), text('Once it is reviewed, lift the hold so the report can be approved.')],
+    actions: [row(lift)],
   };
 }
 

@@ -17,11 +17,7 @@
   "dependencies": {
     "@cpl/contracts": "^0.0.0",
     "@cpl/core": "*",
-    "@discordjs/rest": "2.6.3",
     "discord.js": "14.28.1",
     "dotenv": "17.2.3"
-  },
-  "devDependencies": {
-    "tsx": "^4.19.2"
   }
 }

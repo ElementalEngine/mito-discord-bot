@@ -4,7 +4,7 @@ import { mention, text, when, type Block, type Panel } from '../kit/index.js';
 import { rankAccent, rankName } from './stats.js';
 
 // A board is its top 100, 25 to a message, so each fits Discord's text limit.
-export const PAGE_ROWS = 25;
+const PAGE_ROWS = 25;
 export const PAGES = 4;
 const SHOWN = PAGE_ROWS * PAGES;
 // Rows go in blocks of five: Discord cut the last row of one long text block.

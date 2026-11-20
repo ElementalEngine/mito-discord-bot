@@ -49,6 +49,7 @@ function voteBallot(vote: Vote, reactionsOf: (key: string) => readonly Reaction[
 export async function postVote(client: Client, vote: Vote, place: SendableChannels, api: ApiClient): Promise<void> {
   const [questions, names, data] = await Promise.all([questionsOf(vote, api), civNames(vote.edition, api), civRows(vote.edition, api)]);
   const messages: Record<string, string> = {};
+  const voters = new Set(playersOf(vote));
   let last = vote;
   let failed = false;
   // The reactions so far, in the vote's turn: a setting a majority wins has its
@@ -70,7 +71,7 @@ export async function postVote(client: Client, vote: Vote, place: SendableChanne
   const post = async (key: string, panel: Panel, pings?: MessageMentionOptions): Promise<Message> => {
     const message = await postPanel(place, panel, pings);
     messages[key] = message.id;
-    if (key !== VOTE_STATUS) watchReactions(vote.id, message.id, count);
+    if (key !== VOTE_STATUS) watchReactions(vote.id, message.id, count, voters);
     return message;
   };
   let seeding = Promise.resolve();
